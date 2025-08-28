@@ -1,7 +1,7 @@
-# BlockLife Development Backlog
+# Darklands Development Backlog
 
-**Last Updated**: 2025-08-28 00:50
-**Last Aging Check**: 2025-08-22
+**Last Updated**: 2025-08-29 04:05
+**Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
 
 ## 🔢 Next Item Numbers by Type
@@ -9,7 +9,7 @@
 
 - **Next BR**: 000
 - **Next TD**: 000 
-- **Next VS**: 000 
+- **Next VS**: 002 
 
 **Protocol**: Check your type's counter → Use that number → Increment the counter → Update timestamp
 
@@ -65,12 +65,70 @@
 ## 🔥 Critical (Do First)
 *Blockers preventing other work, production bugs, dependencies for other features*
 
--
+### VS_001: Foundation - 3-Project Architecture with DI, Logging & Git Hooks
+**Status**: Ready for Dev  
+**Owner**: Tech Lead → Dev Engineer
+**Size**: XL (4-5 days)  
+**Priority**: Critical  
+**Markers**: [ARCHITECTURE] [FOUNDATION] [SAFETY]
+
+**What**: Implement ADR-001 architecture with full safety infrastructure from BlockLife
+**Why**: Foundation for ALL development - modding support, fast CI, team safety
+**How**: 
+- Create 3-project structure per ADR-001 (.csproj configs exact from BlockLife)
+- Copy/adapt GameStrapper.cs pattern (468 lines) from BlockLife
+- Copy .husky folder with all git hooks from BlockLife  
+- Implement Serilog with fallback-safe configuration
+- Set up Husky.NET in Core.csproj for auto-installing hooks
+- Create LogCategory.cs for well-defined contexts
+- Walking skeleton: Simple time-unit calculation feature
+
+**Done When**:
+- Three projects build with zero warnings
+- DI container validates on startup without errors  
+- Git hooks prevent direct main push (tested)
+- Commit messages enforce conventional format
+- Logging works and never crashes (even with bad config)
+- Walking skeleton passes all phase tests
+- CI runs Core tests in <30 seconds
+- README updated with setup instructions
+
+**Depends On**: None
+
+**Tech Lead Decision** (2025-08-29):  
+- Architecture approved in ADR-001 after BlockLife analysis
+- MUST copy proven patterns exactly - do not reinvent
+- Git hooks are pedagogy tools that teach correct workflow
+- Simplicity Principle applies: estimate >100 LOC = stop and review
+- Follow ADR-002 phased implementation strictly
 
 
 
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*
+
+### TD_001: Create Development Setup Documentation
+**Status**: Proposed  
+**Owner**: Tech Lead → DevOps Engineer
+**Size**: S (<4h)  
+**Priority**: Important  
+**Markers**: [DOCUMENTATION] [ONBOARDING]
+
+**What**: Document complete development environment setup based on BlockLife patterns
+**Why**: Ensure all developers/personas have identical, working environment
+**How**: 
+- Document required tools (dotnet SDK, Godot 4.4.1, PowerShell/bash)
+- Copy BlockLife's scripts structure
+- Document git hook installation process
+- Create troubleshooting guide for common setup issues
+
+**Done When**:
+- SETUP.md created with step-by-step instructions
+- Script to verify environment works
+- Fresh clone can be set up in <10 minutes
+- All personas can follow guide successfully
+
+**Depends On**: VS_001 (for final structure)
 
 
 

@@ -1,8 +1,8 @@
 # ADR-001: Strict Model-View Separation
 
-**Status**: Proposed  
+**Status**: Approved  
 **Date**: 2025-08-29  
-**Decision Makers**: Product Owner (proposed), Tech Lead (to approve)
+**Decision Makers**: Product Owner (proposed), Tech Lead (approved 2025-08-28)
 
 ## Context
 
@@ -137,6 +137,12 @@ public partial class CombatView : Control, ICombatView
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
   </ItemGroup>
 </Project>
+
+<!-- CRITICAL: Husky.NET auto-installation in src/Darklands.Core.csproj -->
+<Target Name="husky" BeforeTargets="Restore;CollectPackageReferences" Condition="'$(HUSKY)' != '0'">
+  <Exec Command="dotnet tool restore" StandardOutputImportance="Low" StandardErrorImportance="High" />
+  <Exec Command="dotnet husky install" StandardOutputImportance="Low" StandardErrorImportance="High" WorkingDirectory=".." />
+</Target>
 ```
 
 ## CI/CD Strategy
@@ -176,7 +182,7 @@ public partial class CombatView : Control, ICombatView
 
 ## Implementation Notes
 
-### Critical Setup Steps (Based on BlockLife)
+### Critical Setup Steps (VERIFIED from BlockLife Production Code)
 
 1. **Create folder structure first**:
    ```
@@ -185,15 +191,21 @@ public partial class CombatView : Control, ICombatView
    /Darklands.csproj (root - Godot project)
    ```
 
-2. **Key .csproj configurations**:
+2. **MANDATORY .csproj configurations (copy exactly from BlockLife)**:
    - `<Compile Remove="src\**" />` in Godot project prevents dual compilation
    - `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>` enforces quality
+   - `<EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>` consistent style
    - `<Nullable>enable</Nullable>` prevents null reference bugs
+   - `<ValidateOnBuild>true</ValidateOnBuild>` in DI container setup
 
-3. **Tech stack decisions needed**:
-   - **LanguageExt**: For functional patterns (Option, Either, Validation)
-   - **MediatR**: For command/query separation (optional but clean)
-   - **FsCheck**: For property-based testing (great for time-unit logic)
+3. **REQUIRED Tech Stack (proven in BlockLife)**:
+   - **Microsoft.Extensions.DependencyInjection** (9.0.8): Full DI container
+   - **Serilog** (4.3.0): Fallback-safe logging that never crashes
+   - **LanguageExt.Core** (4.4.9): Fin<T>, Option<T> for error handling
+   - **MediatR** (13.0.0): Command/query/notification pipeline
+   - **FsCheck.Xunit** (3.3.0): Property-based testing for time-units
+   - **FluentAssertions** (8.6.0): Readable test assertions
+   - **Husky.NET**: Git hooks for safety (auto-installs, prevents errors)
 
 ### Build Commands
 
@@ -210,6 +222,69 @@ dotnet build Darklands.csproj
 
 **For Tech Lead**: This setup allows modders to reference only `Darklands.Core.dll` without needing Godot installed
 
+### Git Hook Setup (CRITICAL for Safety)
+
+1. **Copy .husky folder from BlockLife** with all hooks
+2. **Add Husky.NET to .config/dotnet-tools.json**:
+```json
+{
+  "version": 1,
+  "isRoot": true,
+  "tools": {
+    "husky": {
+      "version": "0.7.1",
+      "commands": ["husky"]
+    }
+  }
+}
+```
+3. **Hooks auto-install on first build** via Target in .csproj
+
+## Tech Lead Review (2025-08-28)
+
+### ✅ APPROVED - Architecture is sound and appropriate
+
+**Technical Assessment**:
+- **Feasibility**: Standard .NET multi-project solution (Complexity: 3/10)
+- **Modding**: Genuine support for pure C# mods without Godot (Score: 9/10)  
+- **CI Speed**: 15-30 seconds vs 3-5 minutes with Godot (Score: 10/10)
+- **Not Over-engineered**: Justified by explicit modding requirement and time-unit complexity
+- **MVP Pattern**: Clean separation with minor gaps to address (Score: 7/10)
+
+### CRITICAL Implementation Requirements (from BlockLife Analysis)
+
+**MUST HAVE from Day 1**:
+
+1. **Full DI Container** (not just MediatR):
+   - Use Microsoft.Extensions.DependencyInjection
+   - GameStrapper.cs pattern with ValidateOnBuild = true
+   - Service lifetimes: Singleton for state, Transient for handlers
+   
+2. **Serilog with Fallback Safety**:
+   - Never crash app if logging fails
+   - Category-based log levels (Commands, Queries, Combat, etc.)
+   - LogCategory.cs for well-defined contexts
+
+3. **ADR-006 Phased Implementation**:
+   - Phase 1: Domain → Phase 2: Application → Phase 3: Infrastructure → Phase 4: Presentation
+   - Hard gates between phases (tests must be GREEN)
+   - Commit messages: `feat(x): description [Phase X/4]`
+
+4. **Error Handling Pattern**:
+   - LanguageExt's Fin<T> for all operations that can fail
+   - No exceptions crossing boundaries
+   - Result pattern for Godot→Core communication
+
+**First Implementation Steps**:
+1. Create 3-project structure with exact .csproj configurations
+2. Add core dependencies (LanguageExt, MediatR, xUnit)
+3. Implement "walking skeleton" feature to validate pattern
+
+**Success Metrics**:
+- Core tests complete in <20 seconds
+- Zero Godot references in Darklands.Core.csproj
+- Modders can reference only Core.dll
+
 ## Status
 
-⚠️ **Awaiting Tech Lead Review** - This architectural decision needs technical validation before proceeding with VS_001.
+✅ **APPROVED BY TECH LEAD** - Ready for implementation. Product Owner can now create VS_001 for initial setup.
