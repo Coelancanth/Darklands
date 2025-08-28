@@ -1,0 +1,37 @@
+root = true
+
+# All files
+[*]
+charset = utf-8
+# Use native line endings for cross-platform compatibility
+# Git will handle the conversion (autocrlf=true on Windows, input on Linux/Mac)
+end_of_line = unset
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Code files
+[*.{cs,csx,vb,vbx}]
+indent_style = space
+indent_size = 4
+
+# Project files
+[*.{csproj,vbproj,vcxproj,vcxproj.filters,proj,projitems,shproj}]
+indent_style = space
+indent_size = 2
+
+# Config files
+[*.{json,xml,yml,yaml}]
+indent_style = space
+indent_size = 2
+
+# Exclude GdUnit4 addon files from formatting
+[addons/gdUnit4/**]
+generated_code = true
+
+# Exclude Godot generated files
+[.godot/**]
+generated_code = true
+
+# Exclude generated assembly info
+[**/AssemblyInfo.cs]
+generated_code = true
