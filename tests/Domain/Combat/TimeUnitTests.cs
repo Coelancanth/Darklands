@@ -21,7 +21,7 @@ public class TimeUnitTests
         var value = 1000;
         
         // Act
-        var timeUnit = new TimeUnit(value);
+        var timeUnit = TimeUnit.CreateUnsafe(value);
         
         // Assert
         timeUnit.Value.Should().Be(value);
@@ -60,7 +60,7 @@ public class TimeUnitTests
     public void IsValid_ValidValues_ReturnsTrue(int value)
     {
         // Act & Assert
-        new TimeUnit(value).IsValid.Should().BeTrue();
+        TimeUnit.CreateUnsafe(value).IsValid.Should().BeTrue();
     }
     
     [Theory]
@@ -68,10 +68,13 @@ public class TimeUnitTests
     [InlineData(-1000)]
     [InlineData(10_001)]
     [InlineData(100_000)]
-    public void IsValid_InvalidValues_ReturnsFalse(int value)
+    public void Create_InvalidValues_ReturnsFailure(int value)
     {
-        // Act & Assert
-        new TimeUnit(value).IsValid.Should().BeFalse();
+        // Act
+        var result = TimeUnit.Create(value);
+        
+        // Assert
+        result.IsFail.Should().BeTrue();
     }
     
     [Theory]
@@ -107,8 +110,8 @@ public class TimeUnitTests
     public void AdditionOperator_ValidValues_AddsCorrectly()
     {
         // Arrange
-        var timeA = new TimeUnit(300);
-        var timeB = new TimeUnit(200);
+        var timeA = TimeUnit.CreateUnsafe(300);
+        var timeB = TimeUnit.CreateUnsafe(200);
         
         // Act
         var result = timeA + timeB;
@@ -121,8 +124,8 @@ public class TimeUnitTests
     public void AdditionOperator_ExceedsMaximum_ClampsToMaximum()
     {
         // Arrange
-        var timeA = new TimeUnit(9_000);
-        var timeB = new TimeUnit(2_000);
+        var timeA = TimeUnit.CreateUnsafe(9_000);
+        var timeB = TimeUnit.CreateUnsafe(2_000);
         
         // Act
         var result = timeA + timeB;
@@ -135,8 +138,8 @@ public class TimeUnitTests
     public void SubtractionOperator_ValidValues_SubtractsCorrectly()
     {
         // Arrange
-        var timeA = new TimeUnit(500);
-        var timeB = new TimeUnit(200);
+        var timeA = TimeUnit.CreateUnsafe(500);
+        var timeB = TimeUnit.CreateUnsafe(200);
         
         // Act
         var result = timeA - timeB;
@@ -149,8 +152,8 @@ public class TimeUnitTests
     public void SubtractionOperator_ResultNegative_ClampsToZero()
     {
         // Arrange
-        var timeA = new TimeUnit(200);
-        var timeB = new TimeUnit(500);
+        var timeA = TimeUnit.CreateUnsafe(200);
+        var timeB = TimeUnit.CreateUnsafe(500);
         
         // Act
         var result = timeA - timeB;
@@ -166,7 +169,7 @@ public class TimeUnitTests
     public void MultiplicationOperator_ValidFactor_MultipliesCorrectly(int baseValue, double factor, int expected)
     {
         // Arrange
-        var time = new TimeUnit(baseValue);
+        var time = TimeUnit.CreateUnsafe(baseValue);
         
         // Act
         var result = time * factor;
@@ -179,7 +182,7 @@ public class TimeUnitTests
     public void MultiplicationOperator_ExceedsMaximum_ClampsToMaximum()
     {
         // Arrange
-        var time = new TimeUnit(9_000);
+        var time = TimeUnit.CreateUnsafe(9_000);
         var factor = 2.0;
         
         // Act
@@ -196,8 +199,8 @@ public class TimeUnitTests
     public void LessThanOperator_CompareValues_ReturnsCorrectResult(int leftValue, int rightValue, bool expected)
     {
         // Arrange
-        var left = new TimeUnit(leftValue);
-        var right = new TimeUnit(rightValue);
+        var left = TimeUnit.CreateUnsafe(leftValue);
+        var right = TimeUnit.CreateUnsafe(rightValue);
         
         // Act & Assert
         (left < right).Should().Be(expected);
@@ -210,8 +213,8 @@ public class TimeUnitTests
     public void GreaterThanOperator_CompareValues_ReturnsCorrectResult(int leftValue, int rightValue, bool expected)
     {
         // Arrange
-        var left = new TimeUnit(leftValue);
-        var right = new TimeUnit(rightValue);
+        var left = TimeUnit.CreateUnsafe(leftValue);
+        var right = TimeUnit.CreateUnsafe(rightValue);
         
         // Act & Assert
         (left > right).Should().Be(expected);
@@ -221,12 +224,12 @@ public class TimeUnitTests
     [InlineData(500, "500ms")]
     [InlineData(1000, "1.0s")]
     [InlineData(1500, "1.5s")]
-    [InlineData(60000, "1.0min")]
-    [InlineData(90000, "1.5min")]
+    [InlineData(5000, "5.0s")]
+    [InlineData(10000, "10.0s")]
     public void ToString_VariousValues_ReturnsFormattedString(int value, string expected)
     {
         // Arrange
-        var timeUnit = new TimeUnit(value);
+        var timeUnit = TimeUnit.CreateUnsafe(value);
         
         // Act & Assert
         timeUnit.ToString().Should().Be(expected);
@@ -236,8 +239,8 @@ public class TimeUnitTests
     [Property]
     public bool Addition_IsCommutative(ushort a, ushort b)
     {
-        var timeA = new TimeUnit(a);
-        var timeB = new TimeUnit(b);
+        var timeA = TimeUnit.CreateUnsafe(a);
+        var timeB = TimeUnit.CreateUnsafe(b);
         
         return (timeA + timeB).Value == (timeB + timeA).Value;
     }
@@ -245,28 +248,28 @@ public class TimeUnitTests
     [Property]
     public bool Addition_WithZero_IsIdentity(ushort value)
     {
-        var time = new TimeUnit(value);
+        var time = TimeUnit.CreateUnsafe(value);
         return (time + TimeUnit.Zero).Value == time.Value;
     }
     
     [Property]
     public bool Subtraction_WithSelf_IsZero(ushort value)
     {
-        var time = new TimeUnit(value);
+        var time = TimeUnit.CreateUnsafe(value);
         return (time - time).Value == 0;
     }
     
     [Property]
     public bool Multiplication_WithOne_IsIdentity(ushort value)
     {
-        var time = new TimeUnit(value);
+        var time = TimeUnit.CreateUnsafe(value);
         return (time * 1.0).Value == time.Value;
     }
     
     [Property]
     public bool Multiplication_WithZero_IsZero(ushort value)
     {
-        var time = new TimeUnit(value);
+        var time = TimeUnit.CreateUnsafe(value);
         return (time * 0.0).Value == 0;
     }
 }

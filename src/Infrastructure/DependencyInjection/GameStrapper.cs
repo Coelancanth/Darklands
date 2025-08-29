@@ -17,82 +17,109 @@ namespace Darklands.Core.Infrastructure.DependencyInjection;
 /// </summary>
 public static class GameStrapper
 {
-    private static ServiceProvider? _serviceProvider;
-    private static bool _isInitialized;
+    private static readonly object _initializationLock = new();
+    private static volatile ServiceProvider? _serviceProvider;
+    private static volatile bool _isInitialized;
 
     /// <summary>
-    /// Gets the configured service provider. Throws if not initialized.
+    /// Gets the configured service provider safely.
     /// </summary>
+    public static Fin<ServiceProvider> GetServices()
+    {
+        var provider = _serviceProvider;
+        if (provider == null)
+            return FinFail<ServiceProvider>(Error.New("GameStrapper not initialized. Call Initialize() first."));
+        return FinSucc(provider);
+    }
+
+    /// <summary>
+    /// Legacy property for backward compatibility. 
+    /// DEPRECATED: Use GetServices() for proper error handling.
+    /// </summary>
+    [Obsolete("Use GetServices() for proper error handling", false)]
     public static ServiceProvider Services
     {
         get
         {
-            if (_serviceProvider == null)
-                throw new InvalidOperationException("GameStrapper not initialized. Call Initialize() first.");
-            return _serviceProvider;
+            var result = GetServices();
+            return result.Match(
+                Succ: provider => provider,
+                Fail: error => throw new InvalidOperationException(error.ToString()));
         }
     }
 
     /// <summary>
     /// Initializes the DI container with all required services.
+    /// Thread-safe with double-checked locking pattern.
     /// Uses fallback-safe logging configuration that never crashes the application.
     /// </summary>
     /// <param name="configuration">Optional configuration overrides</param>
     /// <returns>Success/failure result with detailed error information</returns>
     public static Fin<ServiceProvider> Initialize(GameStrapperConfiguration? configuration = null)
     {
-        try
-        {
-            if (_isInitialized)
-                return FinSucc(_serviceProvider!);
-
-            var config = configuration ?? GameStrapperConfiguration.Default;
-            var services = new ServiceCollection();
-
-            // Phase 1: Core Infrastructure  
-            var loggingResult = ConfigureLogging(services, config);
-            if (loggingResult.IsFail)
-                return loggingResult.Match(
-                    Succ: _ => FinFail<ServiceProvider>(Error.New("Unexpected success in error path")),
-                    Fail: err => FinFail<ServiceProvider>(err));
-
-            // Phase 2: MediatR Command/Query Pipeline
-            var mediatrResult = ConfigureMediatR(services);
-            if (mediatrResult.IsFail)
-                return mediatrResult.Match(
-                    Succ: _ => FinFail<ServiceProvider>(Error.New("Unexpected success in error path")),
-                    Fail: err => FinFail<ServiceProvider>(err));
-
-            // Phase 3: Application Services
-            var appServicesResult = ConfigureApplicationServices(services);
-            if (appServicesResult.IsFail)
-                return appServicesResult.Match(
-                    Succ: _ => FinFail<ServiceProvider>(Error.New("Unexpected success in error path")),
-                    Fail: err => FinFail<ServiceProvider>(err));
-
-            // Phase 4: Validation and Build
-            var buildResult = BuildAndValidateContainer(services, config);
-            if (buildResult.IsFail)
-                return buildResult;
-
-            _serviceProvider = buildResult.Match(
-                Succ: provider => provider,
-                Fail: _ => throw new InvalidOperationException("Build result was expected to succeed"));
-            _isInitialized = true;
-
-            // Log successful initialization
-            var loggerFactory = _serviceProvider.GetRequiredService<ILoggerFactory>();
-            var logger = loggerFactory.CreateLogger("GameStrapper");
-            logger.LogInformation("GameStrapper initialized successfully with {ServiceCount} services",
-                services.Count);
-
+        // Double-checked locking pattern for thread safety
+        if (_isInitialized && _serviceProvider != null)
             return FinSucc(_serviceProvider);
-        }
-        catch (Exception ex)
+
+        lock (_initializationLock)
         {
-            // Fallback logging to console if Serilog fails
-            Console.WriteLine($"CRITICAL: GameStrapper initialization failed: {ex.Message}");
-            return FinFail<ServiceProvider>(Error.New($"GameStrapper initialization failed: {ex.Message}", ex));
+            // Check again inside the lock
+            if (_isInitialized && _serviceProvider != null)
+                return FinSucc(_serviceProvider);
+
+            try
+            {
+                var config = configuration ?? GameStrapperConfiguration.Default;
+                var services = new ServiceCollection();
+
+                // Phase 1: Core Infrastructure  
+                var loggingResult = ConfigureLogging(services, config);
+                if (loggingResult.IsFail)
+                    return loggingResult.Match(
+                        Succ: _ => FinFail<ServiceProvider>(Error.New("Unexpected success in error path")),
+                        Fail: err => FinFail<ServiceProvider>(err));
+
+                // Phase 2: MediatR Command/Query Pipeline
+                var mediatrResult = ConfigureMediatR(services);
+                if (mediatrResult.IsFail)
+                    return mediatrResult.Match(
+                        Succ: _ => FinFail<ServiceProvider>(Error.New("Unexpected success in error path")),
+                        Fail: err => FinFail<ServiceProvider>(err));
+
+                // Phase 3: Application Services
+                var appServicesResult = ConfigureApplicationServices(services);
+                if (appServicesResult.IsFail)
+                    return appServicesResult.Match(
+                        Succ: _ => FinFail<ServiceProvider>(Error.New("Unexpected success in error path")),
+                        Fail: err => FinFail<ServiceProvider>(err));
+
+                // Phase 4: Validation and Build
+                var buildResult = BuildAndValidateContainer(services, config);
+                if (buildResult.IsFail)
+                    return buildResult;
+
+                var serviceProvider = buildResult.Match(
+                    Succ: provider => provider,
+                    Fail: _ => throw new InvalidOperationException("Build result was expected to succeed"));
+
+                // Log successful initialization
+                var loggerFactory = serviceProvider.GetRequiredService<ILoggerFactory>();
+                var logger = loggerFactory.CreateLogger("GameStrapper");
+                logger.LogInformation("GameStrapper initialized successfully with {ServiceCount} services",
+                    services.Count);
+
+                // Atomic assignment - set provider before setting initialized flag
+                _serviceProvider = serviceProvider;
+                _isInitialized = true;
+
+                return FinSucc(_serviceProvider);
+            }
+            catch (Exception ex)
+            {
+                // Fallback logging to console if Serilog fails
+                Console.WriteLine($"CRITICAL: GameStrapper initialization failed: {ex.Message}");
+                return FinFail<ServiceProvider>(Error.New($"GameStrapper initialization failed: {ex.Message}", ex));
+            }
         }
     }
 
@@ -237,23 +264,26 @@ public static class GameStrapper
     }
 
     /// <summary>
-    /// Disposes the DI container and cleans up resources.
+    /// Disposes the DI container and cleans up resources in a thread-safe manner.
     /// </summary>
     public static void Dispose()
     {
-        try
+        lock (_initializationLock)
         {
-            _serviceProvider?.Dispose();
-            Log.CloseAndFlush();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"WARNING: GameStrapper disposal failed: {ex.Message}");
-        }
-        finally
-        {
-            _serviceProvider = null;
-            _isInitialized = false;
+            try
+            {
+                _serviceProvider?.Dispose();
+                Log.CloseAndFlush();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"WARNING: GameStrapper disposal failed: {ex.Message}");
+            }
+            finally
+            {
+                _serviceProvider = null;
+                _isInitialized = false;
+            }
         }
     }
 }

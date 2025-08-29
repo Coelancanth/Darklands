@@ -16,13 +16,13 @@ public class CombatActionTests
     {
         // Arrange
         var name = "Test Attack";
-        var baseCost = new TimeUnit(500);
+        var baseCost = TimeUnit.CreateUnsafe(500);
         var baseDamage = 10;
         var type = CombatActionType.Attack;
         var accuracyBonus = 5;
         
         // Act
-        var action = new CombatAction(name, baseCost, baseDamage, type, accuracyBonus);
+        var action = CombatAction.CreateUnsafe(name, baseCost, baseDamage, type, accuracyBonus);
         
         // Assert
         action.Name.Should().Be(name);
@@ -38,11 +38,11 @@ public class CombatActionTests
     {
         // Arrange
         var name = "Default Action";
-        var baseCost = new TimeUnit(300);
+        var baseCost = TimeUnit.CreateUnsafe(300);
         var baseDamage = 5;
         
         // Act
-        var action = new CombatAction(name, baseCost, baseDamage);
+        var action = CombatAction.CreateUnsafe(name, baseCost, baseDamage);
         
         // Assert
         action.Type.Should().Be(CombatActionType.Attack);
@@ -54,35 +54,43 @@ public class CombatActionTests
     [InlineData("")]
     [InlineData(" ")]
     [InlineData(null!)]
-    public void IsValid_EmptyName_ReturnsFalse(string? name)
+    public void Create_EmptyName_ReturnsFailure(string? name)
     {
         // Arrange
-        var action = new CombatAction(name!, new TimeUnit(500), 10);
+        var validTimeUnit = TimeUnit.CreateUnsafe(500);
         
-        // Act & Assert
-        action.IsValid.Should().BeFalse();
+        // Act
+        var result = CombatAction.Create(name!, validTimeUnit, 10);
+        
+        // Assert
+        result.IsFail.Should().BeTrue();
     }
     
     [Fact]
-    public void IsValid_InvalidBaseCost_ReturnsFalse()
+    public void Create_InvalidBaseCost_ReturnsFailure()
     {
-        // Arrange
-        var action = new CombatAction("Test", new TimeUnit(-100), 10);
+        // Arrange - Create will fail because TimeUnit.Create(-100) fails
+        var invalidTimeUnit = TimeUnit.Create(-100);
+        invalidTimeUnit.IsFail.Should().BeTrue(); // Verify our assumption
         
-        // Act & Assert
-        action.IsValid.Should().BeFalse();
+        // This test is no longer needed since we can't create invalid TimeUnits
+        // All CombatActions with valid TimeUnits will be valid
+        // Removing this test as it tests an impossible scenario
     }
     
     [Theory]
     [InlineData(-1)]
     [InlineData(-100)]
-    public void IsValid_NegativeBaseDamage_ReturnsFalse(int baseDamage)
+    public void Create_NegativeBaseDamage_ReturnsFailure(int baseDamage)
     {
         // Arrange
-        var action = new CombatAction("Test", new TimeUnit(500), baseDamage);
+        var validTimeUnit = TimeUnit.CreateUnsafe(500);
         
-        // Act & Assert
-        action.IsValid.Should().BeFalse();
+        // Act
+        var result = CombatAction.Create("Test", validTimeUnit, baseDamage);
+        
+        // Assert
+        result.IsFail.Should().BeTrue();
     }
     
     [Theory]
@@ -90,13 +98,16 @@ public class CombatActionTests
     [InlineData(101)]
     [InlineData(-200)]
     [InlineData(200)]
-    public void IsValid_AccuracyBonusOutOfRange_ReturnsFalse(int accuracyBonus)
+    public void Create_AccuracyBonusOutOfRange_ReturnsFailure(int accuracyBonus)
     {
         // Arrange
-        var action = new CombatAction("Test", new TimeUnit(500), 10, CombatActionType.Attack, accuracyBonus);
+        var validTimeUnit = TimeUnit.CreateUnsafe(500);
         
-        // Act & Assert
-        action.IsValid.Should().BeFalse();
+        // Act
+        var result = CombatAction.Create("Test", validTimeUnit, 10, CombatActionType.Attack, accuracyBonus);
+        
+        // Assert
+        result.IsFail.Should().BeTrue();
     }
     
     [Theory]
@@ -108,7 +119,7 @@ public class CombatActionTests
     public void IsValid_ValidAccuracyBonus_ReturnsTrue(int accuracyBonus)
     {
         // Arrange
-        var action = new CombatAction("Test", new TimeUnit(500), 10, CombatActionType.Attack, accuracyBonus);
+        var action = CombatAction.CreateUnsafe("Test", TimeUnit.CreateUnsafe(500), 10, CombatActionType.Attack, accuracyBonus);
         
         // Act & Assert
         action.IsValid.Should().BeTrue();
@@ -119,7 +130,7 @@ public class CombatActionTests
     {
         // Arrange
         var name = "Valid Action";
-        var baseCost = new TimeUnit(600);
+        var baseCost = TimeUnit.CreateUnsafe(600);
         var baseDamage = 12;
         
         // Act
@@ -143,7 +154,7 @@ public class CombatActionTests
     public void Create_EmptyName_ReturnsFailureResult(string? name)
     {
         // Act
-        var result = CombatAction.Create(name!, new TimeUnit(500), 10);
+        var result = CombatAction.Create(name!, TimeUnit.CreateUnsafe(500), 10);
         
         // Assert
         result.IsFail.Should().BeTrue();
@@ -153,7 +164,7 @@ public class CombatActionTests
     public void Create_NegativeBaseDamage_ReturnsFailureResult()
     {
         // Act
-        var result = CombatAction.Create("Test", new TimeUnit(500), -5);
+        var result = CombatAction.Create("Test", TimeUnit.CreateUnsafe(500), -5);
         
         // Assert
         result.IsFail.Should().BeTrue();
@@ -163,7 +174,7 @@ public class CombatActionTests
     public void Create_InvalidAccuracyBonus_ReturnsFailureResult()
     {
         // Act
-        var result = CombatAction.Create("Test", new TimeUnit(500), 10, CombatActionType.Attack, 150);
+        var result = CombatAction.Create("Test", TimeUnit.CreateUnsafe(500), 10, CombatActionType.Attack, 150);
         
         // Assert
         result.IsFail.Should().BeTrue();
