@@ -107,28 +107,32 @@ public class TimeUnitCalculatorTests
     public void CalculateEncumbrancePenalty_ValidInput_ReturnsCorrectMultiplier()
     {
         // Arrange & Act
-        var noPenalty = TimeUnitCalculator.CalculateEncumbrancePenalty(0);
-        var mediumPenalty = TimeUnitCalculator.CalculateEncumbrancePenalty(10);
-        var highPenalty = TimeUnitCalculator.CalculateEncumbrancePenalty(30);
+        var noPenalty = TimeUnitCalculator.CalculateEncumbranceFactor(0);
+        var mediumPenalty = TimeUnitCalculator.CalculateEncumbranceFactor(10);
+        var highPenalty = TimeUnitCalculator.CalculateEncumbranceFactor(30);
 
         // Assert
-        noPenalty.IfSucc(penalty => penalty.Should().Be(1.0));
-        mediumPenalty.IfSucc(penalty => penalty.Should().Be(2.0)); // 1 + 10*0.1
-        highPenalty.IfSucc(penalty => penalty.Should().Be(4.0)); // 1 + 30*0.1
+        noPenalty.IfSucc(factor => factor.Should().Be(10)); // 10 + 0 = 10
+        mediumPenalty.IfSucc(factor => factor.Should().Be(20)); // 10 + 10 = 20  
+        highPenalty.IfSucc(factor => factor.Should().Be(40)); // 10 + 30 = 40
     }
 
     [Fact]
-    public void CalculateAgilityBonus_ValidInput_ReturnsCorrectMultiplier()
+    public void ValidateAgilityScore_ValidInput_ReturnsSuccess()
     {
         // Arrange & Act
-        var average = TimeUnitCalculator.CalculateAgilityBonus(25); // 100/25 = 4.0
-        var high = TimeUnitCalculator.CalculateAgilityBonus(50);    // 100/50 = 2.0
-        var max = TimeUnitCalculator.CalculateAgilityBonus(100);   // 100/100 = 1.0
+        var low = TimeUnitCalculator.ValidateAgilityScore(1);
+        var average = TimeUnitCalculator.ValidateAgilityScore(50);
+        var high = TimeUnitCalculator.ValidateAgilityScore(100);
 
         // Assert
-        average.IfSucc(bonus => bonus.Should().Be(4.0));
-        high.IfSucc(bonus => bonus.Should().Be(2.0));
-        max.IfSucc(bonus => bonus.Should().Be(1.0));
+        low.IsSucc.Should().BeTrue();
+        average.IsSucc.Should().BeTrue(); 
+        high.IsSucc.Should().BeTrue();
+        
+        low.IfSucc(agility => agility.Should().Be(1));
+        average.IfSucc(agility => agility.Should().Be(50));
+        high.IfSucc(agility => agility.Should().Be(100));
     }
 
     [Fact]

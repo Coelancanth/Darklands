@@ -86,7 +86,7 @@ public readonly record struct TimeUnit
     /// Adds two time units together, clamping to maximum to prevent overflow
     /// </summary>
     public static TimeUnit operator +(TimeUnit a, TimeUnit b)
-        => new(Math.Min(a.Value + b.Value, Maximum.Value));
+        => new(a.Value + b.Value > Maximum.Value ? Maximum.Value : a.Value + b.Value);
 
     /// <summary>
     /// Adds two time units with overflow detection
@@ -105,19 +105,38 @@ public readonly record struct TimeUnit
     /// Subtracts time units, never going below zero
     /// </summary>
     public static TimeUnit operator -(TimeUnit a, TimeUnit b)
-        => new(Math.Max(0, a.Value - b.Value));
+        => new(a.Value > b.Value ? a.Value - b.Value : 0);
 
     /// <summary>
-    /// Multiplies time units by a factor with proper rounding
+    /// Multiplies time units by an integer factor with overflow protection.
+    /// For fractional scaling, use ScaleBy method with explicit numerator/denominator.
     /// </summary>
-    public static TimeUnit operator *(TimeUnit time, double factor)
-        => new((int)Math.Min(Math.Round(time.Value * factor), Maximum.Value));
+    public static TimeUnit operator *(TimeUnit time, int factor)
+    {
+        if (factor <= 0) return Zero;
+        var result = (long)time.Value * factor;
+        return new(result > Maximum.Value ? Maximum.Value : (int)result);
+    }
 
     /// <summary>
-    /// Multiplies time units by a factor
+    /// Multiplies time units by an integer factor
     /// </summary>
-    public static TimeUnit operator *(double factor, TimeUnit time)
+    public static TimeUnit operator *(int factor, TimeUnit time)
         => time * factor;
+
+    /// <summary>
+    /// Scales time units by a fraction (numerator/denominator) with proper rounding.
+    /// This replaces floating-point multiplication with deterministic integer math.
+    /// </summary>
+    public static TimeUnit ScaleBy(TimeUnit time, int numerator, int denominator)
+    {
+        if (denominator <= 0) throw new ArgumentException("Denominator must be positive", nameof(denominator));
+        if (numerator <= 0) return Zero;
+
+        var scaled = (long)time.Value * numerator;
+        var result = (scaled + denominator / 2) / denominator; // Round to nearest
+        return new(result > Maximum.Value ? Maximum.Value : (int)result);
+    }
 
     /// <summary>
     /// Compares time units for ordering

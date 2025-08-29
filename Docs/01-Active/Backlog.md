@@ -65,46 +65,6 @@
 ## 🔥 Critical (Do First)
 *Blockers preventing other work, production bugs, dependencies for other features*
 
-### BR_001: Remove Float/Double Math from Combat System
-**Status**: New  
-**Owner**: Product Owner → Debugger Expert
-**Size**: S (<4h)
-**Priority**: Critical (Blocks VS_002)
-**Markers**: [ARCHITECTURE] [DETERMINISM] [SAFETY-CRITICAL]
-**Created**: 2025-08-29 14:19
-
-**What**: Replace all floating-point math in TimeUnitCalculator with integer arithmetic
-**Why**: Float math causes non-deterministic behavior, save/load issues, and platform inconsistencies
-
-**The Problem**:
-```csharp
-// Current DANGEROUS implementation in TimeUnitCalculator.cs:
-var agilityModifier = 100.0 / agility;  // DOUBLE - non-deterministic!
-var encumbranceModifier = 1.0 + (encumbrance * 0.1);  // DOUBLE!
-var finalTime = (int)Math.Round(baseTime * agilityModifier * encumbranceModifier);
-```
-
-**The Fix**:
-- Replace with scaled integer math (multiply by 100 or 1000)
-- Use integer division with proper rounding
-- Ensure all operations are deterministic
-- No Math.Round() or floating operations
-
-**Done When**:
-- Zero float/double types in Domain layer
-- All calculations use integer math
-- Tests prove deterministic results
-- Same inputs ALWAYS produce same outputs
-- Property-based tests validate integer math
-
-**Impact if Not Fixed**:
-- Save/load will have desyncs
-- Replays impossible
-- Platform-specific bugs
-- Multiplayer would desync
-- "Unreproducible" bug reports
-
-**Depends On**: None (but blocks VS_002)
 
 ### VS_002: Combat Timeline Scheduler (Phase 2 - Application Layer)
 **Status**: Proposed  
@@ -137,7 +97,7 @@ var finalTime = (int)Math.Round(baseTime * agilityModifier * encumbranceModifier
 - Phase 3 (Next): State persists between sessions
 - Phase 4 (Later): UI displays turn order
 
-**Depends On**: VS_001 (COMPLETE) + BR_001 (float math fix)
+**Depends On**: ~~VS_001~~ (COMPLETE 2025-08-29) + ~~BR_001~~ (COMPLETE 2025-08-29) - Now unblocked
 
 **Product Owner Notes** (2025-08-29):
 - Keep it ruthlessly simple - target <100 lines of logic

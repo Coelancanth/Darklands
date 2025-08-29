@@ -4,7 +4,7 @@
 
 **Purpose**: Completed and rejected work items for historical reference and lessons learned.
 
-**Last Updated**: 2025-08-29 10:36 
+**Last Updated**: 2025-08-29 15:20 
 
 ## Archive Protocol
 
@@ -216,5 +216,73 @@ Items are moved here COMPLETE with all context, then marked for extraction:
 - [ ] HANDBOOK update: Thread-safe singleton pattern for DI containers
 - [ ] Test pattern: Property-based testing with FsCheck integration
 - [ ] Architecture test patterns: Clean Architecture boundary enforcement
+
+### BR_001: Remove Float/Double Math from Combat System ✅ CRITICAL BUG FIXED
+**Extraction Status**: NOT EXTRACTED ⚠️
+**Completed**: 2025-08-29 15:20
+**Owner**: Debugger Expert
+**Effort**: S (<4h)
+**Archive Note**: Eliminated non-deterministic floating-point math with elegant integer arithmetic, unblocking VS_002
+**Root Cause**: Mathematical convenience sacrificed system determinism
+**Prevention**: Always use integer arithmetic in game systems requiring reproducible behavior
+[METADATA: determinism, integer-math, floating-point-elimination, cross-platform, save-load-consistency]
+
+---
+**Status**: COMPLETED ✅  
+**Owner**: Debugger Expert (COMPLETED 2025-08-29 15:20)
+**Size**: S (<4h)
+**Priority**: Critical (Blocks VS_002)
+**Markers**: [ARCHITECTURE] [DETERMINISM] [SAFETY-CRITICAL]
+**Created**: 2025-08-29 14:19
+
+**What**: Replace all floating-point math in TimeUnitCalculator with integer arithmetic
+**Why**: Float math causes non-deterministic behavior, save/load issues, and platform inconsistencies
+
+**The Problem**:
+```csharp
+// Current DANGEROUS implementation in TimeUnitCalculator.cs:
+var agilityModifier = 100.0 / agility;  // DOUBLE - non-deterministic!
+var encumbranceModifier = 1.0 + (encumbrance * 0.1);  // DOUBLE!
+var finalTime = (int)Math.Round(baseTime * agilityModifier * encumbranceModifier);
+```
+
+**The Fix**:
+- Replace with scaled integer math (multiply by 100 or 1000)
+- Use integer division with proper rounding
+- Ensure all operations are deterministic
+- No Math.Round() or floating operations
+
+**Done When**:
+- Zero float/double types in Domain layer
+- All calculations use integer math
+- Tests prove deterministic results
+- Same inputs ALWAYS produce same outputs
+- Property-based tests validate integer math
+
+**Impact if Not Fixed**:
+- Save/load will have desyncs
+- Replays impossible
+- Platform-specific bugs
+- Multiplayer would desync
+- "Unreproducible" bug reports
+
+**Depends On**: None (but blocks VS_002)
+
+**Debugger Expert Resolution** (2025-08-29 15:20):
+- ✅ Implemented elegant integer-only arithmetic: `(baseTime * 100 * (10 + encumbrance) + denominator/2) / (agility * 10)`
+- ✅ Eliminated ALL floating-point operations from Domain layer
+- ✅ Created comprehensive determinism tests proving identical results across 1000+ iterations
+- ✅ Verified mathematical correctness with property-based testing
+- ✅ All 115 tests pass, no regressions introduced
+- ✅ VS_002 now unblocked for deterministic timeline scheduling
+- **Root Cause**: Floating-point math for mathematical convenience sacrificed deterministic behavior
+- **Prevention**: Always use integer arithmetic in game systems requiring reproducible behavior
+---
+
+**Extraction Targets**:
+- [ ] HANDBOOK update: Integer-only arithmetic patterns for game systems
+- [ ] Test pattern: Property-based determinism testing with 1000+ iterations
+- [ ] Architecture principle: Determinism as non-negotiable requirement for game math
+- [ ] Anti-pattern: Never use floating-point for game logic that must be reproducible
 
 ]

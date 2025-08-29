@@ -163,30 +163,30 @@ public class TimeUnitTests
     }
 
     [Theory]
-    [InlineData(1000, 2.0, 2000)]
-    [InlineData(1000, 0.5, 500)]
-    [InlineData(1000, 1.0, 1000)]
-    public void MultiplicationOperator_ValidFactor_MultipliesCorrectly(int baseValue, double factor, int expected)
+    [InlineData(1000, 2, 1, 2000)]  // 1000 * 2/1 = 2000
+    [InlineData(1000, 1, 2, 500)]   // 1000 * 1/2 = 500
+    [InlineData(1000, 1, 1, 1000)]  // 1000 * 1/1 = 1000
+    [InlineData(1000, 3, 2, 1500)]  // 1000 * 3/2 = 1500
+    public void ScaleBy_ValidFraction_ScalesCorrectly(int baseValue, int numerator, int denominator, int expected)
     {
         // Arrange
         var time = TimeUnit.CreateUnsafe(baseValue);
 
         // Act
-        var result = time * factor;
+        var result = TimeUnit.ScaleBy(time, numerator, denominator);
 
         // Assert
         result.Value.Should().Be(expected);
     }
 
     [Fact]
-    public void MultiplicationOperator_ExceedsMaximum_ClampsToMaximum()
+    public void ScaleBy_ExceedsMaximum_ClampsToMaximum()
     {
         // Arrange
         var time = TimeUnit.CreateUnsafe(9_000);
-        var factor = 2.0;
 
         // Act
-        var result = time * factor;
+        var result = TimeUnit.ScaleBy(time, 2, 1); // Scale by 2x
 
         // Assert
         result.Value.Should().Be(TimeUnit.Maximum.Value);
@@ -263,13 +263,20 @@ public class TimeUnitTests
     public bool Multiplication_WithOne_IsIdentity(ushort value)
     {
         var time = TimeUnit.CreateUnsafe(value);
-        return (time * 1.0).Value == time.Value;
+        return (time * 1).Value == time.Value;
+    }
+
+    [Property]
+    public bool ScaleBy_WithIdentity_IsIdentity(ushort value)
+    {
+        var time = TimeUnit.CreateUnsafe(value);
+        return TimeUnit.ScaleBy(time, 1, 1).Value == time.Value;
     }
 
     [Property]
     public bool Multiplication_WithZero_IsZero(ushort value)
     {
         var time = TimeUnit.CreateUnsafe(value);
-        return (time * 0.0).Value == 0;
+        return (time * 0).Value == 0;
     }
 }
