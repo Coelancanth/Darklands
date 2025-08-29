@@ -13,15 +13,15 @@ public class ErrorHandlingBehavior<TRequest, TResponse> : IPipelineBehavior<TReq
     where TRequest : notnull
 {
     private readonly ILogger<ErrorHandlingBehavior<TRequest, TResponse>> _logger;
-    
+
     public ErrorHandlingBehavior(ILogger<ErrorHandlingBehavior<TRequest, TResponse>> logger)
     {
         _logger = logger;
     }
-    
+
     public async Task<TResponse> Handle(
-        TRequest request, 
-        RequestHandlerDelegate<TResponse> next, 
+        TRequest request,
+        RequestHandlerDelegate<TResponse> next,
         CancellationToken cancellationToken)
     {
         try
@@ -32,22 +32,22 @@ public class ErrorHandlingBehavior<TRequest, TResponse> : IPipelineBehavior<TReq
         {
             var requestName = typeof(TRequest).Name;
             _logger.LogError(ex, "Unhandled exception in {RequestName}", requestName);
-            
+
             // If TResponse is Fin<T>, convert exception to error result
-            if (typeof(TResponse).IsGenericType && 
+            if (typeof(TResponse).IsGenericType &&
                 typeof(TResponse).GetGenericTypeDefinition() == typeof(Fin<>))
             {
                 var errorMethod = typeof(Prelude)
                     .GetMethod(nameof(Prelude.Fail))
                     ?.MakeGenericMethod(typeof(TResponse).GetGenericArguments()[0]);
-                    
+
                 if (errorMethod != null)
                 {
                     var error = Error.New($"Unhandled exception in {requestName}: {ex.Message}", ex);
                     return (TResponse)errorMethod.Invoke(null, new object[] { error })!;
                 }
             }
-            
+
             // Re-throw if we can't convert to error result
             throw;
         }

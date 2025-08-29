@@ -12,36 +12,36 @@ public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, 
     where TRequest : notnull
 {
     private readonly ILogger<LoggingBehavior<TRequest, TResponse>> _logger;
-    
+
     public LoggingBehavior(ILogger<LoggingBehavior<TRequest, TResponse>> logger)
     {
         _logger = logger;
     }
-    
+
     public async Task<TResponse> Handle(
-        TRequest request, 
-        RequestHandlerDelegate<TResponse> next, 
+        TRequest request,
+        RequestHandlerDelegate<TResponse> next,
         CancellationToken cancellationToken)
     {
         var requestName = typeof(TRequest).Name;
         var stopwatch = Stopwatch.StartNew();
-        
+
         _logger.LogDebug("Executing {RequestName}", requestName);
-        
+
         try
         {
             var response = await next();
-            
+
             stopwatch.Stop();
-            _logger.LogDebug("Completed {RequestName} in {ElapsedMs}ms", 
+            _logger.LogDebug("Completed {RequestName} in {ElapsedMs}ms",
                 requestName, stopwatch.ElapsedMilliseconds);
-                
+
             return response;
         }
         catch (Exception ex)
         {
             stopwatch.Stop();
-            _logger.LogError(ex, "Failed {RequestName} after {ElapsedMs}ms", 
+            _logger.LogError(ex, "Failed {RequestName} after {ElapsedMs}ms",
                 requestName, stopwatch.ElapsedMilliseconds);
             throw;
         }

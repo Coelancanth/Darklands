@@ -19,7 +19,7 @@ public static class GameStrapper
 {
     private static ServiceProvider? _serviceProvider;
     private static bool _isInitialized;
-    
+
     /// <summary>
     /// Gets the configured service provider. Throws if not initialized.
     /// </summary>
@@ -32,7 +32,7 @@ public static class GameStrapper
             return _serviceProvider;
         }
     }
-    
+
     /// <summary>
     /// Initializes the DI container with all required services.
     /// Uses fallback-safe logging configuration that never crashes the application.
@@ -45,47 +45,47 @@ public static class GameStrapper
         {
             if (_isInitialized)
                 return FinSucc(_serviceProvider!);
-                
+
             var config = configuration ?? GameStrapperConfiguration.Default;
             var services = new ServiceCollection();
-            
+
             // Phase 1: Core Infrastructure  
             var loggingResult = ConfigureLogging(services, config);
             if (loggingResult.IsFail)
                 return loggingResult.Match(
                     Succ: _ => FinFail<ServiceProvider>(Error.New("Unexpected success in error path")),
                     Fail: err => FinFail<ServiceProvider>(err));
-                
+
             // Phase 2: MediatR Command/Query Pipeline
             var mediatrResult = ConfigureMediatR(services);
             if (mediatrResult.IsFail)
                 return mediatrResult.Match(
                     Succ: _ => FinFail<ServiceProvider>(Error.New("Unexpected success in error path")),
                     Fail: err => FinFail<ServiceProvider>(err));
-                
+
             // Phase 3: Application Services
             var appServicesResult = ConfigureApplicationServices(services);
             if (appServicesResult.IsFail)
                 return appServicesResult.Match(
                     Succ: _ => FinFail<ServiceProvider>(Error.New("Unexpected success in error path")),
                     Fail: err => FinFail<ServiceProvider>(err));
-                
+
             // Phase 4: Validation and Build
             var buildResult = BuildAndValidateContainer(services, config);
             if (buildResult.IsFail)
                 return buildResult;
-                
+
             _serviceProvider = buildResult.Match(
                 Succ: provider => provider,
                 Fail: _ => throw new InvalidOperationException("Build result was expected to succeed"));
             _isInitialized = true;
-            
+
             // Log successful initialization
             var loggerFactory = _serviceProvider.GetRequiredService<ILoggerFactory>();
             var logger = loggerFactory.CreateLogger("GameStrapper");
-            logger.LogInformation("GameStrapper initialized successfully with {ServiceCount} services", 
+            logger.LogInformation("GameStrapper initialized successfully with {ServiceCount} services",
                 services.Count);
-                
+
             return FinSucc(_serviceProvider);
         }
         catch (Exception ex)
@@ -95,7 +95,7 @@ public static class GameStrapper
             return FinFail<ServiceProvider>(Error.New($"GameStrapper initialization failed: {ex.Message}", ex));
         }
     }
-    
+
     /// <summary>
     /// Configures Serilog with fallback-safe configuration.
     /// Even if logging configuration fails, the application continues to work.
@@ -115,19 +115,19 @@ public static class GameStrapper
                     rollingInterval: RollingInterval.Day,
                     retainedFileCountLimit: 7,
                     outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} {Level:u3}] {SourceContext}: {Message:lj}{NewLine}{Exception}");
-                    
+
             // Apply custom configuration if provided
             if (config.CustomLoggerConfiguration != null)
                 loggerConfiguration = config.CustomLoggerConfiguration(loggerConfiguration);
-                
+
             // Build logger with fallback protection
             Log.Logger = loggerConfiguration.CreateLogger();
-            
+
             // Register with DI container
             services.AddSingleton<Serilog.ILogger>(Log.Logger);
             services.AddSingleton<ILoggerFactory>(provider => new SerilogLoggerFactory(Log.Logger));
             services.AddLogging(builder => builder.AddSerilog(Log.Logger));
-            
+
             return FinSucc(LanguageExt.Unit.Default);
         }
         catch (Exception ex)
@@ -138,7 +138,7 @@ public static class GameStrapper
             return FinSucc(LanguageExt.Unit.Default);
         }
     }
-    
+
     /// <summary>
     /// Configures MediatR with assembly scanning for commands, queries, and handlers.
     /// </summary>
@@ -147,19 +147,19 @@ public static class GameStrapper
         try
         {
             var coreAssembly = Assembly.GetExecutingAssembly();
-            
+
             // Register MediatR with assembly scanning
             services.AddMediatR(config =>
             {
                 config.RegisterServicesFromAssembly(coreAssembly);
-                
+
                 // Add logging pipeline behavior
                 config.AddOpenBehavior(typeof(LoggingBehavior<,>));
-                
+
                 // Add error handling pipeline behavior
                 config.AddOpenBehavior(typeof(ErrorHandlingBehavior<,>));
             });
-            
+
             return FinSucc(LanguageExt.Unit.Default);
         }
         catch (Exception ex)
@@ -167,7 +167,7 @@ public static class GameStrapper
             return FinFail<LanguageExt.Unit>(Error.New($"MediatR configuration failed: {ex.Message}", ex));
         }
     }
-    
+
     /// <summary>
     /// Registers application services with appropriate lifetimes.
     /// Singleton for state services, Transient for handlers and presenters.
@@ -178,16 +178,16 @@ public static class GameStrapper
         {
             // State services (Singleton - maintain state across operations)
             // TODO: Register state services here as they're implemented
-            
+
             // Repository interfaces (Singleton - typically wrap persistent state)
             // TODO: Register repositories here as they're implemented
-            
+
             // Presenters (Transient - short-lived, no state)
             // TODO: Register presenters here as they're implemented
-            
+
             // Domain services (Singleton - stateless business logic)
             // TODO: Register domain services here as they're implemented
-            
+
             return FinSucc(LanguageExt.Unit.Default);
         }
         catch (Exception ex)
@@ -195,13 +195,13 @@ public static class GameStrapper
             return FinFail<LanguageExt.Unit>(Error.New($"Application services configuration failed: {ex.Message}", ex));
         }
     }
-    
+
     /// <summary>
     /// Builds the service container with validation enabled.
     /// ValidateOnBuild ensures all dependencies can be resolved at startup.
     /// </summary>
     private static Fin<ServiceProvider> BuildAndValidateContainer(
-        IServiceCollection services, 
+        IServiceCollection services,
         GameStrapperConfiguration config)
     {
         try
@@ -211,15 +211,15 @@ public static class GameStrapper
                 ValidateOnBuild = config.ValidateOnBuild,
                 ValidateScopes = config.ValidateScopes
             };
-            
+
             var serviceProvider = services.BuildServiceProvider(serviceProviderOptions);
-            
+
             // Validate critical services can be resolved
             try
             {
                 serviceProvider.GetRequiredService<ILoggerFactory>();
                 serviceProvider.GetRequiredService<IMediator>();
-                
+
                 return FinSucc(serviceProvider);
             }
             catch (Exception validationEx)
@@ -235,7 +235,7 @@ public static class GameStrapper
                 Error.New($"Container build failed: {ex.Message}", ex));
         }
     }
-    
+
     /// <summary>
     /// Disposes the DI container and cleans up resources.
     /// </summary>
@@ -270,11 +270,11 @@ public record GameStrapperConfiguration(
     Func<LoggerConfiguration, LoggerConfiguration>? CustomLoggerConfiguration = null)
 {
     public static GameStrapperConfiguration Default => new();
-    
+
     public static GameStrapperConfiguration Development => new(
         LogLevel: Serilog.Events.LogEventLevel.Debug,
         ValidateScopes: true);
-        
+
     public static GameStrapperConfiguration Testing => new(
         LogLevel: Serilog.Events.LogEventLevel.Warning,
         LogFilePath: "logs/test-.log",
