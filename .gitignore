@@ -18,6 +18,14 @@ test/local_settings.cmd
 
 # --- Godot Mono/C# Specific ---
 # Mono-specific files and directories.
+
+# --- .NET Build Artifacts ---
+# Never commit compiled binaries or build artifacts
+bin/
+obj/
+*.dll
+*.pdb
+*.cache
 .mono/
 data_*/
 mono_crash.*.json
