@@ -55,8 +55,8 @@ Generated: [Use actual date/time from bash date command]
 [Items waiting on other work]
 ```
 
-### 2. Archive Management
-Move completed/rejected items to Completed_Backlog.md (NOT Backlog.md):
+### 2. Archive Management (WITH EXTRACTION TRACKING)
+Move completed/rejected items to Completed_Backlog.md following the extraction pattern:
 
 **⚠️ CRITICAL: APPEND-ONLY ARCHIVE PROTOCOL**
 - The archive file `Docs/07-Archive/Completed_Backlog.md` is APPEND-ONLY
@@ -71,29 +71,32 @@ Move completed/rejected items to Completed_Backlog.md (NOT Backlog.md):
 - REMOVE the "## 📦 Archive" section from Backlog.md if it exists
 
 **WHAT to move:**
-- Items with Status = "Completed" or "Done" → Format and append to Completed_Backlog.md
-- Items with Status = "Rejected" → Format with rejection reason and append to Completed_Backlog.md
-- Transform to archive format (see below)
+- Items with Status = "Completed" or "Done" → Move WITH FULL CONTEXT
+- Items with Status = "Rejected" → Format with rejection reason
+- PRESERVE ENTIRE ORIGINAL ITEM (don't summarize or compress)
 
-**HOW to format for Completed_Backlog.md:**
+**HOW to format COMPLETED items for Completed_Backlog.md:**
 ```markdown
-### [Type]_[Number]: Title ✅ COMPLETED
+### [Type]_[Number]: Title 
+**Extraction Status**: NOT EXTRACTED ⚠️
 **Completed**: [Today's date from bash]
-**Effort**: [Size field value or estimate]
-**Outcome**: [Brief summary from item description]
-**Lessons**: [Any key learnings]
-**Unblocked**: [What this enables]
-[METADATA: relevant, searchable, tags]
+**Archive Note**: [One-line summary of achievement]
+---
+[PASTE ENTIRE ORIGINAL ITEM HERE - PRESERVE EVERYTHING]
+---
+**Extraction Targets**:
+- [ ] ADR needed for: [architectural decisions to document]
+- [ ] HANDBOOK update: [patterns to add]
+- [ ] Test pattern: [testing approaches to capture]
 ```
 
-For rejected items:
+**HOW to format REJECTED items:**
 ```markdown
 ### [Type]_[Number]: Title ❌ REJECTED  
 **Rejected**: [Today's date from bash]
 **Reason**: [From rejection decision]
 **Alternative**: [What we did instead]
 [RESURRECT-IF: conditions-for-reconsideration]
-[METADATA: relevant, tags]
 ```
 
 ### 3. Priority Scoring
@@ -198,16 +201,20 @@ Read Docs/01-Active/Backlog.md
 Read Docs/07-Archive/Completed_Backlog.md
 
 # Step 3: Apply rules
-- Find TD_003 with Status="Completed" → Format for Archive.md
-- Find TD_007 with Status="Rejected" → Format for Archive.md
+- Find TD_003 with Status="Completed" → Copy ENTIRE item for archive
+- Find TD_007 with Status="Rejected" → Format rejection for archive
 - Calculate scores for active items
 - Find items in "Proposed" created before Aug 15 → Flag as stale
+- Identify extraction targets (ADRs, patterns, test approaches)
 
 # Step 4: Update Backlog.md
 MultiEdit to remove completed/rejected items and add scores
 
 # Step 5: APPEND to Completed_Backlog.md (CRITICAL: APPEND-ONLY)
-Edit to append newly completed/rejected items with proper formatting
+Edit to append items WITH extraction tracking:
+- Mark as "NOT EXTRACTED ⚠️"
+- PRESERVE entire original item content
+- Add extraction targets checklist
 ⚠️ NEVER overwrite or delete existing entries - APPEND ONLY
 ⚠️ Use Edit tool to add content at end of file only
 
