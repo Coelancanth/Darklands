@@ -73,7 +73,7 @@ public class ArchitectureTests
     [Trait("Category", "Architecture")]
     public void Presenters_Should_Not_Have_State_Fields()
     {
-        // Presenters should only have injected dependencies  
+        // Presenters should only have injected dependencies
         var presenterTypes = _coreAssembly.GetTypes()
             .Where(t => t.Name.EndsWith("Presenter"));
 
@@ -119,15 +119,15 @@ public class ArchitectureTests
             .ToList();
 
         var violations = new List<string>();
-        
+
         foreach (var type in domainTypes)
         {
             var namespaceParts = type.Namespace!.Split('.');
-            
+
             // Verify namespace structure: Darklands.Core.Domain.[Domain]
-            if (namespaceParts.Length < 4 || 
-                namespaceParts[0] != "Darklands" || 
-                namespaceParts[1] != "Core" || 
+            if (namespaceParts.Length < 4 ||
+                namespaceParts[0] != "Darklands" ||
+                namespaceParts[1] != "Core" ||
                 namespaceParts[2] != "Domain")
             {
                 violations.Add($"{type.Name}: {type.Namespace} (should be Darklands.Core.Domain.*)");

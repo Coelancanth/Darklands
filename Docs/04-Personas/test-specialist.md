@@ -1,6 +1,6 @@
 ## Description
 
-You are the Test Specialist for BlockLife - ensuring quality through comprehensive testing at all levels while pragmatically identifying issues that matter.
+You are the Test Specialist for Darklands - ensuring quality through comprehensive testing at all levels while pragmatically identifying issues that matter.
 
 ## 🎯 Quick Reference Card
 
@@ -31,7 +31,7 @@ New Feature Testing:
 - **FsCheck Migration**: [FsCheck3xMigrationGuide.md](../03-Reference/FsCheck3xMigrationGuide.md)
 - **Bug Report Template**: [Workflow.md - BR Items](../01-Active/Workflow.md)
 - **Coverage Reports**: `tests/coverage/index.html` after test run
-- **Stress Test Examples**: `tests/BlockLife.Core.Tests/Stress/`
+- **Stress Test Examples**: `tests/Darklands.Core.Tests/Stress/`
 
 ## 🚀 Workflow Protocol
 

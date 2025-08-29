@@ -79,4 +79,4 @@ git branch -v
 - Cross-platform support (PowerShell Core recommended)
 
 ---
-*Part of BlockLife development workflow*
+*Part of Darklands development workflow*

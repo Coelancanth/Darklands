@@ -30,18 +30,114 @@
 - **Add DI service?** → [GameStrapper Pattern](#gamestrapper-pattern)
 
 **🚨 Emergency Fixes:**
+- **First-time setup** → Run `./scripts/setup/verify-environment.ps1`
 - **30+ test failures** → Check DI registration in GameStrapper.cs first
 - **Handler not found** → Namespace MUST be `Darklands.Core.*` for MediatR discovery
 - **DI container fails** → Check namespace matches pattern
-- **First-time setup** → Run `dotnet tool restore` then build
-- **Tests pass but game won't compile** → Use `build.ps1 test` not `test-only`
+- **Build/test issues** → Run `./scripts/fix/common-issues.ps1`
+- **Tests pass but game won't compile** → Use `./scripts/core/build.ps1 test` not `test-only`
 
 ## 📍 Navigation
 
 - **Need a term definition?** → [Glossary.md](Glossary.md) (to be created)
 - **Major architecture decision?** → [ADR Directory](ADR/)
 - **Testing guide?** → [Testing.md](Testing.md) (to be created)
+- **First-time setup?** → [Development Environment Setup](#-development-environment-setup)
 - **Everything else?** → It's in this handbook
+
+---
+
+## 🛠️ Development Environment Setup
+
+### Quick Start (< 10 minutes)
+
+**New to Darklands?** Run this one command for automated setup:
+```bash
+git clone https://github.com/yourusername/darklands.git
+cd darklands
+./scripts/setup/verify-environment.ps1
+```
+
+**Already have the repo?** Just verify your environment:
+```bash
+./scripts/setup/verify-environment.ps1
+```
+
+### Prerequisites
+
+**Required Tools:**
+- **.NET SDK 8.0+**: [Download](https://dotnet.microsoft.com/download/dotnet/8.0) or `winget install Microsoft.DotNet.SDK.8`
+- **Git**: [Download](https://git-scm.com/) or `winget install Git.Git`
+- **Godot 4.4.1**: [Download](https://godotengine.org/download/windows/) (add to PATH)
+
+**Optional but Recommended:**
+- **PowerShell 7+**: `winget install Microsoft.PowerShell`
+- **GitHub CLI**: `winget install GitHub.cli`
+- **Visual Studio Code**: `winget install Microsoft.VisualStudioCode`
+
+### Verification Checklist
+
+After running the setup script, you should see:
+```
+✅ .NET SDK 8.0+ installed
+✅ Git installed and configured
+✅ Project structure validated
+✅ NuGet packages restored
+✅ Git hooks (Husky) installed
+✅ Build system working
+✅ All tests passing (107/107)
+✅ Setup complete - ready for development!
+```
+
+### Manual Setup (If Script Fails)
+
+**Install Git Hooks:**
+```bash
+dotnet tool restore
+dotnet husky install
+```
+
+**Build and Test:**
+```bash
+# Core library (fast)
+dotnet build src/Darklands.Core.csproj
+dotnet test tests/Darklands.Core.Tests.csproj
+
+# Full build including Godot
+dotnet build Darklands.csproj
+```
+
+**Common Issues:**
+- **"dotnet: command not found"** → Install .NET SDK 8.0+
+- **"godot: command not found"** → Add Godot to PATH
+- **Tests failing** → Run `./scripts/fix/common-issues.ps1`
+- **Hooks not working** → Run `chmod +x .husky/*` (Unix/Mac)
+
+### Performance Expectations
+
+After proper setup:
+- **Build time**: 2-3 seconds
+- **Test time**: < 1.5 seconds (107 tests)
+- **Pre-commit hook**: < 0.5 seconds
+- **Fresh clone to working**: < 10 minutes
+
+### Environment Verification Script
+
+The `./scripts/setup/verify-environment.ps1` script performs:
+1. **Prerequisites check** - .NET, Git, optional tools
+2. **Project validation** - Required files and structure
+3. **Package restore** - NuGet dependencies
+4. **Hook installation** - Git hooks via Husky
+5. **Build verification** - Core and test projects
+6. **Test execution** - Full test suite
+7. **Auto-fixes** - Attempts to fix common issues
+8. **Clear instructions** - Exact commands for manual fixes
+
+**Script Features:**
+- ✅ **Smart detection** - Checks all requirements
+- ✅ **Auto-fix capability** - Installs missing components
+- ✅ **Clear feedback** - Shows exactly what's wrong
+- ✅ **Zero-friction** - One command setup
 
 ---
 
@@ -151,6 +247,11 @@ Y↑
 ### Quick Commands
 
 ```bash
+# Setup and verification
+./scripts/setup/verify-environment.ps1     # Full environment check
+./scripts/fix/common-issues.ps1           # Auto-fix common problems
+./scripts/core/build.ps1 test             # Build + test (safe to commit)
+
 # Build and test
 dotnet build src/Darklands.Core.csproj    # Core only (fast)
 dotnet test tests/Darklands.Core.Tests.csproj  # Unit tests

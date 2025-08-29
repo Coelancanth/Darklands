@@ -5,9 +5,11 @@ echo "🔍 Validating commit message format..."
 
 # Read the commit message
 commit_message=$(cat "$1")
+commit_file="$1"
 
 # Check for conventional commit format: type(scope): description
-if echo "$commit_message" | grep -qE "^(feat|fix|docs|style|refactor|test|chore)(\([a-zA-Z0-9_-]+\))?: .+"; then
+# Supporting comprehensive set of conventional commit types
+if echo "$commit_message" | grep -qE "^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert|wip|deps|security|breaking)(\([a-zA-Z0-9_-]+\))?: .+"; then
     echo "✅ Commit message format is valid"
     exit 0
 fi
@@ -18,16 +20,127 @@ if echo "$commit_message" | grep -qE "\[Phase [1-4]/4\]"; then
     exit 0
 fi
 
+# AUTO-FIX: Attempt to suggest a proper format based on staged files
+echo "🔧 Auto-suggesting commit format..."
+
+# Analyze staged files to determine type and scope
+staged_files=$(git diff --cached --name-only)
+suggested_type="chore"
+suggested_scope=""
+
+# Detect type based on file patterns and commit message content
+commit_lower=$(echo "$commit_message" | tr '[:upper:]' '[:lower:]')
+
+# Smart detection based on keywords in commit message
+if echo "$commit_lower" | grep -q "break\|breaking\|major"; then
+    suggested_type="breaking"
+elif echo "$commit_lower" | grep -q "revert"; then
+    suggested_type="revert"
+elif echo "$commit_lower" | grep -q "wip\|work in progress\|draft"; then
+    suggested_type="wip"
+elif echo "$commit_lower" | grep -q "security\|vulnerability\|cve"; then
+    suggested_type="security"
+elif echo "$commit_lower" | grep -q "depend\|deps\|upgrade\|update package"; then
+    suggested_type="deps"
+elif echo "$commit_lower" | grep -q "performance\|perf\|optimize\|faster\|speed"; then
+    suggested_type="perf"
+elif echo "$commit_lower" | grep -q "refactor\|restructure\|reorganize"; then
+    suggested_type="refactor"
+elif echo "$commit_lower" | grep -q "style\|format\|lint\|prettier"; then
+    suggested_type="style"
+elif echo "$commit_lower" | grep -q "build\|compile\|bundle"; then
+    suggested_type="build"
+elif echo "$commit_lower" | grep -q "ci\|pipeline\|action\|workflow"; then
+    suggested_type="ci"
+elif echo "$commit_lower" | grep -q "test\|spec\|coverage"; then
+    suggested_type="test"
+elif echo "$commit_lower" | grep -q "fix\|bug\|issue\|problem\|error"; then
+    suggested_type="fix"
+elif echo "$commit_lower" | grep -q "add\|implement\|create\|feature"; then
+    suggested_type="feat"
+elif echo "$commit_lower" | grep -q "doc\|readme\|comment"; then
+    suggested_type="docs"
+else
+    # Fall back to file-based detection
+    if echo "$staged_files" | grep -q "^src/"; then
+        suggested_type="feat"
+    elif echo "$staged_files" | grep -q "^tests/"; then
+        suggested_type="test"
+    elif echo "$staged_files" | grep -q "^Docs/\|\.md$"; then
+        suggested_type="docs"
+    elif echo "$staged_files" | grep -q "\.husky\|scripts/"; then
+        suggested_type="ci"
+    elif echo "$staged_files" | grep -q ".github/workflows"; then
+        suggested_type="ci"
+    elif echo "$staged_files" | grep -q "package\.json\|\.csproj\|requirements\.txt"; then
+        suggested_type="deps"
+    else
+        suggested_type="chore"
+    fi
+fi
+
+# Intelligent scope detection based on file paths
+suggested_scope=""
+if echo "$staged_files" | grep -q "^src/Domain/"; then
+    suggested_scope="(domain)"
+elif echo "$staged_files" | grep -q "^src/Application/"; then
+    suggested_scope="(app)"
+elif echo "$staged_files" | grep -q "^src/Infrastructure/"; then
+    suggested_scope="(infra)"
+elif echo "$staged_files" | grep -q "^tests/"; then
+    suggested_scope="(tests)"
+elif echo "$staged_files" | grep -q ".github/"; then
+    suggested_scope="(ci)"
+elif echo "$staged_files" | grep -q "scripts/"; then
+    suggested_scope="(scripts)"
+elif echo "$staged_files" | grep -q "^src/"; then
+    # Try to extract scope from directory structure
+    scope_dir=$(echo "$staged_files" | grep "^src/" | head -1 | cut -d'/' -f2 | tr '[:upper:]' '[:lower:]')
+    suggested_scope="($scope_dir)"
+fi
+
+# Extract the core message (remove any existing type prefix)
+core_message=$(echo "$commit_message" | sed -E 's/^[a-z]+(\([^)]+\))?: ?//i')
+
+# Create suggested message
+suggested_message="${suggested_type}${suggested_scope}: ${core_message}"
+
 echo "❌ Invalid commit message format!"
 echo ""
-echo "Expected format:"
-echo "  feat(scope): description"
-echo "  fix(scope): description" 
-echo "  docs: description"
-echo "  test: description"
+echo "Your message: $commit_message"
+echo ""
+echo "🔧 AUTO-SUGGESTED FORMAT:"
+echo "  $suggested_message"
+echo ""
+echo "To use this suggestion, run:"
+echo "  git commit --amend -m \"$suggested_message\""
+echo ""
+echo "📝 Available commit types:"
+echo "  feat:     ✨ New feature or functionality"
+echo "  fix:      🐛 Bug fix or error correction"
+echo "  docs:     📚 Documentation changes only"
+echo "  style:    💄 Code style/formatting (no logic change)"
+echo "  refactor: ♻️  Code restructuring (no behavior change)"
+echo "  perf:     ⚡ Performance improvements"
+echo "  test:     ✅ Adding or updating tests"
+echo "  build:    🏗️  Build system or dependencies"
+echo "  ci:       👷 CI/CD pipeline changes"
+echo "  chore:    🔧 Maintenance tasks"
+echo "  revert:   ⏪ Reverting previous commit"
+echo "  wip:      🚧 Work in progress (use sparingly)"
+echo "  deps:     📦 Dependency updates"
+echo "  security: 🔒 Security fixes"
+echo "  breaking: 💥 Breaking changes (major version)"
+echo ""
+echo "Format: type(scope): description"
+echo "Example: feat(combat): add time-based turn system"
 echo ""
 echo "For phased implementation:"
 echo "  feat(combat): implement time units [Phase 1/4]"
+
+# Store suggestion in a temp file for easy copy-paste
+echo "$suggested_message" > .git/COMMIT_MSG_SUGGESTION
 echo ""
-echo "Your message: $commit_message"
+echo "💡 Suggestion saved to .git/COMMIT_MSG_SUGGESTION"
+
 exit 1

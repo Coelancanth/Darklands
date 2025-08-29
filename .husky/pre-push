@@ -10,21 +10,88 @@ current_branch=$(git symbolic-ref --short HEAD)
 if [ "$current_branch" = "main" ] || [ "$current_branch" = "master" ]; then
     echo "❌ Direct push to $current_branch is not allowed!"
     echo ""
-    echo "Please create a feature branch and submit a PR:"
-    echo "  git checkout -b feat/your-feature-name"
-    echo "  git push -u origin feat/your-feature-name"
+    echo "🔧 AUTO-FIX: Creating feature branch..."
+
+    # Suggest branch name based on recent changes
+    suggested_branch="feat/$(date +%Y%m%d)-update"
+    if git diff --cached --name-only | grep -q "^src/"; then
+        suggested_branch="feat/$(git diff --cached --name-only | grep "^src/" | head -1 | cut -d'/' -f2-3 | tr '/' '-' | tr '[:upper:]' '[:lower:]')"
+    fi
+
+    echo "  Suggested branch: $suggested_branch"
     echo ""
-    echo "Then create a PR via GitHub or:"
-    echo "  gh pr create --title \"Your PR Title\" --body \"Description\""
+    echo "Run these commands:"
+    echo "  git checkout -b $suggested_branch"
+    echo "  git push -u origin $suggested_branch"
+    echo "  gh pr create"
     exit 1
 fi
 
-# Run full build validation before pushing
-echo "Running full build validation..."
-dotnet build --no-restore --verbosity minimal
-if [ $? -ne 0 ]; then
-    echo "❌ Build failed. Push aborted."
-    exit 1
+# AUTO-FIX: Ensure branch is up to date with main
+echo "🔧 Checking if branch is up to date..."
+git fetch origin main --quiet
+behind_count=$(git rev-list --count HEAD..origin/main)
+
+if [ "$behind_count" -gt "0" ]; then
+    echo "⚠️  Branch is $behind_count commits behind main"
+    echo "🔧 Auto-syncing with main..."
+
+    # Try to rebase automatically
+    git rebase origin/main
+    if [ $? -ne 0 ]; then
+        echo "❌ Rebase failed - conflicts detected"
+        echo "💡 Run: git rebase --abort  (to cancel)"
+        echo "    Or fix conflicts and: git rebase --continue"
+        exit 1
+    fi
+    echo "✅ Successfully synced with main"
 fi
+
+# AUTO-FIX: Run build and attempt fixes if needed
+echo "Running build validation..."
+dotnet build --no-restore --verbosity minimal 2>/dev/null
+if [ $? -ne 0 ]; then
+    echo "🔧 Build failed - attempting auto-fix..."
+
+    # Try to restore packages
+    dotnet restore --verbosity minimal
+
+    # Clean and rebuild
+    dotnet clean --verbosity minimal
+    dotnet build --verbosity minimal
+
+    if [ $? -ne 0 ]; then
+        echo "❌ Build still failing after auto-fix attempt"
+        echo "💡 Try: ./scripts/fix/common-issues.ps1"
+        exit 1
+    fi
+    echo "✅ Build fixed automatically"
+fi
+
+# Check for common issues before push
+echo "🔧 Checking for common issues..."
+
+# Remove any .orig files (merge artifacts)
+orig_files=$(find . -name "*.orig" 2>/dev/null)
+if [ -n "$orig_files" ]; then
+    echo "🔧 Removing merge artifacts..."
+    find . -name "*.orig" -delete
+    echo "✅ Cleaned merge artifacts"
+fi
+
+# Check commit message format for all new commits
+echo "Validating commit messages..."
+commits_to_push=$(git rev-list origin/$current_branch..HEAD 2>/dev/null || git rev-list origin/main..HEAD)
+
+for commit in $commits_to_push; do
+    msg=$(git log -1 --format=%s $commit)
+    if ! echo "$msg" | grep -qE "^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert|wip|deps|security|breaking)(\([a-zA-Z0-9_-]+\))?: .+"; then
+        if ! echo "$msg" | grep -qE "\[Phase [1-4]/4\]"; then
+            echo "⚠️  Non-conventional commit: $msg"
+            echo "    Consider amending with: git commit --amend"
+            echo "    Supported types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert, wip, deps, security, breaking"
+        fi
+    fi
+done
 
 echo "✅ Pre-push validation passed!"

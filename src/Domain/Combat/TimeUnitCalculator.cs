@@ -8,7 +8,8 @@ namespace Darklands.Core.Domain.Combat;
 /// This is the heart of the Darklands combat system, determining how long actions take
 /// based on weapon speed, character agility, and equipment encumbrance.
 /// 
-/// Formula: FinalTime = BaseTime * (100/Agility) * (1 + Encumbrance * 0.1)
+/// Formula: FinalTime = (BaseTime * 100 * (10 + Encumbrance)) / (Agility * 10)
+/// Uses deterministic integer arithmetic to ensure identical results across all platforms.
 /// </summary>
 public static class TimeUnitCalculator
 {
@@ -57,12 +58,16 @@ public static class TimeUnitCalculator
 
         try
         {
-            // Core time calculation formula
+            // Deterministic integer arithmetic - same result on all platforms
             var baseTime = action.BaseCost.Value;
-            var agilityModifier = 100.0 / agility;
-            var encumbranceModifier = 1.0 + (encumbrance * 0.1);
 
-            var finalTime = (int)Math.Round(baseTime * agilityModifier * encumbranceModifier);
+            // Formula: (BaseTime * 100 * (10 + Encumbrance)) / (Agility * 10)
+            // This avoids all floating-point operations while preserving the original formula's intent
+            var numerator = baseTime * 100 * (10 + encumbrance);
+            var denominator = agility * 10;
+
+            // Integer division with proper rounding (add half denominator for round-to-nearest)
+            var finalTime = (numerator + denominator / 2) / denominator;
 
             // Ensure result is within valid bounds
             return TimeUnit.FromMilliseconds(finalTime);
@@ -74,31 +79,31 @@ public static class TimeUnitCalculator
     }
 
     /// <summary>
-    /// Calculates the time penalty multiplier for a given encumbrance level.
-    /// Higher encumbrance means slower actions.
+    /// Calculates the encumbrance factor for time calculations.
+    /// Higher encumbrance means slower actions. Returns integer factor for deterministic math.
     /// </summary>
     /// <param name="encumbrance">Encumbrance level (0-50)</param>
-    /// <returns>Multiplier for time calculations (1.0 = no penalty, 6.0 = maximum penalty)</returns>
-    public static Fin<double> CalculateEncumbrancePenalty(int encumbrance)
+    /// <returns>Encumbrance factor as integer (10 = no penalty, 60 = maximum penalty)</returns>
+    public static Fin<int> CalculateEncumbranceFactor(int encumbrance)
     {
         if (encumbrance < MinimumEncumbrance || encumbrance > MaximumEncumbrance)
-            return Fin<double>.Fail(Error.New($"Encumbrance must be between {MinimumEncumbrance} and {MaximumEncumbrance}, got: {encumbrance}"));
+            return Fin<int>.Fail(Error.New($"Encumbrance must be between {MinimumEncumbrance} and {MaximumEncumbrance}, got: {encumbrance}"));
 
-        return Fin<double>.Succ(1.0 + (encumbrance * 0.1));
+        return Fin<int>.Succ(10 + encumbrance);
     }
 
     /// <summary>
-    /// Calculates the time bonus multiplier for a given agility score.
+    /// Validates agility is within acceptable bounds for calculations.
     /// Higher agility means faster actions.
     /// </summary>
     /// <param name="agility">Agility score (1-100)</param>
-    /// <returns>Multiplier for time calculations (1.0 = average, 0.1 = maximum bonus)</returns>
-    public static Fin<double> CalculateAgilityBonus(int agility)
+    /// <returns>Success if valid, error if out of bounds</returns>
+    public static Fin<int> ValidateAgilityScore(int agility)
     {
         if (agility < MinimumAgility || agility > MaximumAgility)
-            return Fin<double>.Fail(Error.New($"Agility must be between {MinimumAgility} and {MaximumAgility}, got: {agility}"));
+            return Fin<int>.Fail(Error.New($"Agility must be between {MinimumAgility} and {MaximumAgility}, got: {agility}"));
 
-        return Fin<double>.Succ(100.0 / agility);
+        return Fin<int>.Succ(agility);
     }
 
     /// <summary>
@@ -119,7 +124,7 @@ public static class TimeUnitCalculator
                    actionB.Name,
                    timeB,
                    timeA < timeB ? actionA.Name : actionB.Name,
-                   Math.Abs(timeA.Value - timeB.Value));
+                   timeA.Value > timeB.Value ? timeA.Value - timeB.Value : timeB.Value - timeA.Value);
     }
 }
 

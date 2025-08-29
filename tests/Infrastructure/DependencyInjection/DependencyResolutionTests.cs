@@ -12,11 +12,11 @@ namespace Darklands.Core.Tests.Infrastructure.DependencyInjection;
 
 /// <summary>
 /// DI Resolution Tests for GameStrapper.
-/// 
+///
 /// Validates that all services registered in the DI container can be resolved
 /// successfully, preventing DI configuration regressions.
-/// 
-/// This test acts as an architectural fitness function to ensure all services 
+///
+/// This test acts as an architectural fitness function to ensure all services
 /// remain resolvable.
 /// </summary>
 public class DependencyResolutionTests
@@ -26,17 +26,17 @@ public class DependencyResolutionTests
     {
         // Arrange - Use minimal configuration for testing
         var config = GameStrapperConfiguration.Testing;
-        
+
         // Act
         var result = GameStrapper.Initialize(config);
-        
+
         // Assert
         result.IsSucc.Should().BeTrue("GameStrapper should initialize without errors");
-        
+
         var serviceProvider = result.Match(
             Succ: provider => provider,
             Fail: error => throw new InvalidOperationException($"GameStrapper failed to initialize: {error}"));
-        
+
         ValidateAllServicesResolvable(serviceProvider, "GameStrapper Configuration");
     }
 
@@ -49,7 +49,7 @@ public class DependencyResolutionTests
         var serviceProvider = result.Match(
             Succ: provider => provider,
             Fail: error => throw new InvalidOperationException($"Setup failed: {error}"));
-        
+
         // CRITICAL: Test key service interfaces that should be registered
         var serviceTypesToTest = new Type[]
         {
@@ -57,7 +57,7 @@ public class DependencyResolutionTests
             typeof(IMediator),
             typeof(ILogger),
             typeof(Microsoft.Extensions.Logging.ILoggerFactory),
-            
+
             // TODO: Add business services as they're implemented in future phases:
             // typeof(ICombatStateService),
             // typeof(IGameStateService),
@@ -66,7 +66,7 @@ public class DependencyResolutionTests
 
         serviceTypesToTest.Should().NotBeEmpty("service interface list should contain testable services");
 
-        // Act & Assert - Comprehensive resolution validation  
+        // Act & Assert - Comprehensive resolution validation
         foreach (var serviceType in serviceTypesToTest)
         {
             try
@@ -92,10 +92,10 @@ public class DependencyResolutionTests
             LogFilePath: "/invalid/path/that/should/not/exist.log",
             ValidateOnBuild: true,
             ValidateScopes: true);
-        
+
         // Act - Should not throw, should return Fin<T> result
         var result = GameStrapper.Initialize(problematicConfig);
-        
+
         // Assert - Even with problematic config, should initialize successfully
         // (due to fallback mechanisms)
         result.IsSucc.Should().BeTrue(
@@ -111,10 +111,10 @@ public class DependencyResolutionTests
         var serviceProvider = result.Match(
             Succ: provider => provider,
             Fail: error => throw new InvalidOperationException($"Setup failed: {error}"));
-        
+
         // Act
         var mediator = serviceProvider.GetRequiredService<IMediator>();
-        
+
         // Assert
         mediator.Should().NotBeNull("IMediator should be registered");
         mediator.Should().BeAssignableTo<IMediator>("Should implement IMediator interface");
@@ -129,14 +129,14 @@ public class DependencyResolutionTests
         var serviceProvider = result.Match(
             Succ: provider => provider,
             Fail: error => throw new InvalidOperationException($"Setup failed: {error}"));
-        
+
         // Act & Assert - Should support both Serilog and Microsoft.Extensions.Logging
         var serilogLogger = serviceProvider.GetRequiredService<ILogger>();
         var msLoggerFactory = serviceProvider.GetRequiredService<Microsoft.Extensions.Logging.ILoggerFactory>();
         var msLogger = serviceProvider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<DependencyResolutionTests>>();
-        
+
         serilogLogger.Should().NotBeNull("Serilog ILogger should be registered");
-        msLoggerFactory.Should().NotBeNull("Microsoft ILoggerFactory should be registered");  
+        msLoggerFactory.Should().NotBeNull("Microsoft ILoggerFactory should be registered");
         msLogger.Should().NotBeNull("Microsoft ILogger<T> should be available");
     }
 

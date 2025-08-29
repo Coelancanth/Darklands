@@ -1,4 +1,4 @@
-# BlockLife Scripts Quick Reference Card
+# Darklands Scripts Quick Reference Card
 
 > **Print-friendly cheat sheet for daily development**
 

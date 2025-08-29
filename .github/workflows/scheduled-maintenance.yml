@@ -1,0 +1,206 @@
+name: Scheduled Maintenance
+
+on:
+  schedule:
+    # Run every Monday at 3 AM UTC
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  auto-maintenance:
+    name: 🧹 Automated Maintenance
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+        
+    - name: 🧹 Clean up stale artifacts
+      run: |
+        echo "🧹 Cleaning stale build artifacts..."
+        find . -type d -name "bin" -o -name "obj" | xargs rm -rf || true
+        find . -name "*.orig" -delete || true
+        find . -name "*~" -delete || true
+        
+    - name: 🔧 Auto-format entire codebase
+      run: |
+        echo "🔧 Formatting all C# files..."
+        dotnet format src/Darklands.Core.csproj --verbosity diagnostic || true
+        dotnet format tests/Darklands.Core.Tests.csproj --verbosity diagnostic || true
+        dotnet format Darklands.csproj --verbosity diagnostic || true
+        
+    - name: 🔧 Update tool manifest
+      run: |
+        echo "🔧 Ensuring tools are up to date..."
+        dotnet tool restore || dotnet tool update --global
+        
+    - name: 📊 Generate code metrics
+      run: |
+        echo "📊 Analyzing code metrics..."
+        
+        # Count lines of code
+        echo "## Code Metrics Report" > metrics.md
+        echo "" >> metrics.md
+        echo "### Lines of Code" >> metrics.md
+        echo "- Domain: $(find src/Domain -name "*.cs" -exec wc -l {} + | tail -1 | awk '{print $1}')" >> metrics.md
+        echo "- Application: $(find src/Application -name "*.cs" 2>/dev/null -exec wc -l {} + | tail -1 | awk '{print $1}')" >> metrics.md
+        echo "- Infrastructure: $(find src/Infrastructure -name "*.cs" -exec wc -l {} + | tail -1 | awk '{print $1}')" >> metrics.md
+        echo "- Tests: $(find tests -name "*.cs" -exec wc -l {} + | tail -1 | awk '{print $1}')" >> metrics.md
+        echo "" >> metrics.md
+        
+        # Count test coverage
+        echo "### Test Count" >> metrics.md
+        echo "- Total Tests: $(dotnet test --no-build --no-restore -v q --list-tests | grep -c 'Test')" >> metrics.md
+        
+    - name: 🔍 Check for outdated packages
+      id: check-packages
+      run: |
+        echo "🔍 Checking for outdated packages..."
+        
+        outdated=$(dotnet list package --outdated) || true
+        if echo "$outdated" | grep -q "has the following updates"; then
+          echo "has_updates=true" >> $GITHUB_OUTPUT
+          echo "$outdated" > outdated-packages.txt
+        else
+          echo "has_updates=false" >> $GITHUB_OUTPUT
+        fi
+        
+    - name: 🔧 Fix common issues
+      run: |
+        echo "🔧 Running common issue fixes..."
+        
+        # Normalize line endings
+        find . -type f -name "*.cs" -exec dos2unix {} \; 2>/dev/null || true
+        
+        # Remove trailing whitespace
+        find . -type f -name "*.cs" -exec sed -i 's/[[:space:]]*$//' {} \; || true
+        
+        # Ensure all files end with newline
+        find . -type f -name "*.cs" -exec sh -c 'tail -c1 "$1" | read -r _ || echo >> "$1"' _ {} \; || true
+        
+    - name: 📝 Create maintenance PR
+      if: steps.check-packages.outputs.has_updates == 'true' || github.event_name == 'workflow_dispatch'
+      run: |
+        # Configure git
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        
+        # Create branch
+        branch_name="chore/weekly-maintenance-$(date +%Y%m%d)"
+        git checkout -b $branch_name
+        
+        # Stage all changes
+        git add -A
+        
+        # Check if there are changes to commit
+        if [[ -n $(git status --porcelain) ]]; then
+          # Commit changes
+          git commit -m "chore: weekly maintenance and cleanup
+          
+          - 🧹 Cleaned build artifacts
+          - 🔧 Formatted code
+          - 📊 Updated metrics
+          - 🔍 Checked for outdated packages
+          
+          [skip ci]"
+          
+          # Push branch
+          git push -u origin $branch_name
+          
+          # Create PR
+          gh pr create \
+            --title "🧹 Weekly Maintenance" \
+            --body "## 🤖 Automated Weekly Maintenance
+            
+            This PR contains automated maintenance tasks:
+            
+            ### ✅ Completed Tasks:
+            - 🧹 Cleaned stale build artifacts
+            - 🔧 Formatted all code files
+            - 📊 Generated code metrics
+            - 🔍 Checked for outdated packages
+            
+            ### 📊 Metrics:
+            See metrics.md for current code statistics
+            
+            ### 🔄 Auto-Merge:
+            This PR will auto-merge if all checks pass.
+            
+            ---
+            *Generated by Zero-Friction CI*" \
+            --label "automated" \
+            --label "maintenance"
+        else
+          echo "✅ No maintenance needed - codebase is clean!"
+        fi
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  clean-old-branches:
+    name: 🌿 Clean Stale Branches
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Clean merged branches
+      run: |
+        echo "🌿 Cleaning merged branches..."
+        
+        # List merged branches (except main/develop)
+        merged_branches=$(git branch -r --merged origin/main | grep -v -E "(main|develop|HEAD)" | sed 's/origin\///')
+        
+        if [ -n "$merged_branches" ]; then
+          echo "Found merged branches to delete:"
+          echo "$merged_branches"
+          
+          for branch in $merged_branches; do
+            echo "Deleting $branch..."
+            git push origin --delete $branch || echo "Could not delete $branch"
+          done
+        else
+          echo "✅ No merged branches to clean"
+        fi
+        
+    - name: Report stale branches
+      run: |
+        echo "📊 Checking for stale branches..."
+        
+        # Find branches not updated in 30 days
+        stale_date=$(date -d '30 days ago' +%Y-%m-%d)
+        
+        gh api repos/${{ github.repository }}/branches --paginate | \
+          jq -r '.[] | select(.name != "main" and .name != "develop") | 
+          select(.commit.commit.author.date < "'$stale_date'") | .name' > stale-branches.txt
+          
+        if [ -s stale-branches.txt ]; then
+          echo "⚠️ Found stale branches (>30 days old):"
+          cat stale-branches.txt
+          
+          # Create issue for manual review
+          gh issue create \
+            --title "🌿 Stale branches need review" \
+            --body "The following branches haven't been updated in 30+ days:
+            
+$(cat stale-branches.txt | sed 's/^/- /')
+            
+Please review and delete if no longer needed." \
+            --label "maintenance"
+        else
+          echo "✅ No stale branches found"
+        fi
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

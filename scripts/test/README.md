@@ -102,7 +102,7 @@ export BLOCKLIFE_PRECOMMIT_TESTS=true
 
 # Name filtering
 --filter "FullyQualifiedName~Move"
---filter "FullyQualifiedName~BlockLife.Core.Tests.Architecture"
+--filter "FullyQualifiedName~Darklands.Core.Tests.Architecture"
 ```
 
 ### Performance Metrics

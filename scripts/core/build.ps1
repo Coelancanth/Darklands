@@ -10,12 +10,14 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# PROJECT CONFIGURATION - CUSTOMIZE THESE
-$ProjectName = "YourProject"  # TODO: Update with your project name
-$SolutionFile = "YourProject.sln"  # TODO: Update with your solution/project file
-$BuildCommand = "dotnet build"  # TODO: Update with your build command (npm run build, make, etc.)
-$TestCommand = "dotnet test"  # TODO: Update with your test command
-$CleanCommand = "dotnet clean"  # TODO: Update with your clean command
+# PROJECT CONFIGURATION - DARKLANDS
+$ProjectName = "Darklands"
+$CoreProject = "src/Darklands.Core.csproj"
+$TestProject = "tests/Darklands.Core.Tests.csproj"
+$GodotProject = "Darklands.csproj"
+$BuildCommand = "dotnet build"
+$TestCommand = "dotnet test"
+$CleanCommand = "dotnet clean"
 
 function Write-Step {
     param([string]$Message)
@@ -35,48 +37,59 @@ function Execute-Command {
 switch ($Command) {
     'clean' {
         Write-Step "Cleaning build artifacts"
-        Execute-Command "$CleanCommand $SolutionFile"
-        # TODO: Add any project-specific clean steps here
+        Execute-Command "$CleanCommand $CoreProject"
+        Execute-Command "$CleanCommand $TestProject"
+        Execute-Command "$CleanCommand $GodotProject"
+        # Clean bin and obj directories
+        Get-ChildItem -Path . -Include bin,obj -Recurse -Directory | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
         Write-Host "✓ Clean complete" -ForegroundColor Green
     }
-    
+
     'build' {
         Write-Step "Building $ProjectName"
-        Execute-Command "$BuildCommand $SolutionFile --configuration Debug"
+        Execute-Command "$BuildCommand $CoreProject --configuration Debug"
+        Execute-Command "$BuildCommand $TestProject --configuration Debug"
+        Execute-Command "$BuildCommand $GodotProject --configuration Debug"
         Write-Host "✓ Build successful" -ForegroundColor Green
     }
-    
+
     'test' {
         Write-Step "Building and running tests"
         Write-Host "  Building first..." -ForegroundColor Yellow
-        Execute-Command "$BuildCommand $SolutionFile --configuration Debug"
+        Execute-Command "$BuildCommand $CoreProject --configuration Debug"
+        Execute-Command "$BuildCommand $TestProject --configuration Debug"
+        Execute-Command "$BuildCommand $GodotProject --configuration Debug"
         Write-Host "✓ Build successful" -ForegroundColor Green
         Write-Step "Running tests"
-        Execute-Command "$TestCommand $SolutionFile --configuration Debug --verbosity normal"
+        Execute-Command "$TestCommand $TestProject --configuration Debug --verbosity normal"
         Write-Host "✓ Build and test complete - safe to commit" -ForegroundColor Green
-        Write-Host "  💡 Tip: For faster testing, use ../test/quick.ps1 (1.3s) or ../test/full.ps1 (staged)" -ForegroundColor DarkGray
+        Write-Host "  💡 Tip: For faster testing, use ../test/quick.ps1 (architecture tests only)" -ForegroundColor DarkGray
     }
-    
+
     'test-only' {
         Write-Step "Running tests only (development iteration)"
         Write-Host "  ⚠️  Note: This doesn't validate Godot compilation" -ForegroundColor Yellow
-        Execute-Command "dotnet test BlockLife.sln --configuration Debug --verbosity normal"
+        Execute-Command "$TestCommand $TestProject --configuration Debug --verbosity normal --no-build"
         Write-Host "✓ All tests passed" -ForegroundColor Green
         Write-Host "  Remember to run 'test' (not 'test-only') before committing!" -ForegroundColor Yellow
-        Write-Host "  💡 Tip: Use ../test/quick.ps1 for architecture tests only (1.3s)" -ForegroundColor DarkGray
+        Write-Host "  💡 Tip: Use ../test/quick.ps1 for architecture tests only (fast)" -ForegroundColor DarkGray
     }
-    
+
     'run' {
-        Write-Step "Running BlockLife"
+        Write-Step "Running $ProjectName"
         Write-Host "  Note: This requires Godot to be installed" -ForegroundColor Yellow
         if (Get-Command godot -ErrorAction SilentlyContinue) {
-            Execute-Command "godot"
+            # Build Core library first
+            Execute-Command "$BuildCommand $CoreProject --configuration Debug"
+            # Launch Godot
+            Execute-Command "godot project.godot"
         } else {
             Write-Host "✗ Godot not found in PATH" -ForegroundColor Red
-            Write-Host "  Please install Godot 4.4 or add it to your PATH" -ForegroundColor Yellow
+            Write-Host "  Please install Godot 4.4.1 or add it to your PATH" -ForegroundColor Yellow
+            Write-Host "  Download from: https://godotengine.org/download" -ForegroundColor Cyan
         }
     }
-    
+
     'all' {
         & $PSCommandPath clean
         & $PSCommandPath build

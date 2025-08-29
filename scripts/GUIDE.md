@@ -1,4 +1,4 @@
-# BlockLife Scripts Complete Guide
+# Darklands Scripts Complete Guide
 
 **Last Updated**: 2025-08-22  
 **Maintained by**: DevOps Engineer
@@ -189,7 +189,7 @@ cd ../blocklife-tech-lead
 ./scripts/core/build.ps1 build
 
 # Verbose diagnostics
-dotnet build BlockLife.sln --verbosity normal
+dotnet build Darklands.sln --verbosity normal
 
 # Reset environment
 ./scripts/core/build.ps1 clean

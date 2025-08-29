@@ -18,7 +18,7 @@ namespace Darklands.Core.Tests.Infrastructure.DependencyInjection;
 /// 1. All handlers are in the correct namespace for auto-discovery
 /// 2. All handler dependencies are registered in DI
 /// 3. MediatR can discover and instantiate all handlers
-/// 
+///
 /// Prevents runtime MediatR resolution failures by catching registration issues at test time.
 /// </summary>
 public class MediatRHandlerRegistrationTests
@@ -42,18 +42,18 @@ public class MediatRHandlerRegistrationTests
     {
         // Arrange - Find all IRequestHandler implementations
         var handlerTypes = _coreAssembly.GetTypes()
-            .Where(t => t.GetInterfaces().Any(i => 
-                i.IsGenericType && 
+            .Where(t => t.GetInterfaces().Any(i =>
+                i.IsGenericType &&
                 i.GetGenericTypeDefinition() == typeof(IRequestHandler<,>)))
             .ToList();
 
         // Act & Assert - Verify namespace alignment
         var incorrectNamespaces = new List<string>();
-        
+
         foreach (var handlerType in handlerTypes)
         {
             var namespaceName = handlerType.Namespace ?? string.Empty;
-            
+
             // CRITICAL: All handlers must be in Darklands.Core namespace hierarchy
             // This ensures MediatR's assembly scanning finds them
             if (!namespaceName.StartsWith("Darklands.Core"))
@@ -74,8 +74,8 @@ public class MediatRHandlerRegistrationTests
     {
         // Arrange - Find all handler types
         var handlerTypes = _coreAssembly.GetTypes()
-            .Where(t => t.GetInterfaces().Any(i => 
-                i.IsGenericType && 
+            .Where(t => t.GetInterfaces().Any(i =>
+                i.IsGenericType &&
                 i.GetGenericTypeDefinition() == typeof(IRequestHandler<,>)) &&
                 !t.IsAbstract &&
                 t.Namespace?.StartsWith("Darklands.Core") == true)
@@ -87,18 +87,18 @@ public class MediatRHandlerRegistrationTests
         foreach (var handlerType in handlerTypes)
         {
             var constructors = handlerType.GetConstructors();
-            
+
             foreach (var constructor in constructors)
             {
                 var parameters = constructor.GetParameters();
-                
+
                 foreach (var parameter in parameters)
                 {
                     try
                     {
                         // Try to resolve each dependency
                         var service = _serviceProvider.GetService(parameter.ParameterType);
-                        
+
                         if (service == null && !parameter.HasDefaultValue)
                         {
                             missingDependencies.Add(
@@ -125,30 +125,30 @@ public class MediatRHandlerRegistrationTests
     {
         // Arrange
         var mediator = _serviceProvider.GetRequiredService<IMediator>();
-        
+
         // Find all command/query types (requests) - exclude interfaces and abstract classes
         var requestTypes = _coreAssembly.GetTypes()
             .Where(t => !t.IsInterface && !t.IsAbstract &&
-                       t.GetInterfaces().Any(i => i == typeof(IRequest) || 
+                       t.GetInterfaces().Any(i => i == typeof(IRequest) ||
                 (i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequest<>))))
             .ToList();
 
         // Currently no requests implemented in Phase 1, but test framework is ready
         // This test will validate handlers as we implement them in Phase 2+
-        
+
         // For now, validate that MediatR is configured correctly
         mediator.Should().NotBeNull("MediatR should be properly configured");
-        
+
         // When we have requests in Phase 2, this will validate they have handlers
         if (requestTypes.Any())
         {
             var unmappedRequests = new List<string>();
-            
+
             foreach (var requestType in requestTypes)
             {
                 // Build the handler interface type
                 var responseType = requestType.GetInterfaces()
-                    .FirstOrDefault(i => i.IsGenericType && 
+                    .FirstOrDefault(i => i.IsGenericType &&
                         i.GetGenericTypeDefinition() == typeof(IRequest<>))
                     ?.GetGenericArguments()[0];
 
@@ -188,10 +188,10 @@ public class MediatRHandlerRegistrationTests
     public void Handler_Registration_Should_Not_Have_Duplicate_Implementations()
     {
         // Ensure no handler is registered multiple times (can cause resolution issues)
-        
+
         var handlerInterfaces = _coreAssembly.GetTypes()
             .SelectMany(t => t.GetInterfaces())
-            .Where(i => i.IsGenericType && 
+            .Where(i => i.IsGenericType &&
                 i.GetGenericTypeDefinition() == typeof(IRequestHandler<,>))
             .Distinct()
             .ToList();
@@ -199,7 +199,7 @@ public class MediatRHandlerRegistrationTests
         foreach (var handlerInterface in handlerInterfaces)
         {
             var implementations = _serviceProvider.GetServices(handlerInterface).ToList();
-            
+
             implementations.Count.Should().BeLessThanOrEqualTo(1,
                 $"Handler interface {handlerInterface.Name} should have at most one implementation registered. " +
                 $"Multiple implementations can cause ambiguous resolution.");
@@ -211,17 +211,17 @@ public class MediatRHandlerRegistrationTests
     {
         // Verify that our custom pipeline behaviors are registered
         var behaviorsFromDI = _serviceProvider.GetServices<IPipelineBehavior<IRequest, object>>().ToList();
-        
+
         // Should have at least logging and error handling behaviors
         behaviorsFromDI.Should().NotBeEmpty(
             "MediatR pipeline should have custom behaviors (logging, error handling) registered");
-        
+
         // Verify specific behaviors are present
         var behaviorTypeNames = behaviorsFromDI.Select(b => b.GetType().Name).ToList();
-        
+
         behaviorTypeNames.Should().Contain(name => name.Contains("Logging"),
             "LoggingBehavior should be registered in MediatR pipeline");
-        
+
         behaviorTypeNames.Should().Contain(name => name.Contains("Error"),
             "ErrorHandlingBehavior should be registered in MediatR pipeline");
     }
