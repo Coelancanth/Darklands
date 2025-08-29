@@ -1,0 +1,30 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+echo "🔍 Pre-push validation..."
+
+# Get the current branch name
+current_branch=$(git symbolic-ref --short HEAD)
+
+# Prevent direct push to main/master
+if [ "$current_branch" = "main" ] || [ "$current_branch" = "master" ]; then
+    echo "❌ Direct push to $current_branch is not allowed!"
+    echo ""
+    echo "Please create a feature branch and submit a PR:"
+    echo "  git checkout -b feat/your-feature-name"
+    echo "  git push -u origin feat/your-feature-name"
+    echo ""
+    echo "Then create a PR via GitHub or:"
+    echo "  gh pr create --title \"Your PR Title\" --body \"Description\""
+    exit 1
+fi
+
+# Run full build validation before pushing
+echo "Running full build validation..."
+dotnet build --no-restore --verbosity minimal
+if [ $? -ne 0 ]; then
+    echo "❌ Build failed. Push aborted."
+    exit 1
+fi
+
+echo "✅ Pre-push validation passed!"

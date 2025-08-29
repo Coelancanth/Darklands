@@ -1,0 +1,22 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+echo "🔍 Pre-commit validation..."
+
+# Run Core tests (fast feedback)
+echo "Running Core tests..."
+dotnet test src/../tests/Darklands.Core.Tests.csproj --no-build --verbosity minimal
+if [ $? -ne 0 ]; then
+    echo "❌ Tests failed. Commit aborted."
+    exit 1
+fi
+
+# Check code formatting
+echo "Checking code formatting..."
+dotnet format src/Darklands.Core.csproj --verify-no-changes --verbosity minimal
+if [ $? -ne 0 ]; then
+    echo "❌ Code formatting issues found. Run 'dotnet format' and try again."
+    exit 1
+fi
+
+echo "✅ Pre-commit validation passed!"
