@@ -1,0 +1,33 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+echo "🔍 Validating commit message format..."
+
+# Read the commit message
+commit_message=$(cat "$1")
+
+# Check for conventional commit format: type(scope): description
+if echo "$commit_message" | grep -qE "^(feat|fix|docs|style|refactor|test|chore)(\([a-zA-Z0-9_-]+\))?: .+"; then
+    echo "✅ Commit message format is valid"
+    exit 0
+fi
+
+# Check for phase markers (ADR-002 requirement)
+if echo "$commit_message" | grep -qE "\[Phase [1-4]/4\]"; then
+    echo "✅ Commit message has phase marker - format accepted"
+    exit 0
+fi
+
+echo "❌ Invalid commit message format!"
+echo ""
+echo "Expected format:"
+echo "  feat(scope): description"
+echo "  fix(scope): description" 
+echo "  docs: description"
+echo "  test: description"
+echo ""
+echo "For phased implementation:"
+echo "  feat(combat): implement time units [Phase 1/4]"
+echo ""
+echo "Your message: $commit_message"
+exit 1
