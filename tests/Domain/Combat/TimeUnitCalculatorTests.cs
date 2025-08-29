@@ -127,9 +127,9 @@ public class TimeUnitCalculatorTests
 
         // Assert
         low.IsSucc.Should().BeTrue();
-        average.IsSucc.Should().BeTrue(); 
+        average.IsSucc.Should().BeTrue();
         high.IsSucc.Should().BeTrue();
-        
+
         low.IfSucc(agility => agility.Should().Be(1));
         average.IfSucc(agility => agility.Should().Be(50));
         high.IfSucc(agility => agility.Should().Be(100));
