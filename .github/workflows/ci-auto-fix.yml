@@ -1,4 +1,4 @@
-name: CI with Auto-Fix
+name: Streamlined CI
 
 on:
   push:
@@ -9,136 +9,54 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
+  pull-requests: read
   checks: write
 
 jobs:
-  # Job 1: Auto-format and fix common issues
-  auto-fix:
-    name: 🔧 Auto-Fix Issues
+  # Job 1: Quick verification (trust local hooks did their job)
+  verify:
+    name: 🔍 Verify Local Fixes
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    
-    steps:
-    - name: Checkout PR
-      uses: actions/checkout@v4
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        ref: ${{ github.event.pull_request.head.ref }}
-        
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: '8.0.x'
-        
-    - name: 🔧 Auto-format code
-      id: format
-      run: |
-        echo "🔧 Auto-formatting C# code..."
-        dotnet format src/Darklands.Core.csproj --verbosity diagnostic || true
-        dotnet format tests/Darklands.Core.Tests.csproj --verbosity diagnostic || true
-        
-        # Check if any files were modified
-        if [[ -n $(git status --porcelain) ]]; then
-          echo "formatted=true" >> $GITHUB_OUTPUT
-          echo "✅ Code was auto-formatted"
-        else
-          echo "formatted=false" >> $GITHUB_OUTPUT
-          echo "✅ Code is already properly formatted"
-        fi
-        
-    - name: 🔧 Fix line endings
-      run: |
-        echo "🔧 Normalizing line endings..."
-        # Convert CRLF to LF for consistency
-        find . -type f -name "*.cs" -exec dos2unix {} \; 2>/dev/null || true
-        
-    - name: 🔧 Remove trailing whitespace
-      run: |
-        echo "🔧 Removing trailing whitespace..."
-        find . -type f -name "*.cs" -exec sed -i 's/[[:space:]]*$//' {} \; || true
-        
-    - name: 🔧 Clean build artifacts
-      run: |
-        echo "🔧 Cleaning stale build artifacts..."
-        find . -type d -name "bin" -o -name "obj" | xargs rm -rf || true
-        
-    - name: 💾 Commit auto-fixes
-      if: steps.format.outputs.formatted == 'true' || github.event_name == 'pull_request'
-      run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        
-        # Stage all changes
-        git add -A
-        
-        # Only commit if there are changes
-        if [[ -n $(git status --porcelain) ]]; then
-          git commit -m "🔧 Auto-fix: Format code and clean artifacts [skip ci]"
-          git push
-          echo "✅ Auto-fixes committed to PR"
-        else
-          echo "✅ No auto-fixes needed"
-        fi
-
-  # Job 2: Build with caching
-  build:
-    name: 🏗️ Build & Cache
-    runs-on: ubuntu-latest
-    needs: [auto-fix]
-    if: always() && !cancelled()
+    timeout-minutes: 5
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Setup .NET with caching
+    - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: '8.0.x'
         cache: true
-        cache-dependency-path: '**/packages.lock.json'
         
-    - name: Cache NuGet packages
-      uses: actions/cache@v3
-      with:
-        path: ~/.nuget/packages
-        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
-        restore-keys: |
-          ${{ runner.os }}-nuget-
-          
-    - name: 🔧 Auto-restore if needed
+    - name: 🔍 Verify code formatting
       run: |
-        echo "🔧 Ensuring all dependencies are restored..."
-        dotnet restore src/Darklands.Core.csproj || {
-          echo "🔧 Restore failed, clearing cache and retrying..."
-          dotnet nuget locals all --clear
-          dotnet restore src/Darklands.Core.csproj --force
-        }
+        echo "🔍 Verifying local hooks did their job..."
         
-    - name: Build all projects
+        # Check if code would be changed by formatting
+        dotnet format src/Darklands.Core.csproj --verify-no-changes --verbosity diagnostic
+        dotnet format tests/Darklands.Core.Tests.csproj --verify-no-changes --verbosity diagnostic
+        
+        echo "✅ Code formatting is correct (local hooks worked!)"
+        
+    - name: 🔍 Verify build cleanliness
       run: |
-        dotnet build src/Darklands.Core.csproj --configuration Release --no-restore
-        dotnet build tests/Darklands.Core.Tests.csproj --configuration Release --no-restore
-        dotnet build Darklands.csproj --configuration Release --no-restore || {
-          echo "⚠️ Godot project build failed - may need Godot runtime"
-        }
+        echo "🔍 Verifying no build artifacts committed..."
         
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v3
-      with:
-        name: build-artifacts
-        path: |
-          src/bin/
-          tests/bin/
-        retention-days: 1
+        if find . -type d -name "bin" -o -name "obj" | grep -q .; then
+          echo "❌ Build artifacts found in repo"
+          exit 1
+        else
+          echo "✅ Repository is clean (no build artifacts)"
+        fi
 
-  # Job 3: Run tests with detailed reporting
+  # Job 2: Fast build and test
   test:
-    name: 🧪 Test & Report
-    runs-on: ubuntu-latest
-    needs: [build]
+    name: 🧪 Build & Test
+    runs-on: ubuntu-latest  
+    needs: [verify]
+    timeout-minutes: 10
     
     steps:
     - name: Checkout code
@@ -148,170 +66,90 @@ jobs:
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: '8.0.x'
+        cache: true
         
-    - name: Download build artifacts
-      uses: actions/download-artifact@v3
-      with:
-        name: build-artifacts
-        
-    - name: Run all tests
-      id: test
+    - name: 🏗️ Restore dependencies
+      run: dotnet restore
+      
+    - name: 🏗️ Build projects
       run: |
-        # Run tests and capture results
+        dotnet build src/Darklands.Core.csproj --configuration Release --no-restore
+        dotnet build tests/Darklands.Core.Tests.csproj --configuration Release --no-restore
+        
+        # Godot project (optional - may need Godot runtime)
+        dotnet build Darklands.csproj --configuration Release --no-restore || {
+          echo "ℹ️ Godot project build skipped (requires Godot runtime)"
+        }
+        
+    - name: 🧪 Run tests
+      run: |
         dotnet test tests/Darklands.Core.Tests.csproj \
           --configuration Release \
           --no-build \
-          --logger "trx;LogFileName=test-results.trx" \
           --logger "console;verbosity=normal" \
           --collect:"XPlat Code Coverage" \
-          --results-directory ./TestResults \
-          || echo "test_failed=true" >> $GITHUB_OUTPUT
+          --results-directory ./TestResults
           
-    - name: 📊 Generate test report
-      uses: dorny/test-reporter@v1
-      if: always()
-      with:
-        name: Test Results
-        path: '**/test-results.trx'
-        reporter: dotnet-trx
-        fail-on-error: false
-        
     - name: 📊 Upload coverage
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
+      if: always()
       with:
         directory: ./TestResults
         flags: unittests
         fail_ci_if_error: false
-        
-    - name: 🔧 Auto-fix test failures
-      if: steps.test.outputs.test_failed == 'true'
-      run: |
-        echo "🔧 Tests failed - attempting auto-fixes..."
-        
-        # Clean and rebuild
-        echo "Cleaning build artifacts..."
-        find . -type d -name "bin" -o -name "obj" | xargs rm -rf
-        
-        echo "Restoring and rebuilding..."
-        dotnet restore --force
-        dotnet build --configuration Release
-        
-        echo "Retrying tests..."
-        dotnet test tests/Darklands.Core.Tests.csproj \
-          --configuration Release \
-          --verbosity normal \
-          || echo "⚠️ Tests still failing after auto-fix attempt"
 
-  # Job 4: PR automation
-  pr-automation:
-    name: 🤖 PR Automation
+  # Job 3: Security and quality checks
+  security:
+    name: 🔒 Security & Quality
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    needs: [test]
+    timeout-minutes: 3
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: 🏷️ Auto-label PR
-      uses: actions/labeler@v4
-      with:
-        repo-token: "${{ secrets.GITHUB_TOKEN }}"
-        sync-labels: true
-        configuration-path: .github/labeler.yml
-        
-    - name: 📝 Add PR comment with results
-      uses: actions/github-script@v6
-      with:
-        script: |
-          const summary = `## 🤖 CI Auto-Fix Report
-          
-          ### ✅ Automated Fixes Applied:
-          - 🔧 Code formatting standardized
-          - 🔧 Line endings normalized
-          - 🔧 Trailing whitespace removed
-          - 🔧 Build artifacts cleaned
-          
-          ### 📊 Test Results:
-          - All tests: **Passing** ✅
-          - Architecture tests: **Passing** ✅
-          - Coverage: View in Codecov
-          
-          ### 💡 Next Steps:
-          1. Review the auto-applied fixes
-          2. Merge when ready
-          3. Auto-fixes will keep your code clean!
-          
-          ---
-          *Generated by Zero-Friction CI*`;
-          
-          github.rest.issues.createComment({
-            issue_number: context.issue.number,
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            body: summary
-          });
-
-  # Job 5: Validate commit messages
-  commit-validation:
-    name: 📝 Validate Commits
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-        
-    - name: Validate commit messages
-      run: |
-        echo "📝 Validating commit messages..."
-        
-        # Get all commits in this PR
-        commits=$(git log --format=%s origin/main..HEAD)
-        
-        invalid_commits=""
-        while IFS= read -r commit; do
-          # Check for conventional commit format (comprehensive set)
-          if ! echo "$commit" | grep -qE "^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert|wip|deps|security|breaking)(\([a-zA-Z0-9_-]+\))?: .+"; then
-            # Check for phase markers
-            if ! echo "$commit" | grep -qE "\[Phase [1-4]/4\]"; then
-              invalid_commits="$invalid_commits\n  ❌ $commit"
-            fi
-          fi
-        done <<< "$commits"
-        
-        if [ -n "$invalid_commits" ]; then
-          echo "⚠️ Found non-conventional commits:$invalid_commits"
-          echo ""
-          echo "💡 Use conventional format:"
-          echo "  feat(scope): description"
-          echo "  fix(scope): description"
-          echo "  Or include phase marker: [Phase X/4]"
-        else
-          echo "✅ All commit messages follow conventions"
-        fi
-
-  # Job 6: Security scanning
-  security-scan:
-    name: 🔒 Security Scan
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Run security scan
+    - name: 🔒 Security scan
       run: |
         echo "🔒 Scanning for security issues..."
         
-        # Check for hardcoded secrets
-        if grep -r "password\|secret\|key\|token" --include="*.cs" --exclude-dir=".git" .; then
-          echo "⚠️ Potential secrets found - please review"
+        # Check for hardcoded secrets (basic check)
+        if grep -r "password\s*=" --include="*.cs" . || \
+           grep -r "secret\s*=" --include="*.cs" . || \
+           grep -r "key\s*=" --include="*.cs" . | grep -v "Key.cs"; then
+          echo "⚠️ Potential hardcoded credentials found"
+          exit 1
         else
-          echo "✅ No hardcoded secrets detected"
+          echo "✅ No hardcoded credentials detected"
         fi
         
-        # Check for vulnerable packages
-        dotnet list package --vulnerable --include-transitive || echo "✅ No known vulnerabilities"
+    - name: 📝 Validate commit messages (PR only)
+      if: github.event_name == 'pull_request'
+      run: |
+        echo "📝 Validating commit messages..."
+        
+        # Simple conventional commit check
+        git log --format=%s origin/main..HEAD | while read commit; do
+          if echo "$commit" | grep -qE "^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-zA-Z0-9_-]+\))?: .+|.*\[Phase [1-4]/4\]"; then
+            echo "✅ $commit"
+          else
+            echo "⚠️ Non-conventional: $commit"
+          fi
+        done
+
+  # Job 4: Success summary (only runs if all pass)
+  success:
+    name: ✅ CI Success
+    runs-on: ubuntu-latest
+    needs: [verify, test, security]
+    if: success()
+    
+    steps:
+    - name: 🎉 All checks passed
+      run: |
+        echo "🎉 All CI checks passed!"
+        echo ""  
+        echo "✅ Local hooks verification: PASSED"
+        echo "✅ Build and tests: PASSED"
+        echo "✅ Security scan: PASSED"
+        echo ""
+        echo "🚀 Ready to merge!"
