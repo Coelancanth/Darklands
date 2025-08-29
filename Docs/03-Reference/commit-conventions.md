@@ -62,7 +62,7 @@ Our commit-msg hook automatically detects the appropriate type based on:
 ```bash
 feat(combat): implement time-based turn system
 feat(ui): add health bar visualization
-feat(domain): create Character entity with attributes
+feat(domain): create Actor entity with attributes
 ```
 
 ### Bug Fixes
