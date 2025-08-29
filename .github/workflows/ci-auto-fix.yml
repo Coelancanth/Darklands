@@ -75,11 +75,11 @@ jobs:
       
     - name: 🏗️ Build projects
       run: |
-        dotnet build src/Darklands.Core.csproj --configuration Release --no-restore
-        dotnet build tests/Darklands.Core.Tests.csproj --configuration Release --no-restore
+        dotnet build src/Darklands.Core.csproj --configuration Release
+        dotnet build tests/Darklands.Core.Tests.csproj --configuration Release
         
         # Godot project (optional - may need Godot runtime)
-        dotnet build Darklands.csproj --configuration Release --no-restore || {
+        dotnet build Darklands.csproj --configuration Release || {
           echo "ℹ️ Godot project build skipped (requires Godot runtime)"
         }
         
@@ -87,7 +87,6 @@ jobs:
       run: |
         dotnet test tests/Darklands.Core.Tests.csproj \
           --configuration Release \
-          --no-build \
           --logger "console;verbosity=normal" \
           --collect:"XPlat Code Coverage" \
           --results-directory ./TestResults
