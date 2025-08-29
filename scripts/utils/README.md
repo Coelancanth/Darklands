@@ -5,7 +5,7 @@ General-purpose utility and helper scripts.
 ## 🔧 Available Scripts
 
 ### rotate-memory-bank.ps1
-**Purpose**: Automated Memory Bank rotation for BlockLife personas
+**Purpose**: Automated Memory Bank rotation for Darklands personas
 ```powershell
 # Check and perform due rotations
 ./scripts/utils/rotate-memory-bank.ps1

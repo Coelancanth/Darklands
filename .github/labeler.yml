@@ -1,0 +1,79 @@
+# Auto-labeling rules for PRs
+# This file is used by the labeler action in ci-auto-fix.yml
+
+# Label by file paths
+'domain':
+  - src/Domain/**/*
+  - src/Domain/*
+
+'application':
+  - src/Application/**/*
+  - src/Application/*
+
+'infrastructure':
+  - src/Infrastructure/**/*
+  - src/Infrastructure/*
+
+'tests':
+  - tests/**/*
+  - tests/*
+
+'ci/cd':
+  - .github/workflows/*
+  - .github/workflows/**/*
+  - scripts/**/*
+
+'documentation':
+  - '**/*.md'
+  - Docs/**/*
+
+'godot':
+  - '*.gdscript'
+  - '*.tscn'
+  - '*.tres'
+  - godot_project/**/*
+
+'automation':
+  - scripts/**/*
+  - .husky/*
+
+# Size labels (by changed lines)
+'size/XS':
+  - count:
+      max: 10
+
+'size/S':
+  - count:
+      min: 11
+      max: 50
+
+'size/M':
+  - count:
+      min: 51
+      max: 200
+
+'size/L':
+  - count:
+      min: 201
+      max: 500
+
+'size/XL':
+  - count:
+      min: 501
+
+# Phase labels (detect from PR title/commits)
+'phase-1':
+  - '**/*Domain/**/*'
+  - 'src/Domain/**/*'
+
+'phase-2':
+  - '**/*Application/**/*'
+  - 'src/Application/**/*'
+
+'phase-3':
+  - '**/*Infrastructure/**/*'
+  - 'src/Infrastructure/**/*'
+
+'phase-4':
+  - '**/*.tscn'
+  - '**/*.gdscript'

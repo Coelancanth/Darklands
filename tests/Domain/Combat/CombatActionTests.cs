@@ -20,10 +20,10 @@ public class CombatActionTests
         var baseDamage = 10;
         var type = CombatActionType.Attack;
         var accuracyBonus = 5;
-        
+
         // Act
         var action = CombatAction.CreateUnsafe(name, baseCost, baseDamage, type, accuracyBonus);
-        
+
         // Assert
         action.Name.Should().Be(name);
         action.BaseCost.Should().Be(baseCost);
@@ -32,7 +32,7 @@ public class CombatActionTests
         action.AccuracyBonus.Should().Be(accuracyBonus);
         action.IsValid.Should().BeTrue();
     }
-    
+
     [Fact]
     public void Constructor_DefaultParameters_UsesDefaults()
     {
@@ -40,16 +40,16 @@ public class CombatActionTests
         var name = "Default Action";
         var baseCost = TimeUnit.CreateUnsafe(300);
         var baseDamage = 5;
-        
+
         // Act
         var action = CombatAction.CreateUnsafe(name, baseCost, baseDamage);
-        
+
         // Assert
         action.Type.Should().Be(CombatActionType.Attack);
         action.AccuracyBonus.Should().Be(0);
         action.IsValid.Should().BeTrue();
     }
-    
+
     [Theory]
     [InlineData("")]
     [InlineData(" ")]
@@ -58,26 +58,26 @@ public class CombatActionTests
     {
         // Arrange
         var validTimeUnit = TimeUnit.CreateUnsafe(500);
-        
+
         // Act
         var result = CombatAction.Create(name!, validTimeUnit, 10);
-        
+
         // Assert
         result.IsFail.Should().BeTrue();
     }
-    
+
     [Fact]
     public void Create_InvalidBaseCost_ReturnsFailure()
     {
         // Arrange - Create will fail because TimeUnit.Create(-100) fails
         var invalidTimeUnit = TimeUnit.Create(-100);
         invalidTimeUnit.IsFail.Should().BeTrue(); // Verify our assumption
-        
+
         // This test is no longer needed since we can't create invalid TimeUnits
         // All CombatActions with valid TimeUnits will be valid
         // Removing this test as it tests an impossible scenario
     }
-    
+
     [Theory]
     [InlineData(-1)]
     [InlineData(-100)]
@@ -85,14 +85,14 @@ public class CombatActionTests
     {
         // Arrange
         var validTimeUnit = TimeUnit.CreateUnsafe(500);
-        
+
         // Act
         var result = CombatAction.Create("Test", validTimeUnit, baseDamage);
-        
+
         // Assert
         result.IsFail.Should().BeTrue();
     }
-    
+
     [Theory]
     [InlineData(-101)]
     [InlineData(101)]
@@ -102,14 +102,14 @@ public class CombatActionTests
     {
         // Arrange
         var validTimeUnit = TimeUnit.CreateUnsafe(500);
-        
+
         // Act
         var result = CombatAction.Create("Test", validTimeUnit, 10, CombatActionType.Attack, accuracyBonus);
-        
+
         // Assert
         result.IsFail.Should().BeTrue();
     }
-    
+
     [Theory]
     [InlineData(-100)]
     [InlineData(-50)]
@@ -120,11 +120,11 @@ public class CombatActionTests
     {
         // Arrange
         var action = CombatAction.CreateUnsafe("Test", TimeUnit.CreateUnsafe(500), 10, CombatActionType.Attack, accuracyBonus);
-        
+
         // Act & Assert
         action.IsValid.Should().BeTrue();
     }
-    
+
     [Fact]
     public void Create_ValidParameters_ReturnsSuccessResult()
     {
@@ -132,10 +132,10 @@ public class CombatActionTests
         var name = "Valid Action";
         var baseCost = TimeUnit.CreateUnsafe(600);
         var baseDamage = 12;
-        
+
         // Act
         var result = CombatAction.Create(name, baseCost, baseDamage);
-        
+
         // Assert
         result.IsSucc.Should().BeTrue();
         result.IfSucc(action =>
@@ -146,7 +146,7 @@ public class CombatActionTests
             action.IsValid.Should().BeTrue();
         });
     }
-    
+
     [Theory]
     [InlineData("")]
     [InlineData(" ")]
@@ -155,38 +155,38 @@ public class CombatActionTests
     {
         // Act
         var result = CombatAction.Create(name!, TimeUnit.CreateUnsafe(500), 10);
-        
+
         // Assert
         result.IsFail.Should().BeTrue();
     }
-    
+
     [Fact]
     public void Create_NegativeBaseDamage_ReturnsFailureResult()
     {
         // Act
         var result = CombatAction.Create("Test", TimeUnit.CreateUnsafe(500), -5);
-        
+
         // Assert
         result.IsFail.Should().BeTrue();
     }
-    
+
     [Fact]
     public void Create_InvalidAccuracyBonus_ReturnsFailureResult()
     {
         // Act
         var result = CombatAction.Create("Test", TimeUnit.CreateUnsafe(500), 10, CombatActionType.Attack, 150);
-        
+
         // Assert
         result.IsFail.Should().BeTrue();
     }
-    
+
     // Test all common combat actions
     [Fact]
     public void CommonActions_DaggerStab_HasCorrectProperties()
     {
         // Act
         var dagger = CombatAction.Common.DaggerStab;
-        
+
         // Assert
         dagger.Name.Should().Be("Dagger Stab");
         dagger.BaseCost.Value.Should().Be(500);
@@ -195,13 +195,13 @@ public class CombatActionTests
         dagger.AccuracyBonus.Should().Be(10);
         dagger.IsValid.Should().BeTrue();
     }
-    
+
     [Fact]
     public void CommonActions_SwordSlash_HasCorrectProperties()
     {
         // Act
         var sword = CombatAction.Common.SwordSlash;
-        
+
         // Assert
         sword.Name.Should().Be("Sword Slash");
         sword.BaseCost.Value.Should().Be(800);
@@ -210,13 +210,13 @@ public class CombatActionTests
         sword.AccuracyBonus.Should().Be(0);
         sword.IsValid.Should().BeTrue();
     }
-    
+
     [Fact]
     public void CommonActions_AxeChop_HasCorrectProperties()
     {
         // Act
         var axe = CombatAction.Common.AxeChop;
-        
+
         // Assert
         axe.Name.Should().Be("Axe Chop");
         axe.BaseCost.Value.Should().Be(1200);
@@ -225,13 +225,13 @@ public class CombatActionTests
         axe.AccuracyBonus.Should().Be(-5);
         axe.IsValid.Should().BeTrue();
     }
-    
+
     [Fact]
     public void CommonActions_Block_HasCorrectProperties()
     {
         // Act
         var block = CombatAction.Common.Block;
-        
+
         // Assert
         block.Name.Should().Be("Block");
         block.BaseCost.Value.Should().Be(300);
@@ -240,13 +240,13 @@ public class CombatActionTests
         block.AccuracyBonus.Should().Be(0);
         block.IsValid.Should().BeTrue();
     }
-    
+
     [Fact]
     public void CommonActions_Dodge_HasCorrectProperties()
     {
         // Act
         var dodge = CombatAction.Common.Dodge;
-        
+
         // Assert
         dodge.Name.Should().Be("Dodge");
         dodge.BaseCost.Value.Should().Be(200);
@@ -255,7 +255,7 @@ public class CombatActionTests
         dodge.AccuracyBonus.Should().Be(0);
         dodge.IsValid.Should().BeTrue();
     }
-    
+
     [Fact]
     public void CommonActions_AllActions_AreValid()
     {
@@ -268,14 +268,14 @@ public class CombatActionTests
             CombatAction.Common.Block,
             CombatAction.Common.Dodge
         };
-        
+
         // Act & Assert
         foreach (var action in commonActions)
         {
             action.IsValid.Should().BeTrue($"Common action {action.Name} should be valid");
         }
     }
-    
+
     [Fact]
     public void CommonActions_AttackActions_HavePositiveDamage()
     {
@@ -286,14 +286,14 @@ public class CombatActionTests
             CombatAction.Common.SwordSlash,
             CombatAction.Common.AxeChop
         };
-        
+
         // Act & Assert
         foreach (var action in attackActions)
         {
             action.BaseDamage.Should().BeGreaterThan(0, $"Attack action {action.Name} should have positive damage");
         }
     }
-    
+
     [Fact]
     public void CommonActions_DefensiveActions_HaveZeroDamage()
     {
@@ -303,7 +303,7 @@ public class CombatActionTests
             CombatAction.Common.Block,
             CombatAction.Common.Dodge
         };
-        
+
         // Act & Assert
         foreach (var action in defensiveActions)
         {

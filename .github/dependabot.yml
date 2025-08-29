@@ -1,0 +1,44 @@
+# Dependabot configuration for automatic dependency updates
+# Zero-friction approach: auto-merge patch and minor updates
+
+version: 2
+updates:
+  # NuGet packages for .NET
+  - package-ecosystem: "nuget"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "03:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "automated"
+    commit-message:
+      prefix: "chore"
+      prefix-development: "chore"
+      include: "scope"
+    # Auto-merge strategy
+    groups:
+      minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "03:00"
+    labels:
+      - "ci/cd"
+      - "automated"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    # Always auto-approve action updates
+    open-pull-requests-limit: 3

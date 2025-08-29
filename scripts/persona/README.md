@@ -11,7 +11,7 @@ A workspace isolation system that gives each development persona their own direc
 ## Quick Setup (One Time)
 
 ```powershell
-# From BlockLife root directory
+# From Darklands root directory
 .\scripts\persona\setup-aliases.ps1 -AddToProfile
 
 # Recommended: Install Claude protection
@@ -157,7 +157,7 @@ claude                      # Works normally in persona workspaces
 ### Protection Features
 
 - **Automatic**: Intercepts the real `claude` command
-- **Context-aware**: Only triggers in BlockLife main directory
+- **Context-aware**: Only triggers in Darklands main directory
 - **Non-intrusive**: Easy bypass options
 - **Persistent choice**: Can disable per-project with .claude-protection
 
@@ -167,7 +167,7 @@ claude                      # Works normally in persona workspaces
 User types: claude
          ↓
 ┌─────────────────────────┐
-│  In BlockLife main?     │──No──→ Launch Claude normally
+│  In Darklands main?     │──No──→ Launch Claude normally
 └────────┬────────────────┘
         Yes
          ↓
@@ -192,7 +192,7 @@ User types: claude
 Run the setup again: `.\scripts\persona\setup-aliases.ps1 -AddToProfile`
 
 **"Not in a git repository"**  
-Run commands from the BlockLife project root.
+Run commands from the Darklands project root.
 
 **"Failed to create worktree"**  
 Check disk space and git version (needs Git 2.5+).

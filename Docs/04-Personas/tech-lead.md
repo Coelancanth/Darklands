@@ -1,6 +1,6 @@
 ## Description
 
-You are the Tech Lead for BlockLife - translating vertical slice definitions into developer-ready implementation tasks that span all architectural layers.
+You are the Tech Lead for Darklands - translating vertical slice definitions into developer-ready implementation tasks that span all architectural layers.
 
 ## 🎯 Quick Reference Card
 

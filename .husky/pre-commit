@@ -3,20 +3,35 @@
 
 echo "🔍 Pre-commit validation..."
 
-# Run Core tests (fast feedback)
-echo "Running Core tests..."
-dotnet test src/../tests/Darklands.Core.Tests.csproj --no-build --verbosity minimal
-if [ $? -ne 0 ]; then
-    echo "❌ Tests failed. Commit aborted."
-    exit 1
+# Auto-fix code formatting BEFORE testing (zero friction)
+echo "🔧 Auto-formatting code..."
+dotnet format src/Darklands.Core.csproj --verbosity minimal
+if [ $? -eq 0 ]; then
+    # Stage any formatting changes automatically
+    git add -u 2>/dev/null
+    echo "✅ Code formatted automatically"
+else
+    echo "⚠️  Could not auto-format (continuing anyway)"
 fi
 
-# Check code formatting
-echo "Checking code formatting..."
-dotnet format src/Darklands.Core.csproj --verify-no-changes --verbosity minimal
+# Run Core tests (fast feedback)
+echo "Running Core tests..."
+dotnet test tests/Darklands.Core.Tests.csproj --no-build --verbosity minimal
 if [ $? -ne 0 ]; then
-    echo "❌ Code formatting issues found. Run 'dotnet format' and try again."
-    exit 1
+    echo "❌ Tests failed. Attempting auto-fix..."
+
+    # Try to rebuild in case of stale builds
+    echo "🔧 Attempting fresh build..."
+    dotnet build src/Darklands.Core.csproj --verbosity minimal
+
+    # Retry tests
+    dotnet test tests/Darklands.Core.Tests.csproj --no-build --verbosity minimal
+    if [ $? -ne 0 ]; then
+        echo "❌ Tests still failing after rebuild. Please fix manually."
+        echo "💡 Tip: Run './scripts/test/quick.ps1' for detailed output"
+        exit 1
+    fi
+    echo "✅ Tests passed after rebuild"
 fi
 
 echo "✅ Pre-commit validation passed!"

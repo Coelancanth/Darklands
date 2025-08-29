@@ -1,6 +1,6 @@
 # Core Build Scripts
 
-Essential build, clean, and run operations for BlockLife.
+Essential build, clean, and run operations for Darklands.
 
 ## Available Scripts
 

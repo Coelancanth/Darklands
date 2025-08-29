@@ -26,17 +26,17 @@ Initial setup and environment configuration scripts.
 ### Initial Repository Setup
 ```powershell
 # 1. Clone main repository
-git clone https://github.com/yourusername/BlockLife.git
+git clone https://github.com/yourusername/Darklands.git
 
 # 2. Install protection on main
-cd BlockLife
+cd Darklands
 ./scripts/setup/install-claude-protection.ps1
 
 # 3. Setup persona clones
 ./scripts/persona/setup-personas.ps1
 
 # 4. Work in persona-specific directories
-cd ../BlockLife-DevEngineer
+cd ../Darklands-DevEngineer
 ```
 
 ### Environment Verification
@@ -75,4 +75,4 @@ dotnet --info
 - Designed for Windows (PowerShell) primarily
 
 ---
-*Part of BlockLife development workflow*
+*Part of Darklands development workflow*

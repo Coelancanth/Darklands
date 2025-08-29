@@ -1,4 +1,4 @@
-# BlockLife Scripts
+# Darklands Scripts
 
 Essential automation for builds, git workflow, and persona management.
 
