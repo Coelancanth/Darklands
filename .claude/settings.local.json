@@ -138,7 +138,11 @@
       "Read(C:\\Users\\Coel\\Documents\\Godot\\BlockLife\\tests\\BlockLife.Core.Tests\\Infrastructure\\DependencyInjection/**)",
       "Bash(./scripts/persona/embody.ps1 devops-engineer)",
       "Bash(gh run view:*)",
-      "Bash(gh run list:*)"
+      "Bash(gh run list:*)",
+      "Read(C:\\Users\\Coel\\Documents\\Godot\\BlockLife\\src/**)",
+      "Read(C:\\Users\\Coel\\Documents\\Godot\\BlockLife\\src\\Core\\Domain\\Common/**)",
+      "Read(C:\\Users\\Coel\\Documents\\Godot\\BlockLife\\src\\Core\\Domain\\Common/**)",
+      "Read(C:\\Users\\Coel\\Documents\\Godot\\BlockLife\\src\\Core\\Infrastructure\\Services/**)"
     ],
     "deny": [],
     "ask": [],
