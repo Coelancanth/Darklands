@@ -2,11 +2,11 @@
 
 **Status**: Approved  
 **Date**: 2025-08-28  
-**Decision Makers**: Tech Lead (adopted from BlockLife ADR-006)
+**Decision Makers**: Tech Lead (adopted from proven ADR-006)
 
 ## Context
 
-BlockLife's ADR-006 has proven that building features UI-first or with mixed concerns leads to:
+Previous experience (ADR-006) has proven that building features UI-first or with mixed concerns leads to:
 - Integration bugs masking domain logic errors
 - Complex mocking required for testing
 - Risky refactoring when UI and logic are intertwined
@@ -17,7 +17,7 @@ Darklands needs the same disciplined approach to ensure consistent quality.
 
 ## Decision
 
-We adopt BlockLife's **Model-First Implementation Protocol** where ALL features are built in strict phases, starting with pure C# domain models and expanding outward through architectural layers.
+We adopt the proven **Model-First Implementation Protocol** where ALL features are built in strict phases, starting with pure C# domain models and expanding outward through architectural layers.
 
 ### Mandatory Implementation Phases
 
@@ -215,6 +215,6 @@ public class CombatPresenter : PresenterBase<ICombatView>
 - **Upfront Design**: Must think through domain before coding
 
 ## References
-- BlockLife ADR-006: Model-First Implementation Protocol
-- [Move Block Reference](https://github.com/user/BlockLife/src/Features/Block/Move/)
+- Proven ADR-006: Model-First Implementation Protocol
+- [Move Block Reference](https://github.com/user/darklands-reference/src/Features/Block/Move/)
 - Clean Architecture principles

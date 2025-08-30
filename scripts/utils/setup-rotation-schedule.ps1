@@ -21,7 +21,7 @@ param(
     [switch]$Remove
 )
 
-$script:TaskName = "BlockLife-MemoryBank-Rotation"
+$script:TaskName = "Darklands-MemoryBank-Rotation"
 $script:ScriptPath = Join-Path $PSScriptRoot "rotate-memory-bank.ps1"
 
 # Color functions
@@ -78,7 +78,7 @@ function Set-WindowsSchedule {
         -Trigger $trigger `
         -Principal $principal `
         -Settings $settings `
-        -Description "Automatically rotate BlockLife Memory Bank files according to retention protocol"
+        -Description "Automatically rotate Darklands Memory Bank files according to retention protocol"
     
     if ($task) {
         Write-Success "Created scheduled task: $script:TaskName"

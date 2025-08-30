@@ -58,7 +58,7 @@ Items are moved here COMPLETE with all context, then marked for extraction:
 **Priority**: Critical  
 **Markers**: [ARCHITECTURE] [FOUNDATION] [SAFETY]
 
-**What**: Implement ADR-001 architecture with full safety infrastructure from BlockLife
+**What**: Implement ADR-001 architecture with full safety infrastructure from proven patterns
 **Why**: Foundation for ALL development - modding support, fast CI, team safety
 
 **PHASE 1 COMPLETION (2025-08-29 10:26)**:
@@ -68,7 +68,7 @@ Items are moved here COMPLETE with all context, then marked for extraction:
 - ✅ GameStrapper DI container with fallback-safe logging patterns  
 - ✅ MediatR pipeline with logging and error handling behaviors
 - ✅ LanguageExt integration using correct API (FinSucc/FinFail static methods)
-- ✅ LogCategory structured logging (simplified pattern from BlockLife)
+- ✅ LogCategory structured logging (simplified proven pattern)
 - ✅ Git hooks functional (pre-commit, commit-msg, pre-push)
 
 ✅ **Domain Model (Phase 1 COMPLETE)**:
@@ -77,7 +77,7 @@ Items are moved here COMPLETE with all context, then marked for extraction:
 - ✅ TimeUnitCalculator: agility/encumbrance formula with comprehensive validation
 - ✅ Error handling: All domain operations return Fin<T> with proper error messages
 
-✅ **Architecture Tests (NEW - Following BlockLife Patterns)**:
+✅ **Architecture Tests (NEW - Following Proven Patterns)**:
 - ✅ Core layer isolation (no Godot dependencies)
 - ✅ Clean Architecture boundaries enforced
 - ✅ DI container resolution validation (all services resolvable)
@@ -97,12 +97,12 @@ Items are moved here COMPLETE with all context, then marked for extraction:
 - ✅ All architecture fitness tests pass
 - ✅ DI container validates successfully on startup
 - ✅ MediatR pipeline configured correctly
-- ✅ LanguageExt patterns follow BlockLife proven approach
+- ✅ LanguageExt patterns follow proven approach
 
 **COMMITTED**: Phase 1 committed with proper marker `feat(combat): domain model [Phase 1/4]` (commit ecc7286)
 
 **Handoff to Code Review**:
-- **Code Quality**: Clean, follows BlockLife patterns exactly
+- **Code Quality**: Clean, follows proven patterns exactly
 - **Test Coverage**: Comprehensive with architecture tests
 - **Documentation**: Well-documented domain logic and infrastructure
 - **Next Phase**: Ready for Phase 2 (Application layer - Commands/Handlers)
@@ -118,7 +118,7 @@ Items are moved here COMPLETE with all context, then marked for extraction:
 **Depends On**: None
 
 **Tech Lead Decision** (2025-08-29):  
-- Architecture approved in ADR-001 after BlockLife analysis
+- Architecture approved in ADR-001 after proven architecture analysis
 - MUST copy proven patterns exactly - do not reinvent
 - Git hooks are pedagogy tools that teach correct workflow
 - Simplicity Principle applies: estimate >100 LOC = stop and review
@@ -284,6 +284,37 @@ var finalTime = (int)Math.Round(baseTime * agilityModifier * encumbranceModifier
 - [ ] Test pattern: Property-based determinism testing with 1000+ iterations
 - [ ] Architecture principle: Determinism as non-negotiable requirement for game math
 - [ ] Anti-pattern: Never use floating-point for game logic that must be reproducible
+
+### TD_001: Create Development Setup Documentation [Score: 45/100]
+**Status**: COMPLETE ✅  
+**Owner**: DevOps Engineer (COMPLETED 2025-08-29 14:54)
+**Size**: S (<4h)  
+**Priority**: Important  
+**Markers**: [DOCUMENTATION] [ONBOARDING]
+
+**What**: Document complete development environment setup based on Darklands patterns
+**Why**: Ensure all developers/personas have identical, working environment
+**How**: 
+- Document required tools (dotnet SDK, Godot 4.4.1, PowerShell/bash)
+- Copy established scripts structure
+- Document git hook installation process
+- Create troubleshooting guide for common setup issues
+
+**Done When**:
+- ✅ Setup documentation integrated into HANDBOOK.md
+- ✅ Script to verify environment works (verify-environment.ps1)
+- ✅ Fresh clone can be set up in <10 minutes
+- ✅ All personas can follow guide successfully
+- ✅ Single source of truth for all development information
+
+**Depends On**: ~~VS_001~~ (COMPLETE 2025-08-29) - Now unblocked
+
+**DevOps Engineer Decision** (2025-08-29 15:00):
+- Consolidated setup documentation into HANDBOOK.md instead of separate SETUP.md
+- Eliminated redundancy - one source of truth for all development guidance
+- Setup information is now part of daily development reference
+- All requirements met with improved maintainabilit
+
 
 ### TD_002: Fix CombatAction Terminology [Score: 1/10] ✅ TERMINOLOGY CONSISTENCY RESTORED
 **Extraction Status**: NOT EXTRACTED ⚠️

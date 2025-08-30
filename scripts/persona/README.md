@@ -24,9 +24,9 @@ That's it! Restart PowerShell and you're ready.
 
 ### Switch Personas
 ```powershell
-blocklife dev       # Switch to dev-engineer workspace
-blocklife tech      # Switch to tech-lead workspace  
-blocklife test      # Switch to test-specialist workspace
+darklands dev       # Switch to dev-engineer workspace
+darklands tech      # Switch to tech-lead workspace  
+darklands test      # Switch to test-specialist workspace
 # ... etc for all 6 personas
 ```
 
@@ -48,12 +48,12 @@ bl-clean            # Clean up unused worktrees
 
 ```powershell
 # Morning: Start work as dev engineer
-blocklife dev       # Switches workspace AND launches Claude automatically
+darklands dev       # Switches workspace AND launches Claude automatically
 embody dev-engineer
 # ... do implementation work ...
 
 # Afternoon: Review as tech lead
-blocklife tech      # Switches workspace AND launches Claude automatically
+darklands tech      # Switches workspace AND launches Claude automatically
 embody tech-lead
 # ... review code in complete isolation ...
 
@@ -70,7 +70,7 @@ bl-return
 ## How It Works
 
 ```
-blocklife/                           # Main repository
+darklands/                           # Main repository
 ├── personas/                        # Isolated workspaces (auto-created)
 │   ├── dev-engineer/               # Complete project copy
 │   ├── tech-lead/                  # Complete project copy
@@ -96,7 +96,7 @@ Each workspace:
 
 ## Flexible Commands
 
-The `blocklife` command accepts many variations:
+The `darklands` command accepts many variations:
 - `dev`, `engineer` → dev-engineer
 - `tech`, `lead` → tech-lead
 - `test`, `tester` → test-specialist
@@ -204,7 +204,7 @@ Then restart PowerShell or run: `. $PROFILE`
 
 ✅ **Zero Conflicts** - Complete isolation between personas  
 ✅ **Fast Switching** - Under 5 seconds  
-✅ **Simple Commands** - Just `blocklife dev`  
+✅ **Simple Commands** - Just `darklands dev`  
 ✅ **No Learning Curve** - Works like normal git  
 ✅ **Clean Mental Model** - One persona = one directory
 

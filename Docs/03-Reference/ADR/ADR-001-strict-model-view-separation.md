@@ -81,7 +81,7 @@ public partial class CombatView : Control, ICombatView
 }
 ```
 
-### Enforcement via .csproj (Based on BlockLife Pattern)
+### Enforcement via .csproj (Based on Proven Pattern)
 
 ```xml
 <!-- src/Darklands.Core.csproj -->
@@ -182,7 +182,7 @@ public partial class CombatView : Control, ICombatView
 
 ## Implementation Notes
 
-### Critical Setup Steps (VERIFIED from BlockLife Production Code)
+### Critical Setup Steps (VERIFIED from Proven Production Code)
 
 1. **Create folder structure first**:
    ```
@@ -191,14 +191,14 @@ public partial class CombatView : Control, ICombatView
    /Darklands.csproj (root - Godot project)
    ```
 
-2. **MANDATORY .csproj configurations (copy exactly from BlockLife)**:
+2. **MANDATORY .csproj configurations (copy from proven architecture)**:
    - `<Compile Remove="src\**" />` in Godot project prevents dual compilation
    - `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>` enforces quality
    - `<EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>` consistent style
    - `<Nullable>enable</Nullable>` prevents null reference bugs
    - `<ValidateOnBuild>true</ValidateOnBuild>` in DI container setup
 
-3. **REQUIRED Tech Stack (proven in BlockLife)**:
+3. **REQUIRED Tech Stack (proven architecture)**:
    - **Microsoft.Extensions.DependencyInjection** (9.0.8): Full DI container
    - **Serilog** (4.3.0): Fallback-safe logging that never crashes
    - **LanguageExt.Core** (4.4.9): Fin<T>, Option<T> for error handling
@@ -224,7 +224,7 @@ dotnet build Darklands.csproj
 
 ### Git Hook Setup (CRITICAL for Safety)
 
-1. **Copy .husky folder from BlockLife** with all hooks
+1. **Copy .husky folder from proven setup** with all hooks
 2. **Add Husky.NET to .config/dotnet-tools.json**:
 ```json
 {
@@ -251,7 +251,7 @@ dotnet build Darklands.csproj
 - **Not Over-engineered**: Justified by explicit modding requirement and time-unit complexity
 - **MVP Pattern**: Clean separation with minor gaps to address (Score: 7/10)
 
-### CRITICAL Implementation Requirements (from BlockLife Analysis)
+### CRITICAL Implementation Requirements (from Proven Analysis)
 
 **MUST HAVE from Day 1**:
 

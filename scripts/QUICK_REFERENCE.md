@@ -20,9 +20,9 @@
 # Old: ./scripts/persona/sync-personas.ps1
 
 # Navigate to persona
-cd ../blocklife-dev-engineer      # Dev work
-cd ../blocklife-tech-lead         # Architecture  
-cd ../blocklife-test-specialist   # Testing
+cd ../darklands-dev-engineer      # Dev work
+cd ../darklands-tech-lead         # Architecture  
+cd ../darklands-test-specialist   # Testing
 ```
 
 ## 🚨 Emergency Commands
@@ -53,7 +53,7 @@ git push --no-verify
 
 ## 📋 Daily Workflow
 
-1. `cd ../blocklife-[persona]` - Switch to persona workspace
+1. `cd ../darklands-[persona]` - Switch to persona workspace
 2. Work on features...
 3. `./scripts/core/build.ps1 test` - Test before commit
 4. `git commit` - Auto-formatting + validation

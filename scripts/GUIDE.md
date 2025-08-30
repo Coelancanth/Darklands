@@ -24,9 +24,9 @@
 # Deprecated - use embody.ps1 instead
 
 # Navigate between personas
-cd ../blocklife-dev-engineer     # Dev work
-cd ../blocklife-tech-lead        # Architecture decisions
-cd ../blocklife-test-specialist  # Testing focus
+cd ../darklands-dev-engineer     # Dev work
+cd ../darklands-tech-lead        # Architecture decisions
+cd ../darklands-test-specialist  # Testing focus
 ```
 
 ### 3. Git Workflow Tools
@@ -60,7 +60,7 @@ cd ../blocklife-test-specialist  # Testing focus
 
 ```bash
 # 1. Start with persona workspace
-cd ../blocklife-dev-engineer
+cd ../darklands-dev-engineer
 
 # 2. Check branch status  
 ./scripts/git/branch-status-check.ps1
@@ -153,12 +153,12 @@ git commit --no-verify
 # Deprecated - use embody.ps1 instead
 
 # Creates these directories (in parent folder):
-# blocklife-dev-engineer/
-# blocklife-tech-lead/
-# blocklife-product-owner/
-# blocklife-test-specialist/
-# blocklife-debugger-expert/
-# blocklife-devops-engineer/
+# darklands-dev-engineer/
+# darklands-tech-lead/
+# darklands-product-owner/
+# darklands-test-specialist/
+# darklands-debugger-expert/
+# darklands-devops-engineer/
 ```
 
 ### Daily Usage
@@ -167,11 +167,11 @@ git commit --no-verify
 # Deprecated - now handled by embody.ps1
 
 # Work in specific persona
-cd ../blocklife-dev-engineer
+cd ../darklands-dev-engineer
 # Your work happens here...
 
 # Switch personas for different tasks
-cd ../blocklife-tech-lead
+cd ../darklands-tech-lead
 # Architecture decisions here...
 ```
 

@@ -71,7 +71,7 @@ foreach ($stage in $stages) {
     # Run tests for this stage
     $testArgs = @(
         "test"
-        "BlockLife.sln"
+        "Darklands.sln"
         "--filter"
         $stage.Filter
         "--configuration"

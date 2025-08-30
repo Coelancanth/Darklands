@@ -1,4 +1,4 @@
-# BlockLife Testing Guide
+# Darklands Testing Guide
 
 **Last Updated**: 2025-08-23
 **Purpose**: Comprehensive testing patterns and troubleshooting guide
@@ -20,7 +20,7 @@ grep -r "using GdUnit" tests/      # GdUnit4 for Godot integration
 ## 🧪 Test Types & Patterns
 
 ### Unit Tests (Most Common)
-- **Location**: `tests/BlockLife.Core.Tests/`
+- **Location**: `tests/Darklands.Core.Tests/`
 - **Speed**: <10ms per test
 - **Coverage**: Business logic, domain models, services
 
@@ -30,7 +30,7 @@ grep -r "using GdUnit" tests/      # GdUnit4 for Godot integration
 - **Coverage**: End-to-end flows, Godot integration
 
 ### Architecture Tests
-- **Location**: `tests/BlockLife.Core.Tests/Architecture/`
+- **Location**: `tests/Darklands.Core.Tests/Architecture/`
 - **Purpose**: Enforce patterns, prevent regressions
 
 ## 📦 Mocking with Moq
@@ -162,7 +162,7 @@ public void Blocks_Should_Not_Overlap()
 public void All_Handlers_Should_Be_Registered()
 {
     var services = new ServiceCollection();
-    services.AddBlockLifeCore();
+    services.AddDarklandsCore();
     var provider = services.BuildServiceProvider();
     
     var handlerTypes = typeof(ApplyMatchRewardsCommandHandler).Assembly
@@ -193,7 +193,7 @@ public void Handlers_Should_Be_In_Core_Namespace()
     
     foreach (var handler in handlers)
     {
-        handler.Namespace.Should().StartWith("BlockLife.Core",
+        handler.Namespace.Should().StartWith("Darklands.Core",
             $"{handler.Name} has wrong namespace - MediatR won't discover it");
     }
 }
@@ -216,7 +216,7 @@ public void Handlers_Should_Be_In_Core_Namespace()
 // Debug approach:
 // 1. Run DI validation tests first
 // 2. Check GameStrapper.cs registrations
-// 3. Verify namespace is BlockLife.Core.*
+// 3. Verify namespace is Darklands.Core.*
 ```
 
 ## 🚀 Performance Testing
@@ -284,11 +284,11 @@ public class MyTests {
 ### 2. Namespace Causes Test Failures
 ```csharp
 // ❌ WRONG - Outside Core namespace
-namespace BlockLife.Features.Player
+namespace Darklands.Features.Player
 public class MyHandler : IRequestHandler<Command, Result>
 
 // ✅ CORRECT - In Core namespace
-namespace BlockLife.Core.Features.Player
+namespace Darklands.Core.Features.Player
 public class MyHandler : IRequestHandler<Command, Result>
 ```
 
@@ -405,7 +405,7 @@ var player = new PlayerStateBuilder()
    ```
 
 4. **Add to regression suite**
-   - Location: `tests/BlockLife.Core.Tests/Regression/`
+   - Location: `tests/Darklands.Core.Tests/Regression/`
    - Naming: `TD_XXX_Description_RegressionTests.cs`
 
 ## 🎯 Quick Test Commands
@@ -430,7 +430,7 @@ dotnet test --collect:"XPlat Code Coverage"
 dotnet watch test
 
 # Run specific test project
-dotnet test tests/BlockLife.Core.Tests
+dotnet test tests/Darklands.Core.Tests
 
 # Debug specific test
 dotnet test --filter "Method_Name" --logger:"console;verbosity=detailed"
@@ -462,7 +462,7 @@ reportgenerator -reports:coverage.cobertura.xml -targetdir:coveragereport
 ## Key Takeaways
 
 1. **Always check test framework first** - Moq not NSubstitute
-2. **Namespace must be BlockLife.Core.**** for MediatR
+2. **Namespace must be Darklands.Core.**** for MediatR
 3. **DI failures cascade** - Check registrations first
 4. **Use property tests for invariants** - FsCheck 3.x patterns
 5. **Create regression tests immediately** - Prevent recurrence
