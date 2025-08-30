@@ -1,7 +1,7 @@
 # Test Categories Guide - Complete Reference
 
 **Created**: 2025-08-24 by DevOps Engineer  
-**Purpose**: Comprehensive guide to BlockLife's test categorization system (TD_071)
+**Purpose**: Comprehensive guide to Darklands' test categorization system (TD_071)
 
 ## 🎯 What Are Test Categories?
 
@@ -11,7 +11,7 @@ Test categories are **tags** applied to test methods using xUnit's `[Trait]` att
 - **Optimize** execution time
 - **Enable** incremental testing
 
-## 📊 Current Test Categories in BlockLife
+## 📊 Current Test Categories in Darklands
 
 ### 1. Architecture Category
 **Purpose**: Validate code structure and design rules  
@@ -98,7 +98,7 @@ public void Critical_Architecture_Test() { }
 // Category with Theory tests
 [Theory]
 [Trait("Category", "Architecture")]
-[InlineData("BlockLife.Application", "BlockLife.Core.Application")]
+[InlineData("Darklands.Application", "Darklands.Core.Application")]
 public void Test_With_Data(string wrong, string correct) { }
 ```
 
@@ -295,7 +295,7 @@ Else → No category (unit test)
 ### Files Modified
 - `tests/Architecture/ArchitectureTests.cs` - Added Architecture category
 - `tests/Architecture/ArchitectureFitnessTests.cs` - Added Architecture category  
-- `tests/BlockLife.Core.Tests/Infrastructure/Architecture/NamespaceConventionTests.cs` - Added Architecture category
+- `tests/Darklands.Core.Tests/Infrastructure/Architecture/NamespaceConventionTests.cs` - Added Architecture category
 - `scripts/test/quick.ps1` - Runs Architecture only
 - `scripts/test/full.ps1` - Staged execution
 - `.husky/pre-commit` - Optional quick tests
@@ -326,4 +326,4 @@ Else → No category (unit test)
 
 ---
 
-*This guide is the single source of truth for test categorization in BlockLife. Keep it updated as categories evolve.*
+*This guide is the single source of truth for test categorization in Darklands. Keep it updated as categories evolve.*

@@ -88,7 +88,7 @@ See [TEST_CATEGORIES_GUIDE.md](../../Docs/03-Reference/TEST_CATEGORIES_GUIDE.md)
 ### Pre-commit Hook (Optional)
 Enable architecture tests in pre-commit:
 ```bash
-export BLOCKLIFE_PRECOMMIT_TESTS=true
+export DARKLANDS_PRECOMMIT_TESTS=true
 ```
 
 ## 🔧 Technical Details

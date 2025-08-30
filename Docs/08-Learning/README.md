@@ -12,7 +12,6 @@ A successful open-source roguelike with time-unit combat system similar to our v
 1. **[SPD-High-Level-Flow.md](./SPD-High-Level-Flow.md)**
    - Control flow and data flow architecture
    - User stories and turn processing
-   - ⚠️ GPL-3.0 licensing implications
 
 2. **[SPD-Analysis.md](./SPD-Analysis.md)**
    - Detailed architecture patterns

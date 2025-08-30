@@ -16,7 +16,7 @@ $profileContent = @'
 # Smart PR workflow
 function pr {
     param([string]$Action = "status")
-    & "C:\Users\Coel\Documents\Godot\BlockLife\scripts\git\pr.ps1" $Action
+    & "C:\Users\Coel\Documents\Godot\darklands\scripts\git\pr.ps1" $Action
 }
 '@
 

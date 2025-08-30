@@ -1,4 +1,4 @@
-# BlockLife Design Documentation
+# Darklands Design Documentation
 
 This folder contains both game design and development workflow design specifications.
 

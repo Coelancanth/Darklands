@@ -38,7 +38,7 @@ Our solution implements a **three-layer decision system**:
 
 ## 📋 Atomic Commit Decision Protocol
 
-### Definition: Atomic Commit for BlockLife
+### Definition: Atomic Commit for Darklands
 
 **An atomic commit does exactly ONE logical thing that can be described in a single sentence.**
 

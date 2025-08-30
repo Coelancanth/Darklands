@@ -163,7 +163,7 @@ Gen.ArrayOf(generator).Resize(count)
 ## Example: Complete Migration
 
 See the actual migration in:
-- `tests/BlockLife.Core.Tests/Properties/BlockLifeGenerators.cs`
-- `tests/BlockLife.Core.Tests/Properties/SimplePropertyTests.cs`
+- `tests/Darklands.Core.Tests/Properties/DarklandsGenerators.cs`
+- `tests/Darklands.Core.Tests/Properties/SimplePropertyTests.cs`
 
 These files demonstrate all the patterns described above in a real-world context.

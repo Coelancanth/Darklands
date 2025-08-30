@@ -1,7 +1,7 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    Automated Memory Bank rotation for BlockLife personas
+    Automated Memory Bank rotation for Darklands personas
 .DESCRIPTION
     Manages rotation of Memory Bank files according to protocol:
     - Monthly rotation of session-log.md
@@ -153,7 +153,7 @@ function Invoke-SessionLogRotation {
         
         # Create new session log with carryover
         $newContent = @"
-# BlockLife Session Log
+# Darklands Session Log
 > Continuation from archive/$archiveName
 > Rotated on: $(Get-Date -Format 'yyyy-MM-dd HH:mm')
 

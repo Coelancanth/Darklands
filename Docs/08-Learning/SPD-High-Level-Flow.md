@@ -3,28 +3,6 @@
 **Created**: 2025-08-30
 **Purpose**: Understand SPD's architecture at a high level for learning purposes
 
-## ⚠️ CRITICAL: Licensing Considerations
-
-### GPL-3.0 License Implications
-Shattered Pixel Dungeon is licensed under **GPL-3.0** (GNU General Public License v3). This means:
-
-**❌ CANNOT USE ASSETS DIRECTLY IN DARKLANDS**
-- GPL-3.0 is a "viral" copyleft license
-- If we use ANY GPL code or assets, our ENTIRE project becomes GPL
-- This would require us to open-source Darklands completely
-- **We must NOT copy sprites, sounds, or code directly**
-
-**✅ WHAT WE CAN DO**:
-1. **Learn from the architecture** (ideas cannot be copyrighted)
-2. **Study their solutions** to similar problems
-3. **Create our own assets** inspired by (but not copying) their style
-4. **Reference their patterns** while writing our own code
-
-### Asset Attribution
-SPD's assets are located in:
-- `core/src/main/assets/sprites/` - Character sprites
-- `core/src/main/assets/environment/` - Tiles and environments
-- `core/src/main/assets/interfaces/` - UI elements
 
 **For VS_008**: We need to create our own placeholder sprites or use CC0/MIT licensed assets.
 

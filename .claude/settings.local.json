@@ -170,8 +170,9 @@
       "Read(C:\\Users\\Coel\\Documents\\Godot\\shattered-pixel-dungeon\\core\\src\\main\\java\\com\\shatteredpixel\\shatteredpixeldungeon/**)",
       "Read(C:\\Users\\Coel\\Documents\\Godot\\shattered-pixel-dungeon\\core\\src\\main\\assets\\sprites/**)",
       "Read(C:\\Users\\Coel\\Documents\\Godot\\shattered-pixel-dungeon/**)",
-      "Read(C:\\Users\\Coel\\Documents\\Godot\\BlockLife\\src\\Core\\Infrastructure\\Services/**)"
-
+      "Read(C:\\Users\\Coel\\Documents\\Godot\\BlockLife\\src\\Core\\Infrastructure\\Services/**)",
+      "Bash(./scripts/utils/fix-project-identity.ps1 -DryRun -Verbose)",
+      "Bash(./scripts/utils/fix-project-identity.ps1 -DryRun)"
     ],
     "deny": [],
     "ask": [],

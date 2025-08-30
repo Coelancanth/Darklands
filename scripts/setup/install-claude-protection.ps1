@@ -23,18 +23,18 @@ if (-not (Test-Path $profilePath)) {
 # The function that will intercept 'claude' command
 $protectionFunction = @"
 
-# BlockLife Claude Protection System
+# Darklands Claude Protection System
 function claude {
     # Get current directory
     `$currentPath = (Get-Location).Path
     
-    # Check if we're in BlockLife main directory
-    if (`$currentPath -match "blocklife(?!.*personas)" -and (Test-Path ".git")) {
+    # Check if we're in Darklands main directory
+    if (`$currentPath -match "darklands(?!.*personas)" -and (Test-Path ".git")) {
         # Check for protection bypass
         if (-not (Test-Path ".claude-protection")) {
             Clear-Host
             Write-Host ""
-            Write-Host "  🏗️  BlockLife Workspace Protection" -ForegroundColor Cyan
+            Write-Host "  🏗️  Darklands Workspace Protection" -ForegroundColor Cyan
             Write-Host "  `$('─' * 50)" -ForegroundColor DarkGray
             Write-Host ""
             Write-Host "  You're opening Claude in the main directory." -ForegroundColor Yellow
@@ -46,9 +46,9 @@ function claude {
             Write-Host "    ✓ Clean git history per workspace" -ForegroundColor Gray
             Write-Host ""
             Write-Host "  Quick Start:" -ForegroundColor Cyan
-            Write-Host "    blocklife dev         # Open Dev Engineer" -ForegroundColor White
-            Write-Host "    blocklife tech        # Open Tech Lead" -ForegroundColor White
-            Write-Host "    blocklife test        # Open Test Specialist" -ForegroundColor White
+            Write-Host "    darklands dev         # Open Dev Engineer" -ForegroundColor White
+            Write-Host "    darklands tech        # Open Tech Lead" -ForegroundColor White
+            Write-Host "    darklands test        # Open Test Specialist" -ForegroundColor White
             Write-Host ""
             Write-Host "  `$('─' * 50)" -ForegroundColor DarkGray
             Write-Host ""
@@ -63,7 +63,7 @@ function claude {
             switch (`$choice.ToUpper()) {
                 "P" {
                     Write-Host ""
-                    Write-Host "  Use: blocklife [persona-name]" -ForegroundColor Green
+                    Write-Host "  Use: darklands [persona-name]" -ForegroundColor Green
                     return
                 }
                 "D" {
@@ -90,7 +90,7 @@ function claude {
 if ($Uninstall) {
     # Remove the function from profile
     $profileContent = Get-Content $profilePath -Raw
-    $profileContent = $profileContent -replace '# BlockLife Claude Protection System.*?^}', '' -replace '(?m)^\s*$\n', ''
+    $profileContent = $profileContent -replace '# Darklands Claude Protection System.*?^}', '' -replace '(?m)^\s*$\n', ''
     Set-Content $profilePath $profileContent
     Write-Host "✅ Claude protection removed from PowerShell profile" -ForegroundColor Green
     Write-Host "   Restart PowerShell to complete removal" -ForegroundColor Gray
@@ -98,10 +98,10 @@ if ($Uninstall) {
     # Check if function already exists
     $profileContent = Get-Content $profilePath -Raw -ErrorAction SilentlyContinue
     
-    if ($profileContent -match "BlockLife Claude Protection System") {
+    if ($profileContent -match "Darklands Claude Protection System") {
         Write-Host "⚠️  Protection already installed. Updating..." -ForegroundColor Yellow
         # Remove old version
-        $profileContent = $profileContent -replace '# BlockLife Claude Protection System.*?^}', '' -replace '(?m)^\s*$\n', ''
+        $profileContent = $profileContent -replace '# Darklands Claude Protection System.*?^}', '' -replace '(?m)^\s*$\n', ''
         Set-Content $profilePath $profileContent
     }
     
@@ -111,7 +111,7 @@ if ($Uninstall) {
     Write-Host "✅ Claude protection installed successfully!" -ForegroundColor Green
     Write-Host ""
     Write-Host "📝 What this does:" -ForegroundColor Cyan
-    Write-Host "   • Intercepts 'claude' command in BlockLife main directory" -ForegroundColor Gray
+    Write-Host "   • Intercepts 'claude' command in Darklands main directory" -ForegroundColor Gray
     Write-Host "   • Shows friendly reminder about persona workspaces" -ForegroundColor Gray
     Write-Host "   • Allows easy bypass when needed" -ForegroundColor Gray
     Write-Host "   • Works automatically - no need to type ./claude" -ForegroundColor Gray
