@@ -102,7 +102,7 @@ public class BasicGridTests
     public void TerrainType_Enum_HasExpectedValues()
     {
         // Assert
-        System.Enum.GetValues<TerrainType>().Should().Contain(new[] 
+        System.Enum.GetValues<TerrainType>().Should().Contain(new[]
         {
             TerrainType.Open,
             TerrainType.Forest,
