@@ -1,6 +1,6 @@
 # Darklands Development Backlog
 
-**Last Updated**: 2025-08-30 15:31
+**Last Updated**: 2025-08-30 16:10
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
 
@@ -8,8 +8,8 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 001
-- **Next TD**: 004  
-- **Next VS**: 009 
+- **Next TD**: 005  
+- **Next VS**: 013 
 
 **Protocol**: Check your type's counter → Use that number → Increment the counter → Update timestamp
 
@@ -181,64 +181,85 @@
 
 
 ### VS_008: Grid Scene and Player Sprite (Phase 4 - Presentation)
-**Status**: Proposed
-**Owner**: Tech Lead → Dev Engineer  
+**Status**: Ready for Dev
+**Owner**: Dev Engineer  
 **Size**: L (6-8h)
 **Priority**: Critical (FOUNDATIONAL)
 **Markers**: [ARCHITECTURE] [PHASE-4] [MVP]
 **Created**: 2025-08-29 17:16
+**Updated**: 2025-08-30 16:10
 
 **What**: Visual grid with player sprite and click-to-move
 **Why**: First visible, interactive game element
 
-**Godot Implementation**:
-- Grid scene with tilemap
-- Player sprite (simple colored square initially)
-- Click detection and coordinate conversion
-- Movement animation
-- Camera following player
+**⚠️ CRITICAL - Prototype Asset Approach**:
+- **See**: `Docs/08-Learning/PROTOTYPE-ASSETS-WARNING.md` for legal requirements
+- **See**: `Docs/08-Learning/VS_008-Sprite-Setup.md` for asset setup guide
+- **NEVER** commit temp_assets/ or any SPD sprites to Git
+- **MUST** replace with simple shapes before ANY commit
+
+**Learning Resources**:
+- `Docs/08-Learning/SPD-High-Level-Flow.md` - Click-to-move user story
+- `Docs/08-Learning/SPD-Analysis.md` - Grid as 1D array pattern
 
 **Done When**:
-- Grid renders with visible tiles
-- Player sprite displays at position
-- Click on tile moves player
-- Movement animates smoothly
+- Grid renders with visible tiles (10x10 minimum)
+- Player sprite displays at position (blue square is fine)
+- Click on tile moves player (via MoveActorCommand)
+- Movement animates smoothly (simple tweening)
 - Camera follows player
+- All temp assets replaced with shapes
 
-**Depends On**: VS_006 (Application layer) - VS_007 deferred per Tech Lead decision
+**Depends On**: VS_006 (Application layer) ✅ COMPLETE
 
 **Implementation Tasks**:
-1. **Create View Interfaces** (30 min)
+1. **Setup Prototype Assets** (30 min) ⚠️ LOCAL ONLY
+   - Create `temp_assets/` folder (already in .gitignore)
+   - Copy minimal SPD sprites for reference
+   - Create WARNING.txt in folder
+   
+2. **Create View Interfaces** (30 min)
    - `IGridView` - grid display contract
-   - `IPlayerView` - player display contract
+   - `IActorView` - character display contract (renamed from IPlayerView)
    - Async methods for UI updates
    
-2. **Implement Presenters** (90 min)
+3. **Implement Presenters** (90 min)
    - `GridPresenter` - orchestrates grid display
-   - `PlayerPresenter` - manages player visuals
-   - Event subscriptions
+   - `ActorPresenter` - manages character visuals
+   - Subscribe to MediatR notifications
    
-3. **Create Godot scenes** (120 min)
-   - `grid.tscn` - TileMap node setup
-   - `player.tscn` - Sprite2D for player
+4. **Create Godot scenes** (120 min)
+   - `grid.tscn` - TileMap node (use simple colors)
+   - `actor.tscn` - ColorRect or Polygon2D (NOT sprites yet)
    - `combat_scene.tscn` - Combined scene
    
-4. **Implement Views** (120 min)
+5. **Implement Views** (120 min)
    - `GridView.cs` - Godot grid implementation
-   - `PlayerView.cs` - Sprite control
-   - Click detection and coordinate mapping
+   - `ActorView.cs` - Simple shape control
+   - Click detection using Godot's input system
    - CallDeferred for thread safety
    
-5. **Add interactions** (90 min)
-   - Mouse click detection
-   - Grid coordinate conversion
-   - Movement command dispatch
-   - Animation tweening
+6. **Add interactions** (90 min)
+   - Mouse click → grid position conversion
+   - Send MoveActorCommand via MediatR
+   - Tween movement between positions
+   - Update view on position changes
    
-6. **Manual testing** (60 min)
-   - Click accuracy
-   - Movement smoothness
-   - Edge case handling
+7. **Replace temp assets** (30 min) ⚠️ BEFORE COMMIT
+   - Replace any SPD sprites with ColorRect
+   - Verify no temp_assets/ references
+   - Run: `grep -r "temp_assets" .` to verify
+   
+8. **Manual testing** (30 min)
+   - Click accuracy on all tiles
+   - Movement to all valid positions
+   - Edge case handling (click outside grid)
+
+**Tech Lead Decision** (2025-08-30):
+- Approved with SPD learning integration
+- Prototype assets allowed LOCALLY only
+- Must use simple shapes for committed version
+- Focus on mechanics validation over visuals
 
 
 
