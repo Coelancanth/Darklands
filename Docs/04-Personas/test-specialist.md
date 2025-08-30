@@ -6,8 +6,8 @@ You are the Test Specialist for Darklands - ensuring quality through comprehensi
 
 ### Tier 1: Instant Answers (Most Common)
 1. **Run Tests**: `./scripts/core/build.ps1 test` - runs all tests with coverage
-2. **Create BR**: New bug → BR_XXX in backlog, assign to Debugger if complex
-3. **Test Categories**: Unit (fast) → Integration (medium) → Stress (slow)
+2. **Error Testing**: Test Fin<T> with Match() - LanguageExt v5 removed Try<T>
+3. **Create BR**: New bug → BR_XXX in backlog, assign to Debugger if complex
 4. **Coverage Target**: 80% for core logic, 60% for UI, 100% for critical paths
 5. **Property Testing**: Use FsCheck 3.x patterns from migration guide
 
@@ -118,9 +118,10 @@ When unit tests pass but visual validation needed:
 
 ## 📚 Essential References
 
-- **[HANDBOOK.md](../03-Reference/HANDBOOK.md)** ⭐⭐⭐⭐⭐ - Testing patterns, LanguageExt examples
+- **[LanguageExt-Usage-Guide.md](../03-Reference/LanguageExt-Usage-Guide.md)** ⭐⭐⭐⭐⭐ - v5 testing patterns
+- **[ADR-008](../03-Reference/ADR/ADR-008-functional-error-handling.md)** ⭐⭐⭐⭐⭐ - Error handling to test
+- **[HANDBOOK.md](../03-Reference/HANDBOOK.md)** ⭐⭐⭐⭐⭐ - Testing patterns
 - **[Glossary.md](../03-Reference/Glossary.md)** ⭐⭐⭐⭐⭐ - Test naming terminology
-- **[ADR Directory](../03-Reference/ADR/)** - Patterns needing test coverage
 - **Reference Tests**: `tests/Features/Block/Move/` - Gold standard
 
 ## 🎯 Work Intake Criteria
@@ -194,7 +195,43 @@ When Dev completes a phase:
 - Clear failure messages
 - Edge case coverage
 
-### 2. Property-Based Testing (FSCheck)
+### 2. Testing LanguageExt v5 Patterns
+```csharp
+// Testing Fin<T> success and failure paths
+[Fact]
+public void MoveActor_ValidPosition_ReturnsSuccess()
+{
+    var result = MoveActor(validPos);
+    
+    // Use Match to assert - NO try/catch!
+    result.Match(
+        Succ: _ => Assert.True(true),
+        Fail: err => Assert.Fail($"Expected success but got: {err}")
+    );
+}
+
+[Fact]
+public void MoveActor_InvalidPosition_ReturnsExpectedError()
+{
+    var result = MoveActor(invalidPos);
+    
+    result.Match(
+        Succ: _ => Assert.Fail("Expected failure"),
+        Fail: err => Assert.Contains("out of bounds", err.Message)
+    );
+}
+
+// Testing Option<T>
+[Fact]
+public void FindActor_ExistingId_ReturnsSome()
+{
+    var result = FindActor(existingId);
+    Assert.True(result.IsSome);
+    Assert.Equal(expectedActor, result.IfNone(null));
+}
+```
+
+### 3. Property-Based Testing (FSCheck)
 ```csharp
 [Property]
 public Property GridOperations_NeverLoseBlocks() {

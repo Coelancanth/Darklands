@@ -1,0 +1,17 @@
+[gd_scene load_steps=4 format=3 uid="uid://coxy82oj87fjb"]
+
+[ext_resource type="Script" uid="uid://c65ytrn2klxjg" path="res://GameManager.cs" id="1_kv618"]
+[ext_resource type="Script" uid="uid://beno1aqs3xqou" path="res://Views/ActorView.cs" id="2_qumoa"]
+
+[sub_resource type="TileSet" id="TileSet_rdqa8"]
+
+[node name="CombatScene" type="Node2D"]
+script = ExtResource("1_kv618")
+
+[node name="Grid" type="Node2D" parent="."]
+
+[node name="TileMapLayer" type="TileMapLayer" parent="Grid"]
+tile_set = SubResource("TileSet_rdqa8")
+
+[node name="Actors" type="Node2D" parent="."]
+script = ExtResource("2_qumoa")

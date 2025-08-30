@@ -30,7 +30,7 @@ namespace Darklands.Core.Application.Grid.Services
             {
                 return _currentGrid != null
                     ? FinSucc(_currentGrid)
-                    : FinFail<Domain.Grid.Grid>(Error.New("GRID_NOT_INITIALIZED", "Grid has not been initialized"));
+                    : FinFail<Domain.Grid.Grid>(Error.New("GRID_NOT_INITIALIZED: Grid has not been initialized"));
             }
         }
 
@@ -63,10 +63,10 @@ namespace Darklands.Core.Application.Grid.Services
         public Fin<Unit> MoveActor(ActorId actorId, Position toPosition)
         {
             if (!IsValidPosition(toPosition))
-                return FinFail<Unit>(Error.New("INVALID_POSITION", $"Position {toPosition} is outside grid bounds"));
+                return FinFail<Unit>(Error.New($"INVALID_POSITION: Position {toPosition} is outside grid bounds"));
 
             if (!IsPositionEmpty(toPosition))
-                return FinFail<Unit>(Error.New("POSITION_OCCUPIED", $"Position {toPosition} is already occupied"));
+                return FinFail<Unit>(Error.New($"POSITION_OCCUPIED: Position {toPosition} is already occupied"));
 
             // Update actor position atomically
             _actorPositions.AddOrUpdate(actorId, toPosition, (key, oldPosition) => toPosition);
@@ -78,15 +78,15 @@ namespace Darklands.Core.Application.Grid.Services
         {
             // Check if trying to move to same position
             if (fromPosition.Equals(toPosition))
-                return FinFail<Unit>(Error.New("SAME_POSITION", "Actor is already at the target position"));
+                return FinFail<Unit>(Error.New("SAME_POSITION: Actor is already at the target position"));
 
             // Check if target position is valid
             if (!IsValidPosition(toPosition))
-                return FinFail<Unit>(Error.New("INVALID_POSITION", $"Position {toPosition} is outside grid bounds"));
+                return FinFail<Unit>(Error.New($"INVALID_POSITION: Position {toPosition} is outside grid bounds"));
 
             // Check if target position is empty
             if (!IsPositionEmpty(toPosition))
-                return FinFail<Unit>(Error.New("POSITION_OCCUPIED", $"Position {toPosition} is already occupied"));
+                return FinFail<Unit>(Error.New($"POSITION_OCCUPIED: Position {toPosition} is already occupied"));
 
             return FinSucc(Unit.Default);
         }

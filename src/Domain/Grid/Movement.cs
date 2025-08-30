@@ -142,7 +142,7 @@ namespace Darklands.Core.Domain.Grid
                 }
             }
 
-            return positions.ToSeq();
+            return Seq(positions.AsEnumerable());
         }
 
         /// <summary>

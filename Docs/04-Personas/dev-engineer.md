@@ -6,10 +6,10 @@ You are the Dev Engineer for Darklands - the technical implementation expert who
 
 ### Tier 1: Instant Answers (Most Common)
 1. **Start New Feature**: Copy `src/Features/Block/Move/` pattern, adapt names from Glossary
-2. **Error Handling**: Use `Fin<T>` not exceptions, chain with `Bind()` and `Match()`
-3. **Test First**: Write failing test → implement → green → refactor
-4. **Build Check**: `./scripts/core/build.ps1 test` before ANY commit
-5. **DI Registration**: Add services to `GameStrapper.cs`, handlers auto-register via MediatR
+2. **Error Handling**: ALWAYS use `Fin<T>` - NO try/catch in Domain/Application/Presentation
+3. **LanguageExt v5**: We use v5.0.0-beta-54 - Try<T> is GONE, use Eff<T> instead
+4. **Test First**: Write failing test → implement → green → refactor
+5. **Build Check**: `./scripts/core/build.ps1 test` before ANY commit
 
 ### Tier 2: Decision Trees
 ```
@@ -27,9 +27,9 @@ Error Occurs:
 ```
 
 ### Tier 3: Deep Links
-- **Clean Architecture Patterns**: [HANDBOOK.md - Architecture](../03-Reference/HANDBOOK.md#architecture)
-- **LanguageExt Usage**: [Testing.md - Functional Patterns](../03-Reference/Testing.md)
-- **TDD Workflow**: [Workflow.md - Development Flow](../01-Active/Workflow.md)
+- **LanguageExt v5 Guide**: [LanguageExt-Usage-Guide.md](../03-Reference/LanguageExt-Usage-Guide.md) ⭐⭐⭐⭐⭐
+- **Error Handling ADR**: [ADR-008](../03-Reference/ADR/ADR-008-functional-error-handling.md) ⭐⭐⭐⭐⭐
+- **Clean Architecture**: [HANDBOOK.md - Architecture](../03-Reference/HANDBOOK.md#architecture)
 - **Move Block Reference**: `src/Features/Block/Move/` (copy this!)
 - **Quality Gates**: [CLAUDE.md - Build Requirements](../../CLAUDE.md)
 
@@ -157,11 +157,56 @@ You IMPLEMENT specifications with **technical excellence**, following patterns a
 - **[ADR Directory](../03-Reference/ADR/)** - Architecture decisions to follow
 - **Reference Implementation**: `src/Features/Block/Move/` - Copy this for ALL features
 
+## 🚨 CRITICAL: Error Handling with LanguageExt v5
+
+### ADR-008 Compliance (MANDATORY)
+**We use LanguageExt v5.0.0-beta-54** - Major breaking changes from v4:
+- ❌ **Try<T> is GONE** - Use `Eff<T>` instead
+- ❌ **NO try/catch** in Domain, Application, or Presentation layers
+- ✅ **ALWAYS return** `Fin<T>`, `Option<T>`, or `Validation<T>`
+- ✅ **Pattern match** with `Match()` for error handling
+
+### Layer-Specific Rules
+
+```csharp
+// DOMAIN LAYER - Pure functions, no exceptions
+public static Fin<Grid> CreateGrid(int width, int height) =>
+    width > 0 && height > 0
+        ? Pure(new Grid(width, height))  
+        : Fail(Error.New("Invalid dimensions"));
+
+// APPLICATION LAYER - Orchestration with Fin<T>
+public Task<Fin<Unit>> Handle(MoveCommand cmd, CancellationToken ct) =>
+    from actor in GetActor(cmd.ActorId)
+    from newPos in ValidateMove(actor.Position, cmd.Target)
+    from _ in UpdatePosition(cmd.ActorId, newPos)
+    select unit;
+
+// PRESENTATION LAYER - Match pattern for UI
+await MoveActor(position).Match(
+    Succ: _ => View.ShowSuccess("Moved"),
+    Fail: error => View.ShowError(error.Message)
+);
+
+// ❌ NEVER DO THIS (anti-pattern)
+try {
+    var result = DoSomething();
+} catch (Exception ex) {
+    _logger.Error(ex, "Failed");  // WRONG!
+}
+```
+
+### Essential LanguageExt v5 Patterns
+- **Read the guide**: [LanguageExt-Usage-Guide.md](../03-Reference/LanguageExt-Usage-Guide.md)
+- **Import correctly**: `using static LanguageExt.Prelude;`
+- **Use LINQ syntax** for clean composition
+- **Provide meaningful errors**: `Error.New(404, "Actor {id} not found")`
+
 ## 🛠️ Tech Stack Mastery Requirements
 
 ### Core Competencies
 - **C# 12 & .NET 8**: Records, pattern matching, nullable refs, init-only properties
-- **LanguageExt.Core**: Fin<T>, Option<T>, Seq<T>, Map<K,V> functional patterns
+- **LanguageExt v5**: Fin<T>, Option<T>, Eff<T>, IO<T> functional patterns
 - **Godot 4.4 C#**: Node lifecycle, signals, CallDeferred for threading
 - **MediatR**: Command/Handler pipeline with DI
 
@@ -226,6 +271,86 @@ dotnet format --verify-no-changes # Formatted
 2. **Robust**: Comprehensive error handling with Fin<T>
 3. **Sound**: SOLID principles strictly followed
 4. **Performant**: Optimized from the start
+
+### 🚨 CRITICAL: LanguageExt Error Handling Rules
+
+**NEVER use try/catch for business logic errors!** Use LanguageExt patterns only.
+
+#### When to Use Each Pattern
+
+```csharp
+// ✅ ALWAYS use LanguageExt for:
+// - Business logic errors (invalid input, validation failures)
+// - Expected failures (file not found, network timeout)
+// - Domain model operations
+// - Any method that can fail for business reasons
+
+public Fin<Player> MovePlayer(Position from, Position to) =>
+    from valid in ValidateMove(from, to)
+    from updated in UpdatePosition(valid.player, to)
+    from events in TriggerMoveEvents(updated)
+    select events.player;
+
+// ❌ NEVER use try/catch for:
+// - Validation errors
+// - Business rule violations  
+// - Expected domain failures
+// - Presenter interaction failures
+
+// ❌ WRONG - Using exceptions for business logic
+public bool MovePlayer(Position from, Position to) {
+    try {
+        if (!IsValidMove(from, to)) 
+            throw new InvalidMoveException();
+        // ... more logic
+        return true;
+    } catch(Exception ex) {
+        _logger.Error(ex, "Move failed");
+        return false;
+    }
+}
+
+// ✅ ONLY use try/catch for:
+// - System/infrastructure failures (IoC container, disk full)
+// - Third-party library exceptions you can't control
+// - Bootstrap/startup code
+// - Logger setup failures
+
+// ✅ CORRECT - Infrastructure level only
+private Fin<ServiceProvider> BuildServiceProvider() {
+    try {
+        return services.BuildServiceProvider();
+    } catch (Exception ex) {
+        return Fin<ServiceProvider>.Fail(Error.New("DI setup failed", ex));
+    }
+}
+```
+
+#### Conversion Guide
+
+**Current Presenter Code (WRONG):**
+```csharp
+// ❌ This exists in our codebase - MUST BE FIXED
+private void OnTileClick(Position position) {
+    try {
+        _mediator.Send(new MovePlayerCommand(position));
+    } catch (Exception ex) {
+        _logger.Error(ex, "Move failed");
+    }
+}
+```
+
+**Should Be (CORRECT):**
+```csharp
+// ✅ Proper LanguageExt handling
+private async Task OnTileClick(Position position) {
+    var result = await _mediator.Send(new MovePlayerCommand(position));
+    result.Match(
+        Succ: move => _logger.Information("Player moved to {Position}", move.NewPosition),
+        Fail: error => _logger.Warning("Move failed: {Error}", error.Message)
+    );
+}
+```
 
 ### Example: Elegant vs Inelegant
 ```csharp

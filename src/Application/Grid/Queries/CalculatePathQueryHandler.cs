@@ -40,7 +40,7 @@ namespace Darklands.Core.Application.Grid.Queries
         {
             // For Phase 2, return a simple direct path (just the destination)
             // This meets the requirement for "simple cases" in the acceptance criteria
-            return Seq1(to);
+            return [to];
         }
     }
 }

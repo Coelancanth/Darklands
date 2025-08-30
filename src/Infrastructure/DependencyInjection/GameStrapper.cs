@@ -211,7 +211,8 @@ public static class GameStrapper
             // TODO: Register repositories here as they're implemented
 
             // Presenters (Transient - short-lived, no state)
-            // TODO: Register presenters here as they're implemented
+            // Phase 4: Presentation layer presenters - registered at Godot application level
+            // TODO: Register presenters and views in Godot project, not in Core
 
             // Domain services (Singleton - stateless business logic)
             // TODO: Register domain services here as they're implemented

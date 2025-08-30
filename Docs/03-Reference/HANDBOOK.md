@@ -24,8 +24,8 @@
 3. **Create PR** → [Branch Naming](#branch-naming-convention)
 
 **❓ "How Do I...?" Questions:**
-- **Use LanguageExt?** → [Testing Patterns](#languageext-testing-patterns)
-- **Handle errors?** → Everything returns `Fin<T>` (no exceptions)
+- **Use LanguageExt v5?** → [LanguageExt Usage Guide](LanguageExt-Usage-Guide.md) ⭐⭐⭐⭐⭐
+- **Handle errors?** → [Error Handling](#-error-handling-with-languageext-v5) - Fin<T> everywhere!
 - **Route work?** → [Persona Routing](#-persona-routing)
 - **Add DI service?** → [GameStrapper Pattern](#gamestrapper-pattern)
 
@@ -267,6 +267,99 @@ Y↑
 
 ---
 
+## 🚨 Error Handling with LanguageExt v5
+
+### ADR-008: Functional Error Handling (CRITICAL)
+
+**We use LanguageExt v5.0.0-beta-54** with strict functional error handling:
+
+#### ❌ FORBIDDEN in Domain/Application/Presentation
+```csharp
+// NEVER DO THIS - Anti-pattern!
+try {
+    var result = DoSomething();
+    return result;
+} catch (Exception ex) {
+    _logger.Error(ex, "Failed");
+    throw;  // or return default
+}
+```
+
+#### ✅ REQUIRED Pattern
+```csharp
+// Domain Layer - Pure functions
+public static Fin<Position> Move(Position from, Direction dir) =>
+    IsValidMove(from, dir)
+        ? Pure(from.Move(dir))
+        : Fail(Error.New($"Invalid move from {from} to {dir}"));
+
+// Application Layer - Orchestration  
+public Task<Fin<Unit>> Handle(MoveCommand cmd, CancellationToken ct) =>
+    from actor in GetActor(cmd.ActorId)
+    from newPos in Move(actor.Position, cmd.Direction)
+    from _ in UpdatePosition(cmd.ActorId, newPos)
+    select unit;
+
+// Presentation Layer - UI handling
+await ProcessMove(position).Match(
+    Succ: _ => View.ShowSuccess("Moved!"),
+    Fail: error => View.ShowError(error.Message)
+);
+```
+
+### Key v5 Breaking Changes
+- **Try<T> REMOVED** → Use `Eff<T>`
+- **TryAsync<T> REMOVED** → Use `IO<T>`
+- **Result<T> REMOVED** → Use `Fin<T>`
+- **EitherAsync<L,R> REMOVED** → Use `EitherT<L, IO, R>`
+
+### When to Use Each Type
+| Scenario | Type | Example |
+|----------|------|---------|
+| Can fail | `Fin<T>` | `Fin<Grid> LoadGrid()` |
+| Might not exist | `Option<T>` | `Option<Actor> FindActor(id)` |
+| Multiple errors | `Validation<Error, T>` | Form validation |
+| Side effects | `Eff<T>` | Database operations |
+| Async I/O | `IO<T>` | File/network operations |
+
+### Infrastructure Boundaries (ONLY place for try/catch)
+```csharp
+// ONLY at true system boundaries
+public override void _Ready() {
+    try {
+        InitializeGame();  // Godot entry point
+    } catch (Exception ex) {
+        GD.PrintErr($"Fatal: {ex}");  // Last resort
+    }
+}
+```
+
+### Essential Imports
+```csharp
+using LanguageExt;
+using static LanguageExt.Prelude;  // Pure, Fail, Some, None, etc.
+```
+
+### Error Creation
+```csharp
+// Business errors (expected)
+Error.New("User not found");
+Error.New(404, "Resource not found");
+
+// System errors (exceptional)
+Error.New(new InvalidOperationException("Unexpected"));
+
+// Multiple errors
+Error.Many(error1, error2);
+// or
+var combined = error1 + error2;
+```
+
+**Full Guide**: [LanguageExt-Usage-Guide.md](LanguageExt-Usage-Guide.md)  
+**Architecture Decision**: [ADR-008](ADR/ADR-008-functional-error-handling.md)
+
+---
+
 ## 🎯 Phased Implementation Protocol (ADR-002)
 
 ### MANDATORY for ALL Features
@@ -372,6 +465,120 @@ dotnet test --filter "Category=Integration"
 | Any Persona | Product Owner | Requirements unclear |
 
 ---
+
+## 🚨 MANDATORY: LanguageExt Error Handling Protocol
+
+### The Golden Rules
+
+**NEVER use try/catch for business logic!** Use LanguageExt patterns exclusively.
+
+#### Rule 1: Business Logic → LanguageExt
+```csharp
+// ✅ CORRECT - All business operations return Fin<T>
+public Fin<Player> MovePlayer(Position from, Position to) =>
+    from valid in ValidateMove(from, to)
+    from updated in UpdatePosition(valid.player, to)
+    from events in TriggerMoveEvents(updated)
+    select events.player;
+
+// ❌ WRONG - Never throw for business logic
+public void MovePlayer(Position from, Position to) {
+    if (!IsValidMove(from, to)) 
+        throw new InvalidMoveException(); // NO!
+}
+```
+
+#### Rule 2: Infrastructure Only → try/catch
+```csharp
+// ✅ CORRECT - Infrastructure concerns only
+private Fin<ServiceProvider> BuildServiceProvider() {
+    try {
+        return FinSucc(services.BuildServiceProvider());
+    } catch (Exception ex) {
+        return FinFail<ServiceProvider>(Error.New("DI setup failed", ex));
+    }
+}
+
+// ❌ WRONG - Presenter logic should use Fin<T>
+private void OnClick(Position pos) {
+    try {
+        _mediator.Send(new MoveCommand(pos)); // Should return Fin<T>!
+    } catch (Exception ex) {
+        _logger.Error(ex, "Move failed");
+    }
+}
+```
+
+#### Rule 3: Always Chain with Bind/Match
+```csharp
+// ✅ CORRECT - Functional composition
+public async Task HandleMoveAsync(MovePlayerCommand cmd) {
+    var result = await _gameService.MovePlayer(cmd.From, cmd.To);
+    result.Match(
+        Succ: move => _logger.Information("Player moved to {Position}", move.NewPosition),
+        Fail: error => _logger.Warning("Move failed: {Error}", error.Message)
+    );
+}
+
+// ❌ WRONG - Not handling failure case
+public async Task HandleMoveAsync(MovePlayerCommand cmd) {
+    var result = await _gameService.MovePlayer(cmd.From, cmd.To);
+    var move = result.ThrowIfFail(); // NO! Never throw
+}
+```
+
+### Current Codebase Issues TO FIX
+
+**FOUND IN AUDIT - These must be converted:**
+
+1. **TimeUnitCalculator.cs:247** - Domain logic using try/catch
+2. **All Presenter classes** - UI interaction using try/catch  
+3. **Any new code** - Must use LanguageExt patterns
+
+### Conversion Examples
+
+**Before (WRONG):**
+```csharp
+// ❌ Current presenter pattern - MUST CHANGE
+private void OnTileClick(Position position) {
+    try {
+        _mediator.Send(new MovePlayerCommand(position));
+        _logger.Information("Move attempted");
+    } catch (Exception ex) {
+        _logger.Error(ex, "Move failed");
+    }
+}
+```
+
+**After (CORRECT):**
+```csharp
+// ✅ Proper LanguageExt pattern
+private async Task OnTileClick(Position position) {
+    var result = await _mediator.Send(new MovePlayerCommand(position));
+    result.Match(
+        Succ: move => {
+            _logger.Information("Player moved to {Position}", move.NewPosition);
+            RefreshUI(move);
+        },
+        Fail: error => _logger.Warning("Move failed: {Error}", error.Message)
+    );
+}
+```
+
+### When try/catch IS Allowed
+
+**Infrastructure/System Concerns ONLY:**
+- DI container setup (GameStrapper.cs) ✅
+- Logger configuration ✅  
+- File system operations ✅
+- Third-party library exceptions you can't control ✅
+
+**NEVER for:**
+- Validation errors ❌
+- Business rule violations ❌
+- Expected domain failures ❌
+- UI interaction failures ❌
+- Network/database operations ❌ (use Fin<T>)
 
 ## 🧪 Testing Patterns
 
