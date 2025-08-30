@@ -32,7 +32,7 @@ namespace Darklands.Core.Tests.Application.Grid.Commands
                 => _actorExists ? Some(new Position(3, 3)) : None;
 
             public Fin<Unit> ValidateMove(Position fromPosition, Position toPosition)
-                => _validMove ? FinSucc(Unit.Default) : FinFail<Unit>(Error.New("INVALID_MOVE", "Invalid move"));
+                => _validMove ? FinSucc(Unit.Default) : FinFail<Unit>(Error.New("INVALID_MOVE: Invalid move"));
 
             public Fin<Unit> MoveActor(ActorId actorId, Position toPosition)
                 => FinSucc(Unit.Default);

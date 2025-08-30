@@ -180,12 +180,11 @@ namespace Darklands.Core.Domain.Grid
         {
             var neighborPositions = position.GetOrthogonallyAdjacentPositions();
 
-            return neighborPositions
+            return Seq(neighborPositions
                 .Where(IsValidPosition)
                 .Select(pos => GetTile(pos))
                 .Where(result => result.IsSucc)
-                .Select(result => result.IfFail(Tile.CreateEmpty(Position.Zero))) // Should never happen due to bounds check
-                .ToSeq();
+                .Select(result => result.IfFail(Tile.CreateEmpty(Position.Zero)))); // Should never happen due to bounds check
         }
 
         /// <summary>
@@ -197,12 +196,11 @@ namespace Darklands.Core.Domain.Grid
         {
             var neighborPositions = position.GetAllAdjacentPositions();
 
-            return neighborPositions
+            return Seq(neighborPositions
                 .Where(IsValidPosition)
                 .Select(pos => GetTile(pos))
                 .Where(result => result.IsSucc)
-                .Select(result => result.IfFail(Tile.CreateEmpty(Position.Zero))) // Should never happen due to bounds check
-                .ToSeq();
+                .Select(result => result.IfFail(Tile.CreateEmpty(Position.Zero)))); // Should never happen due to bounds check
         }
 
         /// <summary>
@@ -210,14 +208,14 @@ namespace Darklands.Core.Domain.Grid
         /// </summary>
         /// <returns>Sequence of occupied tiles</returns>
         public Seq<Tile> GetOccupiedTiles() =>
-            _tiles.Where(tile => tile.IsOccupied).ToSeq();
+            Seq(_tiles.Where(tile => tile.IsOccupied));
 
         /// <summary>
         /// Gets all empty tiles that can be moved to.
         /// </summary>
         /// <returns>Sequence of passable empty tiles</returns>
         public Seq<Tile> GetPassableTiles() =>
-            _tiles.Where(tile => tile.IsPassable).ToSeq();
+            Seq(_tiles.Where(tile => tile.IsPassable));
 
         /// <summary>
         /// Finds the position of an actor on the grid.

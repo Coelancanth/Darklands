@@ -35,7 +35,7 @@ namespace Darklands.Core.Application.Grid.Commands
             var currentPositionOption = _gridStateService.GetActorPosition(request.ActorId);
             if (currentPositionOption.IsNone)
             {
-                var error = Error.New("ACTOR_NOT_FOUND", $"Actor {request.ActorId} not found on grid");
+                var error = Error.New($"ACTOR_NOT_FOUND: Actor {request.ActorId} not found on grid");
                 _logger?.Warning("Actor not found for ActorId {ActorId}: {Error}", request.ActorId, error.Message);
                 return Task.FromResult(FinFail<LanguageExt.Unit>(error));
             }
@@ -46,7 +46,7 @@ namespace Darklands.Core.Application.Grid.Commands
             var validationResult = _gridStateService.ValidateMove(currentPosition, request.ToPosition);
             if (validationResult.IsFail)
             {
-                var error = validationResult.Match<Error>(Succ: _ => Error.New("UNKNOWN", "Unknown error"), Fail: e => e);
+                var error = validationResult.Match<Error>(Succ: _ => Error.New("UNKNOWN: Unknown error"), Fail: e => e);
                 _logger?.Warning("Validation failed for MoveActorCommand: {Error}", error.Message);
                 return Task.FromResult(FinFail<LanguageExt.Unit>(error));
             }
@@ -55,7 +55,7 @@ namespace Darklands.Core.Application.Grid.Commands
             var moveResult = _gridStateService.MoveActor(request.ActorId, request.ToPosition);
             if (moveResult.IsFail)
             {
-                var error = moveResult.Match<Error>(Succ: _ => Error.New("UNKNOWN", "Unknown error"), Fail: e => e);
+                var error = moveResult.Match<Error>(Succ: _ => Error.New("UNKNOWN: Unknown error"), Fail: e => e);
                 _logger?.Error("Failed to move actor {ActorId}: {Error}", request.ActorId, error.Message);
                 return Task.FromResult(FinFail<LanguageExt.Unit>(error));
             }

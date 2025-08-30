@@ -166,6 +166,7 @@ var fin = await ProcessFile("data.txt").RunAsync();  // Returns Fin<Unit>
 // Expected errors (normal business failures)
 var expected = Error.New("User not found");           // Expected
 var withCode = Error.New(404, "Not found");          // Expected with code
+var withStringCode = Error.New("USER_NOT_FOUND: User not found");  // v5 string-only pattern
 
 // Exceptional errors (unexpected failures)
 var exceptional = Error.New(new InvalidOperationException("Unexpected"));
@@ -425,6 +426,12 @@ IO.liftAsync(async () => await SomeTask());
 
 // Fin → Option
 fin.ToOption();
+
+// Collection → Seq (CRITICAL for v5 migration)
+List<Position> positions = GetPositions();
+Seq<Position> seq = Seq(positions.AsEnumerable());  // List<T> → Seq<T>
+IEnumerable<Tile> tiles = GetTiles();
+Seq<Tile> tileSeq = Seq(tiles);                     // IEnumerable<T> → Seq<T>
 
 // Collection operations
 list.Map(x => x * 2);           // Transform each element
