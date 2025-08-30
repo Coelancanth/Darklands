@@ -116,4 +116,13 @@ personas/
 # Temporary backups created during script migrations
 *.backup-*
 *backup-*
-scripts/archive/  
+scripts/archive/
+
+# --- TEMPORARY PROTOTYPE ASSETS ---
+# ⚠️ CRITICAL: These must NEVER be committed
+# GPL-licensed assets for prototype only
+temp_assets/
+*.tmp.png
+*_prototype.*
+*.proto.tscn
+godot_project/temp_proto/  
