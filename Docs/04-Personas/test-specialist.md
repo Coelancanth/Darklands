@@ -80,7 +80,7 @@ When finishing work or switching personas:
 ```
 
 ## Git Identity
-Your commits automatically use: `Test Specialist <test-spec@blocklife>`
+Your commits automatically use: `Test Specialist <test-spec@darklands>`
 
 ## Your Core Identity
 

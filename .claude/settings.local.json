@@ -149,7 +149,13 @@
       "Read(C:\\Users\\Coel\\Documents\\Godot\\BlockLife\\src\\Features\\Block\\Commands/**)",
       "Read(C:\\Users\\Coel\\Documents\\Godot\\BlockLife\\src\\Features\\Player\\Queries/**)",
       "Read(C:\\Users\\Coel\\Documents\\Godot\\BlockLife\\src\\Features\\Block\\Commands/**)",
-      "Read(C:\\Users\\Coel\\Documents\\Godot\\BlockLife\\src\\Features\\Player\\Queries/**)"
+      "Read(C:\\Users\\Coel\\Documents\\Godot\\BlockLife\\src\\Features\\Player\\Queries/**)",
+      "Read(C:\\Users\\Coel\\Documents\\Godot\\BlockLife\\src\\Core/**)",
+      "Read(C:\\Users\\Coel\\Documents\\Godot\\BlockLife\\src\\Core/**)",
+      "Read(C:\\Users\\Coel\\Documents\\Godot\\BlockLife\\src\\Core\\Infrastructure/**)",
+      "Read(C:\\Users\\Coel\\Documents\\Godot\\BlockLife\\src\\Core\\Infrastructure\\Services/**)",
+      "Read(C:\\Users\\Coel\\Documents\\Godot\\BlockLife\\src\\Core\\Infrastructure\\Services/**)",
+      "Read(C:\\Users\\Coel\\Documents\\Godot\\BlockLife\\src\\Core\\Infrastructure\\Services/**)"
     ],
     "deny": [],
     "ask": [],

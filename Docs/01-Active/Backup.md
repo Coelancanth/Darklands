@@ -42,7 +42,7 @@
 - **APPROVED** - Technical approach is sound (Complexity: 2/10)
 - SortedSet is correct data structure for O(log n) operations
 - Guid tie-breaking ensures determinism for testing/replay
-- Follows established MediatR patterns from BlockLife
+- Follows established MediatR patterns
 
 **Implementation Tasks**:
 1. **Create Application folder structure** (5 min)
@@ -70,7 +70,7 @@
    - Command/handler integration tests
    - Edge cases (empty scheduler, duplicate times)
 
-**Pattern to Follow**: See BlockLife's `AdvanceTurnCommand` in `src/Features/Turn/Commands/`
+**Pattern to Follow**: See established `AdvanceTurnCommand` pattern in `src/Features/Turn/Commands/`
 
 
 ### VS_003: Combat Scheduler State Persistence (Phase 3 - Infrastructure)
@@ -188,3 +188,61 @@
    - Test with various actor counts
    - Verify visual accuracy
    - Check performance and smoothness
+
+
+### VS_007: Grid State Persistence (Phase 3 - Infrastructure) [DEFERRED]
+**Status**: Deferred (Save/load not needed for initial gameplay)
+**Owner**: Tech Lead → Dev Engineer
+**Size**: M (4h)
+**Priority**: Important (was Critical)
+**Markers**: [ARCHITECTURE] [PHASE-3] [DEFERRED]
+**Created**: 2025-08-29 17:16
+**Deferred**: 2025-08-30 12:06 by Tech Lead
+
+**What**: Persist grid and actor positions
+**Why**: Enable save/load of combat state
+
+**Tech Lead Decision (2025-08-30)**: 
+- **DEFERRED** - No gameplay loop exists yet to save
+- Premature infrastructure - build visual feedback (VS_008) first
+- Return to this after core gameplay is proven fun
+- Classic case of following phases too rigidly
+
+**Infrastructure (When Resumed)**:
+- `GridRepository` - Save/load grid state
+- `GridState` - Serializable grid snapshot
+- JSON serialization format
+- Integration with save system
+
+**Done When (Future)**:
+- Grid state persists to JSON
+- Loading recreates exact grid state
+- Actor positions preserved
+- Integration tests verify save/load
+
+**Depends On**: VS_006 (Application layer)
+
+**Implementation Tasks (For Future Reference)**:
+1. **Create Infrastructure structure** (10 min)
+   - `src/Infrastructure/Grid/`
+   - `src/Infrastructure/Grid/Repositories/`
+   
+2. **Define state types** (30 min)
+   - `GridState` - serializable grid
+   - `TileState` - serializable tile
+   - `ActorPositionState` - actor locations
+   
+3. **Implement Repository** (90 min)
+   - `IGridRepository` interface
+   - `JsonGridRepository` implementation
+   - Serialization logic
+   
+4. **Create persistence commands** (60 min)
+   - `SaveGridStateCommand`
+   - `LoadGridStateCommand`
+   - Error handling for corruption
+   
+5. **Write integration tests** (60 min)
+   - Full save/load cycle
+   - Large grid performance
+   - State corruption handling

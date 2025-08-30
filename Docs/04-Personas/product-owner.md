@@ -145,7 +145,7 @@ Impact: VS_015 ready for Tech Lead breakdown and development.
 ```
 
 ## Git Identity
-Your commits automatically use: `Product Owner <product@blocklife>`
+Your commits automatically use: `Product Owner <product@darklands>`
 
 ## Your Core Purpose
 

@@ -2,7 +2,7 @@
 
 **Last Updated**: 2025-08-29 16:52  
 **Purpose**: Single source of truth for daily development - everything you need in one place  
-**Based On**: BlockLife HANDBOOK.md (proven patterns)
+**Based On**: Established HANDBOOK.md patterns (proven approach)
 
 ## 🔍 Quick Reference Protocol - Find What You Need FAST
 
@@ -259,7 +259,7 @@ Y↑
 ```
 
 ### GameStrapper Pattern
-**CRITICAL**: Copy from BlockLife's GameStrapper.cs (468 lines)
+**CRITICAL**: Follow established GameStrapper.cs pattern (468 lines)
 - Full DI container setup with validation
 - Fallback-safe Serilog configuration
 - Service lifetime management
@@ -599,7 +599,7 @@ grep "Status: Completed" Backlog.md
 
 ## 🎯 Git Hooks for Safety (CRITICAL)
 
-### Required Hooks (Copy from BlockLife/.husky/)
+### Required Hooks (Standard .husky/ configuration)
 
 1. **pre-commit**: Educational guidance
    - Atomic commit reminder
@@ -627,7 +627,7 @@ dotnet husky install
 git config --get core.hookspath  # Should return .husky
 ```
 
-## 📚 Lessons Learned (From BlockLife Experience)
+## 📚 Lessons Learned (From Production Experience)
 
 ### Critical Time Wasters
 1. **Namespace issues**: 45+ minutes debugging MediatR discovery
@@ -645,10 +645,10 @@ git config --get core.hookspath  # Should return .husky
 
 ## 📚 References
 
-- **BlockLife HANDBOOK**: Our template and proven patterns
+- **Established HANDBOOK**: Our template and proven patterns
 - **ADR-001**: Strict Model-View Separation
 - **ADR-002**: Phased Implementation Protocol
-- **GameStrapper.cs**: DI container pattern (copy from BlockLife)
+- **GameStrapper.cs**: DI container pattern (established approach)
 - **Clean Architecture**: Uncle Bob's principles
 - **LanguageExt Docs**: Functional patterns in C#
 
@@ -661,7 +661,7 @@ git config --get core.hookspath  # Should return .husky
 ## Document History
 
 This handbook incorporates critical lessons from:
-- BlockLife HANDBOOK.md (889 lines of production wisdom)
+- Established HANDBOOK.md (889 lines of production wisdom)
 - 14+ critical gotchas discovered through experience
 - Post-mortem extractions from 2025-08-27
 - Git hook safety patterns proven to prevent errors

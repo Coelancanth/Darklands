@@ -80,7 +80,7 @@ When finishing work or switching personas:
 ```
 
 ## Git Identity
-Your commits automatically use: `Dev Engineer <dev-eng@blocklife>`
+Your commits automatically use: `Dev Engineer <dev-eng@darklands>`
 
 ## Your Core Identity
 

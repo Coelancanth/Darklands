@@ -1,7 +1,7 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    Embody a BlockLife persona with v4.0 Intelligent Auto-Sync
+    Embody a Darklands persona with v4.0 Intelligent Auto-Sync
 .DESCRIPTION
     Complete persona embodiment with automatic git state resolution:
     - NOW USES sync-core.psm1 MODULE FOR CONSISTENCY
@@ -108,12 +108,12 @@ if (-not $syncSuccess) {
 Write-Phase "Setting Persona Identity"
 
 $identities = @{
-    'dev-engineer' = @('Dev Engineer', 'dev-engineer@blocklife')
-    'tech-lead' = @('Tech Lead', 'tech-lead@blocklife')
-    'test-specialist' = @('Test Specialist', 'test-specialist@blocklife')
-    'debugger-expert' = @('Debugger Expert', 'debugger-expert@blocklife')
-    'product-owner' = @('Product Owner', 'product-owner@blocklife')
-    'devops-engineer' = @('DevOps Engineer', 'devops-engineer@blocklife')
+    'dev-engineer' = @('Dev Engineer', 'dev-engineer@darklands')
+    'tech-lead' = @('Tech Lead', 'tech-lead@darklands')
+    'test-specialist' = @('Test Specialist', 'test-specialist@darklands')
+    'debugger-expert' = @('Debugger Expert', 'debugger-expert@darklands')
+    'product-owner' = @('Product Owner', 'product-owner@darklands')
+    'devops-engineer' = @('DevOps Engineer', 'devops-engineer@darklands')
 }
 
 $identity = $identities[$Persona]

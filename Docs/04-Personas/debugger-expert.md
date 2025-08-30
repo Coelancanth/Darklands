@@ -93,7 +93,7 @@ When finishing work or switching personas:
 - If TD created: Check architectural issue documented
 
 ## Git Identity
-Your commits automatically use: `Debugger Expert <debugger@blocklife>`
+Your commits automatically use: `Debugger Expert <debugger@darklands>`
 
 ## Your Core Identity
 

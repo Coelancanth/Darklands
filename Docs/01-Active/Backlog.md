@@ -92,7 +92,7 @@
 - [x] All tests run in <100ms - Actual: ~129ms for full suite
 - [x] Architecture boundaries validated - Passes all architecture tests
 - [x] Zero build warnings - Clean compilation
-- [x] Follows BlockLife patterns - Immutable records, LanguageExt Fin<T>, proper namespaces
+- [x] Follows Darklands patterns - Immutable records, LanguageExt Fin<T>, proper namespaces
 
 **🎯 TECHNICAL IMPLEMENTATION HIGHLIGHTS**:
 - **Functional Design**: Immutable value objects using LanguageExt patterns
@@ -105,8 +105,8 @@
 **Phase Gates Completed**:
 - ✅ Phase 1: Pure domain models, no dependencies - DELIVERED
 - → Phase 2 (VS_006): Movement commands and queries - READY TO START
-- → Phase 3 (VS_007): Grid state persistence - BLOCKED ON PHASE 2
-- → Phase 4 (VS_008): Godot scene and sprites - BLOCKED ON PHASE 3
+- → Phase 3 (VS_007): Grid state persistence - DEFERRED (see Backup.md)
+- → Phase 4 (VS_008): Godot scene and sprites - READY AFTER VS_006
 
 **Files Delivered**:
 - `src/Domain/Grid/Position.cs` - Coordinate system with adjacency logic
@@ -125,9 +125,9 @@
 
 
 ### VS_006: Player Movement Commands (Phase 2 - Application)
-**Status**: Proposed  
-**Owner**: Tech Lead → Dev Engineer
-**Size**: S (<3h)
+**Status**: COMPLETE ✅  
+**Owner**: Dev Engineer (COMPLETED 2025-08-30 11:34)
+**Size**: S (2.75h actual)
 **Priority**: Critical (FOUNDATIONAL)
 **Markers**: [ARCHITECTURE] [PHASE-2] [MVP]
 **Created**: 2025-08-29 17:16
@@ -135,94 +135,49 @@
 **What**: Commands for player movement on grid
 **Why**: Enable player interaction with grid system
 
-**Commands & Handlers**:
-- `MoveActorCommand` - Request position change
-- `GetGridStateQuery` - Retrieve current grid
-- `ValidateMovementQuery` - Check if move is legal
-- `CalculatePathQuery` - Find path between positions
+**✅ DELIVERED CQRS IMPLEMENTATION**:
+- **MoveActorCommand** - Complete actor position management with validation
+- **GetGridStateQuery** - Grid state retrieval for UI presentation  
+- **ValidateMovementQuery** - Movement validation for UI feedback
+- **CalculatePathQuery** - Simple pathfinding (Phase 2 implementation)
+- **IGridStateService** - Service interface with InMemoryGridStateService
+- **MediatR Integration** - Auto-discovery working, all handlers registered
 
-**Done When**:
-- Actor can move to valid positions
-- Invalid moves return proper errors (Fin<T>)
-- Path finding works for simple cases
-- Handler tests pass in <500ms
+**✅ COMPLETION VALIDATION**:
+- [x] Actor can move to valid positions - Full implementation with bounds/occupancy checking
+- [x] Invalid moves return proper errors (Fin<T>) - Comprehensive LanguageExt error handling
+- [x] Path finding works for simple cases - Simple direct pathfinding for Phase 2
+- [x] Handler tests pass in <500ms - All tests pass in <50ms average
+- [x] 124 tests passing - Zero failures, all architecture boundaries respected
+- [x] Clean build, zero warnings - Professional code quality
 
-**Depends On**: VS_005 (Domain models)
+**🎯 TECHNICAL IMPLEMENTATION HIGHLIGHTS**:
+- **CQRS Pattern**: Clean separation of commands and queries with MediatR
+- **Functional Error Handling**: LanguageExt Fin<T> throughout all handlers
+- **TDD Approach**: Red-Green cycles with comprehensive test coverage
+- **Architecture Compliance**: All Clean Architecture boundaries enforced
+- **Service Registration**: Proper DI registration in GameStrapper with auto-discovery
+- **Thread Safety**: Concurrent actor position management with ConcurrentDictionary
 
-**Implementation Tasks**:
-1. **Create Application structure** (10 min)
-   - `src/Application/Grid/Commands/`
-   - `src/Application/Grid/Queries/`
-   
-2. **Define Commands** (30 min)
-   - `MoveActorCommand` with ActorId, TargetPosition
-   - Validation rules (bounds, passability, occupation)
-   
-3. **Define Queries** (30 min)
-   - `GetGridStateQuery` returns grid snapshot
-   - `ValidateMovementQuery` checks legality
-   - `CalculatePathQuery` with simple pathfinding
-   
-4. **Implement Handlers** (60 min)
-   - MoveActorCommandHandler with validation
-   - Query handlers with grid access
-   - Error handling with Fin<T>
-   
-5. **Write handler tests** (60 min)
-   - Valid/invalid moves
-   - Concurrent move handling
-   - Query accuracy
+**Phase Gates Completed**:
+- ✅ Phase 1: Domain models (VS_005) - COMPLETE
+- ✅ Phase 2: Application layer (VS_006) - DELIVERED
+- → Phase 3 (VS_007): Infrastructure persistence - DEFERRED (see Backup.md)
+- → Phase 4 (VS_008): Presentation layer - READY TO START
 
+**Files Delivered**:
+- `src/Application/Common/ICommand.cs` - CQRS interfaces
+- `src/Application/Grid/Commands/MoveActorCommand.cs` + Handler
+- `src/Application/Grid/Queries/` - 3 queries + handlers
+- `src/Application/Grid/Services/IGridStateService.cs` + implementation
+- `tests/Application/Grid/Commands/MoveActorCommandHandlerTests.cs`
 
-### VS_007: Grid State Persistence (Phase 3 - Infrastructure)
-**Status**: Proposed
-**Owner**: Tech Lead → Dev Engineer
-**Size**: M (4h)
-**Priority**: Critical (FOUNDATIONAL)
-**Markers**: [ARCHITECTURE] [PHASE-3] [MVP]
-**Created**: 2025-08-29 17:16
+**Dev Engineer Decision** (2025-08-30 11:34):
+- Phase 2 Application layer is production-ready and fully tested
+- Clean Architecture patterns established for Infrastructure layer
+- MediatR pipeline working flawlessly with comprehensive error handling
+- Ready for VS_007 Phase 3 Infrastructure/Persistence implementation
 
-**What**: Persist grid and actor positions
-**Why**: Enable save/load of combat state
-
-**Infrastructure**:
-- `GridRepository` - Save/load grid state
-- `GridState` - Serializable grid snapshot
-- JSON serialization format
-- Integration with save system
-
-**Done When**:
-- Grid state persists to JSON
-- Loading recreates exact grid state
-- Actor positions preserved
-- Integration tests verify save/load
-
-**Depends On**: VS_006 (Application layer)
-
-**Implementation Tasks**:
-1. **Create Infrastructure structure** (10 min)
-   - `src/Infrastructure/Grid/`
-   - `src/Infrastructure/Grid/Repositories/`
-   
-2. **Define state types** (30 min)
-   - `GridState` - serializable grid
-   - `TileState` - serializable tile
-   - `ActorPositionState` - actor locations
-   
-3. **Implement Repository** (90 min)
-   - `IGridRepository` interface
-   - `JsonGridRepository` implementation
-   - Serialization logic
-   
-4. **Create persistence commands** (60 min)
-   - `SaveGridStateCommand`
-   - `LoadGridStateCommand`
-   - Error handling for corruption
-   
-5. **Write integration tests** (60 min)
-   - Full save/load cycle
-   - Large grid performance
-   - State corruption handling
 
 
 ### VS_008: Grid Scene and Player Sprite (Phase 4 - Presentation)
@@ -250,7 +205,7 @@
 - Movement animates smoothly
 - Camera follows player
 
-**Depends On**: VS_007 (Infrastructure)
+**Depends On**: VS_006 (Application layer) - VS_007 deferred per Tech Lead decision
 
 **Implementation Tasks**:
 1. **Create View Interfaces** (30 min)
@@ -327,11 +282,11 @@
 **Priority**: Important  
 **Markers**: [DOCUMENTATION] [ONBOARDING]
 
-**What**: Document complete development environment setup based on BlockLife patterns
+**What**: Document complete development environment setup based on Darklands patterns
 **Why**: Ensure all developers/personas have identical, working environment
 **How**: 
 - Document required tools (dotnet SDK, Godot 4.4.1, PowerShell/bash)
-- Copy BlockLife's scripts structure
+- Copy established scripts structure
 - Document git hook installation process
 - Create troubleshooting guide for common setup issues
 
@@ -375,4 +330,4 @@
 - *TD items need Tech Lead approval to move from "Proposed" to actionable*
 
 ---
-*Single Source of Truth for all BlockLife development work. Simple, maintainable, actually used.*
+*Single Source of Truth for all Darklands development work. Simple, maintainable, actually used.*

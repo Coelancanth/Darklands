@@ -12,7 +12,7 @@ namespace Darklands.Core.Infrastructure.DependencyInjection;
 
 /// <summary>
 /// Central dependency injection bootstrapper for the Darklands game.
-/// Implements the proven GameStrapper pattern from BlockLife with fallback-safe logging,
+/// Implements the proven GameStrapper pattern with fallback-safe logging,
 /// MediatR command/query pipeline, and strict service lifetime management.
 /// </summary>
 public static class GameStrapper
