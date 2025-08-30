@@ -1,0 +1,225 @@
+using System;
+using System.Threading.Tasks;
+using Darklands.Core.Application.Grid.Queries;
+using Darklands.Core.Presentation.Views;
+using MediatR;
+using Serilog;
+
+namespace Darklands.Core.Presentation.Presenters
+{
+    /// <summary>
+    /// Presenter for the actor view that manages character/unit display and interactions.
+    /// Handles actor positioning, visual state updates, and coordinates with the application layer.
+    /// Follows MVP pattern - contains presentation logic without view implementation details.
+    /// </summary>
+    public sealed class ActorPresenter : PresenterBase<IActorView>
+    {
+        private readonly IMediator _mediator;
+        private readonly ILogger _logger;
+
+        // For Phase 4 MVP - shared test player state
+        public static Domain.Grid.ActorId? TestPlayerId { get; private set; }
+
+        /// <summary>
+        /// Creates a new ActorPresenter with the specified dependencies.
+        /// </summary>
+        /// <param name="view">The actor view interface this presenter controls</param>
+        /// <param name="mediator">MediatR instance for sending commands and queries</param>
+        /// <param name="logger">Logger for tracking actor operations</param>
+        public ActorPresenter(IActorView view, IMediator mediator, ILogger logger)
+            : base(view)
+        {
+            _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        }
+
+        /// <summary>
+        /// Initializes the actor presenter and sets up the initial actor display.
+        /// Creates a test player actor for Phase 4 MVP demonstration.
+        /// </summary>
+        public override void Initialize()
+        {
+            base.Initialize();
+
+            _logger.Information("ActorPresenter initialized, setting up initial actors");
+
+            try
+            {
+                // For Phase 4, create a test player at position (0,0)
+                // In the future, this would load actors from the application state
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await InitializeTestPlayerAsync();
+                        _logger.Information("Initial actor display setup completed");
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.Error(ex, "Failed to setup initial actor display");
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Error during ActorPresenter initialization");
+            }
+        }
+
+        /// <summary>
+        /// Creates and displays a test player actor for Phase 4 demonstration.
+        /// This is a temporary implementation - future versions will load from application state.
+        /// </summary>
+        private async Task InitializeTestPlayerAsync()
+        {
+            try
+            {
+                // Create a test player at the grid origin
+                TestPlayerId = Domain.Grid.ActorId.NewId();
+                var startPosition = new Domain.Grid.Position(0, 0);
+
+                await View.DisplayActorAsync(TestPlayerId.Value, startPosition, ActorType.Player);
+
+                _logger.Information("Test player actor created at position {Position} with ID {ActorId}", startPosition, TestPlayerId.Value);
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Failed to initialize test player actor");
+            }
+        }
+
+        /// <summary>
+        /// Handles actor movement notifications from the application layer.
+        /// Updates the visual representation when actors move on the grid.
+        /// </summary>
+        /// <param name="actorId">ID of the actor that moved</param>
+        /// <param name="fromPosition">Previous position</param>
+        /// <param name="toPosition">New position</param>
+        public async Task HandleActorMovedAsync(Domain.Grid.ActorId actorId, Domain.Grid.Position fromPosition, Domain.Grid.Position toPosition)
+        {
+            _logger.Information("Handling actor move for {ActorId} from {FromPosition} to {ToPosition}",
+                actorId, fromPosition, toPosition);
+
+            try
+            {
+                // Update the actor's visual position
+                await View.MoveActorAsync(actorId, fromPosition, toPosition);
+
+                // Show brief success feedback
+                await View.ShowActorFeedbackAsync(actorId, ActorFeedbackType.ActionSuccess, "Moved");
+
+                _logger.Debug("Successfully updated actor position for {ActorId}", actorId);
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Error handling actor move for {ActorId}", actorId);
+            }
+        }
+
+        /// <summary>
+        /// Handles actor selection events.
+        /// Updates visual highlighting to show which actor is currently selected.
+        /// </summary>
+        /// <param name="actorId">ID of the actor to select</param>
+        public async Task HandleActorSelectedAsync(Domain.Grid.ActorId actorId)
+        {
+            try
+            {
+                await View.HighlightActorAsync(actorId, ActorHighlightType.Selected);
+                _logger.Debug("Actor {ActorId} selected and highlighted", actorId);
+            }
+            catch (Exception ex)
+            {
+                _logger.Warning(ex, "Error handling actor selection for {ActorId}", actorId);
+            }
+        }
+
+        /// <summary>
+        /// Handles actor deselection events.
+        /// Removes selection highlighting from the actor.
+        /// </summary>
+        /// <param name="actorId">ID of the actor to deselect</param>
+        public async Task HandleActorDeselectedAsync(Domain.Grid.ActorId actorId)
+        {
+            try
+            {
+                await View.UnhighlightActorAsync(actorId);
+                _logger.Debug("Actor {ActorId} deselected and unhighlighted", actorId);
+            }
+            catch (Exception ex)
+            {
+                _logger.Warning(ex, "Error handling actor deselection for {ActorId}", actorId);
+            }
+        }
+
+        /// <summary>
+        /// Refreshes the display of all actors with their current states.
+        /// Used for initialization or when actor states have changed significantly.
+        /// </summary>
+        public async Task RefreshAllActorsAsync()
+        {
+            try
+            {
+                _logger.Debug("Refreshing all actor displays");
+
+                // For Phase 4, we only have the test player
+                // Future versions would query the application layer for all actors
+                await View.RefreshAllActorsAsync();
+
+                _logger.Information("All actor displays refreshed successfully");
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Error refreshing all actor displays");
+            }
+        }
+
+        /// <summary>
+        /// Updates an actor's visual representation.
+        /// Called when actor state changes without requiring movement.
+        /// </summary>
+        /// <param name="actorId">ID of the actor to update</param>
+        /// <param name="position">Current position of the actor</param>
+        /// <param name="actorType">Updated actor type</param>
+        public async Task UpdateActorAsync(Domain.Grid.ActorId actorId, Domain.Grid.Position position, ActorType actorType)
+        {
+            try
+            {
+                await View.UpdateActorAsync(actorId, position, actorType);
+                _logger.Debug("Updated actor {ActorId} at position {Position}", actorId, position);
+            }
+            catch (Exception ex)
+            {
+                _logger.Warning(ex, "Error updating actor {ActorId} at position {Position}", actorId, position);
+            }
+        }
+
+        /// <summary>
+        /// Removes an actor from the visual display.
+        /// Called when actors are destroyed or leave the battlefield.
+        /// </summary>
+        /// <param name="actorId">ID of the actor to remove</param>
+        /// <param name="position">Last known position of the actor</param>
+        public async Task RemoveActorAsync(Domain.Grid.ActorId actorId, Domain.Grid.Position position)
+        {
+            try
+            {
+                await View.RemoveActorAsync(actorId, position);
+                _logger.Information("Removed actor {ActorId} from position {Position}", actorId, position);
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Error removing actor {ActorId} from position {Position}", actorId, position);
+            }
+        }
+
+        /// <summary>
+        /// Disposes the presenter and cleans up any resources or subscriptions.
+        /// </summary>
+        public override void Dispose()
+        {
+            _logger.Information("ActorPresenter disposing and cleaning up resources");
+            base.Dispose();
+        }
+    }
+}
