@@ -1,6 +1,8 @@
 # Darklands Development Backlog
 
+
 **Last Updated**: 2025-08-30 16:10
+
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
 
@@ -8,8 +10,10 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 001
-- **Next TD**: 005  
-- **Next VS**: 013 
+
+- **Next TD**: 004  
+- **Next VS**: 009 
+
 
 **Protocol**: Check your type's counter → Use that number → Increment the counter → Update timestamp
 
@@ -181,6 +185,7 @@
 
 
 ### VS_008: Grid Scene and Player Sprite (Phase 4 - Presentation)
+
 **Status**: Ready for Dev
 **Owner**: Dev Engineer  
 **Size**: L (6-8h)
@@ -189,8 +194,10 @@
 **Created**: 2025-08-29 17:16
 **Updated**: 2025-08-30 16:10
 
+
 **What**: Visual grid with player sprite and click-to-move
 **Why**: First visible, interactive game element
+
 
 **⚠️ CRITICAL - Prototype Asset Approach**:
 - **See**: `Docs/08-Learning/PROTOTYPE-ASSETS-WARNING.md` for legal requirements
