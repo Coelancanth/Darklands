@@ -5,7 +5,7 @@ using static LanguageExt.Prelude;
 namespace Darklands.Core.Domain.Combat;
 
 /// <summary>
-/// Represents a combat action that can be performed by a combatant.
+/// Represents a combat action that can be performed by an Actor.
 /// Each action has a base time cost, damage potential, and other properties.
 /// 
 /// SAFETY: Constructor is private to prevent invalid instances. Use Create().
