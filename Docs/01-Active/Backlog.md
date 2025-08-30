@@ -1,6 +1,6 @@
 # Darklands Development Backlog
 
-**Last Updated**: 2025-08-29 17:13
+**Last Updated**: 2025-08-30 15:31
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
 
@@ -246,64 +246,6 @@
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*
 
-### TD_002: Fix CombatAction Terminology [Score: 1/10]
-**Status**: COMPLETE ✅  
-**Owner**: Dev Engineer (COMPLETED 2025-08-30 15:28)
-**Size**: S (<10 min actual)  
-**Priority**: Important  
-**Created**: 2025-08-29 17:09
-
-**What**: Replace "combatant" with "Actor" in CombatAction.cs documentation
-**Why**: Glossary SSOT enforcement - maintain consistent terminology
-**How**: Simple find/replace in XML comments
-**Done When**: All references to "combatant" replaced with "Actor"
-**Complexity**: 1/10 - Documentation only change
-
-**✅ COMPLETION VALIDATION**:
-- [x] "combatant" replaced with "Actor" in CombatAction.cs:8
-- [x] Glossary terminology consistency maintained
-- [x] All 123 tests pass - zero regressions
-- [x] Zero build warnings - clean implementation
-
-**Dev Engineer Decision** (2025-08-30 15:28):
-- Simple terminology fix completed as specified
-- Maintains architectural documentation consistency
-- Ready for VS_002 implementation with correct Actor terminology
-
-### TD_003: Add Position to ISchedulable Interface [Score: 2/10]
-**Status**: COMPLETE ✅  
-**Owner**: Dev Engineer (COMPLETED 2025-08-30 15:28)  
-**Size**: S (<30 min actual)
-**Priority**: Important
-**Created**: 2025-08-29 17:09
-
-**What**: Add Position property to ISchedulable for grid-based combat
-**Why**: Actors need positions on combat grid per Vision requirements
-**How**: 
-- Add `Position Position { get; }` to ISchedulable
-- Update VS_002 implementation to include Position
-**Done When**: ISchedulable includes Position, VS_002 updated
-**Complexity**: 2/10 - Simple interface addition
-**Depends On**: VS_002 (implement together)
-
-**✅ DELIVERED INTERFACE**:
-- **ISchedulable** - Combat scheduling interface with Position and NextTurn properties
-- **Position Integration** - Uses existing Domain.Grid.Position type
-- **TimeUnit Integration** - NextTurn property for timeline scheduling
-- **VS_002 Ready** - Interface foundation prepared for Combat Scheduler
-
-**✅ COMPLETION VALIDATION**:
-- [x] ISchedulable interface created in Domain/Combat namespace
-- [x] Position property added using Domain.Grid.Position
-- [x] NextTurn property added using Domain.Combat.TimeUnit
-- [x] VS_002 implementation ready (no existing code to update)
-- [x] All 123 tests pass - interface compiles cleanly
-- [x] Zero build warnings - proper namespace usage
-
-**Dev Engineer Decision** (2025-08-30 15:28):
-- Interface created as foundation for VS_002 Combat Scheduler
-- Clean integration with existing Position and TimeUnit types
-- Ready for timeline-based combat scheduling implementation
 
 ### TD_001: Create Development Setup Documentation [Score: 45/100]
 **Status**: COMPLETE ✅  
