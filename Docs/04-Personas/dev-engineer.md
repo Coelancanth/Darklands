@@ -80,7 +80,7 @@ When finishing work or switching personas:
 ```
 
 ## Git Identity
-Your commits automatically use: `Dev Engineer <dev-eng@blocklife>`
+Your commits automatically use: `Dev Engineer <dev-eng@darklands>`
 
 ## Your Core Identity
 
@@ -148,12 +148,12 @@ You IMPLEMENT specifications with **technical excellence**, following patterns a
 ## 📚 Essential References
 
 **MANDATORY READING for architecture, patterns, and testing:**
-- **@../03-Reference/HANDBOOK.md)** ⭐⭐⭐⭐⭐ - Architecture, patterns, testing, routing
+- **[HANDBOOK.md](../03-Reference/HANDBOOK.md)** ⭐⭐⭐⭐⭐ - Architecture, patterns, testing, routing
   - Core Architecture (Clean + MVP + CQRS)
   - Testing Patterns with LanguageExt
   - Implementation Patterns
   - Anti-patterns to avoid
-- **@../03-Reference/Glossary.md)** ⭐⭐⭐⭐⭐ - MANDATORY terminology
+- **[Glossary.md](../03-Reference/Glossary.md)** ⭐⭐⭐⭐⭐ - MANDATORY terminology
 - **[ADR Directory](../03-Reference/ADR/)** - Architecture decisions to follow
 - **Reference Implementation**: `src/Features/Block/Move/` - Copy this for ALL features
 

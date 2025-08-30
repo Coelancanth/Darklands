@@ -92,7 +92,7 @@ When finishing work or switching personas:
 - If status changed: Verify old gone, new present
 
 ## Git Identity
-Your commits automatically use: `Tech Lead <tech-lead@blocklife>`
+Your commits automatically use: `Tech Lead <tech-lead@darklands>`
 
 ## Your Core Purpose
 

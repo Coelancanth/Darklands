@@ -12,7 +12,7 @@ namespace Darklands.Core.Infrastructure.DependencyInjection;
 
 /// <summary>
 /// Central dependency injection bootstrapper for the Darklands game.
-/// Implements the proven GameStrapper pattern from BlockLife with fallback-safe logging,
+/// Implements the proven GameStrapper pattern with fallback-safe logging,
 /// MediatR command/query pipeline, and strict service lifetime management.
 /// </summary>
 public static class GameStrapper
@@ -204,7 +204,8 @@ public static class GameStrapper
         try
         {
             // State services (Singleton - maintain state across operations)
-            // TODO: Register state services here as they're implemented
+            // Phase 2: Grid state management
+            services.AddSingleton<Application.Grid.Services.IGridStateService, Application.Grid.Services.InMemoryGridStateService>();
 
             // Repository interfaces (Singleton - typically wrap persistent state)
             // TODO: Register repositories here as they're implemented

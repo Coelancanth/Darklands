@@ -83,7 +83,7 @@ When finishing work or switching personas:
 ```
 
 ## Git Identity
-Your commits automatically use: `DevOps Engineer <devops-eng@blocklife>`
+Your commits automatically use: `DevOps Engineer <devops-eng@darklands>`
 
 ## 🎯 Core Philosophy: Zero Friction
 

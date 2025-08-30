@@ -1,8 +1,8 @@
 # Darklands Developer Handbook
 
-**Last Updated**: 2025-08-28  
+**Last Updated**: 2025-08-29 16:52  
 **Purpose**: Single source of truth for daily development - everything you need in one place  
-**Based On**: BlockLife HANDBOOK.md (proven patterns)
+**Based On**: Established HANDBOOK.md patterns (proven approach)
 
 ## 🔍 Quick Reference Protocol - Find What You Need FAST
 
@@ -39,11 +39,89 @@
 
 ## 📍 Navigation
 
-- **Need a term definition?** → [Glossary.md](Glossary.md) (to be created)
+- **Need a term definition?** → [Glossary.md](Glossary.md) - MANDATORY terminology
 - **Major architecture decision?** → [ADR Directory](ADR/)
 - **Testing guide?** → [Testing.md](Testing.md) (to be created)
 - **First-time setup?** → [Development Environment Setup](#-development-environment-setup)
 - **Everything else?** → It's in this handbook
+
+---
+
+## 📖 Glossary Enforcement Protocol
+
+**CRITICAL**: [Glossary.md](Glossary.md) is our Single Source of Truth (SSOT) for ALL terminology.
+
+### 🚫 Absolute Requirements
+
+**BEFORE writing ANY code or documentation:**
+1. **Check Glossary FIRST** - if unsure what to call something
+2. **Use EXACT terms** - no synonyms, no variations
+3. **Add missing terms** - update Glossary before use in code
+
+### ⚖️ Enforcement Rules
+
+**For All Personas:**
+- ❌ **REJECT** work items using incorrect terminology
+- ❌ **BLOCK** PRs with non-Glossary terms in public APIs
+- ✅ **REQUIRE** Glossary updates before new terms enter codebase
+
+**Code Reviews Must Check:**
+- Class names match Glossary (e.g., `Actor` not `Character`)
+- Method names follow conventions (e.g., `NextTurn` not `TurnTime`)
+- Public APIs use exact Glossary terminology
+- Comments and documentation align with vocabulary
+
+### 🔍 Common Violations to Watch For
+
+| ❌ Wrong Term | ✅ Correct Term | Context |
+|-------------|---------------|---------|
+| Player | Character | Persistent player avatar |
+| Character | Actor | Combat entities (use Actor) |
+| Entity | Actor | Game objects that take turns |
+| Unit | Actor | Anything that can act |
+| Queue | Scheduler | Turn order management |
+| Timeline | Scheduler | Combat sequence coordination |
+| TurnManager | Scheduler | Combat sequence coordination |
+| TurnOrder | Scheduler | Initiative system |
+| TurnTime | NextTurn | When actor acts again |
+| NextAction | NextTurn | Scheduling property |
+| Speed | Agility | Actor attribute |
+| Duration | Time Cost | Action requirements |
+
+### 📋 Pre-Coding Checklist
+
+Before implementing ANY feature:
+- [ ] Read relevant Glossary sections
+- [ ] Verify all planned class names exist in Glossary  
+- [ ] Check method names follow conventions
+- [ ] Confirm property names match exactly
+- [ ] Update Glossary if new terms needed
+
+### 🏗️ Architecture Integration
+
+**The Glossary determines:**
+- All public API naming
+- Domain model structure  
+- Interface definitions
+- Command/Query naming patterns
+- Event and notification names
+
+**Example Enforcement:**
+```csharp
+// ✅ CORRECT - follows Glossary
+public class ScheduleActorCommand : IRequest<Fin<Unit>>
+{
+    public Guid ActorId { get; init; }
+    public TimeUnit NextTurn { get; init; }
+}
+
+// ❌ WRONG - violates Glossary
+public class ScheduleEntityCommand : IRequest<Fin<Unit>>  // "Entity" not in Glossary
+{
+    public Guid CharacterId { get; init; }  // "Character" deprecated
+    public TimeUnit TurnTime { get; init; }  // "TurnTime" not allowed
+}
+```
 
 ---
 
@@ -181,7 +259,7 @@ Y↑
 ```
 
 ### GameStrapper Pattern
-**CRITICAL**: Copy from BlockLife's GameStrapper.cs (468 lines)
+**CRITICAL**: Follow established GameStrapper.cs pattern (468 lines)
 - Full DI container setup with validation
 - Fallback-safe Serilog configuration
 - Service lifetime management
@@ -521,7 +599,7 @@ grep "Status: Completed" Backlog.md
 
 ## 🎯 Git Hooks for Safety (CRITICAL)
 
-### Required Hooks (Copy from BlockLife/.husky/)
+### Required Hooks (Standard .husky/ configuration)
 
 1. **pre-commit**: Educational guidance
    - Atomic commit reminder
@@ -549,7 +627,7 @@ dotnet husky install
 git config --get core.hookspath  # Should return .husky
 ```
 
-## 📚 Lessons Learned (From BlockLife Experience)
+## 📚 Lessons Learned (From Production Experience)
 
 ### Critical Time Wasters
 1. **Namespace issues**: 45+ minutes debugging MediatR discovery
@@ -567,10 +645,10 @@ git config --get core.hookspath  # Should return .husky
 
 ## 📚 References
 
-- **BlockLife HANDBOOK**: Our template and proven patterns
+- **Established HANDBOOK**: Our template and proven patterns
 - **ADR-001**: Strict Model-View Separation
 - **ADR-002**: Phased Implementation Protocol
-- **GameStrapper.cs**: DI container pattern (copy from BlockLife)
+- **GameStrapper.cs**: DI container pattern (established approach)
 - **Clean Architecture**: Uncle Bob's principles
 - **LanguageExt Docs**: Functional patterns in C#
 
@@ -583,7 +661,7 @@ git config --get core.hookspath  # Should return .husky
 ## Document History
 
 This handbook incorporates critical lessons from:
-- BlockLife HANDBOOK.md (889 lines of production wisdom)
+- Established HANDBOOK.md (889 lines of production wisdom)
 - 14+ critical gotchas discovered through experience
 - Post-mortem extractions from 2025-08-27
 - Git hook safety patterns proven to prevent errors
