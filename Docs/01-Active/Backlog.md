@@ -68,51 +68,6 @@
 ## 🔥 Critical (Do First)
 *Blockers preventing other work, production bugs, dependencies for other features*
 
-### TD_007: Presenter Wiring Verification Protocol [ARCHITECTURE] [Score: 70/100]
-**Status**: Proposed ← CREATED 2025-09-07 13:36 (Post-mortem learning)
-**Owner**: Tech Lead (Architecture decision needed)
-**Size**: M (4-6h including tests and documentation)
-**Priority**: Critical (Prevents future 2+ hour debugging sessions)
-**Markers**: [ARCHITECTURE] [TESTING] [POST-MORTEM-ACTION]
-**Created**: 2025-09-07 13:36
-
-**What**: Establish mandatory wiring verification protocol for all presenter connections
-**Why**: TD_005 post-mortem revealed 2-hour debug caused by missing GridPresenter→ActorPresenter wiring
-
-**Problem Statement** (from Post-Mortem lines 58-64):
-- GridPresenter wasn't calling ActorPresenter.HandleActorMovedAsync()
-- Silent failure - no compile error, no runtime error, just missing behavior
-- Manual wiring in GameManager is error-prone and untested
-
-**Proposed Solution**:
-1. **Mandatory Wiring Tests**: Every presenter pair MUST have wiring verification tests
-2. **Compile-Time Safety**: Consider IPresenterCoordinator interface for type-safe wiring
-3. **Runtime Verification**: Add VerifyWiring() method called in GameManager._Ready()
-4. **Test Pattern**: Create WiringAssert helper for consistent wiring test assertions
-
-**Implementation Tasks**:
-- [ ] Create presenter wiring test suite (PresenterCoordinationTests.cs)
-- [ ] Add IPresenterCoordinator interface for type-safe wiring
-- [ ] Implement VerifyWiring() runtime check in GameManager
-- [ ] Document wiring test pattern in testing guidelines
-- [ ] Add wiring tests to CI pipeline gate
-
-**Done When**:
-- All existing presenter pairs have wiring tests
-- Runtime verification catches missing wiring on startup
-- CI fails if wiring tests are missing for new presenters
-- Documentation explains the wiring test pattern
-
-**Depends On**: None (can start immediately)
-
-**Tech Lead Analysis** (2025-09-07):
-- **Complexity Score**: 4/10 (Well-understood problem with clear solution)
-- **Pattern Match**: Similar to DI container validation pattern
-- **Risk**: None - purely additive safety measures
-- **ROI**: HIGH - Prevents hours of debugging for minutes of test writing
-- **Decision**: APPROVED for immediate implementation
-
----
 
 
 ## 📈 Important (Do Next)
@@ -160,6 +115,51 @@
 - Implement only after core logic complete
 - ~2 hour task when time permits
 
+### TD_007: Presenter Wiring Verification Protocol [ARCHITECTURE] [Score: 70/100]
+**Status**: Proposed ← CREATED 2025-09-07 13:36 (Post-mortem learning)
+**Owner**: Tech Lead (Architecture decision needed)
+**Size**: M (4-6h including tests and documentation)
+**Priority**: Critical (Prevents future 2+ hour debugging sessions)
+**Markers**: [ARCHITECTURE] [TESTING] [POST-MORTEM-ACTION]
+**Created**: 2025-09-07 13:36
+
+**What**: Establish mandatory wiring verification protocol for all presenter connections
+**Why**: TD_005 post-mortem revealed 2-hour debug caused by missing GridPresenter→ActorPresenter wiring
+
+**Problem Statement** (from Post-Mortem lines 58-64):
+- GridPresenter wasn't calling ActorPresenter.HandleActorMovedAsync()
+- Silent failure - no compile error, no runtime error, just missing behavior
+- Manual wiring in GameManager is error-prone and untested
+
+**Proposed Solution**:
+1. **Mandatory Wiring Tests**: Every presenter pair MUST have wiring verification tests
+2. **Compile-Time Safety**: Consider IPresenterCoordinator interface for type-safe wiring
+3. **Runtime Verification**: Add VerifyWiring() method called in GameManager._Ready()
+4. **Test Pattern**: Create WiringAssert helper for consistent wiring test assertions
+
+**Implementation Tasks**:
+- [ ] Create presenter wiring test suite (PresenterCoordinationTests.cs)
+- [ ] Add IPresenterCoordinator interface for type-safe wiring
+- [ ] Implement VerifyWiring() runtime check in GameManager
+- [ ] Document wiring test pattern in testing guidelines
+- [ ] Add wiring tests to CI pipeline gate
+
+**Done When**:
+- All existing presenter pairs have wiring tests
+- Runtime verification catches missing wiring on startup
+- CI fails if wiring tests are missing for new presenters
+- Documentation explains the wiring test pattern
+
+**Depends On**: None (can start immediately)
+
+**Tech Lead Analysis** (2025-09-07):
+- **Complexity Score**: 4/10 (Well-understood problem with clear solution)
+- **Pattern Match**: Similar to DI container validation pattern
+- **Risk**: None - purely additive safety measures
+- **ROI**: HIGH - Prevents hours of debugging for minutes of test writing
+- **Decision**: APPROVED for immediate implementation
+
+---
 
 ---
 
