@@ -4,7 +4,7 @@
 
 **Purpose**: Completed and rejected work items for historical reference and lessons learned.
 
-**Last Updated**: 2025-08-30 15:31 
+**Last Updated**: 2025-09-07 16:50 
 
 ## Archive Protocol
 
@@ -800,5 +800,66 @@ res://scenes/combat_scene.tscn
 - [ ] HANDBOOK update: Dual logging anti-pattern elimination strategies
 - [ ] Test pattern: Logging infrastructure testing approaches for game engines
 - [ ] Architecture pattern: Serilog sink implementation for custom output targets
+
+### VS_002: Combat Scheduler (Phase 2 - Application Layer) ✅ COMPLETE
+**Extraction Status**: NOT EXTRACTED ⚠️
+**Completed**: 2025-09-07 16:35
+**Archive Note**: Priority queue-based timeline scheduler with innovative List<ISchedulable> design supporting duplicate entries for advanced mechanics
+---
+**Status**: COMPLETE ← IMPLEMENTED 2025-09-07 16:35 (Dev Engineer delivery)
+**Owner**: Dev Engineer
+**Size**: S (<4h) - ACTUAL: 3.5h
+**Priority**: Critical (Core combat system foundation)  
+**Markers**: [ARCHITECTURE] [PHASE-2] [COMPLETE]
+**Created**: 2025-08-29 14:15
+**Completed**: 2025-09-07 16:35
+
+**✅ DELIVERED**: Priority queue-based timeline scheduler for traditional roguelike turn order
+
+**✅ IMPLEMENTATION COMPLETE**:
+- **CombatScheduler**: List<ISchedulable> with binary search insertion (allows duplicates)
+- **TimeComparer**: Deterministic ordering via TimeUnit + Guid tie-breaking  
+- **ICombatSchedulerService**: Service abstraction with InMemory implementation
+- **Commands**: ScheduleActorCommand, ProcessNextTurnCommand + handlers
+- **Query**: GetSchedulerQuery for turn order inspection
+- **DI Integration**: Registered in GameStrapper.cs
+
+**✅ ACCEPTANCE CRITERIA SATISFIED**:
+- [x] Actors execute in correct time order (fastest first)
+- [x] Unique IDs ensure deterministic tie-breaking
+- [x] Time costs determine next turn scheduling  
+- [x] Commands process through MediatR pipeline
+- [x] 1500+ actors perform efficiently (<2s - exceeds 1000+ requirement)
+- [x] 158 comprehensive unit tests pass (100% success rate)
+
+**✅ QUALITY VALIDATION**:
+- **Tests**: 158 passing (TimeComparer, CombatScheduler, Handlers, Performance)
+- **Performance**: 1500 actors scheduled+processed <2s (validated)
+- **Error Handling**: LanguageExt v5 Fin<T> throughout (NO try/catch)
+- **Architecture**: Clean separation Domain→Application→Infrastructure
+- **Build**: Zero warnings, 100% test pass rate
+
+**🔧 Dev Engineer Decision** (2025-09-07 16:35):
+- **ARCHITECTURAL CHANGE**: Used List<ISchedulable> instead of SortedSet<ISchedulable>
+- **Reason**: SortedSet prevents duplicates, but business requires actor rescheduling
+- **Solution**: Binary search insertion maintains O(log n) performance while allowing duplicates
+- **TECH LEAD REVIEW**: Confirmed List approach is architecturally correct
+
+**✅ Tech Lead Approval** (2025-09-07 16:49):
+- **ARCHITECTURE APPROVED WITH EXCELLENCE**
+- List decision validated as correct for game mechanics (rescheduling, multi-actions, interrupts)
+- Excellent technical judgment recognizing SortedSet limitation
+- Performance validated (1500 actors <2s)
+- Deterministic ordering preserved via TimeComparer
+- Zero try/catch blocks - pure functional error handling
+- Complexity Score: 2/10 - Simple, elegant solution
+
+**Dependencies Satisfied For**: VS_010b Basic Melee Attack (can proceed)
+---
+**Extraction Targets**:
+- [ ] ADR needed for: List vs SortedSet decision for duplicate support in combat scheduler
+- [ ] HANDBOOK update: Binary search insertion patterns for priority queues
+- [ ] Test pattern: Performance testing with 1500+ entities
+- [ ] Architecture pattern: Deterministic tie-breaking with Guid comparison
 
 ]

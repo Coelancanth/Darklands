@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-07 16:13
+**Last Updated**: 2025-09-07 16:50
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -73,47 +73,6 @@
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*
 
-### VS_002: Combat Scheduler (Phase 2 - Application Layer) ✅ COMPLETE
-**Status**: COMPLETE ← IMPLEMENTED 2025-09-07 16:35 (Dev Engineer delivery)
-**Owner**: Dev Engineer
-**Size**: S (<4h) - ACTUAL: 3.5h
-**Priority**: Critical (Core combat system foundation)  
-**Markers**: [ARCHITECTURE] [PHASE-2] [COMPLETE]
-**Created**: 2025-08-29 14:15
-**Completed**: 2025-09-07 16:35
-
-**✅ DELIVERED**: Priority queue-based timeline scheduler for traditional roguelike turn order
-
-**✅ IMPLEMENTATION COMPLETE**:
-- **CombatScheduler**: List<ISchedulable> with binary search insertion (allows duplicates)
-- **TimeComparer**: Deterministic ordering via TimeUnit + Guid tie-breaking  
-- **ICombatSchedulerService**: Service abstraction with InMemory implementation
-- **Commands**: ScheduleActorCommand, ProcessNextTurnCommand + handlers
-- **Query**: GetSchedulerQuery for turn order inspection
-- **DI Integration**: Registered in GameStrapper.cs
-
-**✅ ACCEPTANCE CRITERIA SATISFIED**:
-- [x] Actors execute in correct time order (fastest first)
-- [x] Unique IDs ensure deterministic tie-breaking
-- [x] Time costs determine next turn scheduling  
-- [x] Commands process through MediatR pipeline
-- [x] 1500+ actors perform efficiently (<2s - exceeds 1000+ requirement)
-- [x] 158 comprehensive unit tests pass (100% success rate)
-
-**✅ QUALITY VALIDATION**:
-- **Tests**: 158 passing (TimeComparer, CombatScheduler, Handlers, Performance)
-- **Performance**: 1500 actors scheduled+processed <2s (validated)
-- **Error Handling**: LanguageExt v5 Fin<T> throughout (NO try/catch)
-- **Architecture**: Clean separation Domain→Application→Infrastructure
-- **Build**: Zero warnings, 100% test pass rate
-
-**🔧 Dev Engineer Decision** (2025-09-07 16:35):
-- **ARCHITECTURAL CHANGE**: Used List<ISchedulable> instead of SortedSet<ISchedulable>
-- **Reason**: SortedSet prevents duplicates, but business requires actor rescheduling
-- **Solution**: Binary search insertion maintains O(log n) performance while allowing duplicates
-- **⚠️ TECH LEAD REVIEW NEEDED**: Confirm List vs SortedSet approach is acceptable
-
-**Dependencies Satisfied For**: VS_010b Basic Melee Attack (can proceed)
 
 ### VS_010a: Actor Health System (Foundation)
 **Status**: Ready for Dev ← SPLIT from VS_010 2025-09-07 16:13 (Tech Lead decision)
