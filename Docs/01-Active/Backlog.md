@@ -206,7 +206,7 @@
 - DummyActor with health but no AI (NextTurn = Maximum)
 - SpawnDummyCommand places at grid position
 - Registers in scheduler (but never processes turn)
-- Knight sprite with health bar
+- brown sprite with health bar
 - Death animation on zero health
 
 **Done When**:

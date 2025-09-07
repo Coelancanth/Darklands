@@ -188,7 +188,9 @@
       "WebFetch(domain:louthy.github.io)",
       "Bash(gh pr:*)",
       "Bash(ls:*)",
-      "Bash(Remove-Item \"tests\\Application\\Actor\\Services\\ActorStateServiceIntegrationTests.cs\" -Force)"
+      "Bash(Remove-Item \"tests\\Application\\Actor\\Services\\ActorStateServiceIntegrationTests.cs\" -Force)",
+      "Bash(./scripts/core/build.ps1 test --filter \"Category=Application&ExecuteAttack\")",
+      "Bash(dotnet list:*)"
     ],
     "deny": [],
     "ask": [],
