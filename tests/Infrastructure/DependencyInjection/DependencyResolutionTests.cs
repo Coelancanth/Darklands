@@ -165,9 +165,6 @@ public class DependencyResolutionTests
         }
     }
 
-    // Cleanup
-    ~DependencyResolutionTests()
-    {
-        GameStrapper.Dispose();
-    }
+    // Note: GameStrapper uses singleton pattern - no per-test cleanup needed
+    // Each test gets its own isolated ServiceProvider instance
 }
