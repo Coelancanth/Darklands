@@ -21,9 +21,9 @@ namespace Darklands.Views
         private ILogger? _logger;
         private readonly Dictionary<ActorId, HealthBarNode> _healthBars = new();
         private const int TileSize = 64;
-        private const int HealthBarWidth = 24;
-        private const int HealthBarHeight = 4;
-        private const int HealthBarOffsetY = -8; // Above the actor
+        private const int HealthBarWidth = 48;
+        private const int HealthBarHeight = 8;
+        private const int HealthBarOffsetY = -16; // Above the actor
 
         // Colors for health bar states
         private readonly Color HealthGreenColor = new(0.2f, 0.8f, 0.2f, 1.0f);  // Green for healthy
@@ -559,8 +559,8 @@ namespace Darklands.Views
             // Health text label (shows current/max)
             _healthText = new Label();
             _healthText.Text = $"{_health.Current}/{_health.Maximum}";
-            _healthText.AddThemeFontSizeOverride("font_size", 8); // Small font
-            _healthText.Position = new Vector2(-_width / 2, _offsetY - 14); // Above the bar
+            _healthText.AddThemeFontSizeOverride("font_size", 12); // Readable font
+            _healthText.Position = new Vector2(-_width / 2, _offsetY - 18); // Above the bar
             _healthText.Modulate = Colors.White;
             // Center the text
             _healthText.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.TopLeft);
