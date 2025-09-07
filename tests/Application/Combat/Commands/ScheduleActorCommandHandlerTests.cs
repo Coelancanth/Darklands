@@ -112,7 +112,7 @@ namespace Darklands.Core.Tests.Application.Combat.Commands
             {
                 var result = await handler.Handle(command, CancellationToken.None);
                 result.IsSucc.Should().BeTrue($"Command for actor {command.ActorId} should succeed");
-                
+
                 // Verify the service received the correct parameters
                 service.LastScheduledActorId.Should().Be(command.ActorId);
                 service.LastScheduledPosition.Should().Be(command.Position);

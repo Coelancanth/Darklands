@@ -68,7 +68,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
                 Succ: a => a,
                 Fail: _ => throw new InvalidOperationException("Test setup failed")
             );
-            
+
             var command = DamageActorCommand.Create(_validActorId, 25, "Sword Attack");
             var actorService = new TestActorStateService(actorExists: true, actor: testActor, damageSucceeds: true);
             var handler = new DamageActorCommandHandler(actorService, null!);

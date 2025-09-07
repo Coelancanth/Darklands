@@ -62,7 +62,7 @@ namespace Darklands.Core.Tests.Application.Combat.Queries
             // Assert
             result.IsSucc.Should().BeTrue();
             service.GetTurnOrderCalled.Should().BeTrue();
-            
+
             result.Match(
                 Succ: turnOrder =>
                 {
@@ -90,7 +90,7 @@ namespace Darklands.Core.Tests.Application.Combat.Queries
             // Assert
             result.IsSucc.Should().BeTrue();
             service.GetTurnOrderCalled.Should().BeTrue();
-            
+
             result.Match(
                 Succ: turnOrder => turnOrder.Should().BeEmpty(),
                 Fail: _ => throw new InvalidOperationException("Expected success")
@@ -112,7 +112,7 @@ namespace Darklands.Core.Tests.Application.Combat.Queries
             // Assert
             result.IsFail.Should().BeTrue();
             service.GetTurnOrderCalled.Should().BeTrue();
-            
+
             result.Match(
                 Succ: _ => throw new InvalidOperationException("Expected failure"),
                 Fail: actualError => actualError.Message.Should().Be(error.Message)
@@ -141,9 +141,9 @@ namespace Darklands.Core.Tests.Application.Combat.Queries
             // Assert
             result.IsSucc.Should().BeTrue();
             service.GetTurnOrderCalled.Should().BeTrue();
-            
+
             result.Match(
-                Succ: turnOrder => 
+                Succ: turnOrder =>
                 {
                     turnOrder.Count.Should().Be(entityCount);
                     for (int i = 0; i < entityCount; i++)
@@ -163,7 +163,7 @@ namespace Darklands.Core.Tests.Application.Combat.Queries
 
             // Assert
             query.Should().NotBeNull();
-            
+
             // Verify it can be handled
             var emptyList = new List<ISchedulable>();
             var service = new TestCombatSchedulerService(FinSucc((IReadOnlyList<ISchedulable>)emptyList));
@@ -216,15 +216,15 @@ namespace Darklands.Core.Tests.Application.Combat.Queries
                 {
                     new SchedulableActor(Guid.NewGuid(), TimeUnit.CreateUnsafe(i * 1000), new Position(i, i))
                 };
-                
+
                 var service = new TestCombatSchedulerService(FinSucc((IReadOnlyList<ISchedulable>)entities));
                 var testHandler = new GetSchedulerQueryHandler(service, null!);
-                
+
                 var result = await testHandler.Handle(query, CancellationToken.None);
-                
+
                 result.IsSucc.Should().BeTrue($"Query {i} should succeed");
                 service.GetTurnOrderCalled.Should().BeTrue($"Service should be called for query {i}");
-                
+
                 result.Match(
                     Succ: turnOrder => turnOrder.Count.Should().Be(1, $"Query {i} should return one entity"),
                     Fail: _ => throw new InvalidOperationException($"Expected success for query {i}")

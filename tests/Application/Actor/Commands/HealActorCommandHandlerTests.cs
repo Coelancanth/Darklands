@@ -68,7 +68,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
                 Succ: a => a.TakeDamage(30).Match(Succ: damaged => damaged, Fail: _ => throw new InvalidOperationException()),
                 Fail: _ => throw new InvalidOperationException("Test setup failed")
             );
-            
+
             var command = HealActorCommand.Create(_validActorId, 20, "Healing Potion");
             var actorService = new TestActorStateService(actorExists: true, actor: damagedActor, healSucceeds: true);
             var handler = new HealActorCommandHandler(actorService, null!);

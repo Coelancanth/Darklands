@@ -66,7 +66,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
         {
             // Note: Command creation doesn't validate - that's handler's responsibility
             // This test documents the current behavior
-            
+
             // Act
             var command = HealActorCommand.Create(ActorId.Empty, 25);
 
@@ -80,7 +80,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
         {
             // Note: Command creation doesn't validate - that's handler's responsibility
             // This test documents the current behavior
-            
+
             // Act
             var command = HealActorCommand.Create(_validActorId, -15);
 

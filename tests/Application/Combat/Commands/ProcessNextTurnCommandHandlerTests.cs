@@ -54,7 +54,7 @@ namespace Darklands.Core.Tests.Application.Combat.Commands
             // Assert
             result.IsSucc.Should().BeTrue();
             service.ProcessNextTurnCalled.Should().BeTrue();
-            
+
             result.Match(
                 Succ: option => option.Match(
                     Some: actorId => actorId.Should().Be(expectedActorId),
@@ -78,7 +78,7 @@ namespace Darklands.Core.Tests.Application.Combat.Commands
             // Assert
             result.IsSucc.Should().BeTrue();
             service.ProcessNextTurnCalled.Should().BeTrue();
-            
+
             result.Match(
                 Succ: option => option.IsNone.Should().BeTrue(),
                 Fail: _ => throw new InvalidOperationException("Expected success")
@@ -100,7 +100,7 @@ namespace Darklands.Core.Tests.Application.Combat.Commands
             // Assert
             result.IsFail.Should().BeTrue();
             service.ProcessNextTurnCalled.Should().BeTrue();
-            
+
             result.Match(
                 Succ: _ => throw new InvalidOperationException("Expected failure"),
                 Fail: actualError => actualError.Message.Should().Be(error.Message)
@@ -120,12 +120,12 @@ namespace Darklands.Core.Tests.Application.Combat.Commands
             {
                 var service = new TestCombatSchedulerService(FinSucc(Some(actorIds[i])));
                 var testHandler = new ProcessNextTurnCommandHandler(service, null!);
-                
+
                 var result = await testHandler.Handle(command, CancellationToken.None);
-                
+
                 result.IsSucc.Should().BeTrue();
                 service.ProcessNextTurnCalled.Should().BeTrue();
-                
+
                 result.Match(
                     Succ: option => option.Match(
                         Some: actorId => actorId.Should().Be(actorIds[i]),
@@ -144,7 +144,7 @@ namespace Darklands.Core.Tests.Application.Combat.Commands
 
             // Assert
             command.Should().NotBeNull();
-            
+
             // Verify it can be handled
             var service = new TestCombatSchedulerService(FinSucc(Option<Guid>.None));
             var handler = new ProcessNextTurnCommandHandler(service, null!);
@@ -159,7 +159,7 @@ namespace Darklands.Core.Tests.Application.Combat.Commands
             var service = new TestCombatSchedulerService(FinSucc(Some(Guid.NewGuid())));
             var handler = new ProcessNextTurnCommandHandler(service, null!);
             var command = ProcessNextTurnCommand.Create();
-            
+
             using var cts = new CancellationTokenSource();
             cts.Cancel(); // Pre-cancel the token
 
