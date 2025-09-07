@@ -152,10 +152,10 @@
 - Risk: Low - Well-understood pattern
 - Must complete before VS_010b and VS_010c
 
-### VS_010b: Basic Melee Attack [Score: 85/100]
-**Status**: Ready for Dev ← SPLIT from VS_010 2025-09-07 16:13 (Tech Lead decision)
-**Owner**: Dev Engineer (after VS_010a)
-**Size**: M (1.5 days)
+### VS_010b: Basic Melee Attack [Score: 85/100] 
+**Status**: Phase 2 Complete ← IMPLEMENTING 2025-09-07 20:12 (Dev Engineer)
+**Owner**: Dev Engineer
+**Size**: M (1.5 days) 
 **Priority**: Critical (Core combat mechanic)
 **Markers**: [ARCHITECTURE] [COMBAT]
 **Created**: 2025-09-07 16:13
@@ -163,12 +163,17 @@
 **What**: Execute melee attacks with scheduler integration and damage
 **Why**: First actual combat mechanic using the time-unit system
 
-**How**:
-- AttackAction domain validation (adjacency, target alive)
-- ExecuteAttackCommand with damage calculation
-- Integration with DamageActorCommand from VS_010a
-- Reschedule attacker with action time cost
-- Remove dead actors from scheduler
+**Implementation Progress**:
+- ✅ **Phase 1**: Domain validation (AttackValidation with adjacency rules)
+- ✅ **Phase 2**: Application handlers (ExecuteAttackCommandHandler with service coordination)
+- 🔄 **Phase 3**: Infrastructure coordination (scheduler + state updates)
+- ⏳ **Phase 4**: Presentation layer (UI feedback + animations)
+
+**Phase 2 Completed** (2025-09-07 20:12):
+- ExecuteAttackCommand and Handler implemented
+- Service coordination: Grid, Actor, Scheduler, MediatR
+- Comprehensive test coverage: 9 scenarios with Moq
+- 275/275 tests passing, zero warnings
 
 **Done When**:
 - Can attack adjacent enemies only
