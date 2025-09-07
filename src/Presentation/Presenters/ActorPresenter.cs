@@ -16,6 +16,7 @@ namespace Darklands.Core.Presentation.Presenters
     {
         private readonly IMediator _mediator;
         private readonly ILogger _logger;
+        private readonly Application.Grid.Services.IGridStateService _gridStateService;
 
         // For Phase 4 MVP - shared test player state
         public static Domain.Grid.ActorId? TestPlayerId { get; private set; }
@@ -26,11 +27,13 @@ namespace Darklands.Core.Presentation.Presenters
         /// <param name="view">The actor view interface this presenter controls</param>
         /// <param name="mediator">MediatR instance for sending commands and queries</param>
         /// <param name="logger">Logger for tracking actor operations</param>
-        public ActorPresenter(IActorView view, IMediator mediator, ILogger logger)
+        /// <param name="gridStateService">Grid state service for actor positioning</param>
+        public ActorPresenter(IActorView view, IMediator mediator, ILogger logger, Application.Grid.Services.IGridStateService gridStateService)
             : base(view)
         {
             _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _gridStateService = gridStateService ?? throw new ArgumentNullException(nameof(gridStateService));
         }
 
         /// <summary>
@@ -47,18 +50,9 @@ namespace Darklands.Core.Presentation.Presenters
             {
                 // For Phase 4, create a test player at position (0,0)
                 // In the future, this would load actors from the application state
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-                        await InitializeTestPlayerAsync();
-                        _logger.Information("Initial actor display setup completed");
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.Error(ex, "Failed to setup initial actor display");
-                    }
-                });
+                // Note: This will execute and use deferred calls for UI operations
+                _ = InitializeTestPlayerAsync();
+                _logger.Information("Initial actor display setup initiated");
             }
             catch (Exception ex)
             {
@@ -78,9 +72,23 @@ namespace Darklands.Core.Presentation.Presenters
                 TestPlayerId = Domain.Grid.ActorId.NewId();
                 var startPosition = new Domain.Grid.Position(0, 0);
 
-                await View.DisplayActorAsync(TestPlayerId.Value, startPosition, ActorType.Player);
+                // First, place the actor on the grid directly using the grid state service
+                // This bypasses the MoveActorCommand validation that requires existing actors
+                var placeResult = _gridStateService.MoveActor(TestPlayerId.Value, startPosition);
 
-                _logger.Information("Test player actor created at position {Position} with ID {ActorId}", startPosition, TestPlayerId.Value);
+                await placeResult.Match(
+                    Succ: async _ =>
+                    {
+                        // Then display the actor visually
+                        await View.DisplayActorAsync(TestPlayerId.Value, startPosition, ActorType.Player);
+                        _logger.Information("Test player actor created at position {Position} with ID {ActorId}", startPosition, TestPlayerId.Value);
+                    },
+                    Fail: error =>
+                    {
+                        _logger.Warning("Failed to place test player on grid: {Error}", error.Message);
+                        return Task.CompletedTask;
+                    }
+                );
             }
             catch (Exception ex)
             {

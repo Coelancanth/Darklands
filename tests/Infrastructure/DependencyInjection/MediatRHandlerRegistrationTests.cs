@@ -226,9 +226,6 @@ public class MediatRHandlerRegistrationTests
             "ErrorHandlingBehavior should be registered in MediatR pipeline");
     }
 
-    // Cleanup
-    ~MediatRHandlerRegistrationTests()
-    {
-        GameStrapper.Dispose();
-    }
+    // Note: GameStrapper uses singleton pattern - no per-test cleanup needed
+    // Disposal handled globally at application termination
 }
