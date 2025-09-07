@@ -18,7 +18,7 @@ namespace Darklands.Views
         private ActorPresenter? _presenter;
         private ILogger? _logger;
         private readonly Dictionary<Darklands.Core.Domain.Grid.ActorId, ColorRect> _actorNodes = new();
-        private const int TileSize = 32;
+        private const int TileSize = 64;
         private const float MoveDuration = 0.3f; // Seconds for movement animation
 
         // Actor colors for different types

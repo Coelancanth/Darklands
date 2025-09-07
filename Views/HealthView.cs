@@ -20,7 +20,7 @@ namespace Darklands.Views
         private HealthPresenter? _presenter;
         private ILogger? _logger;
         private readonly Dictionary<ActorId, HealthBarNode> _healthBars = new();
-        private const int TileSize = 32;
+        private const int TileSize = 64;
         private const int HealthBarWidth = 24;
         private const int HealthBarHeight = 4;
         private const int HealthBarOffsetY = -8; // Above the actor
