@@ -35,7 +35,7 @@ namespace Darklands.Core.Application.Actor.Commands
             if (request.HealAmount < 0)
             {
                 var error = Error.New("INVALID_HEAL: Heal amount cannot be negative");
-                _logger?.Warning("Invalid heal amount {HealAmount} for ActorId {ActorId}: {Error}", 
+                _logger?.Warning("Invalid heal amount {HealAmount} for ActorId {ActorId}: {Error}",
                     request.HealAmount, request.ActorId, error.Message);
                 return Task.FromResult(FinFail<LanguageExt.Unit>(error));
             }
@@ -67,7 +67,7 @@ namespace Darklands.Core.Application.Actor.Commands
             if (healResult.IsFail)
             {
                 var error = healResult.Match<Error>(
-                    Succ: _ => Error.New("UNKNOWN: Unknown error"), 
+                    Succ: _ => Error.New("UNKNOWN: Unknown error"),
                     Fail: e => e
                 );
                 _logger?.Error("Failed to heal actor {ActorId}: {Error}", request.ActorId, error.Message);
@@ -84,7 +84,7 @@ namespace Darklands.Core.Application.Actor.Commands
             if (actualHealing > 0)
             {
                 _logger?.Debug("Actor {ActorId} healed {ActualHealing} points from {Source}. Health: {PreviousHealth} → {NewHealth}",
-                    request.ActorId, actualHealing, request.Source ?? "Unknown", 
+                    request.ActorId, actualHealing, request.Source ?? "Unknown",
                     currentActor.Health, healedActor.Health);
             }
             else

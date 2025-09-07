@@ -187,7 +187,8 @@
       "WebFetch(domain:docs.godotengine.org)",
       "WebFetch(domain:louthy.github.io)",
       "Bash(gh pr:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(Remove-Item \"tests\\Application\\Actor\\Services\\ActorStateServiceIntegrationTests.cs\" -Force)"
     ],
     "deny": [],
     "ask": [],

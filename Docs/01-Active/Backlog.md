@@ -75,7 +75,7 @@
 
 
 ### VS_010a: Actor Health System (Foundation)
-**Status**: Phase 1 Complete ✅ → Phase 2 In Progress (Dev Engineer, 2025-09-07 17:05)
+**Status**: Phase 3 Complete ✅ → Phase 4 Ready (Dev Engineer, 2025-09-07 17:25)
 **Owner**: Dev Engineer
 **Size**: S (1 day)
 **Priority**: Critical (Required for all combat)
@@ -101,9 +101,9 @@
 
 **Acceptance by Phase**:
 - ✅ Phase 1: Health domain model with validation (COMPLETE - commit 91b6273)
-- 🟡 Phase 2: Damage/Heal commands process correctly (IN PROGRESS)
-- Phase 3: Actor state persists in service
-- Phase 4: Health bars display in scene
+- ✅ Phase 2: Damage/Heal commands process correctly (COMPLETE - commit d9a8b1b)
+- ✅ Phase 3: Actor state persists in service (COMPLETE - 2025-09-07 17:25)
+- 🟡 Phase 4: Health bars display in scene (READY TO START)
 
 **Phase 1 Deliverables** (2025-09-07 17:05):
 - ✅ Health.cs - Immutable value object with validation
@@ -112,6 +112,21 @@
 - ✅ Comprehensive unit tests (50+ test cases)
 - ✅ Zero build warnings, 232/233 tests passing
 - ✅ Expected MediatR test failure (handlers needed Phase 2)
+
+**Phase 2 Deliverables** (2025-09-07 17:11):
+- ✅ IActorStateService interface for health management
+- ✅ DamageActorCommandHandler with error handling
+- ✅ HealActorCommandHandler with business rules
+- ✅ 16 comprehensive handler test scenarios
+- ✅ Zero build warnings, 239/249 tests passing
+- ✅ Expected DI test failures (service implementation needed Phase 3)
+
+**Phase 3 Deliverables** (2025-09-07 17:25):
+- ✅ InMemoryActorStateService - Complete infrastructure implementation
+- ✅ DI registration in GameStrapper - Singleton lifecycle management
+- ✅ Thread-safe state management with ConcurrentDictionary
+- ✅ Functional error handling with LanguageExt v5 patterns
+- ✅ All 249 tests passing - Zero build warnings, complete DI resolution
 
 **Depends On**: None (foundational)
 

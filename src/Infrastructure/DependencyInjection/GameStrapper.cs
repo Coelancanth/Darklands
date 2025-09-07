@@ -218,6 +218,9 @@ public static class GameStrapper
             // Phase 2: Combat timeline scheduling
             services.AddSingleton<Application.Combat.Services.ICombatSchedulerService, Application.Combat.Services.InMemoryCombatSchedulerService>();
 
+            // Phase 3: Actor state management (including health)
+            services.AddSingleton<Application.Actor.Services.IActorStateService, Application.Actor.Services.InMemoryActorStateService>();
+
             // Repository interfaces (Singleton - typically wrap persistent state)
             // TODO: Register repositories here as they're implemented
 

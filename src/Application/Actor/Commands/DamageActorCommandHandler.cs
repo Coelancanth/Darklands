@@ -35,7 +35,7 @@ namespace Darklands.Core.Application.Actor.Commands
             if (request.Damage < 0)
             {
                 var error = Error.New("INVALID_DAMAGE: Damage amount cannot be negative");
-                _logger?.Warning("Invalid damage amount {Damage} for ActorId {ActorId}: {Error}", 
+                _logger?.Warning("Invalid damage amount {Damage} for ActorId {ActorId}: {Error}",
                     request.Damage, request.ActorId, error.Message);
                 return Task.FromResult(FinFail<LanguageExt.Unit>(error));
             }
@@ -59,7 +59,7 @@ namespace Darklands.Core.Application.Actor.Commands
             if (damageResult.IsFail)
             {
                 var error = damageResult.Match<Error>(
-                    Succ: _ => Error.New("UNKNOWN: Unknown error"), 
+                    Succ: _ => Error.New("UNKNOWN: Unknown error"),
                     Fail: e => e
                 );
                 _logger?.Error("Failed to damage actor {ActorId}: {Error}", request.ActorId, error.Message);
@@ -80,7 +80,7 @@ namespace Darklands.Core.Application.Actor.Commands
             else
             {
                 _logger?.Debug("Actor {ActorId} took {Damage} damage from {Source}. Health: {PreviousHealth} → {NewHealth}",
-                    request.ActorId, request.Damage, request.Source ?? "Unknown", 
+                    request.ActorId, request.Damage, request.Source ?? "Unknown",
                     currentActor.Health, damagedActor.Health);
             }
 
