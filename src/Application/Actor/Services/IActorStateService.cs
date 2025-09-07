@@ -10,6 +10,13 @@ namespace Darklands.Core.Application.Actor.Services
     public interface IActorStateService
     {
         /// <summary>
+        /// Adds a new actor to the combat state.
+        /// </summary>
+        /// <param name="actor">The actor to add</param>
+        /// <returns>Success unit or error if actor is invalid or already exists</returns>
+        Fin<Unit> AddActor(Domain.Actor.Actor actor);
+
+        /// <summary>
         /// Gets the complete actor state by ID.
         /// </summary>
         /// <param name="actorId">The actor identifier</param>

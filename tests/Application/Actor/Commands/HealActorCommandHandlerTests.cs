@@ -30,6 +30,9 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
                 _healSucceeds = healSucceeds;
             }
 
+            public Fin<Unit> AddActor(Darklands.Core.Domain.Actor.Actor actor)
+                => FinSucc(unit);
+
             public Option<Darklands.Core.Domain.Actor.Actor> GetActor(ActorId actorId)
                 => _actorExists && _actor != null ? Some(_actor) : None;
 

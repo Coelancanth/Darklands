@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-07 16:50
+**Last Updated**: 2025-09-07 17:51
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -74,12 +74,12 @@
 *Core features for current milestone, technical debt affecting velocity*
 
 
-### VS_010a: Actor Health System (Foundation)
-**Status**: Phase 3 Complete ✅ → Phase 4 Ready (Dev Engineer, 2025-09-07 17:25)
-**Owner**: Dev Engineer
-**Size**: S (1 day)
+### VS_010a: Actor Health System (Foundation) [Score: 90/100]
+**Status**: Phase 4 Implementation Complete - UI Display Issue (Debugger Expert, 2025-09-07 17:51)
+**Owner**: Debugger Expert
+**Size**: S (1 day implementation + debugging)
 **Priority**: Critical (Required for all combat)
-**Markers**: [ARCHITECTURE] [FOUNDATION]
+**Markers**: [ARCHITECTURE] [FOUNDATION] [DISPLAY-BUG]
 **Created**: 2025-09-07 16:13
 
 **What**: Add health/damage foundation to Actor domain model
@@ -103,7 +103,7 @@
 - ✅ Phase 1: Health domain model with validation (COMPLETE - commit 91b6273)
 - ✅ Phase 2: Damage/Heal commands process correctly (COMPLETE - commit d9a8b1b)
 - ✅ Phase 3: Actor state persists in service (COMPLETE - 2025-09-07 17:25)
-- 🟡 Phase 4: Health bars display in scene (READY TO START)
+- 🟡 Phase 4: Health bars display in scene (IMPLEMENTATION COMPLETE - VISUAL ISSUE)
 
 **Phase 1 Deliverables** (2025-09-07 17:05):
 - ✅ Health.cs - Immutable value object with validation
@@ -128,6 +128,13 @@
 - ✅ Functional error handling with LanguageExt v5 patterns
 - ✅ All 249 tests passing - Zero build warnings, complete DI resolution
 
+**Phase 4 Status** (2025-09-07 17:51):
+- ✅ Health bar UI components implemented and coordinated
+- ✅ All architecture connections established (presenters, views, commands)
+- ✅ Components initialize successfully with proper logging
+- ❌ Health bars not visually displaying despite successful initialization
+- 🔍 **DEBUGGING NEEDED**: UI rendering, deferred calls, or scene hierarchy issues
+
 **Depends On**: None (foundational)
 
 **Tech Lead Decision** (2025-09-07 16:13):
@@ -136,7 +143,14 @@
 - Risk: Low - Well-understood pattern
 - Must complete before VS_010b and VS_010c
 
-### VS_010b: Basic Melee Attack
+**Debugger Expert Next Steps** (2025-09-07 17:51):
+- Investigate UI component visibility and rendering pipeline
+- Debug Godot scene hierarchy and node positioning
+- Check CallDeferred execution and thread-safe UI updates
+- Validate health bar node creation and parent-child relationships
+- Test scene loading order and timing dependencies
+
+### VS_010b: Basic Melee Attack [Score: 85/100]
 **Status**: Ready for Dev ← SPLIT from VS_010 2025-09-07 16:13 (Tech Lead decision)
 **Owner**: Dev Engineer (after VS_010a)
 **Size**: M (1.5 days)
@@ -175,7 +189,7 @@
 - Risk: Medium - Death cascade needs careful handling
 - Pattern: Follow MoveActorCommand for command structure
 
-### VS_010c: Dummy Combat Target
+### VS_010c: Dummy Combat Target [Score: 75/100]
 **Status**: Ready for Dev ← SPLIT from VS_010 2025-09-07 16:13 (Tech Lead decision)
 **Owner**: Dev Engineer (can parallel with VS_010b)
 **Size**: XS (0.5 days)
