@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-07 14:33
+**Last Updated**: 2025-09-07 16:13
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -11,7 +11,7 @@
 
 - **Next BR**: 001
 - **Next TD**: 010  
-- **Next VS**: 009 
+- **Next VS**: 011 
 
 
 **Protocol**: Check your type's counter → Use that number → Increment the counter → Update timestamp
@@ -73,53 +73,208 @@
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*
 
+### VS_002: Combat Scheduler (Phase 2 - Application Layer)
+**Status**: Ready for Dev
+**Owner**: Dev Engineer ← ASSIGNED 2025-09-07 15:57 (Product Owner decision)
+**Size**: S (<4h) - VALIDATED
+**Priority**: Critical (Core combat system foundation)
+**Markers**: [ARCHITECTURE] [PHASE-2]
+**Created**: 2025-08-29 14:15
+**Moved to Important**: 2025-09-07 15:57
+
+**What**: Priority queue-based timeline scheduler for traditional roguelike turn order
+**Why**: Core combat system foundation - all combat features depend on this
+
+**How** (SOLID but Simple):
+- CombatScheduler class with SortedSet<ISchedulable> (20 lines)
+- ISchedulable interface with Guid Id AND NextTurn properties
+- ScheduleActorCommand/Handler for MediatR integration
+- ProcessTurnCommand/Handler for game loop
+- TimeComparer using both time AND Id for deterministic ordering
+
+**Done When**:
+- Actors execute in correct time order (fastest first)
+- Unique IDs ensure deterministic tie-breaking
+- Time costs from Phase 1 determine next turn
+- Commands process through MediatR pipeline
+- 100+ actors perform without issues
+- Comprehensive unit tests pass
+
+**Acceptance by Phase**:
+- Phase 2 (This): Commands schedule/process turns correctly
+- Phase 3 (Next): State persists between sessions
+- Phase 4 (Later): UI displays turn order
+
+**Depends On**: ~~VS_001~~ (COMPLETE 2025-08-29) + ~~BR_001~~ (COMPLETE 2025-08-29) - Now unblocked
+
+**Product Owner Notes** (2025-08-29):
+- Keep it ruthlessly simple - target <100 lines of logic
+- Use existing TimeUnit comparison operators for sorting
+- No event systems or complex patterns
+- Standard priority queue algorithm from any roguelike
+- **CRITICAL**: Every actor MUST have unique Guid Id for deterministic tie-breaking
+
+**Tech Lead Decision** (2025-08-29 16:30):
+- **APPROVED** - Technical approach is sound (Complexity: 2/10)
+- SortedSet is correct data structure for O(log n) operations
+- Guid tie-breaking ensures determinism for testing/replay
+- Follows established MediatR patterns
+
+**Implementation Tasks**:
+1. **Create Application folder structure** (5 min)
+   - `src/Application/Combat/Commands/`
+   - `src/Application/Combat/Queries/`
+   
+2. **Define core types** (30 min)
+   - `ISchedulable` interface with `Guid Id` and `TimeUnit NextTurn`
+   - `TimeComparer : IComparer<ISchedulable>` with tie-breaking
+   - `CombatScheduler` class wrapping `SortedSet<ISchedulable>`
+   
+3. **Implement Commands** (45 min)
+   - `ScheduleActorCommand : IRequest<Fin<Unit>>` with Id, NextTurn
+   - `ProcessNextTurnCommand : IRequest<Fin<Option<Guid>>>`
+   - `GetSchedulerQuery : IRequest<Fin<IReadOnlyList<ISchedulable>>>`
+   
+4. **Implement Handlers** (60 min)
+   - `ScheduleActorCommandHandler` - adds to scheduler
+   - `ProcessNextTurnCommandHandler` - pops next actor
+   - `GetSchedulerQueryHandler` - returns ordered list
+   
+5. **Write comprehensive tests** (90 min)
+   - Deterministic ordering tests with same TimeUnit
+   - Performance test with 1000+ actors
+   - Command/handler integration tests
+   - Edge cases (empty scheduler, duplicate times)
+
+**Pattern to Follow**: See established `AdvanceTurnCommand` pattern in `src/Features/Turn/Commands/`
+
+### VS_010a: Actor Health System (Foundation)
+**Status**: Ready for Dev ← SPLIT from VS_010 2025-09-07 16:13 (Tech Lead decision)
+**Owner**: Dev Engineer
+**Size**: S (1 day)
+**Priority**: Critical (Required for all combat)
+**Markers**: [ARCHITECTURE] [FOUNDATION]
+**Created**: 2025-09-07 16:13
+
+**What**: Add health/damage foundation to Actor domain model
+**Why**: Can't have attacks without health to damage - foundational requirement
+
+**How**:
+- Health value object with Current/Maximum/IsDead
+- Actor domain model with Health property
+- DamageActorCommand and HealActorCommand
+- IActorStateService extends IGridStateService
+- Health bar UI component in scene
+
+**Done When**:
+- Actors have persistent health values
+- Damage/heal commands modify health correctly
+- Death sets IsDead flag
+- Health displays in UI with bar visualization
+- All health scenarios covered by tests
+
+**Acceptance by Phase**:
+- Phase 1: Health domain model with validation
+- Phase 2: Damage/Heal commands process correctly
+- Phase 3: Actor state persists in service
+- Phase 4: Health bars display in scene
+
+**Depends On**: None (foundational)
+
+**Tech Lead Decision** (2025-09-07 16:13):
+- **APPROVED** - Split from oversized VS_010 (was 4-5 days)
+- Complexity: 3/10 - Standard domain modeling
+- Risk: Low - Well-understood pattern
+- Must complete before VS_010b and VS_010c
+
+### VS_010b: Basic Melee Attack
+**Status**: Ready for Dev ← SPLIT from VS_010 2025-09-07 16:13 (Tech Lead decision)
+**Owner**: Dev Engineer (after VS_010a)
+**Size**: M (1.5 days)
+**Priority**: Critical (Core combat mechanic)
+**Markers**: [ARCHITECTURE] [COMBAT]
+**Created**: 2025-09-07 16:13
+
+**What**: Execute melee attacks with scheduler integration and damage
+**Why**: First actual combat mechanic using the time-unit system
+
+**How**:
+- AttackAction domain validation (adjacency, target alive)
+- ExecuteAttackCommand with damage calculation
+- Integration with DamageActorCommand from VS_010a
+- Reschedule attacker with action time cost
+- Remove dead actors from scheduler
+
+**Done When**:
+- Can attack adjacent enemies only
+- Damage reduces target health
+- Time cost affects attacker's next turn
+- Death removes actor from scheduler
+- Attack animations and feedback work
+- Combat log shows attack messages
+
+**Acceptance by Phase**:
+- Phase 1: Attack validation logic (adjacency, alive)
+- Phase 2: ExecuteAttackCommand processes correctly
+- Phase 3: Coordinates scheduler and state updates
+- Phase 4: Visual feedback and animations
+
+**Depends On**: VS_010a (Health system), VS_002 (Scheduler)
+
+**Tech Lead Decision** (2025-09-07 16:13):
+- Complexity: 5/10 - Scheduler integration adds complexity
+- Risk: Medium - Death cascade needs careful handling
+- Pattern: Follow MoveActorCommand for command structure
+
+### VS_010c: Dummy Combat Target
+**Status**: Ready for Dev ← SPLIT from VS_010 2025-09-07 16:13 (Tech Lead decision)
+**Owner**: Dev Engineer (can parallel with VS_010b)
+**Size**: XS (0.5 days)
+**Priority**: Critical (Testing/visualization)
+**Markers**: [TESTING] [SCENE]
+**Created**: 2025-09-07 16:13
+
+**What**: Static enemy target in grid scene for combat testing
+**Why**: Need something visible to attack and test combat mechanics
+
+**How**:
+- DummyActor with health but no AI (NextTurn = Maximum)
+- SpawnDummyCommand places at grid position
+- Registers in scheduler (but never processes turn)
+- Knight sprite with health bar
+- Death animation on zero health
+
+**Done When**:
+- Dummy appears at grid position (5,5) on scene start
+- Has visible health bar above sprite
+- Takes damage from player attacks
+- Shows hit flash on damage
+- Fades out when killed
+- Respawns on scene reload
+
+**Acceptance by Phase**:
+- Phase 1: DummyActor domain model
+- Phase 2: SpawnDummyCommand places in grid
+- Phase 3: Registers in all services
+- Phase 4: Sprite with health bar in scene
+
+**Depends On**: VS_010a (Health system), VS_008 (Grid scene)
+
+**Tech Lead Decision** (2025-09-07 16:13):
+- Complexity: 2/10 - Minimal logic, mostly scene setup
+- Risk: Low - Simple static entity
+- Note: Becomes reusable prefab for future enemies
+
+
 
 ## 🗄️ Backup (Complex Features for Later)
 *Advanced mechanics postponed until core loop is proven fun*
 
-### TD_006: Re-enable Smooth Movement Animation [Score: 50/100]
-**Status**: Approved
-**Owner**: Dev Engineer (Low priority implementation)
-**Size**: S (2-4h)
-**Priority**: Low (Visual Polish)
-**Markers**: [ENHANCEMENT] [ANIMATION] [UI-POLISH]
-**Created**: 2025-09-07 12:37
-
-**What**: Re-enable tween-based smooth movement animation for actors
-**Why**: Current implementation uses instant position changes; smooth animation improves game feel
-
-**Problem Details**:
-- Tween animation fails silently in deferred call context
-- No error messages but animation doesn't execute
-- Tween.Finished callback never triggers
-- Currently using direct position assignment as workaround
-
-**Technical Approach Options**:
-1. Fix tween execution in CallDeferred context
-2. Use Godot's AnimationPlayer node instead of tweens
-3. Implement frame-based lerping in _Process method
-4. Create coroutine-based movement system
-
-**Done When**:
-- Actor moves smoothly over 0.3s to target position
-- Animation works reliably in all contexts
-- No visual jumping or stuttering
-- Maintains current functionality
-
-**Depends On**: None - Enhancement to existing working system
-
-**[Tech Lead] Decision** (2025-09-07 13:58):
-- **APPROVED with LOW PRIORITY**
-- Complexity: 2/10 - Simple timing fix
-- Solution: await process_frame before tween
-- Implement only after core logic complete
-- ~2 hour task when time permits
-
 ### TD_007: Presenter Wiring Verification Protocol [ARCHITECTURE] [Score: 70/100]
-**Status**: Proposed ← CREATED 2025-09-07 13:36 (Post-mortem learning)
+**Status**: Proposed ← MOVED TO BACKUP 2025-09-07 15:57 (Product Owner priority decision)
 **Owner**: Tech Lead (Architecture decision needed)
 **Size**: M (4-6h including tests and documentation)
-**Priority**: Critical (Prevents future 2+ hour debugging sessions)
+**Priority**: Deferred (Focus on combat mechanics first)
 **Markers**: [ARCHITECTURE] [TESTING] [POST-MORTEM-ACTION]
 **Created**: 2025-09-07 13:36
 
@@ -158,6 +313,13 @@
 - **Risk**: None - purely additive safety measures
 - **ROI**: HIGH - Prevents hours of debugging for minutes of test writing
 - **Decision**: APPROVED for immediate implementation
+
+**Product Owner Decision** (2025-09-07 15:57):
+- **DEFERRED TO BACKUP** - Combat mechanics take priority
+- Important infrastructure but not blocking core game loop
+- Revisit after VS_002 and VS_010a/b/c are complete
+
+ **Decision**: APPROVED for immediate implementation
 
 ---
 
