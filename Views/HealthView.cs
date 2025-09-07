@@ -196,6 +196,9 @@ namespace Darklands.Views
                 }
 
                 var newPixelPosition = GridPositionToPixel(_pendingToPosition);
+                // Center the health bar on the tile (add half tile size to X and Y)
+                newPixelPosition.X += TileSize / 2;
+                newPixelPosition.Y += TileSize / 2;
                 healthBarNode.Position = newPixelPosition;
 
                 _logger?.Debug("Moved health bar for actor {ActorId} from {FromPosition} to {ToPosition}",
@@ -269,8 +272,12 @@ namespace Darklands.Views
             try
             {
                 var pixelPosition = GridPositionToPixel(_pendingPosition);
+                // Center the feedback text on the tile
+                pixelPosition.X += TileSize / 2;
+                pixelPosition.Y += TileSize / 2;
+                
                 var feedbackLabel = CreateFeedbackLabel(_pendingFeedbackType, _pendingAmount);
-                feedbackLabel.Position = pixelPosition + new Vector2(TileSize / 2, HealthBarOffsetY - 10);
+                feedbackLabel.Position = pixelPosition + new Vector2(0, HealthBarOffsetY - 10);
                 
                 AddChild(feedbackLabel);
                 
@@ -397,6 +404,10 @@ namespace Darklands.Views
         private HealthBarNode CreateHealthBarNode(ActorId actorId, Position position, Health health)
         {
             var pixelPosition = GridPositionToPixel(position);
+            // Center the health bar on the tile (add half tile size to X and Y)
+            pixelPosition.X += TileSize / 2;
+            pixelPosition.Y += TileSize / 2;
+            
             return new HealthBarNode(
                 actorId, 
                 health, 
@@ -494,7 +505,9 @@ namespace Darklands.Views
         
         private ColorRect? _backgroundRect;
         private ColorRect? _healthRect;
+        private Label? _healthText;
         private HealthHighlightType? _currentHighlight;
+        private bool _initialized = false;
 
         public HealthBarNode(ActorId actorId, Health health, Vector2 position, int width, int height, int offsetY,
             Color greenColor, Color yellowColor, Color redColor, Color bgColor)
@@ -510,12 +523,18 @@ namespace Darklands.Views
             _bgColor = bgColor;
             
             Position = position;
-            CreateHealthBarElements();
+            // Don't create elements here - wait for _Ready()
         }
 
         public override void _Ready()
         {
             base._Ready();
+            // Create elements when node is actually in the scene tree
+            if (!_initialized)
+            {
+                CreateHealthBarElements();
+                _initialized = true;
+            }
         }
 
         /// <summary>
@@ -523,18 +542,29 @@ namespace Darklands.Views
         /// </summary>
         private void CreateHealthBarElements()
         {
-            // Background rectangle
+            // Background rectangle (dark background for contrast)
             _backgroundRect = new ColorRect();
-            _backgroundRect.Size = new Vector2(_width, _height);
-            _backgroundRect.Position = new Vector2(-_width / 2, _offsetY);
-            _backgroundRect.Color = _bgColor;
+            _backgroundRect.Size = new Vector2(_width + 2, _height + 2); // Add border
+            _backgroundRect.Position = new Vector2(-(_width / 2) - 1, _offsetY - 1);
+            _backgroundRect.Color = new Color(0.1f, 0.1f, 0.1f, 0.9f); // Almost black with slight transparency
             AddChild(_backgroundRect);
 
-            // Health rectangle
+            // Health rectangle (the actual health bar)
             _healthRect = new ColorRect();
             _healthRect.Position = new Vector2(-_width / 2, _offsetY);
+            _healthRect.Size = new Vector2(_width, _height); // Will be adjusted by UpdateHealthDisplay
             _healthRect.Color = GetHealthColor(_health.HealthPercentage);
             AddChild(_healthRect);
+
+            // Health text label (shows current/max)
+            _healthText = new Label();
+            _healthText.Text = $"{_health.Current}/{_health.Maximum}";
+            _healthText.AddThemeFontSizeOverride("font_size", 8); // Small font
+            _healthText.Position = new Vector2(-_width / 2, _offsetY - 14); // Above the bar
+            _healthText.Modulate = Colors.White;
+            // Center the text
+            _healthText.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.TopLeft);
+            AddChild(_healthText);
 
             UpdateHealthDisplay();
         }
@@ -556,10 +586,30 @@ namespace Darklands.Views
             if (_healthRect == null) return;
 
             var healthPercent = _health.HealthPercentage;
-            var healthWidth = (float)(_width * healthPercent);
+            var healthWidth = Math.Max(0, (float)(_width * healthPercent)); // Ensure non-negative
             
             _healthRect.Size = new Vector2(healthWidth, _height);
             _healthRect.Color = GetHealthColor(healthPercent);
+            
+            // Update the text display
+            if (_healthText != null)
+            {
+                _healthText.Text = $"{_health.Current}/{_health.Maximum}";
+                
+                // Change text color based on health level
+                if (healthPercent <= 0.25)
+                {
+                    _healthText.Modulate = new Color(1.0f, 0.4f, 0.4f); // Light red for critical
+                }
+                else if (healthPercent <= 0.6)
+                {
+                    _healthText.Modulate = new Color(1.0f, 1.0f, 0.6f); // Light yellow for moderate
+                }
+                else
+                {
+                    _healthText.Modulate = Colors.White; // White for healthy
+                }
+            }
         }
 
         /// <summary>

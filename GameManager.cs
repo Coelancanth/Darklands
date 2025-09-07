@@ -206,8 +206,12 @@ namespace Darklands
                 // CRITICAL: Connect presenters to each other for coordinated updates
                 // This was missing and caused the visual movement bug!
                 _gridPresenter.SetActorPresenter(_actorPresenter);
+                
+                // CRITICAL: Connect ActorPresenter to HealthPresenter for health bar creation
+                // This connection ensures health bars are created when actors are spawned
+                _actorPresenter.SetHealthPresenter(_healthPresenter);
 
-                _logger?.Information("Presenters created and connected - GridPresenter, ActorPresenter, and HealthPresenter initialized");
+                _logger?.Information("Presenters created and connected - GridPresenter, ActorPresenter, and HealthPresenter initialized with cross-presenter coordination");
 
                 // Initialize presenters (this will set up initial state)
                 _gridPresenter.Initialize();
