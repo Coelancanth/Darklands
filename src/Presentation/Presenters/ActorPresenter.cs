@@ -70,7 +70,11 @@ namespace Darklands.Core.Presentation.Presenters
                 // In the future, this would load actors from the application state
                 // Note: This will execute and use deferred calls for UI operations
                 InitializeTestPlayer();
-                _logger.Information("Initial actor display setup initiated");
+
+                // Create a dummy target for combat testing (VS_010c Phase 4)
+                InitializeDummyTarget();
+
+                _logger.Information("Initial actor display setup initiated - player and dummy target");
             }
             catch (Exception ex)
             {
@@ -140,6 +144,83 @@ namespace Darklands.Core.Presentation.Presenters
             catch (Exception ex)
             {
                 _logger.Error(ex, "Failed to initialize test player actor");
+            }
+        }
+
+        /// <summary>
+        /// Creates and displays a dummy combat target for testing and combat mechanics.
+        /// This implements VS_010c Phase 4 by spawning a visual dummy using SpawnDummyCommand.
+        /// </summary>
+        private void InitializeDummyTarget()
+        {
+            try
+            {
+                // Create dummy at position (5,5) as specified in VS_010c requirements  
+                var dummyPosition = new Domain.Grid.Position(5, 5);
+
+                _logger.Information("Creating dummy combat target at position {Position}", dummyPosition);
+
+                // Create the dummy directly using the same pattern as InitializeTestPlayer
+                // This ensures we have access to the ActorId for visual display coordination
+                var dummyActorId = Domain.Grid.ActorId.NewId();
+
+                var dummyResult = Domain.Actor.DummyActor.Presets.CreateCombatDummy("Combat Dummy");
+                if (dummyResult.IsSucc)
+                {
+                    var dummyActor = dummyResult.Match(succ => succ, fail => throw new InvalidOperationException());
+
+                    // Convert DummyActor to Actor for service registration (same as handler does)
+                    var actorForRegistration = Domain.Actor.Actor.Create(dummyActor.Id, dummyActor.Health, dummyActor.Name);
+                    if (actorForRegistration.IsSucc)
+                    {
+                        var actor = actorForRegistration.Match(succ => succ, fail => throw new InvalidOperationException());
+
+                        // First, add the actor to the actor state service (for health data)
+                        var addResult = _actorStateService.AddActor(actor);
+                        if (addResult.IsSucc)
+                        {
+                            // Then, place the actor on the grid at the dummy position
+                            var placeResult = _gridStateService.AddActorToGrid(actor.Id, dummyPosition);
+                            if (placeResult.IsSucc)
+                            {
+                                // Display the dummy visually with brown/enemy coloring
+                                _ = Task.Run(async () => await View.DisplayActorAsync(actor.Id, dummyPosition, ActorType.Enemy));
+
+                                // CRITICAL: Notify the health presenter to create a health bar for the dummy
+                                if (_healthPresenter != null)
+                                {
+                                    _ = Task.Run(async () => await _healthPresenter.HandleActorCreatedAsync(actor.Id, dummyPosition, actor.Health));
+                                    _logger.Information("Dummy target created with health bar at {Position} - ID: {ActorId}, Health: {Health}",
+                                        dummyPosition, actor.Id, actor.Health);
+                                }
+                                else
+                                {
+                                    _logger.Warning("HealthPresenter not connected - dummy health bar will not be displayed");
+                                }
+                            }
+                            else
+                            {
+                                placeResult.IfFail(error => _logger.Warning("Failed to place dummy target on grid: {Error}", error.Message));
+                            }
+                        }
+                        else
+                        {
+                            addResult.IfFail(error => _logger.Warning("Failed to add dummy target to actor state service: {Error}", error.Message));
+                        }
+                    }
+                    else
+                    {
+                        actorForRegistration.IfFail(error => _logger.Warning("Failed to convert dummy to actor: {Error}", error.Message));
+                    }
+                }
+                else
+                {
+                    dummyResult.IfFail(error => _logger.Warning("Failed to create dummy actor: {Error}", error.Message));
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Failed to initialize dummy combat target");
             }
         }
 

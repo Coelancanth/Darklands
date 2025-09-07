@@ -200,9 +200,9 @@
 - Pattern: Follow MoveActorCommand for command structure
 
 ### VS_010c: Dummy Combat Target [Score: 75/100]
-**Status**: Ready for Dev ← SPLIT from VS_010 2025-09-07 16:13 (Tech Lead decision)
-**Owner**: Dev Engineer (can parallel with VS_010b)
-**Size**: XS (0.5 days)
+**Status**: In Progress - Phase 4 needed (Dev Engineer) ← Phases 1-3 COMPLETE 2025-09-07 20:47
+**Owner**: Dev Engineer (Phase 4: Visual representation)
+**Size**: XS (0.2 days remaining - only scene integration left)
 **Priority**: Critical (Testing/visualization)
 **Markers**: [TESTING] [SCENE]
 **Created**: 2025-09-07 16:13
@@ -211,25 +211,31 @@
 **Why**: Need something visible to attack and test combat mechanics
 
 **How**:
-- DummyActor with health but no AI (NextTurn = Maximum)
-- SpawnDummyCommand places at grid position
-- Registers in scheduler (but never processes turn)
-- brown sprite with health bar
-- Death animation on zero health
+- ✅ DummyActor with health but no AI (IsStatic = true)  
+- ✅ SpawnDummyCommand places at grid position
+- ✅ Registers in actor state + grid services
+- 🔄 brown sprite with health bar
+- 🔄 Death animation on zero health
 
 **Done When**:
-- Dummy appears at grid position (5,5) on scene start
-- Has visible health bar above sprite
-- Takes damage from player attacks
-- Shows hit flash on damage
-- Fades out when killed
-- Respawns on scene reload
+- 🔄 Dummy appears at grid position (5,5) on scene start
+- 🔄 Has visible health bar above sprite
+- ✅ Takes damage from player attacks (service integration done)
+- 🔄 Shows hit flash on damage  
+- 🔄 Fades out when killed
+- 🔄 Respawns on scene reload
 
 **Acceptance by Phase**:
-- Phase 1: DummyActor domain model
-- Phase 2: SpawnDummyCommand places in grid
-- Phase 3: Registers in all services
-- Phase 4: Sprite with health bar in scene
+- ✅ Phase 1: DummyActor domain model (18 tests)
+- ✅ Phase 2: SpawnDummyCommand places in grid (27 tests) 
+- ✅ Phase 3: Registers in all services (transaction rollback)
+- 🔄 Phase 4: Sprite with health bar in scene
+
+**PROGRESS UPDATE (2025-09-07 20:47)**:
+- **Complete**: Domain model, command/handler, service integration
+- **Test Status**: 343/343 tests passing, 45 comprehensive tests
+- **Remaining**: Visual sprite + health bar in combat_scene.tscn
+- **Implementation**: Commit 496e781 has core functionality ready
 
 **Depends On**: VS_010a (Health system), VS_008 (Grid scene)
 
