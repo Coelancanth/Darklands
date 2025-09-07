@@ -33,19 +33,22 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
     private readonly ICombatSchedulerService _combatSchedulerService;
     private readonly IMediator _mediator;
     private readonly ILogger _logger;
+    private readonly IAttackFeedbackService? _attackFeedbackService;
 
     public ExecuteAttackCommandHandler(
         IGridStateService gridStateService,
         IActorStateService actorStateService,
         ICombatSchedulerService combatSchedulerService,
         IMediator mediator,
-        ILogger logger)
+        ILogger logger,
+        IAttackFeedbackService? attackFeedbackService = null)
     {
         _gridStateService = gridStateService;
         _actorStateService = actorStateService;
         _combatSchedulerService = combatSchedulerService;
         _mediator = mediator;
         _logger = logger;
+        _attackFeedbackService = attackFeedbackService;
     }
 
     public async Task<Fin<LanguageExt.Unit>> Handle(ExecuteAttackCommand request, CancellationToken cancellationToken)
@@ -67,6 +70,20 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
             {
                 _logger?.Warning("Attack failed: {AttackerId} -> {TargetId}: {Error}",
                     request.AttackerId, request.TargetId, error.Message);
+
+                // Provide attack failure feedback
+                _ = Task.Run(async () =>
+                {
+                    if (_attackFeedbackService != null)
+                    {
+                        await _attackFeedbackService.ProcessAttackFailureAsync(
+                            request.AttackerId,
+                            request.TargetId,
+                            request.CombatAction,
+                            error.Message);
+                    }
+                });
+
                 return FinFail<LanguageExt.Unit>(error);
             }
         );
@@ -124,6 +141,27 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
 
         // Step 7: Cleanup dead actor
         await CleanupDeadActorAsync(request.TargetId);
+
+        // Step 8: Provide attack success feedback
+        if (_attackFeedbackService != null)
+        {
+            // Check if target died from the attack
+            var targetAfterAttack = _actorStateService.GetActor(request.TargetId);
+            var wasLethal = targetAfterAttack.Match(
+                Some: actor => !actor.IsAlive,
+                None: () => true // If not found, assume dead
+            );
+
+            _ = Task.Run(async () =>
+            {
+                await _attackFeedbackService.ProcessAttackSuccessAsync(
+                    request.AttackerId,
+                    request.TargetId,
+                    request.CombatAction,
+                    request.CombatAction.BaseDamage,
+                    wasLethal);
+            });
+        }
 
         return FinSucc(LanguageExt.Unit.Default);
     }
