@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-08-30 19:01
+**Last Updated**: 2025-09-07 12:41
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 001
-- **Next TD**: 005  
+- **Next TD**: 007  
 - **Next VS**: 009 
 
 
@@ -68,168 +68,13 @@
 ## 🔥 Critical (Do First)
 *Blockers preventing other work, production bugs, dependencies for other features*
 
-### TD_004: Fix LanguageExt v5 Breaking Changes + Error Patterns
-**Status**: PHASE 1 COMPLETE ✅ (Build working - ready for merge)
-**Owner**: Dev Engineer  
-**Size**: L (8h estimated - v5 API changes + error patterns)
-**Priority**: BLOCKER 🚨 ~~(PR cannot merge)~~ → **RESOLVED**
-**Markers**: [ARCHITECTURE] [LANGUAGEEXT-V5] [BREAKING-CHANGES]
-**Created**: 2025-08-30 19:01
-**Updated**: 2025-08-30 20:08
-
-**What**: ~~Fix v5 API breaking changes THEN~~ convert try/catch patterns
-**Why**: ~~v5.0.0-beta-54 upgrade broke build - 15 compilation errors blocking PR~~ **BLOCKER RESOLVED**
-
-**✅ PHASE 1 COMPLETE - API MIGRATION (2025-08-30 20:08)**:
-```
-✅ Error.New(code, message) → Error.New("code: message")
-   Fixed: InMemoryGridStateService.cs (6x), MoveActorCommandHandler.cs (3x), Tests (1x)
-   
-✅ .ToSeq() → Seq(collection.AsEnumerable()) 
-   Fixed: Grid.cs (4x), Movement.cs (1x)
-   
-✅ Seq1(x) → [x]
-   Fixed: CalculatePathQueryHandler.cs (1x)
-```
-
-**✅ VALIDATION COMPLETE**:
-- ✅ Build compiles clean with v5.0.0-beta-54 
-- ✅ All 123 tests passing (zero regressions)
-- ✅ Architecture tests maintained
-- ✅ **PR CAN NOW MERGE**
-
-**📋 PHASE 2 REMAINING (Optional - Non-blocking)**:
-- Convert try/catch patterns to LanguageExt (17 locations)
-- GridPresenter.cs: 10 try/catch blocks  
-- ActorPresenter.cs: 7 try/catch blocks
-- Apply Match() pattern per ADR-008
-
-**[Dev Engineer] Completion** (2025-08-30 20:08):
-- ✅ All compilation errors resolved
-- ✅ Zero regressions introduced  
-- ✅ Full test validation complete
-- 🎯 **READY FOR PR MERGE**
-- Phase 2 (try/catch conversion) can be separate TD item
-
-### VS_005: Grid and Player Visualization (Phase 1 - Domain)
-**Status**: COMPLETE ✅  
-**Owner**: Dev Engineer (COMPLETED 2025-08-29 22:51)
-**Size**: S (2.5h actual)
-**Priority**: Critical (FOUNDATIONAL)
-**Markers**: [ARCHITECTURE] [PHASE-1] [MVP]
-**Created**: 2025-08-29 17:16
-
-**What**: Define grid system and position domain models
-**Why**: Foundation for ALL combat visualization and interaction
-
-**✅ DELIVERED DOMAIN MODELS**:
-- **Position** - Immutable coordinate system with distance calculations and adjacency logic
-- **Tile** - Terrain properties, occupancy tracking via LanguageExt Option<ActorId>  
-- **Grid** - 2D tile management with bounds checking and actor placement operations
-- **Movement** - Path validation, line-of-sight checking, movement cost calculation
-- **TerrainType** - Comprehensive terrain system affecting passability and line-of-sight
-- **ActorId** - Type-safe actor identification system
-
-**✅ COMPLETION VALIDATION**:
-- [x] Grid can be created with specified dimensions - Validated with multiple sizes (1x1 to 100x100)
-- [x] Positions validated within grid bounds - Full bounds checking with error messages
-- [x] Movement paths can be calculated - Bresenham-like pathfinding with terrain costs
-- [x] 100% unit test coverage - 122 tests total, all domain paths covered
-- [x] All tests run in <100ms - Actual: ~129ms for full suite
-- [x] Architecture boundaries validated - Passes all architecture tests
-- [x] Zero build warnings - Clean compilation
-- [x] Follows Darklands patterns - Immutable records, LanguageExt Fin<T>, proper namespaces
-
-**🎯 TECHNICAL IMPLEMENTATION HIGHLIGHTS**:
-- **Functional Design**: Immutable value objects using LanguageExt patterns
-- **Error Handling**: Comprehensive Fin<T> error handling, no exceptions
-- **Performance**: Optimized 1D array storage with row-major ordering
-- **Testing**: Property-based testing with FsCheck for mathematical invariants
-- **Terrain System**: 7 terrain types with passability and line-of-sight rules
-- **Path Finding**: Bresenham algorithm with terrain cost calculation
-
-**Phase Gates Completed**:
-- ✅ Phase 1: Pure domain models, no dependencies - DELIVERED
-- → Phase 2 (VS_006): Movement commands and queries - READY TO START
-- → Phase 3 (VS_007): Grid state persistence - DEFERRED (see Backup.md)
-- → Phase 4 (VS_008): Godot scene and sprites - READY AFTER VS_006
-
-**Files Delivered**:
-- `src/Domain/Grid/Position.cs` - Coordinate system with adjacency logic
-- `src/Domain/Grid/Tile.cs` - Terrain and occupancy management  
-- `src/Domain/Grid/Grid.cs` - 2D battlefield with actor placement
-- `src/Domain/Grid/Movement.cs` - Path validation and cost calculation
-- `src/Domain/Grid/TerrainType.cs` - Terrain enumeration with properties
-- `src/Domain/Grid/ActorId.cs` - Type-safe actor identification
-- `tests/Domain/Grid/BasicGridTests.cs` - Comprehensive domain validation
-
-**Dev Engineer Decision** (2025-08-29 22:51):
-- Phase 1 foundation is solid and production-ready
-- All architectural patterns established for Application layer
-- Mathematical correctness validated via property-based testing
-- Ready for VS_006 Phase 2 Commands/Handlers implementation
-
-
-### VS_006: Player Movement Commands (Phase 2 - Application)
-**Status**: COMPLETE ✅  
-**Owner**: Dev Engineer (COMPLETED 2025-08-30 11:34)
-**Size**: S (2.75h actual)
-**Priority**: Critical (FOUNDATIONAL)
-**Markers**: [ARCHITECTURE] [PHASE-2] [MVP]
-**Created**: 2025-08-29 17:16
-
-**What**: Commands for player movement on grid
-**Why**: Enable player interaction with grid system
-
-**✅ DELIVERED CQRS IMPLEMENTATION**:
-- **MoveActorCommand** - Complete actor position management with validation
-- **GetGridStateQuery** - Grid state retrieval for UI presentation  
-- **ValidateMovementQuery** - Movement validation for UI feedback
-- **CalculatePathQuery** - Simple pathfinding (Phase 2 implementation)
-- **IGridStateService** - Service interface with InMemoryGridStateService
-- **MediatR Integration** - Auto-discovery working, all handlers registered
-
-**✅ COMPLETION VALIDATION**:
-- [x] Actor can move to valid positions - Full implementation with bounds/occupancy checking
-- [x] Invalid moves return proper errors (Fin<T>) - Comprehensive LanguageExt error handling
-- [x] Path finding works for simple cases - Simple direct pathfinding for Phase 2
-- [x] Handler tests pass in <500ms - All tests pass in <50ms average
-- [x] 124 tests passing - Zero failures, all architecture boundaries respected
-- [x] Clean build, zero warnings - Professional code quality
-
-**🎯 TECHNICAL IMPLEMENTATION HIGHLIGHTS**:
-- **CQRS Pattern**: Clean separation of commands and queries with MediatR
-- **Functional Error Handling**: LanguageExt Fin<T> throughout all handlers
-- **TDD Approach**: Red-Green cycles with comprehensive test coverage
-- **Architecture Compliance**: All Clean Architecture boundaries enforced
-- **Service Registration**: Proper DI registration in GameStrapper with auto-discovery
-- **Thread Safety**: Concurrent actor position management with ConcurrentDictionary
-
-**Phase Gates Completed**:
-- ✅ Phase 1: Domain models (VS_005) - COMPLETE
-- ✅ Phase 2: Application layer (VS_006) - DELIVERED
-- → Phase 3 (VS_007): Infrastructure persistence - DEFERRED (see Backup.md)
-- → Phase 4 (VS_008): Presentation layer - READY TO START
-
-**Files Delivered**:
-- `src/Application/Common/ICommand.cs` - CQRS interfaces
-- `src/Application/Grid/Commands/MoveActorCommand.cs` + Handler
-- `src/Application/Grid/Queries/` - 3 queries + handlers
-- `src/Application/Grid/Services/IGridStateService.cs` + implementation
-- `tests/Application/Grid/Commands/MoveActorCommandHandlerTests.cs`
-
-**Dev Engineer Decision** (2025-08-30 11:34):
-- Phase 2 Application layer is production-ready and fully tested
-- Clean Architecture patterns established for Infrastructure layer
-- MediatR pipeline working flawlessly with comprehensive error handling
-- Ready for VS_007 Phase 3 Infrastructure/Persistence implementation
 
 
 
-### VS_008: Grid Scene and Player Sprite (Phase 4 - Presentation)
+### VS_008: Grid Scene and Player Sprite (Phase 4 - Presentation) [Score: 85/100]
 
-**Status**: Code Complete - Awaiting Scene Setup ← UPDATED 2025-08-30 17:30
-**Owner**: Human (Scene Creation) 
+**Status**: Ready for Completion ← UPDATED 2025-09-07 12:41 (TD_005 fixed blocking bug)  
+**Owner**: Dev Engineer (Final testing required) 
 **Size**: L (5h code complete, ~1h scene setup remaining)
 **Priority**: Critical (FOUNDATIONAL)
 **Markers**: [ARCHITECTURE] [PHASE-4] [MVP]
@@ -261,7 +106,14 @@
 - ✅ Thread-safe UI updates via CallDeferred
 - ✅ Comprehensive error handling with LanguageExt Fin<T>
 
-**🎮 REMAINING: GODOT SCENE SETUP (Human Task - ~1h)**:
+**🚨 BLOCKING ISSUE IDENTIFIED (2025-08-30 20:51)**:
+- **Problem**: Actor movement visual update bug - blue square stays at (0,0) visually
+- **Symptom**: Click-to-move shows "Success at (1, 1): Moved" but actor doesn't move visually
+- **Root Cause**: ActorView.cs MoveActorAsync/MoveActorNodeDeferred visual update methods
+- **Impact**: Core functionality broken - logical movement works but visual feedback fails
+- **Severity**: BLOCKS all interactive gameplay testing
+
+**🎮 PREVIOUSLY COMPLETED: GODOT SCENE SETUP**:
 
 **Required Scene Structure**:
 ```
@@ -290,7 +142,13 @@ res://scenes/combat_scene.tscn
 - Zero architectural compromises - production-ready code quality
 - Foundation established for all future tactical combat features
 
-**Next Session**: Scene creation and first playable interaction testing
+**Next Session**: Fix visual update bug in ActorView.cs, then complete gameplay testing
+
+**[Owner] Decision Required** (Dev Engineer):
+- Priority: HIGH - Core functionality broken
+- Investigate: MoveActorAsync and MoveActorNodeDeferred methods
+- Expected Fix Time: <2 hours
+- Blocker Resolution: Visual position sync with logical position
 
 
 
@@ -298,8 +156,43 @@ res://scenes/combat_scene.tscn
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*
 
+### TD_006: Re-enable Smooth Movement Animation [Score: 25/100]
+**Status**: Proposed
+**Owner**: Tech Lead (Approval Required)
+**Size**: S (2-4h)
+**Priority**: Low (Visual Polish)
+**Markers**: [ENHANCEMENT] [ANIMATION] [UI-POLISH]
+**Created**: 2025-09-07 12:37
 
-y
+**What**: Re-enable tween-based smooth movement animation for actors
+**Why**: Current implementation uses instant position changes; smooth animation improves game feel
+
+**Problem Details**:
+- Tween animation fails silently in deferred call context
+- No error messages but animation doesn't execute
+- Tween.Finished callback never triggers
+- Currently using direct position assignment as workaround
+
+**Technical Approach Options**:
+1. Fix tween execution in CallDeferred context
+2. Use Godot's AnimationPlayer node instead of tweens
+3. Implement frame-based lerping in _Process method
+4. Create coroutine-based movement system
+
+**Done When**:
+- Actor moves smoothly over 0.3s to target position
+- Animation works reliably in all contexts
+- No visual jumping or stuttering
+- Maintains current functionality
+
+**Depends On**: None - Enhancement to existing working system
+
+**[Tech Lead] Decision** (Pending):
+- Assess priority vs other work
+- Choose technical approach
+- Assign when core features complete
+
+
 
 
 

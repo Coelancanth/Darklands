@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using Darklands.Core.Application.Grid.Queries;
 using Darklands.Core.Presentation.Views;
+using LanguageExt;
 using MediatR;
 using Serilog;
 
@@ -16,6 +17,8 @@ namespace Darklands.Core.Presentation.Presenters
     {
         private readonly IMediator _mediator;
         private readonly ILogger _logger;
+        private readonly Application.Grid.Services.IGridStateService _gridStateService;
+        private ActorPresenter? _actorPresenter;
 
         /// <summary>
         /// Creates a new GridPresenter with the specified dependencies.
@@ -23,11 +26,24 @@ namespace Darklands.Core.Presentation.Presenters
         /// <param name="view">The grid view interface this presenter controls</param>
         /// <param name="mediator">MediatR instance for sending commands and queries</param>
         /// <param name="logger">Logger for tracking grid operations</param>
-        public GridPresenter(IGridView view, IMediator mediator, ILogger logger)
+        /// <param name="gridStateService">Service for accessing grid state directly</param>
+        public GridPresenter(IGridView view, IMediator mediator, ILogger logger, Application.Grid.Services.IGridStateService gridStateService)
             : base(view)
         {
             _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _gridStateService = gridStateService ?? throw new ArgumentNullException(nameof(gridStateService));
+        }
+
+        /// <summary>
+        /// Sets the ActorPresenter reference for coordinated visual updates.
+        /// This enables the GridPresenter to notify ActorPresenter when moves succeed.
+        /// </summary>
+        /// <param name="actorPresenter">The ActorPresenter instance to coordinate with</param>
+        public void SetActorPresenter(ActorPresenter actorPresenter)
+        {
+            _actorPresenter = actorPresenter ?? throw new ArgumentNullException(nameof(actorPresenter));
+            _logger.Debug("ActorPresenter reference set for coordinated updates");
         }
 
         /// <summary>
@@ -42,19 +58,10 @@ namespace Darklands.Core.Presentation.Presenters
 
             try
             {
-                // Load and display the initial grid state asynchronously
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-                        await RefreshGridDisplayAsync();
-                        _logger.Information("Initial grid display setup completed");
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.Error(ex, "Failed to setup initial grid display");
-                    }
-                });
+                // Load and display the initial grid state
+                // Note: This will execute synchronously but use deferred calls for UI operations
+                _ = RefreshGridDisplayAsync();
+                _logger.Information("Initial grid display setup initiated");
             }
             catch (Exception ex)
             {
@@ -87,12 +94,30 @@ namespace Darklands.Core.Presentation.Presenters
 
                 var moveCommand = Application.Grid.Commands.MoveActorCommand.Create(ActorPresenter.TestPlayerId.Value, position);
 
+                // CRITICAL: Get the actor's current position BEFORE the move for visual updates
+                // Use GridStateService directly to get the actor's position
+                var fromPositionOption = _gridStateService.GetActorPosition(ActorPresenter.TestPlayerId.Value);
+
                 var result = await _mediator.Send(moveCommand);
 
                 await result.Match(
                     Succ: async _ =>
                     {
                         _logger.Information("Successfully processed move to position {Position}", position);
+
+                        // CRITICAL: Notify ActorPresenter about the successful move
+                        // This was missing and causing the visual bug!
+                        if (_actorPresenter != null && fromPositionOption.IsSome && ActorPresenter.TestPlayerId.HasValue)
+                        {
+                            var from = fromPositionOption.Match(p => p, () => new Domain.Grid.Position(0, 0));
+                            await _actorPresenter.HandleActorMovedAsync(ActorPresenter.TestPlayerId.Value, from, position);
+                            _logger.Debug("Notified ActorPresenter about move from {From} to {To}", from, position);
+                        }
+                        else
+                        {
+                            _logger.Warning("ActorPresenter not available or from position unknown - visual update skipped");
+                        }
+
                         await View.ShowSuccessFeedbackAsync(position, "Moved");
                     },
                     Fail: async error =>

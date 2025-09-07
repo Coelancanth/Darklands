@@ -152,13 +152,18 @@ namespace Darklands
                 // Create presenters manually (they need view interfaces which are Godot-specific)
                 var mediator = _serviceProvider.GetRequiredService<IMediator>();
                 var logger = _serviceProvider.GetRequiredService<Serilog.ILogger>();
+                var gridStateService = _serviceProvider.GetRequiredService<Darklands.Core.Application.Grid.Services.IGridStateService>();
                 
-                _gridPresenter = new GridPresenter(_gridView, mediator, logger);
-                _actorPresenter = new ActorPresenter(_actorView, mediator, logger);
+                _gridPresenter = new GridPresenter(_gridView, mediator, logger, gridStateService);
+                _actorPresenter = new ActorPresenter(_actorView, mediator, logger, gridStateService);
 
                 // Connect views to presenters
                 _gridView.SetPresenter(_gridPresenter);
                 _actorView.SetPresenter(_actorPresenter);
+                
+                // CRITICAL: Connect presenters to each other for coordinated updates
+                // This was missing and caused the visual movement bug!
+                _gridPresenter.SetActorPresenter(_actorPresenter);
 
                 GD.Print("Presenters created and connected to views");
 

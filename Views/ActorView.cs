@@ -16,7 +16,7 @@ namespace Darklands.Views
     {
         private ActorPresenter? _presenter;
         private readonly Dictionary<Darklands.Core.Domain.Grid.ActorId, ColorRect> _actorNodes = new();
-        private const int TileSize = 16;
+        private const int TileSize = 32;
         private const float MoveDuration = 0.3f; // Seconds for movement animation
 
         // Actor colors for different types
@@ -24,6 +24,13 @@ namespace Darklands.Views
         private readonly Color EnemyColor = new(0.96f, 0.26f, 0.21f, 1.0f);  // Red #F44336
         private readonly Color NeutralColor = new(0.61f, 0.61f, 0.61f, 1.0f); // Gray #9E9E9E
         private readonly Color InteractiveColor = new(1.0f, 0.59f, 0.0f, 1.0f); // Orange #FF9800
+
+        // Temporary storage for deferred method parameters
+        private ColorRect? _pendingActorNode;
+        private Darklands.Core.Domain.Grid.ActorId _pendingActorId;
+        private Vector2 _pendingEndPosition;
+        private Darklands.Core.Domain.Grid.Position _pendingFromPosition;
+        private Darklands.Core.Domain.Grid.Position _pendingToPosition;
 
         /// <summary>
         /// Called when the node is added to the scene tree.
@@ -55,38 +62,60 @@ namespace Darklands.Views
         /// </summary>
         public async Task DisplayActorAsync(Darklands.Core.Domain.Grid.ActorId actorId, Darklands.Core.Domain.Grid.Position position, ActorType actorType)
         {
-            await CallDeferredAsync(actorId, position, actorType);
-            
-            async Task CallDeferredAsync(Darklands.Core.Domain.Grid.ActorId id, Darklands.Core.Domain.Grid.Position pos, ActorType type)
+            try
             {
-                try
+                // Remove existing actor node if it exists
+                if (_actorNodes.TryGetValue(actorId, out var existingNode))
                 {
-                    // Remove existing actor node if it exists
-                    if (_actorNodes.TryGetValue(id, out var existingNode))
-                    {
-                        existingNode?.QueueFree();
-                        _actorNodes.Remove(id);
-                    }
-
-                    // Create new ColorRect node for the actor
-                    var actorNode = new ColorRect
-                    {
-                        Size = new Vector2(TileSize, TileSize),
-                        Color = GetActorColor(type),
-                        Position = new Vector2(pos.X * TileSize, pos.Y * TileSize)
-                    };
-
-                    // Add to scene tree
-                    AddChild(actorNode);
-                    _actorNodes[id] = actorNode;
-
-                    GD.Print($"Actor {id.Value} displayed at position {pos} as {type}");
-                    await Task.CompletedTask;
+                    _pendingActorId = actorId;
+                    CallDeferred("RemoveActorNodeDeferred");
                 }
-                catch (Exception ex)
+
+                // Create new ColorRect node for the actor
+                var actorNode = new ColorRect
                 {
-                    GD.PrintErr($"Error displaying actor {id.Value}: {ex.Message}");
-                }
+                    Size = new Vector2(TileSize, TileSize),
+                    Color = GetActorColor(actorType),
+                    Position = new Vector2(position.X * TileSize, position.Y * TileSize)
+                };
+
+                // Store for deferred call
+                _pendingActorNode = actorNode;
+                _pendingActorId = actorId;
+                CallDeferred("AddActorNodeDeferred");
+
+                GD.Print($"Actor {actorId.Value} displayed at position {position} as {actorType}");
+                await Task.CompletedTask;
+            }
+            catch (Exception ex)
+            {
+                GD.PrintErr($"Error displaying actor {actorId.Value}: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Helper method to add actor node on main thread.
+        /// </summary>
+        private void AddActorNodeDeferred()
+        {
+            if (_pendingActorNode != null)
+            {
+                AddChild(_pendingActorNode);
+                _actorNodes[_pendingActorId] = _pendingActorNode;
+                GD.Print($"ActorView: Actor added at position {_pendingActorNode.Position} with color {_pendingActorNode.Color}");
+                _pendingActorNode = null;
+            }
+        }
+
+        /// <summary>
+        /// Helper method to remove actor node on main thread.
+        /// </summary>
+        private void RemoveActorNodeDeferred()
+        {
+            if (_actorNodes.TryGetValue(_pendingActorId, out var existingNode))
+            {
+                existingNode?.QueueFree();
+                _actorNodes.Remove(_pendingActorId);
             }
         }
 
@@ -95,34 +124,90 @@ namespace Darklands.Views
         /// </summary>
         public async Task MoveActorAsync(Darklands.Core.Domain.Grid.ActorId actorId, Darklands.Core.Domain.Grid.Position fromPosition, Darklands.Core.Domain.Grid.Position toPosition)
         {
-            await CallDeferredAsync(actorId, fromPosition, toPosition);
-            
-            async Task CallDeferredAsync(Darklands.Core.Domain.Grid.ActorId id, Darklands.Core.Domain.Grid.Position from, Darklands.Core.Domain.Grid.Position to)
+            try
             {
-                try
+                if (!_actorNodes.TryGetValue(actorId, out var actorNode) || actorNode == null)
                 {
-                    if (!_actorNodes.TryGetValue(id, out var actorNode) || actorNode == null)
-                    {
-                        GD.PrintErr($"Actor {id.Value} not found for movement");
-                        return;
-                    }
-
-                    var startPosition = new Vector2(from.X * TileSize, from.Y * TileSize);
-                    var endPosition = new Vector2(to.X * TileSize, to.Y * TileSize);
-
-                    // Create and configure tween for smooth movement
-                    var tween = CreateTween();
-                    tween.TweenProperty(actorNode, "position", endPosition, MoveDuration);
-                    
-                    // Wait for animation to complete
-                    await tween.ToSignal(tween, Tween.SignalName.Finished);
-                    
-                    GD.Print($"Actor {id.Value} moved from {from} to {to}");
+                    GD.PrintErr($"Actor {actorId.Value} not found for movement");
+                    return;
                 }
-                catch (Exception ex)
+
+                var endPosition = new Vector2(toPosition.X * TileSize, toPosition.Y * TileSize);
+
+                // Store parameters for deferred call
+                _pendingActorNode = actorNode;
+                _pendingEndPosition = endPosition;
+                _pendingActorId = actorId;
+                _pendingFromPosition = fromPosition;
+                _pendingToPosition = toPosition;
+
+                // Use deferred call for tween operations to ensure main thread execution
+                CallDeferred("MoveActorNodeDeferred");
+                
+                await Task.CompletedTask;
+            }
+            catch (Exception ex)
+            {
+                GD.PrintErr($"Error moving actor {actorId.Value}: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Helper method to move actor node on main thread.
+        /// </summary>
+        private void MoveActorNodeDeferred()
+        {
+            if (_pendingActorNode != null && _actorNodes.ContainsKey(_pendingActorId))
+            {
+                // Get the ACTUAL actor node from our dictionary (not the pending one which might be stale)
+                var actualActorNode = _actorNodes[_pendingActorId];
+                
+                // Log current position before movement
+                var startPos = actualActorNode.Position;
+                GD.Print($"[MOVE DEBUG] Actor {_pendingActorId.Value} starting at pixel position: {startPos}, moving to: {_pendingEndPosition}");
+                
+                // Capture values for the callback
+                var actorId = _pendingActorId;
+                var targetPos = _pendingEndPosition;
+                
+                // CRITICAL: Set position immediately (bypassing tween for now to test basic movement)
+                actualActorNode.Position = _pendingEndPosition;
+                GD.Print($"[MOVE DEBUG] Position set directly to: {actualActorNode.Position}");
+                
+                // TODO: Re-enable tween animation once basic movement is verified working
+                // The tween code below should work but may have timing issues with deferred calls
+                /*
+                // Create and configure tween for smooth movement
+                // CRITICAL FIX: Use "Position" (PascalCase) not "position" for C# property
+                var tween = CreateTween();
+                var tweenResult = tween.TweenProperty(actualActorNode, "Position", _pendingEndPosition, MoveDuration);
+                
+                // Check if tween was created successfully
+                if (tween == null)
                 {
-                    GD.PrintErr($"Error moving actor {id.Value}: {ex.Message}");
+                    GD.PrintErr($"[MOVE DEBUG] Failed to create tween!");
+                    actualActorNode.Position = _pendingEndPosition; // Fallback: set directly
                 }
+                else
+                {
+                    GD.Print($"[MOVE DEBUG] Tween created successfully, animating over {MoveDuration}s");
+                    
+                    // Add completion callback to verify movement
+                    tween.Finished += () => {
+                        if (_actorNodes.TryGetValue(actorId, out var node))
+                        {
+                            GD.Print($"[MOVE DEBUG] Tween completed! Actor {actorId.Value} now at: {node.Position} (target was: {targetPos})");
+                        }
+                    };
+                }
+                */
+                
+                GD.Print($"Actor {_pendingActorId.Value} movement initiated from grid({_pendingFromPosition}) to grid({_pendingToPosition})");
+                _pendingActorNode = null;
+            }
+            else
+            {
+                GD.PrintErr($"[MOVE DEBUG] MoveActorNodeDeferred called but actor node not found in dictionary!");
             }
         }
 
@@ -214,7 +299,7 @@ namespace Darklands.Views
                     
                     // Create border effect by slightly increasing size and changing color temporarily
                     var tween = CreateTween();
-                    tween.TweenProperty(actorNode, "modulate", highlightColor, 0.1f);
+                    tween.TweenProperty(actorNode, "Modulate", highlightColor, 0.1f);
 
                     GD.Print($"Actor {id.Value} highlighted with {type}");
                     await Task.CompletedTask;
@@ -245,7 +330,7 @@ namespace Darklands.Views
 
                     // Reset to normal appearance
                     var tween = CreateTween();
-                    tween.TweenProperty(actorNode, "modulate", Colors.White, 0.1f);
+                    tween.TweenProperty(actorNode, "Modulate", Colors.White, 0.1f);
 
                     GD.Print($"Actor {id.Value} unhighlighted");
                     await Task.CompletedTask;

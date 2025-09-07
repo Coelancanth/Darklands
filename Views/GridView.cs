@@ -9,40 +9,32 @@ namespace Darklands.Views
 {
     /// <summary>
     /// Concrete Godot implementation of the grid view interface.
-    /// Handles the visual representation of the tactical combat grid using Godot's TileMapLayer.
-    /// Manages tile rendering, highlighting, and user input detection.
+    /// Handles the visual representation of the tactical combat grid using simple ColorRect tiles.
+    /// Manages tile rendering, highlighting, and user input detection with pure colors.
     /// </summary>
     public partial class GridView : Node2D, IGridView
     {
-        private TileMapLayer? _tileMapLayer;
         private GridPresenter? _presenter;
-        private const int TileSize = 16;
+        private const int TileSize = 32;
         private int _gridWidth;
         private int _gridHeight;
+        private Dictionary<Vector2I, ColorRect> _tiles = new();
 
-        // Tile source IDs for different terrain types and states
-        private const int GrassTileId = 0;
-        private const int StoneTileId = 1;
-        private const int WaterTileId = 2;
-        private const int HighlightTileId = 3;
+        // Colors for different terrain types
+        private readonly Color GrassColor = new Color(0.3f, 0.7f, 0.2f); // Green
+        private readonly Color StoneColor = new Color(0.5f, 0.5f, 0.5f); // Gray
+        private readonly Color WaterColor = new Color(0.2f, 0.4f, 0.8f); // Blue
+        private readonly Color HighlightColor = new Color(1.0f, 1.0f, 0.0f, 0.7f); // Yellow with transparency
 
         /// <summary>
         /// Called when the node is added to the scene tree.
-        /// Sets up the TileMapLayer and initializes the grid display system.
+        /// Initializes the grid display system with ColorRect-based tiles.
         /// </summary>
         public override void _Ready()
         {
             try
             {
-                // Find the TileMapLayer child node
-                _tileMapLayer = GetNode<TileMapLayer>("TileMapLayer");
-                if (_tileMapLayer == null)
-                {
-                    GD.PrintErr("GridView: TileMapLayer child node not found!");
-                    return;
-                }
-
-                GD.Print("GridView initialized successfully");
+                GD.Print("GridView initialized successfully with ColorRect tiles");
             }
             catch (Exception ex)
             {
@@ -83,35 +75,28 @@ namespace Darklands.Views
 
         /// <summary>
         /// Displays the grid boundaries with the specified dimensions.
-        /// Creates the visual grid and sets up tile rendering.
+        /// Creates the visual grid using ColorRect tiles.
         /// </summary>
         public async Task DisplayGridBoundariesAsync(int width, int height)
         {
-            await CallDeferredAsync(width, height);
+            _gridWidth = width;
+            _gridHeight = height;
             
-            async Task CallDeferredAsync(int w, int h)
+            // Clear any existing tiles
+            ClearAllTiles();
+            
+            // Create a basic grid with grass tiles as default
+            for (int x = 0; x < width; x++)
             {
-                if (_tileMapLayer == null) return;
-                
-                _gridWidth = w;
-                _gridHeight = h;
-                
-                // Clear any existing tiles
-                _tileMapLayer.Clear();
-                
-                // Create a basic grid with grass tiles as default
-                for (int x = 0; x < width; x++)
+                for (int y = 0; y < height; y++)
                 {
-                    for (int y = 0; y < height; y++)
-                    {
-                        var tilePosition = new Vector2I(x, y);
-                        _tileMapLayer.SetCell(tilePosition, 0, Vector2I.Zero, GrassTileId);
-                    }
+                    var tilePosition = new Vector2I(x, y);
+                    CreateTile(tilePosition, GrassColor);
                 }
-                
-                GD.Print($"Grid boundaries displayed: {width}x{height}");
-                await Task.CompletedTask;
             }
+            
+            GD.Print($"Grid boundaries displayed: {width}x{height}");
+            await Task.CompletedTask;
         }
 
         /// <summary>
@@ -120,48 +105,39 @@ namespace Darklands.Views
         /// </summary>
         public async Task RefreshGridAsync(Darklands.Core.Domain.Grid.Grid grid)
         {
-            await CallDeferredAsync(grid);
+            _gridWidth = grid.Width;
+            _gridHeight = grid.Height;
             
-            async Task CallDeferredAsync(Darklands.Core.Domain.Grid.Grid g)
+            // Clear existing tiles
+            ClearAllTiles();
+            
+            // Render each tile based on its state
+            for (int x = 0; x < grid.Width; x++)
             {
-                if (_tileMapLayer == null) return;
-                
-                _gridWidth = g.Width;
-                _gridHeight = g.Height;
-                
-                // Clear existing tiles
-                _tileMapLayer.Clear();
-                
-                // Render each tile based on its state
-                for (int x = 0; x < g.Width; x++)
+                for (int y = 0; y < grid.Height; y++)
                 {
-                    for (int y = 0; y < g.Height; y++)
-                    {
-                        var position = new Darklands.Core.Domain.Grid.Position(x, y);
-                        var tileResult = g.GetTile(position);
-                        
-                        await tileResult.Match(
-                            Succ: async tile =>
-                            {
-                                var tileId = GetTileIdFromTerrain(tile.TerrainType);
-                                var tilePosition = new Vector2I(x, y);
-                                _tileMapLayer.SetCell(tilePosition, 0, Vector2I.Zero, tileId);
-                                await Task.CompletedTask;
-                            },
-                            Fail: async _ =>
-                            {
-                                // Use default grass tile for invalid positions
-                                var tilePosition = new Vector2I(x, y);
-                                _tileMapLayer.SetCell(tilePosition, 0, Vector2I.Zero, GrassTileId);
-                                await Task.CompletedTask;
-                            }
-                        );
-                    }
+                    var position = new Darklands.Core.Domain.Grid.Position(x, y);
+                    var tileResult = grid.GetTile(position);
+                    
+                    tileResult.Match(
+                        Succ: tile =>
+                        {
+                            var tileColor = GetColorFromTerrain(tile.TerrainType);
+                            var tilePosition = new Vector2I(x, y);
+                            CreateTile(tilePosition, tileColor);
+                        },
+                        Fail: _ =>
+                        {
+                            // Use default grass color for invalid positions
+                            var tilePosition = new Vector2I(x, y);
+                            CreateTile(tilePosition, GrassColor);
+                        }
+                    );
                 }
-                
-                GD.Print($"Grid refreshed: {g.Width}x{g.Height}");
-                await Task.CompletedTask;
             }
+            
+            GD.Print($"Grid refreshed: {grid.Width}x{grid.Height}");
+            await Task.CompletedTask;
         }
 
         /// <summary>
@@ -169,18 +145,11 @@ namespace Darklands.Views
         /// </summary>
         public async Task UpdateTileAsync(Darklands.Core.Domain.Grid.Position position, Darklands.Core.Domain.Grid.Tile tile)
         {
-            await CallDeferredAsync(position, tile);
+            var tileColor = GetColorFromTerrain(tile.TerrainType);
+            var tilePosition = new Vector2I(position.X, position.Y);
+            UpdateTileColor(tilePosition, tileColor);
             
-            async Task CallDeferredAsync(Darklands.Core.Domain.Grid.Position pos, Darklands.Core.Domain.Grid.Tile t)
-            {
-                if (_tileMapLayer == null) return;
-                
-                var tileId = GetTileIdFromTerrain(t.TerrainType);
-                var tilePosition = new Vector2I(pos.X, pos.Y);
-                _tileMapLayer.SetCell(tilePosition, 0, Vector2I.Zero, tileId);
-                
-                await Task.CompletedTask;
-            }
+            await Task.CompletedTask;
         }
 
         /// <summary>
@@ -188,19 +157,12 @@ namespace Darklands.Views
         /// </summary>
         public async Task HighlightTileAsync(Darklands.Core.Domain.Grid.Position position, HighlightType highlightType)
         {
-            await CallDeferredAsync(position, highlightType);
+            // For Phase 4, use a simple color overlay
+            // Future: Different highlight types could use different visual effects
+            var tilePosition = new Vector2I(position.X, position.Y);
+            UpdateTileColor(tilePosition, HighlightColor);
             
-            async Task CallDeferredAsync(Darklands.Core.Domain.Grid.Position pos, HighlightType type)
-            {
-                if (_tileMapLayer == null) return;
-                
-                // For Phase 4, use a simple highlight overlay
-                // Future: Different highlight types could use different visual effects
-                var tilePosition = new Vector2I(pos.X, pos.Y);
-                _tileMapLayer.SetCell(tilePosition, 1, Vector2I.Zero, HighlightTileId); // Layer 1 for overlays
-                
-                await Task.CompletedTask;
-            }
+            await Task.CompletedTask;
         }
 
         /// <summary>
@@ -208,18 +170,11 @@ namespace Darklands.Views
         /// </summary>
         public async Task UnhighlightTileAsync(Darklands.Core.Domain.Grid.Position position)
         {
-            await CallDeferredAsync(position);
+            // Restore original tile color (assume grass for now)
+            var tilePosition = new Vector2I(position.X, position.Y);
+            UpdateTileColor(tilePosition, GrassColor);
             
-            async Task CallDeferredAsync(Darklands.Core.Domain.Grid.Position pos)
-            {
-                if (_tileMapLayer == null) return;
-                
-                // Remove highlight overlay
-                var tilePosition = new Vector2I(pos.X, pos.Y);
-                _tileMapLayer.EraseCell(tilePosition); // Remove from overlay layer
-                
-                await Task.CompletedTask;
-            }
+            await Task.CompletedTask;
         }
 
         /// <summary>
@@ -227,15 +182,10 @@ namespace Darklands.Views
         /// </summary>
         public async Task ShowSuccessFeedbackAsync(Darklands.Core.Domain.Grid.Position position, string message)
         {
-            await CallDeferredAsync(position, message);
-            
-            async Task CallDeferredAsync(Darklands.Core.Domain.Grid.Position pos, string msg)
-            {
-                // For Phase 4, just print to console
-                // Future: Show floating text or particle effects
-                GD.Print($"Success at {pos}: {msg}");
-                await Task.CompletedTask;
-            }
+            // For Phase 4, just print to console
+            // Future: Show floating text or particle effects
+            GD.Print($"Success at {position}: {message}");
+            await Task.CompletedTask;
         }
 
         /// <summary>
@@ -243,15 +193,10 @@ namespace Darklands.Views
         /// </summary>
         public async Task ShowErrorFeedbackAsync(Darklands.Core.Domain.Grid.Position position, string errorMessage)
         {
-            await CallDeferredAsync(position, errorMessage);
-            
-            async Task CallDeferredAsync(Darklands.Core.Domain.Grid.Position pos, string msg)
-            {
-                // For Phase 4, just print to console
-                // Future: Show error indicators or red highlights
-                GD.PrintErr($"Error at {pos}: {msg}");
-                await Task.CompletedTask;
-            }
+            // For Phase 4, just print to console
+            // Future: Show error indicators or red highlights
+            GD.PrintErr($"Error at {position}: {errorMessage}");
+            await Task.CompletedTask;
         }
 
         /// <summary>
@@ -259,24 +204,17 @@ namespace Darklands.Views
         /// </summary>
         public async Task ClearOverlaysAsync()
         {
-            await CallDeferredAsync();
-            
-            async Task CallDeferredAsync()
+            // Reset all tiles to their default grass color
+            for (int x = 0; x < _gridWidth; x++)
             {
-                if (_tileMapLayer == null) return;
-                
-                // Clear overlay layer (layer 1)
-                for (int x = 0; x < _gridWidth; x++)
+                for (int y = 0; y < _gridHeight; y++)
                 {
-                    for (int y = 0; y < _gridHeight; y++)
-                    {
-                        var tilePosition = new Vector2I(x, y);
-                        _tileMapLayer.EraseCell(tilePosition);
-                    }
+                    var tilePosition = new Vector2I(x, y);
+                    UpdateTileColor(tilePosition, GrassColor);
                 }
-                
-                await Task.CompletedTask;
             }
+            
+            await Task.CompletedTask;
         }
 
         /// <summary>
@@ -286,17 +224,20 @@ namespace Darklands.Views
         {
             try
             {
-                if (_tileMapLayer == null || _presenter == null) return;
+                if (_presenter == null) return;
                 
-                // Convert global position to local tile coordinates
-                var localPosition = _tileMapLayer.ToLocal(globalPosition);
-                var tilePosition = _tileMapLayer.LocalToMap(localPosition);
+                // Convert global position to local position relative to this node
+                var localPosition = ToLocal(globalPosition);
+                
+                // Calculate tile position based on tile size
+                var tileX = (int)(localPosition.X / TileSize);
+                var tileY = (int)(localPosition.Y / TileSize);
                 
                 // Validate that the click is within grid bounds
-                if (tilePosition.X >= 0 && tilePosition.X < _gridWidth && 
-                    tilePosition.Y >= 0 && tilePosition.Y < _gridHeight)
+                if (tileX >= 0 && tileX < _gridWidth && 
+                    tileY >= 0 && tileY < _gridHeight)
                 {
-                    var gridPosition = new Darklands.Core.Domain.Grid.Position(tilePosition.X, tilePosition.Y);
+                    var gridPosition = new Darklands.Core.Domain.Grid.Position(tileX, tileY);
                     
                     // Notify the presenter about the tile click
                     _ = Task.Run(async () =>
@@ -318,21 +259,86 @@ namespace Darklands.Views
             }
         }
 
+
         /// <summary>
-        /// Converts terrain type to tile ID for rendering.
+        /// Creates a ColorRect tile at the specified position with the given color.
         /// </summary>
-        private int GetTileIdFromTerrain(Darklands.Core.Domain.Grid.TerrainType terrain)
+        private void CreateTile(Vector2I position, Color color)
+        {
+            var tile = new ColorRect
+            {
+                Size = new Vector2(TileSize, TileSize),
+                Position = new Vector2(position.X * TileSize, position.Y * TileSize),
+                Color = color
+            };
+            
+            CallDeferred(MethodName.AddTileToScene, tile, position);
+        }
+
+        /// <summary>
+        /// Helper method to add tile to scene on main thread.
+        /// </summary>
+        private void AddTileToScene(ColorRect tile, Vector2I position)
+        {
+            AddChild(tile);
+            _tiles[position] = tile;
+            GD.Print($"GridView: Tile added at position {position} with color {tile.Color}");
+        }
+
+        /// <summary>
+        /// Updates the color of an existing tile.
+        /// </summary>
+        private void UpdateTileColor(Vector2I position, Color color)
+        {
+            CallDeferred(MethodName.UpdateTileColorDeferred, position, color);
+        }
+
+        /// <summary>
+        /// Helper method to update tile color on main thread.
+        /// </summary>
+        private void UpdateTileColorDeferred(Vector2I position, Color color)
+        {
+            if (_tiles.TryGetValue(position, out var tile))
+            {
+                tile.Color = color;
+            }
+        }
+
+        /// <summary>
+        /// Clears all tiles from the grid.
+        /// </summary>
+        private void ClearAllTiles()
+        {
+            CallDeferred(MethodName.ClearAllTilesDeferred);
+        }
+
+        /// <summary>
+        /// Helper method to clear tiles on main thread.
+        /// </summary>
+        private void ClearAllTilesDeferred()
+        {
+            foreach (var tile in _tiles.Values)
+            {
+                tile?.QueueFree();
+            }
+            _tiles.Clear();
+        }
+
+        /// <summary>
+        /// Converts terrain type to color for rendering.
+        /// </summary>
+        private Color GetColorFromTerrain(Darklands.Core.Domain.Grid.TerrainType terrain)
         {
             return terrain switch
             {
-                Darklands.Core.Domain.Grid.TerrainType.Open => GrassTileId,
-                Darklands.Core.Domain.Grid.TerrainType.Rocky => StoneTileId,
-                Darklands.Core.Domain.Grid.TerrainType.Water => WaterTileId,
-                Darklands.Core.Domain.Grid.TerrainType.Forest => GrassTileId, // For Phase 4, use grass
-                Darklands.Core.Domain.Grid.TerrainType.Hill => StoneTileId,   // Use stone for hills
-                Darklands.Core.Domain.Grid.TerrainType.Swamp => WaterTileId,  // Use water for swamp
-                Darklands.Core.Domain.Grid.TerrainType.Wall => StoneTileId,   // Use stone for walls
-                _ => GrassTileId // Default to grass
+                Darklands.Core.Domain.Grid.TerrainType.Open => GrassColor,
+                Darklands.Core.Domain.Grid.TerrainType.Rocky => StoneColor,
+                Darklands.Core.Domain.Grid.TerrainType.Water => WaterColor,
+                Darklands.Core.Domain.Grid.TerrainType.Forest => GrassColor, 
+                Darklands.Core.Domain.Grid.TerrainType.Hill => StoneColor,   
+                Darklands.Core.Domain.Grid.TerrainType.Swamp => WaterColor,  
+                Darklands.Core.Domain.Grid.TerrainType.Wall => StoneColor,   
+                _ => GrassColor // Default to grass
             };
         }
     }
