@@ -4,6 +4,7 @@ using Godot;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Serilog;
 
 namespace Darklands.Views
 {
@@ -15,6 +16,7 @@ namespace Darklands.Views
     public partial class ActorView : Node2D, IActorView
     {
         private ActorPresenter? _presenter;
+        private ILogger? _logger;
         private readonly Dictionary<Darklands.Core.Domain.Grid.ActorId, ColorRect> _actorNodes = new();
         private const int TileSize = 32;
         private const float MoveDuration = 0.3f; // Seconds for movement animation
@@ -40,11 +42,10 @@ namespace Darklands.Views
         {
             try
             {
-                GD.Print("ActorView initialized successfully");
             }
             catch (Exception ex)
             {
-                GD.PrintErr($"ActorView._Ready error: {ex.Message}");
+                _logger?.Error(ex, "ActorView._Ready error");
             }
         }
 
@@ -55,6 +56,15 @@ namespace Darklands.Views
         public void SetPresenter(ActorPresenter presenter)
         {
             _presenter = presenter ?? throw new ArgumentNullException(nameof(presenter));
+        }
+
+        /// <summary>
+        /// Sets the logger for this view.
+        /// Called during initialization to enable proper logging.
+        /// </summary>
+        public void SetLogger(ILogger logger)
+        {
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         /// <summary>
@@ -84,12 +94,13 @@ namespace Darklands.Views
                 _pendingActorId = actorId;
                 CallDeferred("AddActorNodeDeferred");
 
-                GD.Print($"Actor {actorId.Value} displayed at position {position} as {actorType}");
+                _logger?.Information("Actor {ActorId} created at ({X},{Y})", actorId, position.X, position.Y);
+
                 await Task.CompletedTask;
             }
             catch (Exception ex)
             {
-                GD.PrintErr($"Error displaying actor {actorId.Value}: {ex.Message}");
+                _logger?.Error(ex, "Error displaying actor {ActorId}", actorId);
             }
         }
 
@@ -102,7 +113,6 @@ namespace Darklands.Views
             {
                 AddChild(_pendingActorNode);
                 _actorNodes[_pendingActorId] = _pendingActorNode;
-                GD.Print($"ActorView: Actor added at position {_pendingActorNode.Position} with color {_pendingActorNode.Color}");
                 _pendingActorNode = null;
             }
         }
@@ -128,7 +138,7 @@ namespace Darklands.Views
             {
                 if (!_actorNodes.TryGetValue(actorId, out var actorNode) || actorNode == null)
                 {
-                    GD.PrintErr($"Actor {actorId.Value} not found for movement");
+                    _logger?.Warning("Actor {ActorId} not found for movement", actorId);
                     return;
                 }
 
@@ -148,7 +158,7 @@ namespace Darklands.Views
             }
             catch (Exception ex)
             {
-                GD.PrintErr($"Error moving actor {actorId.Value}: {ex.Message}");
+                _logger?.Error(ex, "Error moving actor {ActorId}", actorId);
             }
         }
 
@@ -162,17 +172,12 @@ namespace Darklands.Views
                 // Get the ACTUAL actor node from our dictionary (not the pending one which might be stale)
                 var actualActorNode = _actorNodes[_pendingActorId];
                 
-                // Log current position before movement
-                var startPos = actualActorNode.Position;
-                GD.Print($"[MOVE DEBUG] Actor {_pendingActorId.Value} starting at pixel position: {startPos}, moving to: {_pendingEndPosition}");
-                
-                // Capture values for the callback
-                var actorId = _pendingActorId;
-                var targetPos = _pendingEndPosition;
-                
-                // CRITICAL: Set position immediately (bypassing tween for now to test basic movement)
+                // Set position immediately
                 actualActorNode.Position = _pendingEndPosition;
-                GD.Print($"[MOVE DEBUG] Position set directly to: {actualActorNode.Position}");
+                _logger?.Information("Actor {ActorId} moved to ({FromX},{FromY}) → ({ToX},{ToY})", 
+                    _pendingActorId, 
+                    _pendingFromPosition.X, _pendingFromPosition.Y,
+                    _pendingToPosition.X, _pendingToPosition.Y);
                 
                 // TODO: Re-enable tween animation once basic movement is verified working
                 // The tween code below should work but may have timing issues with deferred calls
@@ -202,12 +207,11 @@ namespace Darklands.Views
                 }
                 */
                 
-                GD.Print($"Actor {_pendingActorId.Value} movement initiated from grid({_pendingFromPosition}) to grid({_pendingToPosition})");
                 _pendingActorNode = null;
             }
             else
             {
-                GD.PrintErr($"[MOVE DEBUG] MoveActorNodeDeferred called but actor node not found in dictionary!");
+                _logger?.Warning("Actor {ActorId} node not found", _pendingActorId);
             }
         }
 
@@ -224,7 +228,7 @@ namespace Darklands.Views
                 {
                     if (!_actorNodes.TryGetValue(id, out var actorNode) || actorNode == null)
                     {
-                        GD.PrintErr($"Actor {id.Value} not found for update");
+                        _logger?.Warning("Actor {ActorId} not found for update", id);
                         return;
                     }
 
@@ -234,12 +238,11 @@ namespace Darklands.Views
                     // Update position if needed
                     actorNode.Position = new Vector2(pos.X * TileSize, pos.Y * TileSize);
 
-                    GD.Print($"Actor {id.Value} updated at position {pos}");
                     await Task.CompletedTask;
                 }
                 catch (Exception ex)
                 {
-                    GD.PrintErr($"Error updating actor {id.Value}: {ex.Message}");
+                    _logger?.Error(ex, "Error updating actor {ActorId}", id);
                 }
             }
         }
@@ -259,18 +262,17 @@ namespace Darklands.Views
                     {
                         actorNode?.QueueFree();
                         _actorNodes.Remove(id);
-                        GD.Print($"Actor {id.Value} removed from position {pos}");
                     }
                     else
                     {
-                        GD.PrintErr($"Actor {id.Value} not found for removal");
+                        _logger?.Warning("Actor {ActorId} not found for removal", id);
                     }
 
                     await Task.CompletedTask;
                 }
                 catch (Exception ex)
                 {
-                    GD.PrintErr($"Error removing actor {id.Value}: {ex.Message}");
+                    _logger?.Error(ex, "Error removing actor {ActorId}", id);
                 }
             }
         }
@@ -288,7 +290,7 @@ namespace Darklands.Views
                 {
                     if (!_actorNodes.TryGetValue(id, out var actorNode) || actorNode == null)
                     {
-                        GD.PrintErr($"Actor {id.Value} not found for highlighting");
+                        _logger?.Warning("Actor {ActorId} not found for highlighting", id);
                         return;
                     }
 
@@ -301,12 +303,11 @@ namespace Darklands.Views
                     var tween = CreateTween();
                     tween.TweenProperty(actorNode, "Modulate", highlightColor, 0.1f);
 
-                    GD.Print($"Actor {id.Value} highlighted with {type}");
                     await Task.CompletedTask;
                 }
                 catch (Exception ex)
                 {
-                    GD.PrintErr($"Error highlighting actor {id.Value}: {ex.Message}");
+                    _logger?.Error(ex, "Error highlighting actor {ActorId}", id);
                 }
             }
         }
@@ -324,7 +325,7 @@ namespace Darklands.Views
                 {
                     if (!_actorNodes.TryGetValue(id, out var actorNode) || actorNode == null)
                     {
-                        GD.PrintErr($"Actor {id.Value} not found for unhighlighting");
+                        _logger?.Warning("Actor {ActorId} not found for unhighlighting", id);
                         return;
                     }
 
@@ -332,12 +333,11 @@ namespace Darklands.Views
                     var tween = CreateTween();
                     tween.TweenProperty(actorNode, "Modulate", Colors.White, 0.1f);
 
-                    GD.Print($"Actor {id.Value} unhighlighted");
                     await Task.CompletedTask;
                 }
                 catch (Exception ex)
                 {
-                    GD.PrintErr($"Error unhighlighting actor {id.Value}: {ex.Message}");
+                    _logger?.Error(ex, "Error unhighlighting actor {ActorId}", id);
                 }
             }
         }
@@ -356,13 +356,12 @@ namespace Darklands.Views
                     // For Phase 4, just print to console
                     // Future: Show floating text, particle effects, or screen shake
                     var feedbackMessage = msg ?? type.ToString();
-                    GD.Print($"Actor {id.Value} feedback: {feedbackMessage} ({type})");
 
                     await Task.CompletedTask;
                 }
                 catch (Exception ex)
                 {
-                    GD.PrintErr($"Error showing feedback for actor {id.Value}: {ex.Message}");
+                    _logger?.Error(ex, "Error showing feedback for actor {ActorId}", id);
                 }
             }
         }
@@ -380,12 +379,11 @@ namespace Darklands.Views
                 {
                     // For Phase 4, we don't need to do much since we only have one test actor
                     // Future: Query application layer for all actor states and refresh displays
-                    GD.Print($"Refreshed display for {_actorNodes.Count} actors");
                     await Task.CompletedTask;
                 }
                 catch (Exception ex)
                 {
-                    GD.PrintErr($"Error refreshing all actors: {ex.Message}");
+                    _logger?.Error(ex, "Error refreshing all actors");
                 }
             }
         }

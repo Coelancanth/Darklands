@@ -1,6 +1,7 @@
 using Darklands.Core.Infrastructure.DependencyInjection;
 using Darklands.Core.Presentation.Presenters;
 using Darklands.Views;
+using Darklands.Infrastructure.Logging;
 using Godot;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,6 +23,7 @@ namespace Darklands
         private GridPresenter? _gridPresenter;
         private ActorPresenter? _actorPresenter;
         private ServiceProvider? _serviceProvider;
+        private Serilog.ILogger? _logger;
 
         /// <summary>
         /// Called when the node is added to the scene tree.
@@ -29,6 +31,7 @@ namespace Darklands
         /// </summary>
         public override void _Ready()
         {
+            // Use GD.Print here since logger isn't initialized yet
             GD.Print("GameManager starting initialization...");
 
             try
@@ -39,18 +42,21 @@ namespace Darklands
                     try
                     {
                         await InitializeApplicationAsync();
-                        GD.Print("GameManager initialization completed successfully");
+                        _logger?.Information("GameManager initialization completed successfully");
                     }
                     catch (Exception ex)
                     {
+                        // Use GD.PrintErr as fallback since structured logging may not be available yet
                         GD.PrintErr($"GameManager initialization failed: {ex.Message}");
-                        GD.PrintErr($"Stack trace: {ex.StackTrace}");
+                        _logger?.Error(ex, "GameManager initialization failed");
                     }
                 });
             }
             catch (Exception ex)
             {
+                // Use GD.PrintErr as fallback since structured logging may not be available yet
                 GD.PrintErr($"GameManager._Ready error: {ex.Message}");
+                _logger?.Error(ex, "GameManager._Ready error");
             }
         }
 
@@ -62,20 +68,25 @@ namespace Darklands
         {
             try
             {
-                GD.Print("GameManager cleaning up resources...");
+                _logger?.Information("GameManager cleaning up resources...");
 
                 // Dispose presenters
                 _gridPresenter?.Dispose();
                 _actorPresenter?.Dispose();
+                
+                _logger?.Information("Presenters disposed successfully");
 
                 // Dispose DI container
                 GameStrapper.Dispose();
 
                 GD.Print("GameManager cleanup completed");
+                // Note: Don't log after GameStrapper.Dispose() as logger may be disposed
             }
             catch (Exception ex)
             {
+                // Use GD.PrintErr as fallback since logger may be disposed
                 GD.PrintErr($"GameManager cleanup error: {ex.Message}");
+                _logger?.Error(ex, "GameManager cleanup error");
             }
         }
 
@@ -88,8 +99,13 @@ namespace Darklands
             {
                 GD.Print("Initializing DI container...");
 
-                // Initialize the dependency injection container
-                var initResult = GameStrapper.Initialize();
+                // Create Godot console sink for rich Editor output
+                var godotConsoleSink = new GodotConsoleSink(
+                    GodotSinkExtensions.DefaultGodotOutputTemplate, 
+                    null);
+
+                // Initialize the dependency injection container with Godot console support
+                var initResult = GameStrapper.Initialize(null, godotConsoleSink);
                 if (initResult.IsFail)
                 {
                     var error = initResult.Match(
@@ -104,7 +120,10 @@ namespace Darklands
                     Fail: _ => throw new InvalidOperationException("GameStrapper initialization returned failure")
                 );
 
-                GD.Print("DI container initialized successfully");
+                // Initialize logger after DI container is ready
+                _logger = _serviceProvider.GetRequiredService<Serilog.ILogger>();
+
+                _logger.Information("DI container initialized successfully - switching to structured logging");
 
                 // Set up views and presenters on the main thread
                 CallDeferred(MethodName.SetupMvpArchitecture);
@@ -113,7 +132,9 @@ namespace Darklands
             }
             catch (Exception ex)
             {
+                // Use GD.PrintErr as fallback since structured logging may not be available yet
                 GD.PrintErr($"Application initialization error: {ex.Message}");
+                _logger?.Error(ex, "Application initialization error");
                 throw;
             }
         }
@@ -126,7 +147,7 @@ namespace Darklands
         {
             try
             {
-                GD.Print("Setting up MVP architecture...");
+                _logger?.Information("Setting up MVP architecture...");
 
                 if (_serviceProvider == null)
                 {
@@ -147,36 +168,44 @@ namespace Darklands
                     throw new InvalidOperationException("ActorView node not found. Expected child node named 'Actors'");
                 }
 
-                GD.Print("Views found successfully");
+                _logger?.Information("Views found successfully - Grid: {GridView}, Actor: {ActorView}", 
+                    _gridView?.Name ?? "null", _actorView?.Name ?? "null");
+
+                // Inject logger into views for proper architectural logging
+                if (_logger != null)
+                {
+                    _gridView?.SetLogger(_logger);
+                    _actorView?.SetLogger(_logger);
+                }
 
                 // Create presenters manually (they need view interfaces which are Godot-specific)
                 var mediator = _serviceProvider.GetRequiredService<IMediator>();
-                var logger = _serviceProvider.GetRequiredService<Serilog.ILogger>();
                 var gridStateService = _serviceProvider.GetRequiredService<Darklands.Core.Application.Grid.Services.IGridStateService>();
                 
-                _gridPresenter = new GridPresenter(_gridView, mediator, logger, gridStateService);
-                _actorPresenter = new ActorPresenter(_actorView, mediator, logger, gridStateService);
+                _gridPresenter = new GridPresenter(_gridView!, mediator, _logger!, gridStateService);
+                _actorPresenter = new ActorPresenter(_actorView!, mediator, _logger!, gridStateService);
 
                 // Connect views to presenters
-                _gridView.SetPresenter(_gridPresenter);
-                _actorView.SetPresenter(_actorPresenter);
+                _gridView!.SetPresenter(_gridPresenter);
+                _actorView!.SetPresenter(_actorPresenter);
                 
                 // CRITICAL: Connect presenters to each other for coordinated updates
                 // This was missing and caused the visual movement bug!
                 _gridPresenter.SetActorPresenter(_actorPresenter);
 
-                GD.Print("Presenters created and connected to views");
+                _logger?.Information("Presenters created and connected - GridPresenter and ActorPresenter initialized");
 
                 // Initialize presenters (this will set up initial state)
                 _gridPresenter.Initialize();
                 _actorPresenter.Initialize();
 
-                GD.Print("MVP architecture setup completed");
+                _logger?.Information("MVP architecture setup completed - application ready for interaction");
             }
             catch (Exception ex)
             {
+                _logger?.Error(ex, "MVP setup error - failed to initialize presenters and views");
+                // Fallback to GD.PrintErr for critical startup errors
                 GD.PrintErr($"MVP setup error: {ex.Message}");
-                GD.PrintErr($"Stack trace: {ex.StackTrace}");
             }
         }
 
@@ -186,8 +215,9 @@ namespace Darklands
         /// </summary>
         private void HandleUnhandledException(Exception ex)
         {
+            _logger?.Fatal(ex, "Unhandled exception in GameManager - application may be unstable");
+            // Fallback to GD.PrintErr for critical errors
             GD.PrintErr($"Unhandled exception in GameManager: {ex.Message}");
-            GD.PrintErr($"Stack trace: {ex.StackTrace}");
             
             // For development, we might want to crash to surface the issue
             // For production, we'd log and attempt graceful recovery

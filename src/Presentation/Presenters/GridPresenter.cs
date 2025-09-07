@@ -43,7 +43,6 @@ namespace Darklands.Core.Presentation.Presenters
         public void SetActorPresenter(ActorPresenter actorPresenter)
         {
             _actorPresenter = actorPresenter ?? throw new ArgumentNullException(nameof(actorPresenter));
-            _logger.Debug("ActorPresenter reference set for coordinated updates");
         }
 
         /// <summary>
@@ -54,14 +53,12 @@ namespace Darklands.Core.Presentation.Presenters
         {
             base.Initialize();
 
-            _logger.Information("GridPresenter initialized, setting up grid display");
 
             try
             {
                 // Load and display the initial grid state
                 // Note: This will execute synchronously but use deferred calls for UI operations
                 _ = RefreshGridDisplayAsync();
-                _logger.Information("Initial grid display setup initiated");
             }
             catch (Exception ex)
             {
@@ -111,7 +108,6 @@ namespace Darklands.Core.Presentation.Presenters
                         {
                             var from = fromPositionOption.Match(p => p, () => new Domain.Grid.Position(0, 0));
                             await _actorPresenter.HandleActorMovedAsync(ActorPresenter.TestPlayerId.Value, from, position);
-                            _logger.Debug("Notified ActorPresenter about move from {From} to {To}", from, position);
                         }
                         else
                         {
@@ -146,7 +142,6 @@ namespace Darklands.Core.Presentation.Presenters
                 // Future: Could show movement range, attack range, etc.
                 await View.HighlightTileAsync(position, HighlightType.Hover);
 
-                _logger.Debug("Highlighting tile at position {Position} for hover", position);
             }
             catch (Exception ex)
             {
@@ -163,7 +158,6 @@ namespace Darklands.Core.Presentation.Presenters
             try
             {
                 await View.UnhighlightTileAsync(position);
-                _logger.Debug("Removed hover highlighting from tile at position {Position}", position);
             }
             catch (Exception ex)
             {
@@ -179,7 +173,6 @@ namespace Darklands.Core.Presentation.Presenters
         {
             try
             {
-                _logger.Debug("Refreshing grid display from application state");
 
                 var query = new GetGridStateQuery();
                 var result = await _mediator.Send(query);
@@ -195,6 +188,7 @@ namespace Darklands.Core.Presentation.Presenters
 
                         _logger.Information("Grid display refreshed successfully with {Width}x{Height} grid",
                             grid.Width, grid.Height);
+
                     },
                     Fail: error =>
                     {
@@ -220,7 +214,6 @@ namespace Darklands.Core.Presentation.Presenters
             try
             {
                 await View.UpdateTileAsync(position, tile);
-                _logger.Debug("Updated tile at position {Position}", position);
             }
             catch (Exception ex)
             {
@@ -233,7 +226,6 @@ namespace Darklands.Core.Presentation.Presenters
         /// </summary>
         public override void Dispose()
         {
-            _logger.Information("GridPresenter disposing and cleaning up resources");
             base.Dispose();
         }
     }
