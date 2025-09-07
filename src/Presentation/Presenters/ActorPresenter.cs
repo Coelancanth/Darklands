@@ -19,6 +19,7 @@ namespace Darklands.Core.Presentation.Presenters
         private readonly ILogger _logger;
         private readonly Application.Grid.Services.IGridStateService _gridStateService;
         private readonly Application.Actor.Services.IActorStateService _actorStateService;
+        private HealthPresenter? _healthPresenter;
 
         // For Phase 4 MVP - shared test player state
         public static Domain.Grid.ActorId? TestPlayerId { get; private set; }
@@ -40,6 +41,17 @@ namespace Darklands.Core.Presentation.Presenters
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _gridStateService = gridStateService ?? throw new ArgumentNullException(nameof(gridStateService));
             _actorStateService = actorStateService ?? throw new ArgumentNullException(nameof(actorStateService));
+        }
+
+        /// <summary>
+        /// Sets the health presenter for coordinated health bar updates.
+        /// Called by GameManager during MVP setup.
+        /// </summary>
+        /// <param name="healthPresenter">The health presenter to coordinate with</param>
+        public void SetHealthPresenter(HealthPresenter healthPresenter)
+        {
+            _healthPresenter = healthPresenter ?? throw new ArgumentNullException(nameof(healthPresenter));
+            _logger.Debug("ActorPresenter connected to HealthPresenter for coordinated updates");
         }
 
         /// <summary>
@@ -93,10 +105,22 @@ namespace Darklands.Core.Presentation.Presenters
                         var placeResult = _gridStateService.AddActorToGrid(actor.Id, startPosition);
                         if (placeResult.IsSucc)
                         {
-                            // Finally, display the actor visually (async but don't await)
+                            // Display the actor visually
                             _ = Task.Run(async () => await View.DisplayActorAsync(actor.Id, startPosition, ActorType.Player));
-                            _logger.Information("Test player actor created at position {Position} with ID {ActorId} and health {Health}",
-                                startPosition, actor.Id, actor.Health);
+
+                            // CRITICAL: Notify the health presenter to create a health bar for this actor
+                            if (_healthPresenter != null)
+                            {
+                                _ = Task.Run(async () => await _healthPresenter.HandleActorCreatedAsync(actor.Id, startPosition, actor.Health));
+                                _logger.Information("Test player actor created with health bar at position {Position} with ID {ActorId} and health {Health}",
+                                    startPosition, actor.Id, actor.Health);
+                            }
+                            else
+                            {
+                                _logger.Warning("HealthPresenter not connected - health bar will not be displayed for test player");
+                                _logger.Information("Test player actor created (no health bar) at position {Position} with ID {ActorId} and health {Health}",
+                                    startPosition, actor.Id, actor.Health);
+                            }
                         }
                         else
                         {
@@ -136,10 +160,17 @@ namespace Darklands.Core.Presentation.Presenters
                 // Update the actor's visual position
                 await View.MoveActorAsync(actorId, fromPosition, toPosition);
 
+                // CRITICAL: Also update the health bar position to follow the actor
+                if (_healthPresenter != null)
+                {
+                    await _healthPresenter.HandleActorMovedAsync(actorId, fromPosition, toPosition);
+                    _logger.Debug("Health bar position updated for actor {ActorId}", actorId);
+                }
+
                 // Show brief success feedback
                 await View.ShowActorFeedbackAsync(actorId, ActorFeedbackType.ActionSuccess, "Moved");
 
-                _logger.Debug("Successfully updated actor position for {ActorId}", actorId);
+                _logger.Debug("Successfully updated actor position and health bar for {ActorId}", actorId);
             }
             catch (Exception ex)
             {

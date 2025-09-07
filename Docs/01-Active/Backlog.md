@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-07 18:36
+**Last Updated**: 2025-09-07 19:22
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -75,12 +75,12 @@
 *Core features for current milestone, technical debt affecting velocity*
 
 
-### VS_010a: Actor Health System (Foundation) [Score: 90/100]
-**Status**: Phase 4 Implementation Complete - UI Display Issue (Debugger Expert, 2025-09-07 17:51)
+### VS_010a: Actor Health System (Foundation) [Score: 100/100]
+**Status**: Done (Debugger Expert, 2025-09-07 19:22)
 **Owner**: Debugger Expert
 **Size**: S (1 day implementation + debugging)
 **Priority**: Critical (Required for all combat)
-**Markers**: [ARCHITECTURE] [FOUNDATION] [DISPLAY-BUG]
+**Markers**: [ARCHITECTURE] [FOUNDATION] [COMPLETE]
 **Created**: 2025-09-07 16:13
 
 **What**: Add health/damage foundation to Actor domain model
@@ -104,7 +104,7 @@
 - ✅ Phase 1: Health domain model with validation (COMPLETE - commit 91b6273)
 - ✅ Phase 2: Damage/Heal commands process correctly (COMPLETE - commit d9a8b1b)
 - ✅ Phase 3: Actor state persists in service (COMPLETE - 2025-09-07 17:25)
-- 🟡 Phase 4: Health bars display in scene (IMPLEMENTATION COMPLETE - VISUAL ISSUE)
+- ✅ Phase 4: Health bars display in scene (COMPLETE - 2025-09-07 19:22)
 
 **Phase 1 Deliverables** (2025-09-07 17:05):
 - ✅ Health.cs - Immutable value object with validation
@@ -129,12 +129,20 @@
 - ✅ Functional error handling with LanguageExt v5 patterns
 - ✅ All 249 tests passing - Zero build warnings, complete DI resolution
 
-**Phase 4 Status** (2025-09-07 17:51):
-- ✅ Health bar UI components implemented and coordinated
-- ✅ All architecture connections established (presenters, views, commands)
-- ✅ Components initialize successfully with proper logging
-- ❌ Health bars not visually displaying despite successful initialization
-- 🔍 **DEBUGGING NEEDED**: UI rendering, deferred calls, or scene hierarchy issues
+**Phase 4 Completion Summary** (2025-09-07 19:22):
+- ✅ **RESOLVED**: Health bar display issue via presenter coordination pattern
+- ✅ Implemented SetHealthPresenter() coordination between ActorPresenter ↔ HealthPresenter
+- ✅ Fixed Godot node initialization (moved from constructor to _Ready())
+- ✅ Health bars now display with colors, numbers, and movement tracking
+- ✅ Added visual polish: background borders, dynamic colors, health text display
+- ✅ Created comprehensive post-mortem (PM_001) for architectural learning extraction
+
+**Final Implementation**:
+- Health bars display above actors with proper colors (Green/Yellow/Red)
+- Shows "current/maximum" text (e.g., "100/100") 
+- Tracks actor movement with synchronized positioning
+- Proper Godot lifecycle usage with scene tree integration
+- Cross-presenter coordination pattern established for future features
 
 **Depends On**: None (foundational)
 
@@ -143,13 +151,6 @@
 - Complexity: 3/10 - Standard domain modeling
 - Risk: Low - Well-understood pattern
 - Must complete before VS_010b and VS_010c
-
-**Debugger Expert Next Steps** (2025-09-07 17:51):
-- Investigate UI component visibility and rendering pipeline
-- Debug Godot scene hierarchy and node positioning
-- Check CallDeferred execution and thread-safe UI updates
-- Validate health bar node creation and parent-child relationships
-- Test scene loading order and timing dependencies
 
 ### VS_010b: Basic Melee Attack [Score: 85/100]
 **Status**: Ready for Dev ← SPLIT from VS_010 2025-09-07 16:13 (Tech Lead decision)

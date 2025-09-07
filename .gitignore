@@ -81,6 +81,9 @@ reports/
 # Log files
 scripts/doc_sync.log
 scripts/test_metrics.log
+# Application logs directory
+logs/
+*.log
 
 # Temporary system files
 nul
