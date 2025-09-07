@@ -75,7 +75,7 @@
 
 
 ### VS_010a: Actor Health System (Foundation)
-**Status**: Ready for Dev ← SPLIT from VS_010 2025-09-07 16:13 (Tech Lead decision)
+**Status**: Phase 1 Complete ✅ → Phase 2 In Progress (Dev Engineer, 2025-09-07 17:05)
 **Owner**: Dev Engineer
 **Size**: S (1 day)
 **Priority**: Critical (Required for all combat)
@@ -100,10 +100,18 @@
 - All health scenarios covered by tests
 
 **Acceptance by Phase**:
-- Phase 1: Health domain model with validation
-- Phase 2: Damage/Heal commands process correctly
+- ✅ Phase 1: Health domain model with validation (COMPLETE - commit 91b6273)
+- 🟡 Phase 2: Damage/Heal commands process correctly (IN PROGRESS)
 - Phase 3: Actor state persists in service
 - Phase 4: Health bars display in scene
+
+**Phase 1 Deliverables** (2025-09-07 17:05):
+- ✅ Health.cs - Immutable value object with validation
+- ✅ Actor.cs - Domain model with integrated health
+- ✅ DamageActorCommand & HealActorCommand created
+- ✅ Comprehensive unit tests (50+ test cases)
+- ✅ Zero build warnings, 232/233 tests passing
+- ✅ Expected MediatR test failure (handlers needed Phase 2)
 
 **Depends On**: None (foundational)
 

@@ -1,5 +1,7 @@
 using Darklands.Core.Application.Common;
 using Darklands.Core.Domain.Grid;
+using LanguageExt;
+using MediatR;
 
 namespace Darklands.Core.Application.Actor.Commands
 {
@@ -7,7 +9,7 @@ namespace Darklands.Core.Application.Actor.Commands
     /// Command to apply healing to an actor, restoring their health.
     /// Following TDD+VSA Comprehensive Development Workflow.
     /// </summary>
-    public sealed record HealActorCommand : ICommand
+    public sealed record HealActorCommand : ICommand, IRequest<Fin<LanguageExt.Unit>>
     {
         /// <summary>
         /// The unique identifier of the actor to heal.
