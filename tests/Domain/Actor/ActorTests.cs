@@ -12,7 +12,6 @@ namespace Darklands.Core.Tests.Domain.Actor
     public class ActorTests
     {
         private readonly ActorId _validActorId = ActorId.NewId();
-        private readonly Position _validPosition = new(5, 5);
         private readonly Health _validHealth = Health.CreateAtFullHealth(100).Match(
             Succ: h => h,
             Fail: _ => throw new InvalidOperationException("Test setup failed")
@@ -21,8 +20,8 @@ namespace Darklands.Core.Tests.Domain.Actor
         [Fact]
         public void Create_ValidParameters_ReturnsSuccess()
         {
-            // Act
-            var result = Darklands.Core.Domain.Actor.Actor.Create(_validActorId, _validPosition, _validHealth, "Test Actor");
+            // Act - Position now managed separately by GridStateService
+            var result = Darklands.Core.Domain.Actor.Actor.Create(_validActorId, _validHealth, "Test Actor");
 
             // Assert
             result.IsSucc.Should().BeTrue();
@@ -30,7 +29,6 @@ namespace Darklands.Core.Tests.Domain.Actor
                 Succ: actor =>
                 {
                     actor.Id.Should().Be(_validActorId);
-                    actor.Position.Should().Be(_validPosition);
                     actor.Health.Should().Be(_validHealth);
                     actor.Name.Should().Be("Test Actor");
                     actor.IsAlive.Should().BeTrue();
@@ -45,8 +43,8 @@ namespace Darklands.Core.Tests.Domain.Actor
         [InlineData((string?)null)]
         public void Create_InvalidName_ReturnsError(string? invalidName)
         {
-            // Act
-            var result = Darklands.Core.Domain.Actor.Actor.Create(_validActorId, _validPosition, _validHealth, invalidName!);
+            // Act - Position removed from Actor.Create signature
+            var result = Darklands.Core.Domain.Actor.Actor.Create(_validActorId, _validHealth, invalidName!);
 
             // Assert
             result.IsFail.Should().BeTrue();
@@ -60,7 +58,7 @@ namespace Darklands.Core.Tests.Domain.Actor
         public void Create_EmptyActorId_ReturnsError()
         {
             // Act
-            var result = Darklands.Core.Domain.Actor.Actor.Create(ActorId.Empty, _validPosition, _validHealth, "Test Actor");
+            var result = Darklands.Core.Domain.Actor.Actor.Create(ActorId.Empty, _validHealth, "Test Actor");
 
             // Assert
             result.IsFail.Should().BeTrue();
@@ -74,7 +72,7 @@ namespace Darklands.Core.Tests.Domain.Actor
         public void Create_NameWithWhitespace_TrimsCorrectly()
         {
             // Act
-            var result = Darklands.Core.Domain.Actor.Actor.Create(_validActorId, _validPosition, _validHealth, "  Test Actor  ");
+            var result = Darklands.Core.Domain.Actor.Actor.Create(_validActorId, _validHealth, "  Test Actor  ");
 
             // Assert
             result.IsSucc.Should().BeTrue();
@@ -88,7 +86,7 @@ namespace Darklands.Core.Tests.Domain.Actor
         public void CreateAtFullHealth_ValidParameters_ReturnsActorAtFullHealth()
         {
             // Act
-            var result = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, _validPosition, 80, "Rogue");
+            var result = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, 80, "Rogue");
 
             // Assert
             result.IsSucc.Should().BeTrue();
@@ -109,7 +107,7 @@ namespace Darklands.Core.Tests.Domain.Actor
         public void CreateAtFullHealth_InvalidMaxHealth_ReturnsError()
         {
             // Act
-            var result = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, _validPosition, -10, "Invalid Actor");
+            var result = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, -10, "Invalid Actor");
 
             // Assert
             result.IsFail.Should().BeTrue();
@@ -119,31 +117,13 @@ namespace Darklands.Core.Tests.Domain.Actor
             );
         }
 
-        [Fact]
-        public void MoveTo_ValidPosition_UpdatesPosition()
-        {
-            // Arrange
-            var actor = Darklands.Core.Domain.Actor.Actor.Create(_validActorId, _validPosition, _validHealth, "Test Actor").Match(
-                Succ: a => a,
-                Fail: _ => throw new InvalidOperationException("Test setup failed")
-            );
-            var newPosition = new Position(10, 15);
-
-            // Act
-            var result = actor.MoveTo(newPosition);
-
-            // Assert
-            result.Position.Should().Be(newPosition);
-            result.Id.Should().Be(_validActorId); // Other properties unchanged
-            result.Health.Should().Be(_validHealth);
-            result.Name.Should().Be("Test Actor");
-        }
+        // MoveTo test removed - Position now managed by GridStateService, not Actor domain model
 
         [Fact]
         public void TakeDamage_ValidDamage_UpdatesHealthCorrectly()
         {
             // Arrange
-            var actor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, _validPosition, 100, "Test Actor").Match(
+            var actor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, 100, "Test Actor").Match(
                 Succ: a => a,
                 Fail: _ => throw new InvalidOperationException("Test setup failed")
             );
@@ -169,7 +149,7 @@ namespace Darklands.Core.Tests.Domain.Actor
         public void TakeDamage_LethalDamage_SetsActorToDead()
         {
             // Arrange
-            var actor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, _validPosition, 50, "Test Actor").Match(
+            var actor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, 50, "Test Actor").Match(
                 Succ: a => a,
                 Fail: _ => throw new InvalidOperationException("Test setup failed")
             );
@@ -194,7 +174,7 @@ namespace Darklands.Core.Tests.Domain.Actor
         public void TakeDamage_InvalidDamage_ReturnsError()
         {
             // Arrange
-            var actor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, _validPosition, 100, "Test Actor").Match(
+            var actor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, 100, "Test Actor").Match(
                 Succ: a => a,
                 Fail: _ => throw new InvalidOperationException("Test setup failed")
             );
@@ -218,7 +198,7 @@ namespace Darklands.Core.Tests.Domain.Actor
                 Succ: h => h,
                 Fail: _ => throw new InvalidOperationException("Test setup failed")
             );
-            var actor = Darklands.Core.Domain.Actor.Actor.Create(_validActorId, _validPosition, damagedHealth, "Test Actor").Match(
+            var actor = Darklands.Core.Domain.Actor.Actor.Create(_validActorId, damagedHealth, "Test Actor").Match(
                 Succ: a => a,
                 Fail: _ => throw new InvalidOperationException("Test setup failed")
             );
@@ -247,7 +227,7 @@ namespace Darklands.Core.Tests.Domain.Actor
                 Succ: h => h,
                 Fail: _ => throw new InvalidOperationException("Test setup failed")
             );
-            var actor = Darklands.Core.Domain.Actor.Actor.Create(_validActorId, _validPosition, damagedHealth, "Test Actor").Match(
+            var actor = Darklands.Core.Domain.Actor.Actor.Create(_validActorId, damagedHealth, "Test Actor").Match(
                 Succ: a => a,
                 Fail: _ => throw new InvalidOperationException("Test setup failed")
             );
@@ -275,7 +255,7 @@ namespace Darklands.Core.Tests.Domain.Actor
                 Succ: h => h,
                 Fail: _ => throw new InvalidOperationException("Test setup failed")
             );
-            var actor = Darklands.Core.Domain.Actor.Actor.Create(_validActorId, _validPosition, damagedHealth, "Test Actor").Match(
+            var actor = Darklands.Core.Domain.Actor.Actor.Create(_validActorId, damagedHealth, "Test Actor").Match(
                 Succ: a => a,
                 Fail: _ => throw new InvalidOperationException("Test setup failed")
             );
@@ -294,7 +274,7 @@ namespace Darklands.Core.Tests.Domain.Actor
         public void SetToDead_LivingActor_SetsToDead()
         {
             // Arrange
-            var actor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, _validPosition, 100, "Test Actor").Match(
+            var actor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, 100, "Test Actor").Match(
                 Succ: a => a,
                 Fail: _ => throw new InvalidOperationException("Test setup failed")
             );
@@ -319,7 +299,7 @@ namespace Darklands.Core.Tests.Domain.Actor
                 Succ: h => h,
                 Fail: _ => throw new InvalidOperationException("Test setup failed")
             );
-            var actor = Darklands.Core.Domain.Actor.Actor.Create(_validActorId, _validPosition, health, "Test Actor").Match(
+            var actor = Darklands.Core.Domain.Actor.Actor.Create(_validActorId, health, "Test Actor").Match(
                 Succ: a => a,
                 Fail: _ => throw new InvalidOperationException("Test setup failed")
             );
@@ -332,7 +312,7 @@ namespace Darklands.Core.Tests.Domain.Actor
         public void Presets_CreateWarrior_ReturnsCorrectWarrior()
         {
             // Act
-            var result = Darklands.Core.Domain.Actor.Actor.Presets.CreateWarrior(_validPosition, "Custom Warrior");
+            var result = Darklands.Core.Domain.Actor.Actor.Presets.CreateWarrior("Custom Warrior");
 
             // Assert
             result.IsSucc.Should().BeTrue();
@@ -341,7 +321,6 @@ namespace Darklands.Core.Tests.Domain.Actor
                 {
                     warrior.Health.Maximum.Should().Be(100);
                     warrior.Health.IsFullHealth.Should().BeTrue();
-                    warrior.Position.Should().Be(_validPosition);
                     warrior.Name.Should().Be("Custom Warrior");
                     warrior.IsAlive.Should().BeTrue();
                 },
@@ -353,7 +332,7 @@ namespace Darklands.Core.Tests.Domain.Actor
         public void Presets_CreateMage_ReturnsCorrectMage()
         {
             // Act
-            var result = Darklands.Core.Domain.Actor.Actor.Presets.CreateMage(_validPosition);
+            var result = Darklands.Core.Domain.Actor.Actor.Presets.CreateMage();
 
             // Assert
             result.IsSucc.Should().BeTrue();
@@ -372,7 +351,7 @@ namespace Darklands.Core.Tests.Domain.Actor
         public void ToString_ValidActor_ReturnsCorrectFormat()
         {
             // Arrange
-            var actor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, _validPosition, 100, "Hero").Match(
+            var actor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, 100, "Hero").Match(
                 Succ: a => a,
                 Fail: _ => throw new InvalidOperationException("Test setup failed")
             );
@@ -381,7 +360,7 @@ namespace Darklands.Core.Tests.Domain.Actor
             var result = actor.ToString();
 
             // Assert
-            result.Should().Be("Hero at (5, 5) (Health(100/100))");
+            result.Should().Be("Hero (Health(100/100))");
         }
     }
 }

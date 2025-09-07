@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using Darklands.Core.Application.Actor.Services;
+using Darklands.Core.Application.Combat.Services;
 using Darklands.Core.Domain.Grid;
 using Darklands.Core.Domain.Actor;
 using Darklands.Core.Presentation.Views;
@@ -20,6 +21,7 @@ namespace Darklands.Core.Presentation.Presenters
         private readonly IMediator _mediator;
         private readonly ILogger _logger;
         private readonly IActorStateService _actorStateService;
+        private readonly ICombatQueryService _combatQueryService;
 
         /// <summary>
         /// Creates a new HealthPresenter with the specified dependencies.
@@ -28,12 +30,14 @@ namespace Darklands.Core.Presentation.Presenters
         /// <param name="mediator">MediatR instance for sending commands and queries</param>
         /// <param name="logger">Logger for tracking health operations</param>
         /// <param name="actorStateService">Actor state service for health data access</param>
-        public HealthPresenter(IHealthView view, IMediator mediator, ILogger logger, IActorStateService actorStateService)
+        /// <param name="combatQueryService">Combat query service for composite actor and position data</param>
+        public HealthPresenter(IHealthView view, IMediator mediator, ILogger logger, IActorStateService actorStateService, ICombatQueryService combatQueryService)
             : base(view)
         {
             _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _actorStateService = actorStateService ?? throw new ArgumentNullException(nameof(actorStateService));
+            _combatQueryService = combatQueryService ?? throw new ArgumentNullException(nameof(combatQueryService));
         }
 
         /// <summary>
@@ -70,17 +74,17 @@ namespace Darklands.Core.Presentation.Presenters
                 // For Phase 4, check if test player exists and show its health
                 if (ActorPresenter.TestPlayerId.HasValue)
                 {
-                    var actorOption = _actorStateService.GetActor(ActorPresenter.TestPlayerId.Value);
-                    await actorOption.Match(
-                        Some: async actor =>
+                    var actorWithPositionOption = _combatQueryService.GetActorWithPosition(ActorPresenter.TestPlayerId.Value);
+                    await actorWithPositionOption.Match(
+                        Some: async actorWithPosition =>
                         {
-                            await View.DisplayHealthBarAsync(actor.Id, actor.Position, actor.Health);
-                            _logger.Information("Health bar displayed for test player {ActorId} with health {Health}",
-                                actor.Id, actor.Health);
+                            await View.DisplayHealthBarAsync(actorWithPosition.Id, actorWithPosition.Position, actorWithPosition.Actor.Health);
+                            _logger.Information("Health bar displayed for test player {ActorId} with health {Health} at position {Position}",
+                                actorWithPosition.Id, actorWithPosition.Actor.Health, actorWithPosition.Position);
                         },
                         None: () =>
                         {
-                            _logger.Warning("Test player exists but not found in actor state service");
+                            _logger.Warning("Test player exists but not found in combined actor/position service");
                             return Task.CompletedTask;
                         }
                     );
@@ -114,22 +118,22 @@ namespace Darklands.Core.Presentation.Presenters
                 {
                     // Damage was taken
                     var damage = oldHealth.Current - newHealth.Current;
-                    var actorOption = _actorStateService.GetActor(actorId);
-                    await actorOption.Match(
-                        Some: async actor =>
+                    var actorWithPositionOption = _combatQueryService.GetActorWithPosition(actorId);
+                    await actorWithPositionOption.Match(
+                        Some: async actorWithPosition =>
                         {
-                            await View.ShowHealthFeedbackAsync(actorId, HealthFeedbackType.Damage, damage, actor.Position);
+                            await View.ShowHealthFeedbackAsync(actorId, HealthFeedbackType.Damage, damage, actorWithPosition.Position);
 
                             // Check for critical health or death
                             if (newHealth.IsDead)
                             {
-                                await View.ShowHealthFeedbackAsync(actorId, HealthFeedbackType.Death, 0, actor.Position);
+                                await View.ShowHealthFeedbackAsync(actorId, HealthFeedbackType.Death, 0, actorWithPosition.Position);
                                 _logger.Information("Actor {ActorId} died from health change", actorId);
                             }
                             else if (newHealth.HealthPercentage <= 0.25) // Critical at 25% health
                             {
                                 await View.HighlightHealthBarAsync(actorId, HealthHighlightType.Critical);
-                                await View.ShowHealthFeedbackAsync(actorId, HealthFeedbackType.CriticalHealth, 0, actor.Position);
+                                await View.ShowHealthFeedbackAsync(actorId, HealthFeedbackType.CriticalHealth, 0, actorWithPosition.Position);
                                 _logger.Warning("Actor {ActorId} is at critical health: {Health}", actorId, newHealth);
                             }
                         },
@@ -144,11 +148,11 @@ namespace Darklands.Core.Presentation.Presenters
                 {
                     // Healing was applied
                     var healing = newHealth.Current - oldHealth.Current;
-                    var actorOption = _actorStateService.GetActor(actorId);
-                    await actorOption.Match(
-                        Some: async actor =>
+                    var actorWithPositionOption = _combatQueryService.GetActorWithPosition(actorId);
+                    await actorWithPositionOption.Match(
+                        Some: async actorWithPosition =>
                         {
-                            await View.ShowHealthFeedbackAsync(actorId, HealthFeedbackType.Healing, healing, actor.Position);
+                            await View.ShowHealthFeedbackAsync(actorId, HealthFeedbackType.Healing, healing, actorWithPosition.Position);
 
                             // Remove critical highlighting if healed above 25%
                             if (oldHealth.HealthPercentage <= 0.25 && newHealth.HealthPercentage > 0.25)
@@ -159,7 +163,7 @@ namespace Darklands.Core.Presentation.Presenters
                             // Show full restore effect if fully healed
                             if (newHealth.IsFullHealth && !oldHealth.IsFullHealth)
                             {
-                                await View.ShowHealthFeedbackAsync(actorId, HealthFeedbackType.FullRestore, 0, actor.Position);
+                                await View.ShowHealthFeedbackAsync(actorId, HealthFeedbackType.FullRestore, 0, actorWithPosition.Position);
                             }
                         },
                         None: () =>

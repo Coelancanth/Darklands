@@ -78,8 +78,8 @@ namespace Darklands.Core.Presentation.Presenters
                 TestPlayerId = Domain.Grid.ActorId.NewId();
                 var startPosition = new Domain.Grid.Position(0, 0);
 
-                // Create a full Actor with health data using domain factory
-                var actorResult = Domain.Actor.Actor.CreateAtFullHealth(TestPlayerId.Value, startPosition, 100, "Test Player");
+                // Create a full Actor with health data using domain factory (position handled separately)
+                var actorResult = Domain.Actor.Actor.CreateAtFullHealth(TestPlayerId.Value, 100, "Test Player");
 
                 if (actorResult.IsSucc)
                 {
@@ -89,14 +89,14 @@ namespace Darklands.Core.Presentation.Presenters
                     var addResult = _actorStateService.AddActor(actor);
                     if (addResult.IsSucc)
                     {
-                        // Then, place the actor on the grid (for positioning)
-                        var placeResult = _gridStateService.MoveActor(actor.Id, actor.Position);
+                        // Then, place the actor on the grid at the start position
+                        var placeResult = _gridStateService.AddActorToGrid(actor.Id, startPosition);
                         if (placeResult.IsSucc)
                         {
                             // Finally, display the actor visually (async but don't await)
-                            _ = Task.Run(async () => await View.DisplayActorAsync(actor.Id, actor.Position, ActorType.Player));
+                            _ = Task.Run(async () => await View.DisplayActorAsync(actor.Id, startPosition, ActorType.Player));
                             _logger.Information("Test player actor created at position {Position} with ID {ActorId} and health {Health}",
-                                actor.Position, actor.Id, actor.Health);
+                                startPosition, actor.Id, actor.Health);
                         }
                         else
                         {

@@ -192,10 +192,11 @@ namespace Darklands
                 var mediator = _serviceProvider.GetRequiredService<IMediator>();
                 var gridStateService = _serviceProvider.GetRequiredService<Darklands.Core.Application.Grid.Services.IGridStateService>();
                 var actorStateService = _serviceProvider.GetRequiredService<Darklands.Core.Application.Actor.Services.IActorStateService>();
+                var combatQueryService = _serviceProvider.GetRequiredService<Darklands.Core.Application.Combat.Services.ICombatQueryService>();
                 
                 _gridPresenter = new GridPresenter(_gridView!, mediator, _logger!, gridStateService);
                 _actorPresenter = new ActorPresenter(_actorView!, mediator, _logger!, gridStateService, actorStateService);
-                _healthPresenter = new HealthPresenter(_healthView!, mediator, _logger!, actorStateService);
+                _healthPresenter = new HealthPresenter(_healthView!, mediator, _logger!, actorStateService, combatQueryService);
 
                 // Connect views to presenters
                 _gridView!.SetPresenter(_gridPresenter);

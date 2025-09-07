@@ -64,7 +64,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
         public async Task Handle_ValidDamage_ReturnsSuccess()
         {
             // Arrange
-            var testActor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, new Position(5, 5), 100, "Test Warrior").Match(
+            var testActor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, 100, "Test Warrior").Match(
                 Succ: a => a,
                 Fail: _ => throw new InvalidOperationException("Test setup failed")
             );
@@ -103,7 +103,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
         public async Task Handle_NegativeDamage_ReturnsError()
         {
             // Arrange
-            var testActor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, new Position(5, 5), 100, "Test Warrior").Match(
+            var testActor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, 100, "Test Warrior").Match(
                 Succ: a => a,
                 Fail: _ => throw new InvalidOperationException("Test setup failed")
             );
@@ -127,7 +127,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
         public async Task Handle_ServiceDamageFailure_ReturnsError()
         {
             // Arrange
-            var testActor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, new Position(5, 5), 100, "Test Warrior").Match(
+            var testActor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, 100, "Test Warrior").Match(
                 Succ: a => a,
                 Fail: _ => throw new InvalidOperationException("Test setup failed")
             );
@@ -151,7 +151,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
         public async Task Handle_ZeroDamage_ReturnsSuccess()
         {
             // Arrange
-            var testActor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, new Position(5, 5), 100, "Test Warrior").Match(
+            var testActor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, 100, "Test Warrior").Match(
                 Succ: a => a,
                 Fail: _ => throw new InvalidOperationException("Test setup failed")
             );
@@ -171,7 +171,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
         public async Task Handle_LethalDamage_ReturnsSuccess()
         {
             // Arrange - Create actor with low health
-            var lowHealthActor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, new Position(5, 5), 10, "Weak Actor").Match(
+            var lowHealthActor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, 10, "Weak Actor").Match(
                 Succ: a => a,
                 Fail: _ => throw new InvalidOperationException("Test setup failed")
             );
@@ -191,7 +191,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
         public async Task Handle_WithSource_ProcessesCorrectly()
         {
             // Arrange
-            var testActor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, new Position(5, 5), 100, "Test Warrior").Match(
+            var testActor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, 100, "Test Warrior").Match(
                 Succ: a => a,
                 Fail: _ => throw new InvalidOperationException("Test setup failed")
             );

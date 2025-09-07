@@ -64,7 +64,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
         public async Task Handle_ValidHealing_ReturnsSuccess()
         {
             // Arrange - Create damaged actor
-            var damagedActor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, new Position(5, 5), 100, "Damaged Warrior").Match(
+            var damagedActor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, 100, "Damaged Warrior").Match(
                 Succ: a => a.TakeDamage(30).Match(Succ: damaged => damaged, Fail: _ => throw new InvalidOperationException()),
                 Fail: _ => throw new InvalidOperationException("Test setup failed")
             );
@@ -103,7 +103,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
         public async Task Handle_NegativeHealAmount_ReturnsError()
         {
             // Arrange
-            var testActor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, new Position(5, 5), 100, "Test Warrior").Match(
+            var testActor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, 100, "Test Warrior").Match(
                 Succ: a => a,
                 Fail: _ => throw new InvalidOperationException("Test setup failed")
             );
@@ -127,7 +127,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
         public async Task Handle_DeadActor_ReturnsError()
         {
             // Arrange - Create dead actor
-            var deadActor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, new Position(5, 5), 100, "Dead Warrior").Match(
+            var deadActor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, 100, "Dead Warrior").Match(
                 Succ: a => a.SetToDead(),
                 Fail: _ => throw new InvalidOperationException("Test setup failed")
             );
@@ -151,7 +151,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
         public async Task Handle_ServiceHealFailure_ReturnsError()
         {
             // Arrange
-            var testActor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, new Position(5, 5), 100, "Test Warrior").Match(
+            var testActor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, 100, "Test Warrior").Match(
                 Succ: a => a,
                 Fail: _ => throw new InvalidOperationException("Test setup failed")
             );
@@ -175,7 +175,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
         public async Task Handle_ZeroHealing_ReturnsSuccess()
         {
             // Arrange
-            var testActor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, new Position(5, 5), 100, "Test Warrior").Match(
+            var testActor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, 100, "Test Warrior").Match(
                 Succ: a => a,
                 Fail: _ => throw new InvalidOperationException("Test setup failed")
             );
@@ -195,7 +195,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
         public async Task Handle_FullHealthActor_ReturnsSuccess()
         {
             // Arrange - Actor already at full health
-            var fullHealthActor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, new Position(5, 5), 100, "Healthy Warrior").Match(
+            var fullHealthActor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, 100, "Healthy Warrior").Match(
                 Succ: a => a,
                 Fail: _ => throw new InvalidOperationException("Test setup failed")
             );
@@ -215,7 +215,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
         public async Task Handle_WithSource_ProcessesCorrectly()
         {
             // Arrange - Damaged actor
-            var damagedActor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, new Position(5, 5), 100, "Injured Warrior").Match(
+            var damagedActor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, 100, "Injured Warrior").Match(
                 Succ: a => a.TakeDamage(40).Match(Succ: damaged => damaged, Fail: _ => throw new InvalidOperationException()),
                 Fail: _ => throw new InvalidOperationException("Test setup failed")
             );
@@ -235,7 +235,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
         public async Task Handle_CriticallyDamagedActor_HealsCorrectly()
         {
             // Arrange - Actor with 1 health remaining
-            var criticalActor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, new Position(5, 5), 100, "Critical Warrior").Match(
+            var criticalActor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, 100, "Critical Warrior").Match(
                 Succ: a => a.TakeDamage(99).Match(Succ: damaged => damaged, Fail: _ => throw new InvalidOperationException()),
                 Fail: _ => throw new InvalidOperationException("Test setup failed")
             );

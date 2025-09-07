@@ -7,7 +7,8 @@ namespace Darklands.Core.Domain.Actor
 {
     /// <summary>
     /// Represents a combat actor (player, NPC, creature) in the tactical combat system.
-    /// Immutable value object that encapsulates actor state including health and position.
+    /// Immutable value object that encapsulates actor state including health and combat attributes.
+    /// Position is managed separately by GridStateService to maintain Single Source of Truth.
     /// </summary>
     public sealed record Actor
     {
@@ -15,11 +16,6 @@ namespace Darklands.Core.Domain.Actor
         /// Unique identifier for this actor.
         /// </summary>
         public ActorId Id { get; init; }
-
-        /// <summary>
-        /// Current position on the combat grid.
-        /// </summary>
-        public Position Position { get; init; }
 
         /// <summary>
         /// Current health state of the actor.
@@ -39,23 +35,22 @@ namespace Darklands.Core.Domain.Actor
         /// <summary>
         /// Private constructor to enforce factory method usage.
         /// </summary>
-        private Actor(ActorId id, Position position, Health health, string name)
+        private Actor(ActorId id, Health health, string name)
         {
             Id = id;
-            Position = position;
             Health = health;
             Name = name;
         }
 
         /// <summary>
         /// Creates a new Actor with validation.
+        /// Position is managed separately by GridStateService.
         /// </summary>
         /// <param name="id">Unique actor identifier</param>
-        /// <param name="position">Initial position on the grid</param>
         /// <param name="health">Initial health state</param>
         /// <param name="name">Actor name (cannot be empty)</param>
         /// <returns>Valid Actor instance or validation error</returns>
-        public static Fin<Actor> Create(ActorId id, Position position, Health health, string name)
+        public static Fin<Actor> Create(ActorId id, Health health, string name)
         {
             if (string.IsNullOrWhiteSpace(name))
                 return Error.New("INVALID_ACTOR: Actor name cannot be empty or whitespace");
@@ -63,29 +58,22 @@ namespace Darklands.Core.Domain.Actor
             if (id.IsEmpty)
                 return Error.New("INVALID_ACTOR: Actor ID cannot be empty");
 
-            return new Actor(id, position, health, name.Trim());
+            return new Actor(id, health, name.Trim());
         }
 
         /// <summary>
         /// Creates a new Actor at full health.
+        /// Position is managed separately by GridStateService.
         /// </summary>
         /// <param name="id">Unique actor identifier</param>
-        /// <param name="position">Initial position on the grid</param>
         /// <param name="maxHealth">Maximum health points</param>
         /// <param name="name">Actor name</param>
         /// <returns>Actor at full health or validation error</returns>
-        public static Fin<Actor> CreateAtFullHealth(ActorId id, Position position, int maxHealth, string name) =>
+        public static Fin<Actor> CreateAtFullHealth(ActorId id, int maxHealth, string name) =>
             from health in Health.CreateAtFullHealth(maxHealth)
-            from actor in Create(id, position, health, name)
+            from actor in Create(id, health, name)
             select actor;
 
-        /// <summary>
-        /// Moves this actor to a new position.
-        /// </summary>
-        /// <param name="newPosition">Target position</param>
-        /// <returns>New Actor instance at the target position</returns>
-        public Actor MoveTo(Position newPosition) =>
-            this with { Position = newPosition };
 
         /// <summary>
         /// Applies damage to this actor.
@@ -121,22 +109,23 @@ namespace Darklands.Core.Domain.Actor
 
         /// <summary>
         /// Common actor presets for testing and common scenarios.
+        /// Position must be set separately via GridStateService.
         /// </summary>
         public static class Presets
         {
-            public static Fin<Actor> CreateWarrior(Position position, string name = "Warrior") =>
-                CreateAtFullHealth(ActorId.NewId(), position, 100, name);
+            public static Fin<Actor> CreateWarrior(string name = "Warrior") =>
+                CreateAtFullHealth(ActorId.NewId(), 100, name);
 
-            public static Fin<Actor> CreateMage(Position position, string name = "Mage") =>
-                CreateAtFullHealth(ActorId.NewId(), position, 60, name);
+            public static Fin<Actor> CreateMage(string name = "Mage") =>
+                CreateAtFullHealth(ActorId.NewId(), 60, name);
 
-            public static Fin<Actor> CreateRogue(Position position, string name = "Rogue") =>
-                CreateAtFullHealth(ActorId.NewId(), position, 80, name);
+            public static Fin<Actor> CreateRogue(string name = "Rogue") =>
+                CreateAtFullHealth(ActorId.NewId(), 80, name);
 
-            public static Fin<Actor> CreatePlayer(Position position, string name = "Player") =>
-                CreateAtFullHealth(ActorId.NewId(), position, 100, name);
+            public static Fin<Actor> CreatePlayer(string name = "Player") =>
+                CreateAtFullHealth(ActorId.NewId(), 100, name);
         }
 
-        public override string ToString() => $"{Name} at {Position} ({Health})";
+        public override string ToString() => $"{Name} ({Health})";
     }
 }

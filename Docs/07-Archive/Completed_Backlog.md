@@ -862,4 +862,72 @@ res://scenes/combat_scene.tscn
 - [ ] Test pattern: Performance testing with 1500+ entities
 - [ ] Architecture pattern: Deterministic tie-breaking with Guid comparison
 
+### TD_009: Remove Position from Actor Domain Model [ARCHITECTURE] 
+**Extraction Status**: NOT EXTRACTED ⚠️
+**Completed**: 2025-09-07
+**Archive Note**: Successfully implemented clean architecture separation - removed Actor.Position, created ICombatQueryService, all 249 tests passing
+---
+### TD_009: Remove Position from Actor Domain Model [ARCHITECTURE]
+**Status**: Done (completed 2025-09-07)
+**Owner**: Dev Engineer (completed)
+**Complexity**: 6/10 (Touches multiple layers)
+**Size**: M (4-6 hours)
+**Priority**: 🔥 Critical (Blocks VS_010b - attack needs correct position lookups)
+**Markers**: [ARCHITECTURE] [SSOT] [REFACTOR]
+**Created**: 2025-09-07 18:05
+
+**Problem Statement**:
+Actor domain model contains Position property, creating duplicate state across three locations:
+- Actor.Position property (domain model)
+- GridStateService._actorPositions dictionary
+- ActorStateService._actors (contains Actor with Position)
+
+This violates Single Source of Truth and WILL cause synchronization bugs where actors appear in wrong positions.
+
+**Root Cause Analysis**:
+- Domain model pollution: Actor knows about grid positions (violates SRP)
+- No clear ownership: Position data exists in multiple services
+- Synchronization nightmare: Moving requires updating 3 different states
+
+**Solution - Hybrid SSOT Architecture**:
+1. **Remove Position from Actor domain model** - Actor focuses only on health/combat stats
+2. **GridStateService owns positions** - Single source of truth for all position data
+3. **ActorStateService owns actor properties** - Single source of truth for health/stats
+4. **Create CombatQueryService** - Composes data from both services when needed
+
+**Implementation Steps**:
+- Phase 1: Remove Position property and MoveTo() method from Actor.cs
+- Phase 2: Update InMemoryActorStateService to store position-less Actors
+- Phase 3: Ensure GridStateService is sole authority for positions
+- Phase 4: Create ICombatQueryService for composite queries
+- Phase 5: Update all commands/handlers to use correct service
+- Phase 6: Update presenters to query from appropriate services
+
+**Completed Work**:
+- ✅ Removed Position property from Actor domain model
+- ✅ Updated all factory methods to remove position parameters
+- ✅ Created ICombatQueryService for composite queries  
+- ✅ Updated all presenters to use appropriate services
+- ✅ Updated all tests to work with new architecture
+- ✅ All 249 tests now passing with clean architecture
+
+**Acceptance Criteria**:
+- ✅ Actor domain model has no Position property
+- ✅ GridStateService is only source for position queries
+- ✅ ActorStateService is only source for health/stat queries
+- ✅ All existing tests pass with refactored architecture
+- ✅ No duplicate position state anywhere in codebase
+
+**Tech Lead Decision** (2025-09-07 18:05):
+- **Approved for immediate implementation after VS_010a UI fix**
+- Risk: HIGH if not fixed - will cause position desync bugs
+- Pattern: Follows clean architecture separation of concerns
+- Blocks: VS_010b requires correct position lookups for adjacency checks
+---
+**Extraction Targets**:
+- [ ] ADR needed for: Single Source of Truth (SSOT) architecture patterns for domain separation
+- [ ] HANDBOOK update: Clean Architecture service separation patterns (domain vs infrastructure concerns)
+- [ ] Test pattern: Architecture refactoring validation with comprehensive test coverage
+- [ ] Architecture pattern: Composite query service design for cross-cutting data needs
+
 ]

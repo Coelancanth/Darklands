@@ -7,6 +7,7 @@ using Darklands.Core.Application.Grid.Services;
 using Darklands.Core.Domain.Grid;
 using Serilog;
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using static LanguageExt.Prelude;
@@ -40,6 +41,12 @@ namespace Darklands.Core.Tests.Application.Grid.Commands
             public Fin<Darklands.Core.Domain.Grid.Grid> GetCurrentGrid() => throw new NotImplementedException();
             public bool IsValidPosition(Position position) => true;
             public bool IsPositionEmpty(Position position) => true;
+            
+            // TD_009: New interface methods for SSOT architecture
+            public Fin<Unit> AddActorToGrid(ActorId actorId, Position position) => FinSucc(Unit.Default);
+            public Fin<Unit> RemoveActorFromGrid(ActorId actorId) => FinSucc(Unit.Default);
+            public IReadOnlyDictionary<ActorId, Position> GetAllActorPositions() => 
+                new Dictionary<ActorId, Position>();
         }
 
         [Fact]

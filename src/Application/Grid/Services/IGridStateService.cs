@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using LanguageExt;
 using Darklands.Core.Domain.Grid;
 
@@ -39,5 +40,23 @@ namespace Darklands.Core.Application.Grid.Services
         /// Validates if a move from one position to another is legal.
         /// </summary>
         Fin<Unit> ValidateMove(Position fromPosition, Position toPosition);
+
+        /// <summary>
+        /// Adds a new actor to the grid at the specified position.
+        /// This establishes the actor's position in the grid state.
+        /// </summary>
+        Fin<Unit> AddActorToGrid(ActorId actorId, Position position);
+
+        /// <summary>
+        /// Removes an actor from the grid state.
+        /// Used when actors are destroyed or leave combat.
+        /// </summary>
+        Fin<Unit> RemoveActorFromGrid(ActorId actorId);
+
+        /// <summary>
+        /// Gets all actors currently positioned on the grid.
+        /// Returns a dictionary mapping ActorId to Position for composite queries.
+        /// </summary>
+        IReadOnlyDictionary<ActorId, Position> GetAllActorPositions();
     }
 }
