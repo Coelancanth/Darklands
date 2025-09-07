@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-07 12:41
+**Last Updated**: 2025-09-07 14:33
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 001
-- **Next TD**: 007  
+- **Next TD**: 010  
 - **Next VS**: 009 
 
 
@@ -68,97 +68,63 @@
 ## 🔥 Critical (Do First)
 *Blockers preventing other work, production bugs, dependencies for other features*
 
+### TD_007: Presenter Wiring Verification Protocol [ARCHITECTURE] [Score: 70/100]
+**Status**: Proposed ← CREATED 2025-09-07 13:36 (Post-mortem learning)
+**Owner**: Tech Lead (Architecture decision needed)
+**Size**: M (4-6h including tests and documentation)
+**Priority**: Critical (Prevents future 2+ hour debugging sessions)
+**Markers**: [ARCHITECTURE] [TESTING] [POST-MORTEM-ACTION]
+**Created**: 2025-09-07 13:36
 
+**What**: Establish mandatory wiring verification protocol for all presenter connections
+**Why**: TD_005 post-mortem revealed 2-hour debug caused by missing GridPresenter→ActorPresenter wiring
 
+**Problem Statement** (from Post-Mortem lines 58-64):
+- GridPresenter wasn't calling ActorPresenter.HandleActorMovedAsync()
+- Silent failure - no compile error, no runtime error, just missing behavior
+- Manual wiring in GameManager is error-prone and untested
 
-### VS_008: Grid Scene and Player Sprite (Phase 4 - Presentation) [Score: 85/100]
+**Proposed Solution**:
+1. **Mandatory Wiring Tests**: Every presenter pair MUST have wiring verification tests
+2. **Compile-Time Safety**: Consider IPresenterCoordinator interface for type-safe wiring
+3. **Runtime Verification**: Add VerifyWiring() method called in GameManager._Ready()
+4. **Test Pattern**: Create WiringAssert helper for consistent wiring test assertions
 
-**Status**: Ready for Completion ← UPDATED 2025-09-07 12:41 (TD_005 fixed blocking bug)  
-**Owner**: Dev Engineer (Final testing required) 
-**Size**: L (5h code complete, ~1h scene setup remaining)
-**Priority**: Critical (FOUNDATIONAL)
-**Markers**: [ARCHITECTURE] [PHASE-4] [MVP]
-**Created**: 2025-08-29 17:16
-**Updated**: 2025-08-30 17:30
+**Implementation Tasks**:
+- [ ] Create presenter wiring test suite (PresenterCoordinationTests.cs)
+- [ ] Add IPresenterCoordinator interface for type-safe wiring
+- [ ] Implement VerifyWiring() runtime check in GameManager
+- [ ] Document wiring test pattern in testing guidelines
+- [ ] Add wiring tests to CI pipeline gate
 
-**What**: Visual grid with player sprite and click-to-move interaction
-**Why**: First visible, interactive game element - validates complete MVP architecture stack
+**Done When**:
+- All existing presenter pairs have wiring tests
+- Runtime verification catches missing wiring on startup
+- CI fails if wiring tests are missing for new presenters
+- Documentation explains the wiring test pattern
 
-**✅ PHASE 4 CODE IMPLEMENTATION COMPLETE**:
+**Depends On**: None (can start immediately)
 
-**✅ Phase 4A: Core Presentation Layer - DELIVERED (3h actual)**
-- ✅ `src/Presentation/PresenterBase.cs` - MVP base class with lifecycle hooks
-- ✅ `src/Presentation/Views/IGridView.cs` - Clean grid abstraction (no Godot deps)
-- ✅ `src/Presentation/Views/IActorView.cs` - Actor positioning interface  
-- ✅ `src/Presentation/Presenters/GridPresenter.cs` - Full MediatR integration
-- ✅ `src/Presentation/Presenters/ActorPresenter.cs` - Actor movement coordination
+**Tech Lead Analysis** (2025-09-07):
+- **Complexity Score**: 4/10 (Well-understood problem with clear solution)
+- **Pattern Match**: Similar to DI container validation pattern
+- **Risk**: None - purely additive safety measures
+- **ROI**: HIGH - Prevents hours of debugging for minutes of test writing
+- **Decision**: APPROVED for immediate implementation
 
-**✅ Phase 4B: Godot Integration Layer - DELIVERED (2h actual)**  
-- ✅ `Views/GridView.cs` - TileMapLayer implementation with click detection
-- ✅ `Views/ActorView.cs` - ColorRect-based actor rendering with animation
-- ✅ `GameManager.cs` - Complete DI bootstrap and MVP wiring
-- ✅ Click-to-move pipeline: Mouse → Grid coords → MoveActorCommand → Actor movement
-
-**✅ QUALITY VALIDATION**:
-- ✅ All 123 tests pass - Zero regression in existing functionality
-- ✅ Zero Godot references in src/ folder - Clean Architecture maintained
-- ✅ Proper MVP pattern - Views, Presenters, Application layer separation
-- ✅ Thread-safe UI updates via CallDeferred
-- ✅ Comprehensive error handling with LanguageExt Fin<T>
-
-**🚨 BLOCKING ISSUE IDENTIFIED (2025-08-30 20:51)**:
-- **Problem**: Actor movement visual update bug - blue square stays at (0,0) visually
-- **Symptom**: Click-to-move shows "Success at (1, 1): Moved" but actor doesn't move visually
-- **Root Cause**: ActorView.cs MoveActorAsync/MoveActorNodeDeferred visual update methods
-- **Impact**: Core functionality broken - logical movement works but visual feedback fails
-- **Severity**: BLOCKS all interactive gameplay testing
-
-**🎮 PREVIOUSLY COMPLETED: GODOT SCENE SETUP**:
-
-**Required Scene Structure**:
-```
-res://scenes/combat_scene.tscn
-├── Node2D (CombatScene) + attach GameManager.cs
-│   ├── Node2D (Grid) + attach GridView.cs  
-│   │   └── TileMapLayer + [TileSet with 16x16 tiles]
-│   └── Node2D (Actors) + attach ActorView.cs
-```
-
-**TileSet Configuration**:
-- Import `tiles_city.png` with Filter=OFF, Mipmaps=OFF for pixel art
-- Create TileSet resource with 16x16 tile size  
-- Assign 4 terrain tiles for: Open, Rocky, Water, Highlight
-- Update GridView.cs tile ID constants if needed
-
-**Final Success Criteria**:
-- Grid renders 10x10 tiles with professional tileset graphics
-- Blue square player appears at position (0,0)  
-- Click on tiles → smooth player movement via CQRS pipeline
-- Console shows success/error messages for movement validation
-
-**Dev Engineer Achievement** (2025-08-30 17:30):
-- Complete MVP architecture delivered: Domain → Application → Presentation
-- 8 new files implementing full interactive game foundation
-- Zero architectural compromises - production-ready code quality
-- Foundation established for all future tactical combat features
-
-**Next Session**: Fix visual update bug in ActorView.cs, then complete gameplay testing
-
-**[Owner] Decision Required** (Dev Engineer):
-- Priority: HIGH - Core functionality broken
-- Investigate: MoveActorAsync and MoveActorNodeDeferred methods
-- Expected Fix Time: <2 hours
-- Blocker Resolution: Visual position sync with logical position
-
-
+---
 
 
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*
 
-### TD_006: Re-enable Smooth Movement Animation [Score: 25/100]
-**Status**: Proposed
-**Owner**: Tech Lead (Approval Required)
+
+## 🗄️ Backup (Complex Features for Later)
+*Advanced mechanics postponed until core loop is proven fun*
+
+### TD_006: Re-enable Smooth Movement Animation [Score: 50/100]
+**Status**: Approved
+**Owner**: Dev Engineer (Low priority implementation)
 **Size**: S (2-4h)
 **Priority**: Low (Visual Polish)
 **Markers**: [ENHANCEMENT] [ANIMATION] [UI-POLISH]
@@ -187,17 +153,12 @@ res://scenes/combat_scene.tscn
 
 **Depends On**: None - Enhancement to existing working system
 
-**[Tech Lead] Decision** (Pending):
-- Assess priority vs other work
-- Choose technical approach
-- Assign when core features complete
-
-
-
-
-
-## 🗄️ Backup (Complex Features for Later)
-*Advanced mechanics postponed until core loop is proven fun*
+**[Tech Lead] Decision** (2025-09-07 13:58):
+- **APPROVED with LOW PRIORITY**
+- Complexity: 2/10 - Simple timing fix
+- Solution: await process_frame before tween
+- Implement only after core logic complete
+- ~2 hour task when time permits
 
 
 ---
@@ -217,6 +178,8 @@ res://scenes/combat_scene.tscn
 *Notes:*
 - *Critical bugs are BR items with 🔥 priority*
 - *TD items need Tech Lead approval to move from "Proposed" to actionable*
+
+
 
 ---
 *Single Source of Truth for all Darklands development work. Simple, maintainable, actually used.*

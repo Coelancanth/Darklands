@@ -7,6 +7,7 @@ using MediatR;
 using LanguageExt;
 using LanguageExt.Common;
 using static LanguageExt.Prelude;
+using Serilog.Core;
 
 namespace Darklands.Core.Infrastructure.DependencyInjection;
 
@@ -54,8 +55,9 @@ public static class GameStrapper
     /// Uses fallback-safe logging configuration that never crashes the application.
     /// </summary>
     /// <param name="configuration">Optional configuration overrides</param>
+    /// <param name="godotConsoleSink">Optional Godot console sink for rich Editor output</param>
     /// <returns>Success/failure result with detailed error information</returns>
-    public static Fin<ServiceProvider> Initialize(GameStrapperConfiguration? configuration = null)
+    public static Fin<ServiceProvider> Initialize(GameStrapperConfiguration? configuration = null, ILogEventSink? godotConsoleSink = null)
     {
         // Double-checked locking pattern for thread safety
         if (_isInitialized && _serviceProvider != null)
@@ -73,7 +75,7 @@ public static class GameStrapper
                 var services = new ServiceCollection();
 
                 // Phase 1: Core Infrastructure  
-                var loggingResult = ConfigureLogging(services, config);
+                var loggingResult = ConfigureLogging(services, config, godotConsoleSink);
                 if (loggingResult.IsFail)
                     return loggingResult.Match(
                         Succ: _ => FinFail<ServiceProvider>(Error.New("Unexpected success in error path")),
@@ -127,7 +129,7 @@ public static class GameStrapper
     /// Configures Serilog with fallback-safe configuration.
     /// Even if logging configuration fails, the application continues to work.
     /// </summary>
-    private static Fin<LanguageExt.Unit> ConfigureLogging(IServiceCollection services, GameStrapperConfiguration config)
+    private static Fin<LanguageExt.Unit> ConfigureLogging(IServiceCollection services, GameStrapperConfiguration config, ILogEventSink? godotConsoleSink)
     {
         try
         {
@@ -142,6 +144,12 @@ public static class GameStrapper
                     rollingInterval: RollingInterval.Day,
                     retainedFileCountLimit: 7,
                     outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} {Level:u3}] {SourceContext}: {Message:lj}{NewLine}{Exception}");
+
+            // Add Godot console sink if provided (from Godot project layer)
+            if (godotConsoleSink != null)
+            {
+                loggerConfiguration = loggerConfiguration.WriteTo.Sink(godotConsoleSink);
+            }
 
             // Apply custom configuration if provided
             if (config.CustomLoggerConfiguration != null)

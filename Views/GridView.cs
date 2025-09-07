@@ -4,6 +4,7 @@ using Godot;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Serilog;
 
 namespace Darklands.Views
 {
@@ -15,6 +16,7 @@ namespace Darklands.Views
     public partial class GridView : Node2D, IGridView
     {
         private GridPresenter? _presenter;
+        private ILogger? _logger;
         private const int TileSize = 32;
         private int _gridWidth;
         private int _gridHeight;
@@ -34,11 +36,10 @@ namespace Darklands.Views
         {
             try
             {
-                GD.Print("GridView initialized successfully with ColorRect tiles");
             }
             catch (Exception ex)
             {
-                GD.PrintErr($"GridView._Ready error: {ex.Message}");
+                _logger?.Error(ex, "GridView._Ready error");
             }
         }
 
@@ -60,7 +61,7 @@ namespace Darklands.Views
             }
             catch (Exception ex)
             {
-                GD.PrintErr($"GridView._Input error: {ex.Message}");
+                _logger?.Error(ex, "GridView._Input error");
             }
         }
 
@@ -71,6 +72,15 @@ namespace Darklands.Views
         public void SetPresenter(GridPresenter presenter)
         {
             _presenter = presenter ?? throw new ArgumentNullException(nameof(presenter));
+        }
+
+        /// <summary>
+        /// Sets the logger for this view.
+        /// Called during initialization to enable proper logging.
+        /// </summary>
+        public void SetLogger(ILogger logger)
+        {
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         /// <summary>
@@ -85,6 +95,8 @@ namespace Darklands.Views
             // Clear any existing tiles
             ClearAllTiles();
             
+            _logger?.Information("Creating {Width}x{Height} grid", width, height);
+            
             // Create a basic grid with grass tiles as default
             for (int x = 0; x < width; x++)
             {
@@ -95,7 +107,6 @@ namespace Darklands.Views
                 }
             }
             
-            GD.Print($"Grid boundaries displayed: {width}x{height}");
             await Task.CompletedTask;
         }
 
@@ -136,7 +147,6 @@ namespace Darklands.Views
                 }
             }
             
-            GD.Print($"Grid refreshed: {grid.Width}x{grid.Height}");
             await Task.CompletedTask;
         }
 
@@ -184,7 +194,7 @@ namespace Darklands.Views
         {
             // For Phase 4, just print to console
             // Future: Show floating text or particle effects
-            GD.Print($"Success at {position}: {message}");
+            _logger?.Information("{Message} at ({X},{Y})", message, position.X, position.Y);
             await Task.CompletedTask;
         }
 
@@ -195,7 +205,7 @@ namespace Darklands.Views
         {
             // For Phase 4, just print to console
             // Future: Show error indicators or red highlights
-            GD.PrintErr($"Error at {position}: {errorMessage}");
+            _logger?.Warning("{ErrorMessage} at ({X},{Y})", errorMessage, position.X, position.Y);
             await Task.CompletedTask;
         }
 
@@ -239,6 +249,8 @@ namespace Darklands.Views
                 {
                     var gridPosition = new Darklands.Core.Domain.Grid.Position(tileX, tileY);
                     
+                    _logger?.Information("User clicked tile ({X},{Y})", tileX, tileY);
+                    
                     // Notify the presenter about the tile click
                     _ = Task.Run(async () =>
                     {
@@ -248,14 +260,14 @@ namespace Darklands.Views
                         }
                         catch (Exception ex)
                         {
-                            GD.PrintErr($"Error handling tile click: {ex.Message}");
+                            _logger?.Error(ex, "Error handling tile click at ({X},{Y})", tileX, tileY);
                         }
                     });
                 }
             }
             catch (Exception ex)
             {
-                GD.PrintErr($"HandleMouseClick error: {ex.Message}");
+                _logger?.Error(ex, "HandleMouseClick error");
             }
         }
 
@@ -282,7 +294,6 @@ namespace Darklands.Views
         {
             AddChild(tile);
             _tiles[position] = tile;
-            GD.Print($"GridView: Tile added at position {position} with color {tile.Color}");
         }
 
         /// <summary>

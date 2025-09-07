@@ -645,4 +645,160 @@ var finalTime = (int)Math.Round(baseTime * agilityModifier * encumbranceModifier
 - [ ] HANDBOOK update: Godot integration debugging techniques for presenter-view communication
 - [ ] Test pattern: End-to-end visual validation approaches for game UI
 
+### VS_008: Grid Scene and Player Sprite (Phase 4 - Presentation)
+**Extraction Status**: NOT EXTRACTED ⚠️
+**Completed**: 2025-09-07 13:58
+**Archive Note**: Complete MVP architecture foundation with visual grid, player sprite, and interactive click-to-move system - validates entire tech stack
+---
+### VS_008: Grid Scene and Player Sprite (Phase 4 - Presentation) [Score: 100/100]
+
+**Status**: COMPLETE ← UPDATED 2025-09-07 13:58 (Tech Lead declaration)  
+**Owner**: Complete (No further work required) 
+**Size**: L (5h code complete, ~1h scene setup remaining)
+**Priority**: Critical (FOUNDATIONAL)
+**Markers**: [ARCHITECTURE] [PHASE-4] [MVP]
+**Created**: 2025-08-29 17:16
+**Updated**: 2025-08-30 17:30
+
+**What**: Visual grid with player sprite and click-to-move interaction
+**Why**: First visible, interactive game element - validates complete MVP architecture stack
+
+**✅ PHASE 4 CODE IMPLEMENTATION COMPLETE**:
+
+**✅ Phase 4A: Core Presentation Layer - DELIVERED (3h actual)**
+- ✅ `src/Presentation/PresenterBase.cs` - MVP base class with lifecycle hooks
+- ✅ `src/Presentation/Views/IGridView.cs` - Clean grid abstraction (no Godot deps)
+- ✅ `src/Presentation/Views/IActorView.cs` - Actor positioning interface  
+- ✅ `src/Presentation/Presenters/GridPresenter.cs` - Full MediatR integration
+- ✅ `src/Presentation/Presenters/ActorPresenter.cs` - Actor movement coordination
+
+**✅ Phase 4B: Godot Integration Layer - DELIVERED (2h actual)**  
+- ✅ `Views/GridView.cs` - TileMapLayer implementation with click detection
+- ✅ `Views/ActorView.cs` - ColorRect-based actor rendering with animation
+- ✅ `GameManager.cs` - Complete DI bootstrap and MVP wiring
+- ✅ Click-to-move pipeline: Mouse → Grid coords → MoveActorCommand → Actor movement
+
+**✅ QUALITY VALIDATION**:
+- ✅ All 123 tests pass - Zero regression in existing functionality
+- ✅ Zero Godot references in src/ folder - Clean Architecture maintained
+- ✅ Proper MVP pattern - Views, Presenters, Application layer separation
+- ✅ Thread-safe UI updates via CallDeferred
+- ✅ Comprehensive error handling with LanguageExt Fin<T>
+
+**🚨 BLOCKING ISSUE IDENTIFIED (2025-08-30 20:51)**:
+- **Problem**: Actor movement visual update bug - blue square stays at (0,0) visually
+- **Symptom**: Click-to-move shows "Success at (1, 1): Moved" but actor doesn't move visually
+- **Root Cause**: ActorView.cs MoveActorAsync/MoveActorNodeDeferred visual update methods
+- **Impact**: Core functionality broken - logical movement works but visual feedback fails
+- **Severity**: BLOCKS all interactive gameplay testing
+
+**🎮 PREVIOUSLY COMPLETED: GODOT SCENE SETUP**:
+
+**Required Scene Structure**:
+```
+res://scenes/combat_scene.tscn
+├── Node2D (CombatScene) + attach GameManager.cs
+│   ├── Node2D (Grid) + attach GridView.cs  
+│   │   └── TileMapLayer + [TileSet with 16x16 tiles]
+│   └── Node2D (Actors) + attach ActorView.cs
+```
+
+**TileSet Configuration**:
+- Import `tiles_city.png` with Filter=OFF, Mipmaps=OFF for pixel art
+- Create TileSet resource with 16x16 tile size  
+- Assign 4 terrain tiles for: Open, Rocky, Water, Highlight
+- Update GridView.cs tile ID constants if needed
+
+**Achievement Unlocked** ✅:
+- ✅ Grid renders with ColorRect tiles (sufficient for logic testing)
+- ✅ Blue square player appears and moves correctly
+- ✅ Click-to-move CQRS pipeline fully operational
+- ✅ Complete MVP architecture validated and working
+- ✅ Foundation established for all future features
+
+**Dev Engineer Achievement** (2025-08-30 17:30):
+- Complete MVP architecture delivered: Domain → Application → Presentation
+- 8 new files implementing full interactive game foundation
+- Zero architectural compromises - production-ready code quality
+- Foundation established for all future tactical combat features
+
+**[Tech Lead] Decision** (2025-09-07 13:58):
+- **VS_008 DECLARED COMPLETE** - Core architecture proven
+- Visual polish (proper tiles) deferred to future VS
+- ColorRect tiles sufficient for all logic testing
+- Movement pipeline working perfectly
+- Focus shifts to game logic, not visuals
+---
+**Extraction Targets**:
+- [ ] ADR needed for: Complete MVP architecture patterns from Domain to Presentation layer
+- [ ] HANDBOOK update: Godot integration patterns with Clean Architecture principles
+- [ ] Test pattern: End-to-end testing for interactive game systems with MediatR
+- [ ] Architecture pattern: Phase-based implementation methodology (Phase 1-4)
+- [ ] DI pattern: GameStrapper bootstrap configuration for game engines
+- [ ] CQRS pattern: Click-to-move command pipeline with thread-safe UI updates
+
+### TD_008: Godot Console Serilog Sink with Rich Output
+**Extraction Status**: NOT EXTRACTED ⚠️
+**Completed**: 2025-09-07 14:33
+**Archive Note**: Complete GodotConsoleSink implementation with rich formatting eliminating dual logging anti-pattern
+---
+### TD_008: Godot Console Serilog Sink with Rich Output
+**Status**: COMPLETED ✅  
+**Owner**: Dev Engineer  
+**Complexity Score**: 4/10  
+**Created**: 2025-09-07 13:53
+**Priority**: Important
+
+**Problem**: Currently Views use dual logging (ILogger + GD.Print) which is redundant and inconsistent. Need proper Serilog sink that outputs to Godot console with rich formatting.
+
+**Reference Implementation**: BlockLife project has working Godot Serilog sink that should be ported/adapted.
+
+**Solution Approach**:
+1. Create `GodotConsoleSink` implementing Serilog `ILogEventSink`
+2. Add rich formatting with colors, timestamps, structured data
+3. Wire into existing Serilog configuration in GameStrapper
+4. Remove dual logging pattern from Views
+5. Ensure compatibility with Godot Editor console output
+
+**Acceptance Criteria**:
+- [x] Single logging interface (ILogger only) across all layers
+- [x] Rich console output in Godot Editor with colors/formatting  
+- [x] Structured logging preserved (maintain file logging)
+- [x] Performance acceptable (no frame drops)
+- [x] Works in both Editor and runtime modes
+
+**[Tech Lead] Decision** (2025-09-07 13:58):
+- **APPROVED with MEDIUM PRIORITY**
+- Complexity: 4/10 - Pattern exists in BlockLife
+- Eliminates dual logging anti-pattern
+- Improves all future debugging sessions
+- ~3 hour implementation
+
+**Implementation Notes**:
+- Reference BlockLife's `src/Core/Infrastructure/Logging/` implementation
+- Should integrate with existing `GameStrapper.ConfigureLogging()`
+- Consider different log levels having different colors
+- Maintain backward compatibility with existing log file output
+
+**Deliverables COMPLETED**:
+1. ✅ GodotConsoleSink implementation (Infrastructure/Logging/GodotConsoleSink.cs)
+2. ✅ GameStrapper integration with dependency injection pattern
+3. ✅ Dual logging anti-pattern eliminated from Views (ActorView, GridView, GameManager)
+4. ✅ Improved ActorId readability (Actor_12345678 vs full GUID)
+5. ✅ Enhanced log message clarity (movement shows from→to coordinates)
+
+**Quality Gates**:
+- ✅ All 123 tests passing, zero warnings, clean build
+- ✅ Rich colored console output in Godot Editor
+- ✅ Single logging interface eliminating dual GD.Print/ILogger pattern
+- ✅ Enhanced debugging with coordinate highlighting and readable actor IDs
+- ✅ Maintained Clean Architecture boundaries
+- ✅ Production-ready logging infrastructure
+---
+**Extraction Targets**:
+- [ ] ADR needed for: GodotConsoleSink architecture pattern for game engine logging integration
+- [ ] HANDBOOK update: Dual logging anti-pattern elimination strategies
+- [ ] Test pattern: Logging infrastructure testing approaches for game engines
+- [ ] Architecture pattern: Serilog sink implementation for custom output targets
+
 ]

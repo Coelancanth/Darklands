@@ -42,7 +42,16 @@ namespace Darklands.Core.Domain.Grid
         /// </summary>
         public bool IsEmpty => Value == Guid.Empty;
 
-        public override string ToString() => Value.ToString();
+        /// <summary>
+        /// Provides a short, human-readable representation for logging and debugging.
+        /// Shows first 8 characters of GUID for uniqueness without overwhelming logs.
+        /// </summary>
+        public override string ToString() => $"Actor_{Value.ToString()[..8]}";
+
+        /// <summary>
+        /// Gets the full GUID string for serialization or exact matching needs.
+        /// </summary>
+        public string ToFullString() => Value.ToString();
 
         /// <summary>
         /// Provides implicit conversion to Guid for interoperability.
