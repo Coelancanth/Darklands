@@ -161,9 +161,6 @@ namespace Darklands.Core.Presentation.Presenters
                 _logger.Information("Creating dummy combat target at position {Position}", dummyPosition);
 
                 // Create the dummy directly using the same pattern as InitializeTestPlayer
-                // This ensures we have access to the ActorId for visual display coordination
-                var dummyActorId = Domain.Grid.ActorId.NewId();
-
                 var dummyResult = Domain.Actor.DummyActor.Presets.CreateCombatDummy("Combat Dummy");
                 if (dummyResult.IsSucc)
                 {

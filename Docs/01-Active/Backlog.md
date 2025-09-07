@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-07 19:22
+**Last Updated**: 2025-09-07 21:34
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -9,8 +9,8 @@
 ## 🔢 Next Item Numbers by Type
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
-- **Next BR**: 001
-- **Next TD**: 011  
+- **Next BR**: 002
+- **Next TD**: 012  
 - **Next VS**: 011 
 
 
@@ -67,6 +67,84 @@
 
 ## 🔥 Critical (Do First)
 *Blockers preventing other work, production bugs, dependencies for other features*
+
+### TD_011: Async/Concurrent Architecture Mismatch in Turn-Based Game [ARCHITECTURE]
+**Status**: Approved → Ready for Dev (Tech Lead, 2025-09-07 21:34)
+**Owner**: Dev Engineer (immediate implementation required)
+**Size**: L (13 hours - 5 phases)
+**Priority**: Critical (Fundamental design flaw causing bugs)
+**Markers**: [ARCHITECTURE] [BREAKING-CHANGE] [ROOT-CAUSE]
+
+**What**: Remove async/await patterns from turn-based game flow; implement proper sequential processing
+**Why**: Turn-based games are inherently sequential - async creates race conditions and complexity
+
+**Root Cause Analysis** (from BR_001 investigation):
+- ActorView uses shared fields (_pendingActorNode, _pendingActorId) with CallDeferred
+- Multiple actors created simultaneously overwrite each other's pending data
+- Player actor creation gets overwritten by dummy actor creation
+- Async Task.Run() calls in presenters violate turn-based sequential nature
+
+**Evidence of Architectural Mismatch**:
+```csharp
+// CURRENT BROKEN: Concurrent actor creation
+Task.Run(async () => await View.DisplayActorAsync(...));  // Actor 1
+Task.Run(async () => await View.DisplayActorAsync(...));  // Actor 2 overwrites Actor 1
+// Result: Race condition, only last actor displays
+
+// SHOULD BE: Sequential turn-based processing
+scheduler.GetNextActor();
+ProcessAction();
+UpdateUI();  // Synchronous, no race possible
+```
+
+**Proposed Architecture**:
+1. **Scene Init**: Create ALL actors at once, display them all
+2. **Game Loop**: Process turns sequentially (player first, initiative 0)
+3. **No Async UI**: All view updates synchronous (Godot auto-updates on data change)
+4. **Turn Processing**: One actor → One action → One UI update → Next actor
+
+**Required Changes**:
+- [ ] Remove async/await from IActorView interface
+- [ ] Fix ActorView race condition (queue or remove shared fields)
+- [ ] Create GameLoopPresenter for turn management
+- [ ] Connect CombatScheduler to presentation layer
+- [ ] Refactor actor initialization to batch creation
+
+**Done When**:
+- All actors display correctly on scene start
+- Turn-based loop processes sequentially
+- No race conditions in UI updates
+- Player acts first (initiative 0)
+
+**Depends On**: None (architectural foundation)
+
+**Debugger Expert Analysis** (2025-09-07 21:21):
+- BR_001 was symptom, not cause - removing it as redundant
+- Async patterns inappropriate for turn-based games
+- MVP separation is correct, implementation is wrong
+- Need Tech Lead architecture decision before proceeding
+
+**Tech Lead Decision** (2025-09-07 21:34): **APPROVED WITH URGENCY**
+- **Complexity Score**: 7/10 (Well-understood problem, clear solution)
+- **Pattern Match**: Traditional roguelike sequential processing (SPD, NetHack, DCSS)
+- **Risk Assessment**: HIGH if not fixed - every feature will fight async pattern
+- **ADR-009 Created**: Sequential Turn-Based Processing Pattern documented
+- **Solution Validated**: Aligns with Vision.md time-unit combat requirements
+
+**Implementation Phases** (13 hours total):
+1. **Phase 1 (2h)**: Verify domain/application synchronous - add architecture tests
+2. **Phase 2 (3h)**: Create GameLoopCoordinator for turn orchestration
+3. **Phase 3 (4h)**: Remove ALL Task.Run() and async from presenters
+4. **Phase 4 (2h)**: Fix ActorView race with proper CallDeferred usage
+5. **Phase 5 (2h)**: Integration testing and validation
+
+**Critical Changes Required**:
+- Remove Task.Run() from all presenters (lines 113, 118, 184, 189)
+- Fix shared field race in ActorView (lines 31-35)
+- Make all IView interfaces synchronous
+- Implement sequential game loop pattern per ADR-009
+
+**Handoff to Dev Engineer**: This blocks ALL combat work. Implement immediately following ADR-009 pattern.
 
 
 
@@ -199,9 +277,9 @@
 - Risk: Medium - Death cascade needs careful handling
 - Pattern: Follow MoveActorCommand for command structure
 
-### VS_010c: Dummy Combat Target [Score: 75/100]
-**Status**: In Progress - Phase 4 needed (Dev Engineer) ← Phases 1-3 COMPLETE 2025-09-07 20:47
-**Owner**: Dev Engineer (Phase 4: Visual representation)
+### VS_010c: Dummy Combat Target [Score: 75/100]  
+**Status**: BLOCKED by BR_001 (Dev Engineer, 2025-09-07 21:05)
+**Owner**: Blocked - awaiting Debugger Expert resolution
 **Size**: XS (0.2 days remaining - only scene integration left)
 **Priority**: Critical (Testing/visualization)
 **Markers**: [TESTING] [SCENE]

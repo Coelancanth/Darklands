@@ -23,7 +23,7 @@ namespace Darklands.Views
 
         // Actor colors for different types
         private readonly Color PlayerColor = new(0.1f, 0.46f, 0.82f, 1.0f); // Blue #1976D2
-        private readonly Color EnemyColor = new(0.96f, 0.26f, 0.21f, 1.0f);  // Red #F44336
+        private readonly Color EnemyColor = new(0.59f, 0.36f, 0.20f, 1.0f);  // Brown #964D33
         private readonly Color NeutralColor = new(0.61f, 0.61f, 0.61f, 1.0f); // Gray #9E9E9E
         private readonly Color InteractiveColor = new(1.0f, 0.59f, 0.0f, 1.0f); // Orange #FF9800
 
@@ -74,11 +74,12 @@ namespace Darklands.Views
         {
             try
             {
-                // Remove existing actor node if it exists
+                // Remove existing actor node if it exists (synchronously to avoid race conditions)
                 if (_actorNodes.TryGetValue(actorId, out var existingNode))
                 {
-                    _pendingActorId = actorId;
-                    CallDeferred("RemoveActorNodeDeferred");
+                    existingNode?.QueueFree();
+                    _actorNodes.Remove(actorId);
+                    _logger?.Debug("Removed existing actor node for {ActorId}", actorId);
                 }
 
                 // Create new ColorRect node for the actor
@@ -117,17 +118,6 @@ namespace Darklands.Views
             }
         }
 
-        /// <summary>
-        /// Helper method to remove actor node on main thread.
-        /// </summary>
-        private void RemoveActorNodeDeferred()
-        {
-            if (_actorNodes.TryGetValue(_pendingActorId, out var existingNode))
-            {
-                existingNode?.QueueFree();
-                _actorNodes.Remove(_pendingActorId);
-            }
-        }
 
         /// <summary>
         /// Updates an existing actor's position on the grid with smooth animation.

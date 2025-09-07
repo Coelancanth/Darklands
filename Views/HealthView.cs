@@ -108,7 +108,7 @@ namespace Darklands.Views
             {
                 if (_healthBars.ContainsKey(_pendingActorId))
                 {
-                    _logger?.Warning("Health bar already exists for actor {ActorId}, removing old one", _pendingActorId);
+                    _logger?.Debug("Health bar already exists for actor {ActorId}, replacing with new one", _pendingActorId);
                     // Remove the existing health bar
                     var existingHealthBar = _healthBars[_pendingActorId];
                     existingHealthBar.QueueFree();
