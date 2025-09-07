@@ -190,7 +190,8 @@
       "Bash(ls:*)",
       "Bash(Remove-Item \"tests\\Application\\Actor\\Services\\ActorStateServiceIntegrationTests.cs\" -Force)",
       "Bash(./scripts/core/build.ps1 test --filter \"Category=Application&ExecuteAttack\")",
-      "Bash(dotnet list:*)"
+      "Bash(dotnet list:*)",
+      "Bash(./scripts/core/build.ps1 test --filter \"Category=Phase1\")"
     ],
     "deny": [],
     "ask": [],
