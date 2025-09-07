@@ -1,3 +1,4 @@
+using System;
 using Darklands.Core.Domain.Grid;
 
 namespace Darklands.Core.Domain.Combat;
@@ -8,6 +9,13 @@ namespace Darklands.Core.Domain.Combat;
 /// </summary>
 public interface ISchedulable
 {
+    /// <summary>
+    /// Unique identifier for this schedulable entity.
+    /// Used for deterministic tie-breaking when NextTurn values are equal.
+    /// Essential for consistent turn order and replay functionality.
+    /// </summary>
+    Guid Id { get; }
+
     /// <summary>
     /// The absolute time when this entity will next act.
     /// Used by the combat scheduler to determine turn order.

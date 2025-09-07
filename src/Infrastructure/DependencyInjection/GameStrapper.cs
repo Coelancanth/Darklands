@@ -215,6 +215,9 @@ public static class GameStrapper
             // Phase 2: Grid state management
             services.AddSingleton<Application.Grid.Services.IGridStateService, Application.Grid.Services.InMemoryGridStateService>();
 
+            // Phase 2: Combat timeline scheduling
+            services.AddSingleton<Application.Combat.Services.ICombatSchedulerService, Application.Combat.Services.InMemoryCombatSchedulerService>();
+
             // Repository interfaces (Singleton - typically wrap persistent state)
             // TODO: Register repositories here as they're implemented
 

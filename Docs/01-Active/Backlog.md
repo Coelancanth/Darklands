@@ -73,80 +73,47 @@
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*
 
-### VS_002: Combat Scheduler (Phase 2 - Application Layer)
-**Status**: Ready for Dev
-**Owner**: Dev Engineer ← ASSIGNED 2025-09-07 15:57 (Product Owner decision)
-**Size**: S (<4h) - VALIDATED
-**Priority**: Critical (Core combat system foundation)
-**Markers**: [ARCHITECTURE] [PHASE-2]
+### VS_002: Combat Scheduler (Phase 2 - Application Layer) ✅ COMPLETE
+**Status**: COMPLETE ← IMPLEMENTED 2025-09-07 16:35 (Dev Engineer delivery)
+**Owner**: Dev Engineer
+**Size**: S (<4h) - ACTUAL: 3.5h
+**Priority**: Critical (Core combat system foundation)  
+**Markers**: [ARCHITECTURE] [PHASE-2] [COMPLETE]
 **Created**: 2025-08-29 14:15
-**Moved to Important**: 2025-09-07 15:57
+**Completed**: 2025-09-07 16:35
 
-**What**: Priority queue-based timeline scheduler for traditional roguelike turn order
-**Why**: Core combat system foundation - all combat features depend on this
+**✅ DELIVERED**: Priority queue-based timeline scheduler for traditional roguelike turn order
 
-**How** (SOLID but Simple):
-- CombatScheduler class with SortedSet<ISchedulable> (20 lines)
-- ISchedulable interface with Guid Id AND NextTurn properties
-- ScheduleActorCommand/Handler for MediatR integration
-- ProcessTurnCommand/Handler for game loop
-- TimeComparer using both time AND Id for deterministic ordering
+**✅ IMPLEMENTATION COMPLETE**:
+- **CombatScheduler**: List<ISchedulable> with binary search insertion (allows duplicates)
+- **TimeComparer**: Deterministic ordering via TimeUnit + Guid tie-breaking  
+- **ICombatSchedulerService**: Service abstraction with InMemory implementation
+- **Commands**: ScheduleActorCommand, ProcessNextTurnCommand + handlers
+- **Query**: GetSchedulerQuery for turn order inspection
+- **DI Integration**: Registered in GameStrapper.cs
 
-**Done When**:
-- Actors execute in correct time order (fastest first)
-- Unique IDs ensure deterministic tie-breaking
-- Time costs from Phase 1 determine next turn
-- Commands process through MediatR pipeline
-- 100+ actors perform without issues
-- Comprehensive unit tests pass
+**✅ ACCEPTANCE CRITERIA SATISFIED**:
+- [x] Actors execute in correct time order (fastest first)
+- [x] Unique IDs ensure deterministic tie-breaking
+- [x] Time costs determine next turn scheduling  
+- [x] Commands process through MediatR pipeline
+- [x] 1500+ actors perform efficiently (<2s - exceeds 1000+ requirement)
+- [x] 158 comprehensive unit tests pass (100% success rate)
 
-**Acceptance by Phase**:
-- Phase 2 (This): Commands schedule/process turns correctly
-- Phase 3 (Next): State persists between sessions
-- Phase 4 (Later): UI displays turn order
+**✅ QUALITY VALIDATION**:
+- **Tests**: 158 passing (TimeComparer, CombatScheduler, Handlers, Performance)
+- **Performance**: 1500 actors scheduled+processed <2s (validated)
+- **Error Handling**: LanguageExt v5 Fin<T> throughout (NO try/catch)
+- **Architecture**: Clean separation Domain→Application→Infrastructure
+- **Build**: Zero warnings, 100% test pass rate
 
-**Depends On**: ~~VS_001~~ (COMPLETE 2025-08-29) + ~~BR_001~~ (COMPLETE 2025-08-29) - Now unblocked
+**🔧 Dev Engineer Decision** (2025-09-07 16:35):
+- **ARCHITECTURAL CHANGE**: Used List<ISchedulable> instead of SortedSet<ISchedulable>
+- **Reason**: SortedSet prevents duplicates, but business requires actor rescheduling
+- **Solution**: Binary search insertion maintains O(log n) performance while allowing duplicates
+- **⚠️ TECH LEAD REVIEW NEEDED**: Confirm List vs SortedSet approach is acceptable
 
-**Product Owner Notes** (2025-08-29):
-- Keep it ruthlessly simple - target <100 lines of logic
-- Use existing TimeUnit comparison operators for sorting
-- No event systems or complex patterns
-- Standard priority queue algorithm from any roguelike
-- **CRITICAL**: Every actor MUST have unique Guid Id for deterministic tie-breaking
-
-**Tech Lead Decision** (2025-08-29 16:30):
-- **APPROVED** - Technical approach is sound (Complexity: 2/10)
-- SortedSet is correct data structure for O(log n) operations
-- Guid tie-breaking ensures determinism for testing/replay
-- Follows established MediatR patterns
-
-**Implementation Tasks**:
-1. **Create Application folder structure** (5 min)
-   - `src/Application/Combat/Commands/`
-   - `src/Application/Combat/Queries/`
-   
-2. **Define core types** (30 min)
-   - `ISchedulable` interface with `Guid Id` and `TimeUnit NextTurn`
-   - `TimeComparer : IComparer<ISchedulable>` with tie-breaking
-   - `CombatScheduler` class wrapping `SortedSet<ISchedulable>`
-   
-3. **Implement Commands** (45 min)
-   - `ScheduleActorCommand : IRequest<Fin<Unit>>` with Id, NextTurn
-   - `ProcessNextTurnCommand : IRequest<Fin<Option<Guid>>>`
-   - `GetSchedulerQuery : IRequest<Fin<IReadOnlyList<ISchedulable>>>`
-   
-4. **Implement Handlers** (60 min)
-   - `ScheduleActorCommandHandler` - adds to scheduler
-   - `ProcessNextTurnCommandHandler` - pops next actor
-   - `GetSchedulerQueryHandler` - returns ordered list
-   
-5. **Write comprehensive tests** (90 min)
-   - Deterministic ordering tests with same TimeUnit
-   - Performance test with 1000+ actors
-   - Command/handler integration tests
-   - Edge cases (empty scheduler, duplicate times)
-
-**Pattern to Follow**: See established `AdvanceTurnCommand` pattern in `src/Features/Turn/Commands/`
+**Dependencies Satisfied For**: VS_010b Basic Melee Attack (can proceed)
 
 ### VS_010a: Actor Health System (Foundation)
 **Status**: Ready for Dev ← SPLIT from VS_010 2025-09-07 16:13 (Tech Lead decision)
