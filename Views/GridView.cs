@@ -21,12 +21,15 @@ namespace Darklands.Views
         private int _gridWidth;
         private int _gridHeight;
         private Dictionary<Vector2I, ColorRect> _tiles = new();
+        private readonly List<Line2D> _gridLines = new();
 
         // Colors for different terrain types
         private readonly Color GrassColor = new Color(0.3f, 0.7f, 0.2f); // Green
         private readonly Color StoneColor = new Color(0.5f, 0.5f, 0.5f); // Gray
         private readonly Color WaterColor = new Color(0.2f, 0.4f, 0.8f); // Blue
         private readonly Color HighlightColor = new Color(1.0f, 1.0f, 0.0f, 0.7f); // Yellow with transparency
+        private readonly Color GridLineColor = new Color(0.1f, 0.1f, 0.1f, 0.8f); // Dark gray with transparency
+        private const float GridLineWidth = 1.0f;
 
         /// <summary>
         /// Called when the node is added to the scene tree.
@@ -85,17 +88,18 @@ namespace Darklands.Views
 
         /// <summary>
         /// Displays the grid boundaries with the specified dimensions.
-        /// Creates the visual grid using ColorRect tiles.
+        /// Creates the visual grid using ColorRect tiles and grid lines.
         /// </summary>
         public async Task DisplayGridBoundariesAsync(int width, int height)
         {
             _gridWidth = width;
             _gridHeight = height;
             
-            // Clear any existing tiles
+            // Clear any existing tiles and grid lines
             ClearAllTiles();
+            ClearGridLines();
             
-            _logger?.Information("Creating {Width}x{Height} grid", width, height);
+            _logger?.Information("Creating {Width}x{Height} grid with lines", width, height);
             
             // Create a basic grid with grass tiles as default
             for (int x = 0; x < width; x++)
@@ -106,6 +110,9 @@ namespace Darklands.Views
                     CreateTile(tilePosition, GrassColor);
                 }
             }
+            
+            // Create grid lines to separate tiles
+            CreateGridLines(width, height);
             
             await Task.CompletedTask;
         }
@@ -119,8 +126,9 @@ namespace Darklands.Views
             _gridWidth = grid.Width;
             _gridHeight = grid.Height;
             
-            // Clear existing tiles
+            // Clear existing tiles and grid lines
             ClearAllTiles();
+            ClearGridLines();
             
             // Render each tile based on its state
             for (int x = 0; x < grid.Width; x++)
@@ -146,6 +154,9 @@ namespace Darklands.Views
                     );
                 }
             }
+            
+            // Create grid lines to separate tiles
+            CreateGridLines(grid.Width, grid.Height);
             
             await Task.CompletedTask;
         }
@@ -351,6 +362,81 @@ namespace Darklands.Views
                 Darklands.Core.Domain.Grid.TerrainType.Wall => StoneColor,   
                 _ => GrassColor // Default to grass
             };
+        }
+
+        /// <summary>
+        /// Creates grid lines to visually separate tiles.
+        /// Draws both horizontal and vertical lines across the grid.
+        /// </summary>
+        private void CreateGridLines(int width, int height)
+        {
+            CallDeferred(MethodName.CreateGridLinesDeferred, width, height);
+        }
+
+        /// <summary>
+        /// Helper method to create grid lines on main thread.
+        /// </summary>
+        private void CreateGridLinesDeferred(int width, int height)
+        {
+            // Create vertical lines
+            for (int x = 0; x <= width; x++)
+            {
+                var verticalLine = new Line2D
+                {
+                    DefaultColor = GridLineColor,
+                    Width = GridLineWidth
+                };
+                
+                // Line from top to bottom of grid
+                var startPoint = new Vector2(x * TileSize, 0);
+                var endPoint = new Vector2(x * TileSize, height * TileSize);
+                
+                verticalLine.AddPoint(startPoint);
+                verticalLine.AddPoint(endPoint);
+                
+                AddChild(verticalLine);
+                _gridLines.Add(verticalLine);
+            }
+            
+            // Create horizontal lines
+            for (int y = 0; y <= height; y++)
+            {
+                var horizontalLine = new Line2D
+                {
+                    DefaultColor = GridLineColor,
+                    Width = GridLineWidth
+                };
+                
+                // Line from left to right of grid
+                var startPoint = new Vector2(0, y * TileSize);
+                var endPoint = new Vector2(width * TileSize, y * TileSize);
+                
+                horizontalLine.AddPoint(startPoint);
+                horizontalLine.AddPoint(endPoint);
+                
+                AddChild(horizontalLine);
+                _gridLines.Add(horizontalLine);
+            }
+        }
+
+        /// <summary>
+        /// Clears all grid lines from the display.
+        /// </summary>
+        private void ClearGridLines()
+        {
+            CallDeferred(MethodName.ClearGridLinesDeferred);
+        }
+
+        /// <summary>
+        /// Helper method to clear grid lines on main thread.
+        /// </summary>
+        private void ClearGridLinesDeferred()
+        {
+            foreach (var line in _gridLines)
+            {
+                line?.QueueFree();
+            }
+            _gridLines.Clear();
         }
     }
 }

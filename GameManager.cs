@@ -20,8 +20,10 @@ namespace Darklands
     {
         private GridView? _gridView;
         private ActorView? _actorView;
+        private HealthView? _healthView;
         private GridPresenter? _gridPresenter;
         private ActorPresenter? _actorPresenter;
+        private HealthPresenter? _healthPresenter;
         private ServiceProvider? _serviceProvider;
         private Serilog.ILogger? _logger;
 
@@ -73,6 +75,7 @@ namespace Darklands
                 // Dispose presenters
                 _gridPresenter?.Dispose();
                 _actorPresenter?.Dispose();
+                _healthPresenter?.Dispose();
                 
                 _logger?.Information("Presenters disposed successfully");
 
@@ -157,6 +160,7 @@ namespace Darklands
                 // Find view nodes in the scene tree
                 _gridView = GetNode<GridView>("Grid");
                 _actorView = GetNode<ActorView>("Actors");
+                _healthView = GetNode<HealthView>("HealthBars");
 
                 if (_gridView == null)
                 {
@@ -168,36 +172,47 @@ namespace Darklands
                     throw new InvalidOperationException("ActorView node not found. Expected child node named 'Actors'");
                 }
 
-                _logger?.Information("Views found successfully - Grid: {GridView}, Actor: {ActorView}", 
-                    _gridView?.Name ?? "null", _actorView?.Name ?? "null");
+                if (_healthView == null)
+                {
+                    throw new InvalidOperationException("HealthView node not found. Expected child node named 'HealthBars'");
+                }
+
+                _logger?.Information("Views found successfully - Grid: {GridView}, Actor: {ActorView}, Health: {HealthView}", 
+                    _gridView?.Name ?? "null", _actorView?.Name ?? "null", _healthView?.Name ?? "null");
 
                 // Inject logger into views for proper architectural logging
                 if (_logger != null)
                 {
                     _gridView?.SetLogger(_logger);
                     _actorView?.SetLogger(_logger);
+                    _healthView?.SetLogger(_logger);
                 }
 
                 // Create presenters manually (they need view interfaces which are Godot-specific)
                 var mediator = _serviceProvider.GetRequiredService<IMediator>();
                 var gridStateService = _serviceProvider.GetRequiredService<Darklands.Core.Application.Grid.Services.IGridStateService>();
+                var actorStateService = _serviceProvider.GetRequiredService<Darklands.Core.Application.Actor.Services.IActorStateService>();
+                var combatQueryService = _serviceProvider.GetRequiredService<Darklands.Core.Application.Combat.Services.ICombatQueryService>();
                 
                 _gridPresenter = new GridPresenter(_gridView!, mediator, _logger!, gridStateService);
-                _actorPresenter = new ActorPresenter(_actorView!, mediator, _logger!, gridStateService);
+                _actorPresenter = new ActorPresenter(_actorView!, mediator, _logger!, gridStateService, actorStateService);
+                _healthPresenter = new HealthPresenter(_healthView!, mediator, _logger!, actorStateService, combatQueryService);
 
                 // Connect views to presenters
                 _gridView!.SetPresenter(_gridPresenter);
                 _actorView!.SetPresenter(_actorPresenter);
+                _healthView!.SetPresenter(_healthPresenter);
                 
                 // CRITICAL: Connect presenters to each other for coordinated updates
                 // This was missing and caused the visual movement bug!
                 _gridPresenter.SetActorPresenter(_actorPresenter);
 
-                _logger?.Information("Presenters created and connected - GridPresenter and ActorPresenter initialized");
+                _logger?.Information("Presenters created and connected - GridPresenter, ActorPresenter, and HealthPresenter initialized");
 
                 // Initialize presenters (this will set up initial state)
                 _gridPresenter.Initialize();
                 _actorPresenter.Initialize();
+                _healthPresenter.Initialize();
 
                 _logger?.Information("MVP architecture setup completed - application ready for interaction");
             }

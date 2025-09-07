@@ -4,6 +4,7 @@ using Darklands.Core.Application.Grid.Queries;
 using Darklands.Core.Presentation.Views;
 using MediatR;
 using Serilog;
+using static LanguageExt.Prelude;
 
 namespace Darklands.Core.Presentation.Presenters
 {
@@ -17,6 +18,7 @@ namespace Darklands.Core.Presentation.Presenters
         private readonly IMediator _mediator;
         private readonly ILogger _logger;
         private readonly Application.Grid.Services.IGridStateService _gridStateService;
+        private readonly Application.Actor.Services.IActorStateService _actorStateService;
 
         // For Phase 4 MVP - shared test player state
         public static Domain.Grid.ActorId? TestPlayerId { get; private set; }
@@ -28,12 +30,16 @@ namespace Darklands.Core.Presentation.Presenters
         /// <param name="mediator">MediatR instance for sending commands and queries</param>
         /// <param name="logger">Logger for tracking actor operations</param>
         /// <param name="gridStateService">Grid state service for actor positioning</param>
-        public ActorPresenter(IActorView view, IMediator mediator, ILogger logger, Application.Grid.Services.IGridStateService gridStateService)
+        /// <param name="actorStateService">Actor state service for health and combat data</param>
+        public ActorPresenter(IActorView view, IMediator mediator, ILogger logger,
+            Application.Grid.Services.IGridStateService gridStateService,
+            Application.Actor.Services.IActorStateService actorStateService)
             : base(view)
         {
             _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _gridStateService = gridStateService ?? throw new ArgumentNullException(nameof(gridStateService));
+            _actorStateService = actorStateService ?? throw new ArgumentNullException(nameof(actorStateService));
         }
 
         /// <summary>
@@ -51,7 +57,7 @@ namespace Darklands.Core.Presentation.Presenters
                 // For Phase 4, create a test player at position (0,0)
                 // In the future, this would load actors from the application state
                 // Note: This will execute and use deferred calls for UI operations
-                _ = InitializeTestPlayerAsync();
+                InitializeTestPlayer();
                 _logger.Information("Initial actor display setup initiated");
             }
             catch (Exception ex)
@@ -62,9 +68,9 @@ namespace Darklands.Core.Presentation.Presenters
 
         /// <summary>
         /// Creates and displays a test player actor for Phase 4 demonstration.
-        /// This is a temporary implementation - future versions will load from application state.
+        /// This is a temporary implementation - future versions would load from application state.
         /// </summary>
-        private async Task InitializeTestPlayerAsync()
+        private void InitializeTestPlayer()
         {
             try
             {
@@ -72,23 +78,40 @@ namespace Darklands.Core.Presentation.Presenters
                 TestPlayerId = Domain.Grid.ActorId.NewId();
                 var startPosition = new Domain.Grid.Position(0, 0);
 
-                // First, place the actor on the grid directly using the grid state service
-                // This bypasses the MoveActorCommand validation that requires existing actors
-                var placeResult = _gridStateService.MoveActor(TestPlayerId.Value, startPosition);
+                // Create a full Actor with health data using domain factory (position handled separately)
+                var actorResult = Domain.Actor.Actor.CreateAtFullHealth(TestPlayerId.Value, 100, "Test Player");
 
-                await placeResult.Match(
-                    Succ: async _ =>
+                if (actorResult.IsSucc)
+                {
+                    var actor = actorResult.Match(succ => succ, fail => throw new InvalidOperationException());
+
+                    // First, add the actor to the actor state service (for health data)
+                    var addResult = _actorStateService.AddActor(actor);
+                    if (addResult.IsSucc)
                     {
-                        // Then display the actor visually
-                        await View.DisplayActorAsync(TestPlayerId.Value, startPosition, ActorType.Player);
-                        _logger.Information("Test player actor created at position {Position} with ID {ActorId}", startPosition, TestPlayerId.Value);
-                    },
-                    Fail: error =>
-                    {
-                        _logger.Warning("Failed to place test player on grid: {Error}", error.Message);
-                        return Task.CompletedTask;
+                        // Then, place the actor on the grid at the start position
+                        var placeResult = _gridStateService.AddActorToGrid(actor.Id, startPosition);
+                        if (placeResult.IsSucc)
+                        {
+                            // Finally, display the actor visually (async but don't await)
+                            _ = Task.Run(async () => await View.DisplayActorAsync(actor.Id, startPosition, ActorType.Player));
+                            _logger.Information("Test player actor created at position {Position} with ID {ActorId} and health {Health}",
+                                startPosition, actor.Id, actor.Health);
+                        }
+                        else
+                        {
+                            placeResult.IfFail(error => _logger.Warning("Failed to place test player on grid: {Error}", error.Message));
+                        }
                     }
-                );
+                    else
+                    {
+                        addResult.IfFail(error => _logger.Warning("Failed to add test player to actor state service: {Error}", error.Message));
+                    }
+                }
+                else
+                {
+                    actorResult.IfFail(error => _logger.Warning("Failed to create test player actor: {Error}", error.Message));
+                }
             }
             catch (Exception ex)
             {

@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using LanguageExt;
 using LanguageExt.Common;
 using Darklands.Core.Application.Grid.Services;
@@ -89,6 +90,34 @@ namespace Darklands.Core.Application.Grid.Services
                 return FinFail<Unit>(Error.New($"POSITION_OCCUPIED: Position {toPosition} is already occupied"));
 
             return FinSucc(Unit.Default);
+        }
+
+        public Fin<Unit> AddActorToGrid(ActorId actorId, Position position)
+        {
+            if (!IsValidPosition(position))
+                return FinFail<Unit>(Error.New($"INVALID_POSITION: Position {position} is outside grid bounds"));
+
+            if (!IsPositionEmpty(position))
+                return FinFail<Unit>(Error.New($"POSITION_OCCUPIED: Position {position} is already occupied"));
+
+            // Add actor to grid atomically
+            _actorPositions.AddOrUpdate(actorId, position, (key, oldPosition) => position);
+
+            return FinSucc(Unit.Default);
+        }
+
+        public Fin<Unit> RemoveActorFromGrid(ActorId actorId)
+        {
+            var removed = _actorPositions.TryRemove(actorId, out _);
+
+            return removed
+                ? FinSucc(Unit.Default)
+                : FinFail<Unit>(Error.New($"ACTOR_NOT_FOUND: Actor {actorId} not found on grid"));
+        }
+
+        public IReadOnlyDictionary<ActorId, Position> GetAllActorPositions()
+        {
+            return new Dictionary<ActorId, Position>(_actorPositions);
         }
 
         private void InitializeDefaultGrid()

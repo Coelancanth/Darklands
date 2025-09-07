@@ -89,6 +89,37 @@ The absolute time when an actor will act again.
 - **Not called**: NextAction, TurnTime, Schedule
 - **Code**: `ISchedulable.NextTurn`
 
+## Health & Damage System
+
+**Health (Hit Points)**  
+An actor's capacity to absorb damage before death.
+- **Components**: Current (remaining HP), Maximum (full capacity)
+- **Range**: 0 to Maximum (typically 20-200 based on actor type)
+- **Death**: Occurs when Current reaches 0
+- **Recovery**: Through healing actions, rest, or items
+- **Code**: `Health`, `IHealth`, `ActorHealth`
+
+**Damage**  
+Reduction to an actor's current health from attacks or effects.
+- **Calculation**: Base damage ± modifiers (weapon, strength, armor)
+- **Types**: Physical, Magical, Environmental
+- **Application**: Current HP - Damage (minimum 0)
+- **Code**: `DamageActorCommand`, `CalculateDamage()`, `ApplyDamage()`
+
+**Death**  
+The state when an actor's health reaches zero.
+- **Trigger**: Current Health = 0
+- **Effects**: Remove from scheduler, free grid position, drop items
+- **Permanence**: Permadeath for player character, respawn for practice dummies
+- **Code**: `IsDead`, `HandleActorDeath()`, `DeathEvent`
+
+**Healing**  
+Restoration of current health up to maximum.
+- **Sources**: Rest, potions, spells, natural regeneration
+- **Limit**: Cannot exceed Maximum health
+- **Time Cost**: Varies by healing method
+- **Code**: `HealActorCommand`, `HealingEffect`, `RestoreHealth()`
+
 ## Grid & Positioning
 
 **Grid**  

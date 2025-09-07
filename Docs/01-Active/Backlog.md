@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-07 14:33
+**Last Updated**: 2025-09-07 18:36
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -10,8 +10,8 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 001
-- **Next TD**: 010  
-- **Next VS**: 009 
+- **Next TD**: 011  
+- **Next VS**: 011 
 
 
 **Protocol**: Check your type's counter → Use that number → Increment the counter → Update timestamp
@@ -68,11 +68,177 @@
 ## 🔥 Critical (Do First)
 *Blockers preventing other work, production bugs, dependencies for other features*
 
+
+
+
+## 📈 Important (Do Next)
+*Core features for current milestone, technical debt affecting velocity*
+
+
+### VS_010a: Actor Health System (Foundation) [Score: 90/100]
+**Status**: Phase 4 Implementation Complete - UI Display Issue (Debugger Expert, 2025-09-07 17:51)
+**Owner**: Debugger Expert
+**Size**: S (1 day implementation + debugging)
+**Priority**: Critical (Required for all combat)
+**Markers**: [ARCHITECTURE] [FOUNDATION] [DISPLAY-BUG]
+**Created**: 2025-09-07 16:13
+
+**What**: Add health/damage foundation to Actor domain model
+**Why**: Can't have attacks without health to damage - foundational requirement
+
+**How**:
+- Health value object with Current/Maximum/IsDead
+- Actor domain model with Health property
+- DamageActorCommand and HealActorCommand
+- IActorStateService extends IGridStateService
+- Health bar UI component in scene
+
+**Done When**:
+- Actors have persistent health values
+- Damage/heal commands modify health correctly
+- Death sets IsDead flag
+- Health displays in UI with bar visualization
+- All health scenarios covered by tests
+
+**Acceptance by Phase**:
+- ✅ Phase 1: Health domain model with validation (COMPLETE - commit 91b6273)
+- ✅ Phase 2: Damage/Heal commands process correctly (COMPLETE - commit d9a8b1b)
+- ✅ Phase 3: Actor state persists in service (COMPLETE - 2025-09-07 17:25)
+- 🟡 Phase 4: Health bars display in scene (IMPLEMENTATION COMPLETE - VISUAL ISSUE)
+
+**Phase 1 Deliverables** (2025-09-07 17:05):
+- ✅ Health.cs - Immutable value object with validation
+- ✅ Actor.cs - Domain model with integrated health
+- ✅ DamageActorCommand & HealActorCommand created
+- ✅ Comprehensive unit tests (50+ test cases)
+- ✅ Zero build warnings, 232/233 tests passing
+- ✅ Expected MediatR test failure (handlers needed Phase 2)
+
+**Phase 2 Deliverables** (2025-09-07 17:11):
+- ✅ IActorStateService interface for health management
+- ✅ DamageActorCommandHandler with error handling
+- ✅ HealActorCommandHandler with business rules
+- ✅ 16 comprehensive handler test scenarios
+- ✅ Zero build warnings, 239/249 tests passing
+- ✅ Expected DI test failures (service implementation needed Phase 3)
+
+**Phase 3 Deliverables** (2025-09-07 17:25):
+- ✅ InMemoryActorStateService - Complete infrastructure implementation
+- ✅ DI registration in GameStrapper - Singleton lifecycle management
+- ✅ Thread-safe state management with ConcurrentDictionary
+- ✅ Functional error handling with LanguageExt v5 patterns
+- ✅ All 249 tests passing - Zero build warnings, complete DI resolution
+
+**Phase 4 Status** (2025-09-07 17:51):
+- ✅ Health bar UI components implemented and coordinated
+- ✅ All architecture connections established (presenters, views, commands)
+- ✅ Components initialize successfully with proper logging
+- ❌ Health bars not visually displaying despite successful initialization
+- 🔍 **DEBUGGING NEEDED**: UI rendering, deferred calls, or scene hierarchy issues
+
+**Depends On**: None (foundational)
+
+**Tech Lead Decision** (2025-09-07 16:13):
+- **APPROVED** - Split from oversized VS_010 (was 4-5 days)
+- Complexity: 3/10 - Standard domain modeling
+- Risk: Low - Well-understood pattern
+- Must complete before VS_010b and VS_010c
+
+**Debugger Expert Next Steps** (2025-09-07 17:51):
+- Investigate UI component visibility and rendering pipeline
+- Debug Godot scene hierarchy and node positioning
+- Check CallDeferred execution and thread-safe UI updates
+- Validate health bar node creation and parent-child relationships
+- Test scene loading order and timing dependencies
+
+### VS_010b: Basic Melee Attack [Score: 85/100]
+**Status**: Ready for Dev ← SPLIT from VS_010 2025-09-07 16:13 (Tech Lead decision)
+**Owner**: Dev Engineer (after VS_010a)
+**Size**: M (1.5 days)
+**Priority**: Critical (Core combat mechanic)
+**Markers**: [ARCHITECTURE] [COMBAT]
+**Created**: 2025-09-07 16:13
+
+**What**: Execute melee attacks with scheduler integration and damage
+**Why**: First actual combat mechanic using the time-unit system
+
+**How**:
+- AttackAction domain validation (adjacency, target alive)
+- ExecuteAttackCommand with damage calculation
+- Integration with DamageActorCommand from VS_010a
+- Reschedule attacker with action time cost
+- Remove dead actors from scheduler
+
+**Done When**:
+- Can attack adjacent enemies only
+- Damage reduces target health
+- Time cost affects attacker's next turn
+- Death removes actor from scheduler
+- Attack animations and feedback work
+- Combat log shows attack messages
+
+**Acceptance by Phase**:
+- Phase 1: Attack validation logic (adjacency, alive)
+- Phase 2: ExecuteAttackCommand processes correctly
+- Phase 3: Coordinates scheduler and state updates
+- Phase 4: Visual feedback and animations
+
+**Depends On**: VS_010a (Health system), VS_002 (Scheduler)
+
+**Tech Lead Decision** (2025-09-07 16:13):
+- Complexity: 5/10 - Scheduler integration adds complexity
+- Risk: Medium - Death cascade needs careful handling
+- Pattern: Follow MoveActorCommand for command structure
+
+### VS_010c: Dummy Combat Target [Score: 75/100]
+**Status**: Ready for Dev ← SPLIT from VS_010 2025-09-07 16:13 (Tech Lead decision)
+**Owner**: Dev Engineer (can parallel with VS_010b)
+**Size**: XS (0.5 days)
+**Priority**: Critical (Testing/visualization)
+**Markers**: [TESTING] [SCENE]
+**Created**: 2025-09-07 16:13
+
+**What**: Static enemy target in grid scene for combat testing
+**Why**: Need something visible to attack and test combat mechanics
+
+**How**:
+- DummyActor with health but no AI (NextTurn = Maximum)
+- SpawnDummyCommand places at grid position
+- Registers in scheduler (but never processes turn)
+- Knight sprite with health bar
+- Death animation on zero health
+
+**Done When**:
+- Dummy appears at grid position (5,5) on scene start
+- Has visible health bar above sprite
+- Takes damage from player attacks
+- Shows hit flash on damage
+- Fades out when killed
+- Respawns on scene reload
+
+**Acceptance by Phase**:
+- Phase 1: DummyActor domain model
+- Phase 2: SpawnDummyCommand places in grid
+- Phase 3: Registers in all services
+- Phase 4: Sprite with health bar in scene
+
+**Depends On**: VS_010a (Health system), VS_008 (Grid scene)
+
+**Tech Lead Decision** (2025-09-07 16:13):
+- Complexity: 2/10 - Minimal logic, mostly scene setup
+- Risk: Low - Simple static entity
+- Note: Becomes reusable prefab for future enemies
+
+
+
+## 🗄️ Backup (Complex Features for Later)
+*Advanced mechanics postponed until core loop is proven fun*
+
 ### TD_007: Presenter Wiring Verification Protocol [ARCHITECTURE] [Score: 70/100]
-**Status**: Proposed ← CREATED 2025-09-07 13:36 (Post-mortem learning)
+**Status**: Proposed ← MOVED TO BACKUP 2025-09-07 15:57 (Product Owner priority decision)
 **Owner**: Tech Lead (Architecture decision needed)
 **Size**: M (4-6h including tests and documentation)
-**Priority**: Critical (Prevents future 2+ hour debugging sessions)
+**Priority**: Deferred (Focus on combat mechanics first)
 **Markers**: [ARCHITECTURE] [TESTING] [POST-MORTEM-ACTION]
 **Created**: 2025-09-07 13:36
 
@@ -112,54 +278,14 @@
 - **ROI**: HIGH - Prevents hours of debugging for minutes of test writing
 - **Decision**: APPROVED for immediate implementation
 
+**Product Owner Decision** (2025-09-07 15:57):
+- **DEFERRED TO BACKUP** - Combat mechanics take priority
+- Important infrastructure but not blocking core game loop
+- Revisit after VS_002 and VS_010a/b/c are complete
+
+ **Decision**: APPROVED for immediate implementation
+
 ---
-
-
-## 📈 Important (Do Next)
-*Core features for current milestone, technical debt affecting velocity*
-
-
-## 🗄️ Backup (Complex Features for Later)
-*Advanced mechanics postponed until core loop is proven fun*
-
-### TD_006: Re-enable Smooth Movement Animation [Score: 50/100]
-**Status**: Approved
-**Owner**: Dev Engineer (Low priority implementation)
-**Size**: S (2-4h)
-**Priority**: Low (Visual Polish)
-**Markers**: [ENHANCEMENT] [ANIMATION] [UI-POLISH]
-**Created**: 2025-09-07 12:37
-
-**What**: Re-enable tween-based smooth movement animation for actors
-**Why**: Current implementation uses instant position changes; smooth animation improves game feel
-
-**Problem Details**:
-- Tween animation fails silently in deferred call context
-- No error messages but animation doesn't execute
-- Tween.Finished callback never triggers
-- Currently using direct position assignment as workaround
-
-**Technical Approach Options**:
-1. Fix tween execution in CallDeferred context
-2. Use Godot's AnimationPlayer node instead of tweens
-3. Implement frame-based lerping in _Process method
-4. Create coroutine-based movement system
-
-**Done When**:
-- Actor moves smoothly over 0.3s to target position
-- Animation works reliably in all contexts
-- No visual jumping or stuttering
-- Maintains current functionality
-
-**Depends On**: None - Enhancement to existing working system
-
-**[Tech Lead] Decision** (2025-09-07 13:58):
-- **APPROVED with LOW PRIORITY**
-- Complexity: 2/10 - Simple timing fix
-- Solution: await process_frame before tween
-- Implement only after core logic complete
-- ~2 hour task when time permits
-
 
 ---
 
