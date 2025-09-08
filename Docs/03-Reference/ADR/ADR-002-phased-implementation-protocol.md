@@ -17,7 +17,7 @@ Darklands needs the same disciplined approach to ensure consistent quality.
 
 ## Decision
 
-We adopt the proven **Model-First Implementation Protocol** where ALL features are built in strict phases, starting with pure C# domain models and expanding outward through architectural layers.
+We adopt the proven **Model-First Implementation Protocol** where ALL features are built in strict phases, starting with pure C# domain models and expanding outward through architectural layers. This ADR integrates with ADR-004 (determinism), ADR-005 (save-ready), ADR-006 (selective abstraction), and ADR-009 (sequential processing).
 
 ### Mandatory Implementation Phases
 
@@ -27,6 +27,7 @@ We adopt the proven **Model-First Implementation Protocol** where ALL features a
 - Write comprehensive unit tests
 - **GATE**: 100% unit tests passing, >80% coverage
 - **Time**: <100ms test execution
+ - Determinism guardrails: integer/fixed math, stable sorting, deterministic RNG (ADR-004)
 
 #### Phase 2: Application Layer (Commands/Handlers)
 - Create CQRS commands and queries
@@ -34,6 +35,7 @@ We adopt the proven **Model-First Implementation Protocol** where ALL features a
 - Write handler unit tests with mocked repositories
 - **GATE**: All handler tests passing
 - **Time**: <500ms test execution
+ - No Godot types; interfaces only (ADR-006). Commands should support synchronous adapters (ADR-009)
 
 #### Phase 3: Infrastructure Layer (State/Services)
 - Implement state services and repositories
@@ -41,6 +43,8 @@ We adopt the proven **Model-First Implementation Protocol** where ALL features a
 - Verify data flow in isolation
 - **GATE**: Integration tests passing
 - **Time**: <2s test execution
+ - Implement serialization provider (Newtonsoft allowed) and save-ready patterns (ADR-005)
+ - Keep world hydration (ADR-005) separate from save/load pipeline
 
 #### Phase 4: Presentation Layer (Godot/UI)
 - Create presenter contracts (interfaces)
@@ -48,6 +52,7 @@ We adopt the proven **Model-First Implementation Protocol** where ALL features a
 - Wire Godot nodes and signals
 - **GATE**: Manual testing in editor works
 - **Time**: Variable (manual)
+ - Follow sequential processing; no async in game loop/presenters (ADR-009)
 
 ### Phase Transition Rules
 
@@ -55,6 +60,7 @@ We adopt the proven **Model-First Implementation Protocol** where ALL features a
 2. **NO SHORTCUTS**: Even "simple" features follow all phases
 3. **DOCUMENTATION**: Each phase completion documented in commit
 4. **REVIEW**: Tech Lead validates phase completion before proceeding
+5. **ARCHITECTURE TESTS**: Run architecture tests to enforce boundaries (no Godot in Core; no Presentation refs from Core/Application)
 
 ### Commit Message Convention
 
@@ -91,12 +97,12 @@ public static class TimeUnitCalculator
     {
         if (agility <= 0)
             return FinFail<TimeUnit>(Error.New("Invalid agility"));
-            
-        var baseTime = action.Cost.Value;
-        var agilityModifier = 100.0 / agility;
-        var encumbranceModifier = 1.0 + (encumbrance * 0.1);
         
-        var finalTime = (int)(baseTime * agilityModifier * encumbranceModifier);
+        // Deterministic integer math per ADR-004
+        var baseTime = action.Cost.Value;
+        var numerator = baseTime * 100 * (10 + encumbrance);
+        var denominator = agility * 10;
+        var finalTime = (numerator + denominator / 2) / denominator; // integer division with rounding
         return FinSucc(new TimeUnit(finalTime));
     }
 }
@@ -170,10 +176,13 @@ public class CombatStateService : ICombatantRepository
 public class CombatPresenter : PresenterBase<ICombatView>
 {
     private readonly IMediator _mediator;
+    private readonly ICommandBus _commandBus; // Synchronous adapter (see ADR-009)
     
     public async void OnActionSelected(string actionName, Vector2 target)
     {
-        var result = await _mediator.Send(new ExecuteCombatActionCommand(
+        // Sequential pattern per ADR-009: avoid async in game loop/presenters
+        // Use a synchronous command bus adapter instead of blocking on async directly
+        var result = _commandBus.Send<CombatResult>(new ExecuteCombatActionCommand(
             _currentActor.Id,
             GetTargetAt(target),
             actionName

@@ -32,7 +32,10 @@ public class Actor  // ❌ Coupled
 }
 
 // SELECTIVE ABSTRACTION (Good): Abstract only what matters
-public interface IAudioService { }  // ✅ Needed for testing
+public interface IAudioService  // ✅ Needed for testing
+{
+    void PlaySound(SoundId sound, CoreVector2? position = null);  // Core value type, not Godot
+}
 public partial class ActorView : Node2D  // ✅ View can use Godot directly
 {
     GetNode<Label>("HealthLabel").Text = "100";  // Direct is fine here
@@ -51,14 +54,25 @@ We will implement **Selective Abstraction** based on clear criteria:
 | **Input** | ✅ YES | Remapping, replay, platforms | IInputService |
 | **Save/Load** | ✅ YES | Complex, needs testing | ISaveService |
 | **Random** | ✅ YES | Determinism critical | IDeterministicRandom |
+| **Time/Clock** | ✅ YES | Determinism, replay, testing | IGameClock |
 | **Localization** | ✅ YES | Testing, modding | ILocalizationService |
 | **Resources** | ✅ YES | Data-driven design | IResourceLoader |
 | **Settings** | ✅ YES | Platform differences | ISettingsService |
+| **World Hydration** | ✅ YES | Build scene graph from state safely | IWorldHydrator |
+| **Mod Extensions** | ✅ YES | Extensible data attachment | IModExtensionRegistry |
 | **UI Controls** | ❌ NO | Already in View layer | Direct Godot |
 | **Animations** | ❌ NO | Presentation only | Direct Godot |
 | **Particles** | ❌ NO | Visual only | Direct Godot |
 | **Scene Loading** | ❌ NO | Godot-specific | Direct Godot |
 | **Tweens** | ❌ NO | Presentation only | Direct Godot |
+
+### Reviewer Addendum (2025-09-08)
+
+> Reviewer: This ADR is pragmatic and aligns with the handbook. To lock it down:
+> - Ensure Core interfaces avoid Godot types; use Core value objects/DTOs (e.g., `CoreVector2`) and map at the Infra/Presentation boundary.
+> - Add architecture tests: forbid `Godot.*` in `src/Darklands.Core.*` and prohibit Core/Application from referencing Presentation assemblies.
+> - Include “Time/Clock” abstraction in the decision matrix for determinism and replay.
+> - Provide adapter examples converting Core DTOs to Godot types.
 
 ### The Four-Layer Abstraction Rules
 
@@ -82,11 +96,13 @@ namespace Darklands.Core.Application
     public sealed class AttackCommandHandler
     {
         private readonly IAudioService _audio;  // ✅ Interface only
+        private readonly IGameClock _clock;     // ✅ Deterministic time source (see below)
         
         public Task<Fin<Unit>> Handle(AttackCommand command)
         {
             // Uses interfaces, never Godot directly
             _audio.PlaySound(SoundId.Attack);
+            var now = _clock.CurrentTurn; // Deterministic, replayable time
         }
     }
 }
@@ -99,10 +115,11 @@ namespace Darklands.Core.Infrastructure
     {
         private readonly AudioStreamPlayer2D _player;  // Godot here
         
-        public void PlaySound(SoundId sound)
+        public void PlaySound(SoundId sound, CoreVector2? position = null)
         {
             var stream = GD.Load<AudioStream>($"res://sounds/{sound}.ogg");
             _player.Stream = stream;
+            if (position.HasValue) _player.Position = new Vector2(position.Value.X, position.Value.Y);
             _player.Play();
         }
     }
@@ -157,7 +174,7 @@ namespace Darklands.Presentation
 // ✅ GOOD: Audio needs abstraction for testing
 public interface IAudioService
 {
-    void PlaySound(SoundId sound, Vector2? position = null);
+    void PlaySound(SoundId sound, CoreVector2? position = null);
     void SetMusicTrack(MusicId track);
     void SetBusVolume(AudioBus bus, float volume);
 }
@@ -171,7 +188,7 @@ public void Combat_PlaysCorrectSounds()
     
     combat.ExecuteAttack(attacker, target);
     
-    audioMock.Verify(a => a.PlaySound(SoundId.SwordHit, It.IsAny<Vector2?>()));
+    audioMock.Verify(a => a.PlaySound(SoundId.SwordHit, It.IsAny<CoreVector2?>()));
 }
 
 // ❌ BAD: Label wrapper adds no value
@@ -186,8 +203,15 @@ public interface ILabelService  // Don't do this!
 public interface IInputService
 {
     bool IsActionPressed(InputAction action);
-    Vector2 GetMousePosition();
+    CoreVector2 GetMousePosition();
     IObservable<InputEvent> InputEvents { get; }
+}
+
+// ✅ GOOD: Deterministic clock abstraction for simulation/replay
+public interface IGameClock
+{
+    ulong CurrentTurn { get; }
+    void AdvanceTurns(ulong by);
 }
 
 // ❌ BAD: Tween wrapper is pointless
@@ -322,12 +346,33 @@ public void CombatService_WithValidAttack_PlaysSound()
     
     combat.ExecuteAttack(testAttacker, testTarget);
     
-    audio.Verify(a => a.PlaySound(It.IsAny<SoundId>(), It.IsAny<Vector2?>()));
+    audio.Verify(a => a.PlaySound(It.IsAny<SoundId>(), It.IsAny<CoreVector2?>()));
 }
 
 // View tests are minimal or skipped
 // (UI testing through Godot is expensive and brittle)
 ```
+
+// Architecture tests (example using NetArchTest)
+[Test]
+public void Core_ShouldNotReference_Godot()
+{
+    var result = Types.InAssembly(typeof(Darklands.Core.Domain.Actor).Assembly)
+        .Should().NotHaveDependencyOn("Godot")
+        .GetResult();
+    result.IsSuccessful.Should().BeTrue();
+}
+
+[Test]
+public void Core_Application_ShouldNotReference_Presentation()
+{
+    var core = Types.InAssembly(typeof(Darklands.Core.Domain.Actor).Assembly)
+        .Should().NotHaveDependencyOn("Darklands.Presentation").GetResult();
+    var app = Types.InAssembly(typeof(Darklands.Core.Application.AttackCommandHandler).Assembly)
+        .Should().NotHaveDependencyOn("Darklands.Presentation").GetResult();
+    core.IsSuccessful.Should().BeTrue();
+    app.IsSuccessful.Should().BeTrue();
+}
 
 ## Consequences
 

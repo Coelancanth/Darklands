@@ -1,7 +1,7 @@
-# ADR-007: TileMap Variant Selection Strategy
+# ADR-003: TileMap Variant Selection Strategy
 
 **Date**: 2025-08-30
-**Status**: Proposed
+**Status**: Approved
 **Deciders**: Tech Lead
 **Tags**: #tilemap #autotiling #architecture
 
@@ -223,6 +223,26 @@ Define tile properties in Godot TileSet:
 - Consider "Better Terrain" plugin if native system inadequate
 - Implement grid chunking if performance degrades
 - Keep tile stitching logic in separate class for potential fallback
+
+## Reviewer Addendum (2025-09-08)
+
+### Numbering and Status Consistency
+- This ADR supersedes an earlier draft labeled "ADR-007". The correct identifier is `ADR-003`, and its status is Approved (matches `ADR/README.md`).
+
+### Profiling & Performance Plan
+- Target generation budgets (editor/dev machine):
+  - 50×50 grid: < 10 ms total autotiling time
+  - 100×100 grid: < 30 ms total autotiling time
+- Batch placement:
+  - Prefer `SetCellsTerrainConnect` with batches of 256–1024 cells to reduce overhead.
+  - Chunk the grid into regions (e.g., 32×32 or 64×64) and place per-chunk to keep batches cache-friendly.
+- Ordering & determinism:
+  - Process chunks in a stable order (row-major) and within-chunk cells in a stable order to align with ADR-004.
+- Measurement:
+  - Add timing around each chunk and report min/avg/max; log tile count per chunk.
+  - Run benchmarks for 32×32 vs 64×64 chunk sizes and pick the smallest total time.
+- Fallback:
+  - If native terrain sets exceed budget on 100×100+, consider hybrid fallback: perform a single pass of manual neighbor classification in Core and call plain `SetCells` with precomputed variants.
 
 ## Notes
 

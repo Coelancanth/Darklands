@@ -42,6 +42,16 @@ We will implement **strict deterministic simulation** where:
 4. **Frame-independent** logic (no wall clock time, no frame deltas)
 5. **Deterministic IDs** for all entities (no object hash codes)
 
+### Reviewer Addendum (2025-09-08)
+
+> Reviewer: The approach is strong. To harden it and avoid subtle non-determinism, I recommend the following refinements applied below in code and checklists:
+> - Use unbiased range generation (rejection sampling) to avoid modulo bias.
+> - Do not use `string.GetHashCode()` for RNG stream derivation; replace with a stable 64-bit hash and derive fork seeds/streams from a root seed rather than current state.
+> - Validate inputs for `Check` (0..100), `Choose` (non-empty, positive weights, total within Int32).
+> - Optionally expose `Stream` and `RootSeed` for diagnostics and save integrity; persist `State` as before; persist streams for diagnostics if desired.
+> - Avoid iteration over unordered collections without applying a stable order.
+> - Add cross-platform determinism tests and guard against floating-point reintroduction.
+
 ### Core Implementation
 
 ```csharp
@@ -87,6 +97,16 @@ namespace Darklands.Core.Domain.Determinism
         ulong State { get; set; }
         
         /// <summary>
+        /// Read-only increment/stream (odd) used by PCG step. Exposed for diagnostics/saving.
+        /// </summary>
+        ulong Stream { get; }
+        
+        /// <summary>
+        /// Root seed used to derive named forks deterministically.
+        /// </summary>
+        ulong RootSeed { get; }
+        
+        /// <summary>
         /// Fork a new independent stream (for parallel systems)
         /// </summary>
         IDeterministicRandom Fork(string streamName);
@@ -100,12 +120,14 @@ namespace Darklands.Core.Domain.Determinism
     {
         private ulong _state;
         private readonly ulong _stream;
-        private readonly ILogger? _logger;
+        private readonly ulong _rootSeed;
+        private readonly ILogger? _logger; // Use Microsoft.Extensions.Logging in Core; host provides Serilog bridge
         
         public DeterministicRandom(ulong seed, ulong stream = 1, ILogger? logger = null)
         {
             _state = seed;
             _stream = stream | 1; // Must be odd
+            _rootSeed = seed;
             _logger = logger;
         }
         
@@ -114,7 +136,15 @@ namespace Darklands.Core.Domain.Determinism
             if (maxExclusive <= 0)
                 throw new ArgumentException($"Invalid max: {maxExclusive}");
             
-            var result = (int)(NextUInt32() % (uint)maxExclusive);
+            // Unbiased range via rejection sampling to avoid modulo bias
+            var bound = (uint)maxExclusive;
+            var threshold = (uint)(-bound) % bound;
+            uint r;
+            do
+            {
+                r = NextUInt32();
+            } while (r < threshold);
+            var result = (int)(r % bound);
             
             _logger?.Debug("RNG[{Context}]: {Result}/{Max} (State: {State:X16})", 
                 context, result, maxExclusive, _state);
@@ -127,11 +157,16 @@ namespace Darklands.Core.Domain.Determinism
             if (min >= maxExclusive)
                 throw new ArgumentException($"Invalid range: [{min}, {maxExclusive})");
             
-            return min + Next(maxExclusive - min, context);
+            var bound = (long)maxExclusive - min;
+            if (bound > int.MaxValue)
+                throw new ArgumentOutOfRangeException(nameof(maxExclusive), "Range width exceeds int.MaxValue");
+            return min + Next((int)bound, context);
         }
         
         public bool Check(int percentChance, string context)
         {
+            if ((uint)percentChance > 100)
+                throw new ArgumentOutOfRangeException(nameof(percentChance), "percentChance must be 0..100");
             return Next(100, context) < percentChance;
         }
         
@@ -147,7 +182,14 @@ namespace Darklands.Core.Domain.Determinism
         
         public T Choose<T>(IReadOnlyList<(T item, int weight)> weighted, string context)
         {
-            var totalWeight = weighted.Sum(w => w.weight);
+            if (weighted == null || weighted.Count == 0)
+                throw new ArgumentException("Weighted list must be non-empty", nameof(weighted));
+            if (weighted.Any(w => w.weight <= 0))
+                throw new ArgumentException("All weights must be positive", nameof(weighted));
+            var totalWeightLong = weighted.Sum(w => (long)w.weight);
+            if (totalWeightLong <= 0 || totalWeightLong > int.MaxValue)
+                throw new ArgumentOutOfRangeException(nameof(weighted), "Total weight must fit in Int32 and be > 0");
+            var totalWeight = (int)totalWeightLong;
             var roll = Next(totalWeight, context);
             
             var accumulated = 0;
@@ -168,11 +210,32 @@ namespace Darklands.Core.Domain.Determinism
             set => _state = value;
         }
         
+        public ulong Stream => _stream;
+        public ulong RootSeed => _rootSeed;
+        
         public IDeterministicRandom Fork(string streamName)
         {
-            // Create independent stream using hash of name
-            var streamId = (ulong)streamName.GetHashCode();
-            return new DeterministicRandom(NextUInt64(), streamId, _logger);
+            // Derive independent stream deterministically from root seed and name (stable across platforms)
+            var seed = DeterministicHash64($"{_rootSeed}/seed/{streamName}");
+            var streamId = DeterministicHash64($"{_rootSeed}/stream/{streamName}") | 1UL; // ensure odd
+            return new DeterministicRandom(seed, streamId, _logger);
+        }
+        
+        /// <summary>
+        /// Stable 64-bit FNV-1a hash over UTF-8 bytes. Deterministic across processes/platforms.
+        /// </summary>
+        private static ulong DeterministicHash64(string text)
+        {
+            const ulong offset = 1469598103934665603UL;
+            const ulong prime = 1099511628211UL;
+            ulong hash = offset;
+            var bytes = System.Text.Encoding.UTF8.GetBytes(text);
+            for (int i = 0; i < bytes.Length; i++)
+            {
+                hash ^= bytes[i];
+                hash *= prime;
+            }
+            return hash;
         }
         
         private uint NextUInt32()
@@ -221,7 +284,11 @@ namespace Darklands.Core.Domain.Math
         public static Fixed operator +(Fixed a, Fixed b) => new(a._raw + b._raw);
         public static Fixed operator -(Fixed a, Fixed b) => new(a._raw - b._raw);
         public static Fixed operator *(Fixed a, Fixed b) => new((int)((long)a._raw * b._raw >> FractionBits));
-        public static Fixed operator /(Fixed a, Fixed b) => new((int)((long)a._raw << FractionBits) / b._raw);
+        public static Fixed operator /(Fixed a, Fixed b)
+        {
+            if (b._raw == 0) throw new DivideByZeroException("Fixed division by zero");
+            return new((int)((long)a._raw << FractionBits) / b._raw);
+        }
         
         public static bool operator >(Fixed a, Fixed b) => a._raw > b._raw;
         public static bool operator <(Fixed a, Fixed b) => a._raw < b._raw;
@@ -352,6 +419,11 @@ public class GameSession
         save.MasterRandomState = _masterRandom.State;
         save.CombatRandomState = _combatRandom.State;
         save.LootRandomState = _lootRandom.State;
+        
+        // Optional (diagnostics/integrity): persist streams to detect accidental changes
+        save.MasterRandomStream = _masterRandom.Stream;
+        save.CombatRandomStream = _combatRandom.Stream;
+        save.LootRandomStream = _lootRandom.Stream;
     }
     
     public void LoadState(SaveData save)
@@ -359,6 +431,7 @@ public class GameSession
         _masterRandom.State = save.MasterRandomState;
         _combatRandom.State = save.CombatRandomState;
         _lootRandom.State = save.LootRandomState;
+        // Streams are derived from stable names. If they mismatch saved values, fail fast in validation.
     }
 }
 
@@ -424,6 +497,10 @@ public void Sorting_WithEqualValues_IsStable()
 }
 ```
 
+- Add cross-platform deterministic streams test running the same seeds on CI matrix (Windows/Linux/macOS) to assert byte-for-byte identical sequences for a few thousand draws per named stream.
+- Add property-based tests (FsCheck) that `Next(n)` never returns `n` or negatives, `Range(min,max)` stays within bounds, and `Choose` selects only from provided items with frequencies ~proportional to weights.
+- Add guardrails test that any use of `System.Random`, `UnityEngine.Random`/`Godot.GD.Rand*`, `DateTime.Now`, or floating-point arithmetic in gameplay assemblies fails a Roslyn analyzer.
+
 ## Implementation Checklist
 
 - [ ] Replace all `Random.Range` with `IDeterministicRandom`
@@ -434,6 +511,16 @@ public void Sorting_WithEqualValues_IsStable()
 - [ ] Add context strings to all random calls
 - [ ] Create random forks for independent systems
 - [ ] Add save/load for random states
+// Determinism hardening
+- [ ] Replace any `string.GetHashCode()` usages in RNG derivation with stable 64-bit hash
+- [ ] Ensure `Next(int)` uses rejection sampling (no modulo bias)
+- [ ] Validate weights and bounds in `Choose`, `Check`, `Range`
+- [ ] Avoid iterating unordered collections without stable ordering (e.g., sort dictionary keys)
+- [ ] Add cross-platform determinism CI test suite
+
+### Reviewer Addendum (2025-09-08)
+- Use `Microsoft.Extensions.Logging` in Core. Bind Serilog via provider in host/Godot project.
+- Define a stable, versioned map of named RNG streams (e.g., "combat", "loot", "events"). Persist states and, optionally, streams; validate on load.
 
 ## Common Pitfalls to Avoid
 
@@ -465,6 +552,11 @@ var now = DateTime.Now;
 // ✅ ALWAYS: Game time
 var now = _gameTime.CurrentTurn;
 ```
+
+- Do not iterate `Dictionary<TKey, TValue>` or `HashSet<T>` when order matters; apply `.OrderByStable` on a deterministic key or use `SortedDictionary`/`SortedSet`.
+- Do not use `string.GetHashCode()` for any persisted or deterministic behavior; its value can differ across runtimes and processes.
+- Avoid concurrency inside the simulation step. If parallelizing, partition deterministically and avoid data races/interleavings.
+- Do not rely on reflection-based member enumeration without a fixed ordering.
 
 ## References
 
