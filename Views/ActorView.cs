@@ -18,21 +18,23 @@ namespace Darklands.Views
         private ActorPresenter? _presenter;
         private ILogger? _logger;
         private readonly Dictionary<Darklands.Core.Domain.Grid.ActorId, ColorRect> _actorNodes = new();
-        private const int TileSize = 32;
+        private const int TileSize = 64;
         private const float MoveDuration = 0.3f; // Seconds for movement animation
 
         // Actor colors for different types
         private readonly Color PlayerColor = new(0.1f, 0.46f, 0.82f, 1.0f); // Blue #1976D2
-        private readonly Color EnemyColor = new(0.96f, 0.26f, 0.21f, 1.0f);  // Red #F44336
+        private readonly Color EnemyColor = new(0.59f, 0.36f, 0.20f, 1.0f);  // Brown #964D33
         private readonly Color NeutralColor = new(0.61f, 0.61f, 0.61f, 1.0f); // Gray #9E9E9E
         private readonly Color InteractiveColor = new(1.0f, 0.59f, 0.0f, 1.0f); // Orange #FF9800
 
-        // Temporary storage for deferred method parameters
-        private ColorRect? _pendingActorNode;
-        private Darklands.Core.Domain.Grid.ActorId _pendingActorId;
-        private Vector2 _pendingEndPosition;
-        private Darklands.Core.Domain.Grid.Position _pendingFromPosition;
-        private Darklands.Core.Domain.Grid.Position _pendingToPosition;
+        // Queue-based storage for deferred operations - fixes race condition (TD_011)
+        private readonly Queue<ActorCreationData> _pendingActorCreations = new();
+        private readonly Queue<ActorMoveData> _pendingActorMoves = new();
+        
+        // Data structures to hold operation parameters
+        private record ActorCreationData(ColorRect ActorNode, Darklands.Core.Domain.Grid.ActorId ActorId);
+        private record ActorMoveData(ColorRect ActorNode, Vector2 EndPosition, Darklands.Core.Domain.Grid.ActorId ActorId, 
+            Darklands.Core.Domain.Grid.Position FromPosition, Darklands.Core.Domain.Grid.Position ToPosition);
 
         /// <summary>
         /// Called when the node is added to the scene tree.
@@ -74,11 +76,12 @@ namespace Darklands.Views
         {
             try
             {
-                // Remove existing actor node if it exists
+                // Remove existing actor node if it exists (synchronously to avoid race conditions)
                 if (_actorNodes.TryGetValue(actorId, out var existingNode))
                 {
-                    _pendingActorId = actorId;
-                    CallDeferred("RemoveActorNodeDeferred");
+                    existingNode?.QueueFree();
+                    _actorNodes.Remove(actorId);
+                    _logger?.Debug("Removed existing actor node for {ActorId}", actorId);
                 }
 
                 // Create new ColorRect node for the actor
@@ -89,10 +92,12 @@ namespace Darklands.Views
                     Position = new Vector2(position.X * TileSize, position.Y * TileSize)
                 };
 
-                // Store for deferred call
-                _pendingActorNode = actorNode;
-                _pendingActorId = actorId;
-                CallDeferred("AddActorNodeDeferred");
+                // Queue for deferred call - prevents race condition
+                lock (_pendingActorCreations)
+                {
+                    _pendingActorCreations.Enqueue(new ActorCreationData(actorNode, actorId));
+                }
+                CallDeferred("ProcessPendingActorCreations");
 
                 _logger?.Information("Actor {ActorId} created at ({X},{Y})", actorId, position.X, position.Y);
 
@@ -105,29 +110,24 @@ namespace Darklands.Views
         }
 
         /// <summary>
-        /// Helper method to add actor node on main thread.
+        /// Helper method to process queued actor creations on main thread.
+        /// Fixes race condition by processing all queued operations sequentially.
         /// </summary>
-        private void AddActorNodeDeferred()
+        private void ProcessPendingActorCreations()
         {
-            if (_pendingActorNode != null)
+            lock (_pendingActorCreations)
             {
-                AddChild(_pendingActorNode);
-                _actorNodes[_pendingActorId] = _pendingActorNode;
-                _pendingActorNode = null;
+                while (_pendingActorCreations.Count > 0)
+                {
+                    var creationData = _pendingActorCreations.Dequeue();
+                    AddChild(creationData.ActorNode);
+                    _actorNodes[creationData.ActorId] = creationData.ActorNode;
+                    _logger?.Debug("Processed actor creation for {ActorId}", creationData.ActorId);
+                }
             }
         }
 
-        /// <summary>
-        /// Helper method to remove actor node on main thread.
-        /// </summary>
-        private void RemoveActorNodeDeferred()
-        {
-            if (_actorNodes.TryGetValue(_pendingActorId, out var existingNode))
-            {
-                existingNode?.QueueFree();
-                _actorNodes.Remove(_pendingActorId);
-            }
-        }
+
 
         /// <summary>
         /// Updates an existing actor's position on the grid with smooth animation.
@@ -144,15 +144,14 @@ namespace Darklands.Views
 
                 var endPosition = new Vector2(toPosition.X * TileSize, toPosition.Y * TileSize);
 
-                // Store parameters for deferred call
-                _pendingActorNode = actorNode;
-                _pendingEndPosition = endPosition;
-                _pendingActorId = actorId;
-                _pendingFromPosition = fromPosition;
-                _pendingToPosition = toPosition;
+                // Queue parameters for deferred call - prevents race condition
+                lock (_pendingActorMoves)
+                {
+                    _pendingActorMoves.Enqueue(new ActorMoveData(actorNode, endPosition, actorId, fromPosition, toPosition));
+                }
 
                 // Use deferred call for tween operations to ensure main thread execution
-                CallDeferred("MoveActorNodeDeferred");
+                CallDeferred("ProcessPendingActorMoves");
                 
                 await Task.CompletedTask;
             }
@@ -163,57 +162,39 @@ namespace Darklands.Views
         }
 
         /// <summary>
-        /// Helper method to move actor node on main thread.
+        /// Helper method to process queued actor moves on main thread.
+        /// Fixes race condition by processing all queued move operations sequentially.
         /// </summary>
-        private void MoveActorNodeDeferred()
+        private void ProcessPendingActorMoves()
         {
-            if (_pendingActorNode != null && _actorNodes.ContainsKey(_pendingActorId))
+            lock (_pendingActorMoves)
             {
-                // Get the ACTUAL actor node from our dictionary (not the pending one which might be stale)
-                var actualActorNode = _actorNodes[_pendingActorId];
-                
-                // Set position immediately
-                actualActorNode.Position = _pendingEndPosition;
-                _logger?.Information("Actor {ActorId} moved to ({FromX},{FromY}) → ({ToX},{ToY})", 
-                    _pendingActorId, 
-                    _pendingFromPosition.X, _pendingFromPosition.Y,
-                    _pendingToPosition.X, _pendingToPosition.Y);
-                
-                // TODO: Re-enable tween animation once basic movement is verified working
-                // The tween code below should work but may have timing issues with deferred calls
-                /*
-                // Create and configure tween for smooth movement
-                // CRITICAL FIX: Use "Position" (PascalCase) not "position" for C# property
-                var tween = CreateTween();
-                var tweenResult = tween.TweenProperty(actualActorNode, "Position", _pendingEndPosition, MoveDuration);
-                
-                // Check if tween was created successfully
-                if (tween == null)
+                while (_pendingActorMoves.Count > 0)
                 {
-                    GD.PrintErr($"[MOVE DEBUG] Failed to create tween!");
-                    actualActorNode.Position = _pendingEndPosition; // Fallback: set directly
-                }
-                else
-                {
-                    GD.Print($"[MOVE DEBUG] Tween created successfully, animating over {MoveDuration}s");
+                    var moveData = _pendingActorMoves.Dequeue();
                     
-                    // Add completion callback to verify movement
-                    tween.Finished += () => {
-                        if (_actorNodes.TryGetValue(actorId, out var node))
-                        {
-                            GD.Print($"[MOVE DEBUG] Tween completed! Actor {actorId.Value} now at: {node.Position} (target was: {targetPos})");
-                        }
-                    };
+                    if (_actorNodes.ContainsKey(moveData.ActorId))
+                    {
+                        // Get the ACTUAL actor node from our dictionary
+                        var actualActorNode = _actorNodes[moveData.ActorId];
+                        
+                        // Set position immediately
+                        actualActorNode.Position = moveData.EndPosition;
+                        _logger?.Information("Actor {ActorId} moved to ({FromX},{FromY}) → ({ToX},{ToY})", 
+                            moveData.ActorId, 
+                            moveData.FromPosition.X, moveData.FromPosition.Y,
+                            moveData.ToPosition.X, moveData.ToPosition.Y);
+                        
+                        // TODO: Re-enable tween animation once basic movement is verified working
+                    }
+                    else
+                    {
+                        _logger?.Warning("Cannot move actor {ActorId} - not found in actor nodes", moveData.ActorId);
+                    }
                 }
-                */
-                
-                _pendingActorNode = null;
-            }
-            else
-            {
-                _logger?.Warning("Actor {ActorId} node not found", _pendingActorId);
             }
         }
+        
 
         /// <summary>
         /// Updates an actor's visual state or appearance.

@@ -17,7 +17,7 @@ namespace Darklands.Views
     {
         private GridPresenter? _presenter;
         private ILogger? _logger;
-        private const int TileSize = 32;
+        private const int TileSize = 64;
         private int _gridWidth;
         private int _gridHeight;
         private Dictionary<Vector2I, ColorRect> _tiles = new();

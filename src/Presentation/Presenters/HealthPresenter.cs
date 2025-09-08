@@ -66,29 +66,17 @@ namespace Darklands.Core.Presentation.Presenters
         /// <summary>
         /// Sets up health bars for existing actors.
         /// This is a Phase 4 implementation - future versions will load from application state.
+        /// Health bars are now created by ActorPresenter via HandleActorCreatedAsync() to avoid duplication.
         /// </summary>
         private async Task InitializeHealthBarsAsync()
         {
             try
             {
-                // For Phase 4, check if test player exists and show its health
-                if (ActorPresenter.TestPlayerId.HasValue)
-                {
-                    var actorWithPositionOption = _combatQueryService.GetActorWithPosition(ActorPresenter.TestPlayerId.Value);
-                    await actorWithPositionOption.Match(
-                        Some: async actorWithPosition =>
-                        {
-                            await View.DisplayHealthBarAsync(actorWithPosition.Id, actorWithPosition.Position, actorWithPosition.Actor.Health);
-                            _logger.Information("Health bar displayed for test player {ActorId} with health {Health} at position {Position}",
-                                actorWithPosition.Id, actorWithPosition.Actor.Health, actorWithPosition.Position);
-                        },
-                        None: () =>
-                        {
-                            _logger.Warning("Test player exists but not found in combined actor/position service");
-                            return Task.CompletedTask;
-                        }
-                    );
-                }
+                // Health bars are now created by ActorPresenter during actor creation
+                // This avoids the duplication issue where both HealthPresenter and ActorPresenter
+                // were trying to create health bars for the same actors
+                _logger.Debug("HealthPresenter ready - health bars will be created by ActorPresenter");
+                await Task.CompletedTask;
             }
             catch (Exception ex)
             {
@@ -218,6 +206,26 @@ namespace Darklands.Core.Presentation.Presenters
             try
             {
                 await View.DisplayHealthBarAsync(actorId, position, health);
+                _logger.Debug("Successfully created health bar for {ActorId}", actorId);
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Error creating health bar for {ActorId}", actorId);
+            }
+        }
+
+        /// <summary>
+        /// Handles actor creation synchronously for sequential turn-based processing.
+        /// Part of TD_011 async→sync transformation.
+        /// </summary>
+        public void HandleActorCreated(ActorId actorId, Position position, Health health)
+        {
+            _logger.Information("Creating health bar for new actor {ActorId} at {Position} with health {Health}",
+                actorId, position, health);
+
+            try
+            {
+                View.DisplayHealthBar(actorId, position, health);
                 _logger.Debug("Successfully created health bar for {ActorId}", actorId);
             }
             catch (Exception ex)

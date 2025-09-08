@@ -20,6 +20,15 @@ namespace Darklands.Core.Presentation.Views
         Task DisplayHealthBarAsync(ActorId actorId, Position position, Health health);
 
         /// <summary>
+        /// Creates and displays a health bar for an actor at the specified position (synchronous).
+        /// Uses CallDeferred for Godot thread safety in turn-based sequential processing.
+        /// </summary>
+        /// <param name="actorId">Unique identifier for the actor</param>
+        /// <param name="position">Grid position where the health bar should appear</param>
+        /// <param name="health">Current health state to display</param>
+        void DisplayHealthBar(ActorId actorId, Position position, Health health);
+
+        /// <summary>
         /// Updates an actor's health bar with new health values.
         /// Should provide smooth transitions for health changes.
         /// </summary>

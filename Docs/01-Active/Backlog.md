@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-07 19:22
+**Last Updated**: 2025-09-08 12:53
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -9,8 +9,8 @@
 ## 🔢 Next Item Numbers by Type
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
-- **Next BR**: 001
-- **Next TD**: 011  
+- **Next BR**: 002
+- **Next TD**: 012  
 - **Next VS**: 011 
 
 
@@ -70,131 +70,16 @@
 
 
 
-
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*
 
 
-### VS_010a: Actor Health System (Foundation) [Score: 100/100]
-**Status**: Done (Debugger Expert, 2025-09-07 19:22)
-**Owner**: Debugger Expert
-**Size**: S (1 day implementation + debugging)
-**Priority**: Critical (Required for all combat)
-**Markers**: [ARCHITECTURE] [FOUNDATION] [COMPLETE]
-**Created**: 2025-09-07 16:13
 
-**What**: Add health/damage foundation to Actor domain model
-**Why**: Can't have attacks without health to damage - foundational requirement
 
-**How**:
-- Health value object with Current/Maximum/IsDead
-- Actor domain model with Health property
-- DamageActorCommand and HealActorCommand
-- IActorStateService extends IGridStateService
-- Health bar UI component in scene
-
-**Done When**:
-- Actors have persistent health values
-- Damage/heal commands modify health correctly
-- Death sets IsDead flag
-- Health displays in UI with bar visualization
-- All health scenarios covered by tests
-
-**Acceptance by Phase**:
-- ✅ Phase 1: Health domain model with validation (COMPLETE - commit 91b6273)
-- ✅ Phase 2: Damage/Heal commands process correctly (COMPLETE - commit d9a8b1b)
-- ✅ Phase 3: Actor state persists in service (COMPLETE - 2025-09-07 17:25)
-- ✅ Phase 4: Health bars display in scene (COMPLETE - 2025-09-07 19:22)
-
-**Phase 1 Deliverables** (2025-09-07 17:05):
-- ✅ Health.cs - Immutable value object with validation
-- ✅ Actor.cs - Domain model with integrated health
-- ✅ DamageActorCommand & HealActorCommand created
-- ✅ Comprehensive unit tests (50+ test cases)
-- ✅ Zero build warnings, 232/233 tests passing
-- ✅ Expected MediatR test failure (handlers needed Phase 2)
-
-**Phase 2 Deliverables** (2025-09-07 17:11):
-- ✅ IActorStateService interface for health management
-- ✅ DamageActorCommandHandler with error handling
-- ✅ HealActorCommandHandler with business rules
-- ✅ 16 comprehensive handler test scenarios
-- ✅ Zero build warnings, 239/249 tests passing
-- ✅ Expected DI test failures (service implementation needed Phase 3)
-
-**Phase 3 Deliverables** (2025-09-07 17:25):
-- ✅ InMemoryActorStateService - Complete infrastructure implementation
-- ✅ DI registration in GameStrapper - Singleton lifecycle management
-- ✅ Thread-safe state management with ConcurrentDictionary
-- ✅ Functional error handling with LanguageExt v5 patterns
-- ✅ All 249 tests passing - Zero build warnings, complete DI resolution
-
-**Phase 4 Completion Summary** (2025-09-07 19:22):
-- ✅ **RESOLVED**: Health bar display issue via presenter coordination pattern
-- ✅ Implemented SetHealthPresenter() coordination between ActorPresenter ↔ HealthPresenter
-- ✅ Fixed Godot node initialization (moved from constructor to _Ready())
-- ✅ Health bars now display with colors, numbers, and movement tracking
-- ✅ Added visual polish: background borders, dynamic colors, health text display
-- ✅ Created comprehensive post-mortem (PM_001) for architectural learning extraction
-
-**Final Implementation**:
-- Health bars display above actors with proper colors (Green/Yellow/Red)
-- Shows "current/maximum" text (e.g., "100/100") 
-- Tracks actor movement with synchronized positioning
-- Proper Godot lifecycle usage with scene tree integration
-- Cross-presenter coordination pattern established for future features
-
-**Depends On**: None (foundational)
-
-**Tech Lead Decision** (2025-09-07 16:13):
-- **APPROVED** - Split from oversized VS_010 (was 4-5 days)
-- Complexity: 3/10 - Standard domain modeling
-- Risk: Low - Well-understood pattern
-- Must complete before VS_010b and VS_010c
-
-### VS_010b: Basic Melee Attack [Score: 85/100]
-**Status**: Ready for Dev ← SPLIT from VS_010 2025-09-07 16:13 (Tech Lead decision)
-**Owner**: Dev Engineer (after VS_010a)
-**Size**: M (1.5 days)
-**Priority**: Critical (Core combat mechanic)
-**Markers**: [ARCHITECTURE] [COMBAT]
-**Created**: 2025-09-07 16:13
-
-**What**: Execute melee attacks with scheduler integration and damage
-**Why**: First actual combat mechanic using the time-unit system
-
-**How**:
-- AttackAction domain validation (adjacency, target alive)
-- ExecuteAttackCommand with damage calculation
-- Integration with DamageActorCommand from VS_010a
-- Reschedule attacker with action time cost
-- Remove dead actors from scheduler
-
-**Done When**:
-- Can attack adjacent enemies only
-- Damage reduces target health
-- Time cost affects attacker's next turn
-- Death removes actor from scheduler
-- Attack animations and feedback work
-- Combat log shows attack messages
-
-**Acceptance by Phase**:
-- Phase 1: Attack validation logic (adjacency, alive)
-- Phase 2: ExecuteAttackCommand processes correctly
-- Phase 3: Coordinates scheduler and state updates
-- Phase 4: Visual feedback and animations
-
-**Depends On**: VS_010a (Health system), VS_002 (Scheduler)
-
-**Tech Lead Decision** (2025-09-07 16:13):
-- Complexity: 5/10 - Scheduler integration adds complexity
-- Risk: Medium - Death cascade needs careful handling
-- Pattern: Follow MoveActorCommand for command structure
-
-### VS_010c: Dummy Combat Target [Score: 75/100]
-**Status**: Ready for Dev ← SPLIT from VS_010 2025-09-07 16:13 (Tech Lead decision)
-**Owner**: Dev Engineer (can parallel with VS_010b)
-**Size**: XS (0.5 days)
+### VS_010c: Dummy Combat Target [Score: 85/100]  
+**Status**: Ready to Resume (Dev Engineer, 2025-09-08) ← UNBLOCKED: BR_001 resolved by TD_011
+**Owner**: Dev Engineer (scene integration work)
+**Size**: XS (0.2 days remaining - only scene integration left)
 **Priority**: Critical (Testing/visualization)
 **Markers**: [TESTING] [SCENE]
 **Created**: 2025-09-07 16:13
@@ -203,25 +88,31 @@
 **Why**: Need something visible to attack and test combat mechanics
 
 **How**:
-- DummyActor with health but no AI (NextTurn = Maximum)
-- SpawnDummyCommand places at grid position
-- Registers in scheduler (but never processes turn)
-- Knight sprite with health bar
-- Death animation on zero health
+- ✅ DummyActor with health but no AI (IsStatic = true)  
+- ✅ SpawnDummyCommand places at grid position
+- ✅ Registers in actor state + grid services
+- 🔄 brown sprite with health bar
+- 🔄 Death animation on zero health
 
 **Done When**:
-- Dummy appears at grid position (5,5) on scene start
-- Has visible health bar above sprite
-- Takes damage from player attacks
-- Shows hit flash on damage
-- Fades out when killed
-- Respawns on scene reload
+- 🔄 Dummy appears at grid position (5,5) on scene start
+- 🔄 Has visible health bar above sprite
+- ✅ Takes damage from player attacks (service integration done)
+- 🔄 Shows hit flash on damage  
+- 🔄 Fades out when killed
+- 🔄 Respawns on scene reload
 
 **Acceptance by Phase**:
-- Phase 1: DummyActor domain model
-- Phase 2: SpawnDummyCommand places in grid
-- Phase 3: Registers in all services
-- Phase 4: Sprite with health bar in scene
+- ✅ Phase 1: DummyActor domain model (18 tests)
+- ✅ Phase 2: SpawnDummyCommand places in grid (27 tests) 
+- ✅ Phase 3: Registers in all services (transaction rollback)
+- 🔄 Phase 4: Sprite with health bar in scene
+
+**PROGRESS UPDATE (2025-09-07 20:47)**:
+- **Complete**: Domain model, command/handler, service integration
+- **Test Status**: 343/343 tests passing, 45 comprehensive tests
+- **Remaining**: Visual sprite + health bar in combat_scene.tscn
+- **Implementation**: Commit 496e781 has core functionality ready
 
 **Depends On**: VS_010a (Health system), VS_008 (Grid scene)
 

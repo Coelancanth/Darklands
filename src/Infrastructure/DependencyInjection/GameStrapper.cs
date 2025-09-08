@@ -224,6 +224,9 @@ public static class GameStrapper
             // TD_009: Composite query service (coordinates ActorState + Grid services)
             services.AddSingleton<Application.Combat.Services.ICombatQueryService, Application.Combat.Services.CombatQueryService>();
 
+            // TD_011: Game loop coordinator for sequential turn processing
+            services.AddSingleton<Application.Combat.Coordination.GameLoopCoordinator>();
+
             // Repository interfaces (Singleton - typically wrap persistent state)
             // TODO: Register repositories here as they're implemented
 
