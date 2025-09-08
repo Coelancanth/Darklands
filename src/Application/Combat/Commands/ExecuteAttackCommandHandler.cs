@@ -10,6 +10,7 @@ using Darklands.Core.Application.Actor.Commands;
 using Darklands.Core.Application.Grid.Services;
 using Darklands.Core.Domain.Combat;
 using Darklands.Core.Domain.Grid;
+using Darklands.Core.Domain.Actor;
 using static LanguageExt.Prelude;
 
 namespace Darklands.Core.Application.Combat.Commands;
@@ -40,6 +41,12 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
     /// GameManager can set this to handle visual cleanup.
     /// </summary>
     public static Action<ActorId, Position>? OnActorDeath { get; set; }
+
+    /// <summary>
+    /// Simple callback for actor damage notifications.
+    /// GameManager can set this to handle health bar updates.
+    /// </summary>
+    public static Action<ActorId, Health, Health>? OnActorDamaged { get; set; }
 
     public ExecuteAttackCommandHandler(
         IGridStateService gridStateService,
@@ -234,6 +241,20 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
                         _logger?.Information("💀 {TargetId} defeated: {HPBefore} → 0 HP ({ActualDamage} damage taken, DEAD)",
                             targetId, hpBefore, actualDamage);
                     }
+
+                    // Notify UI of health change for live health bar updates
+                    if (actualDamage > 0 && OnActorDamaged != null)
+                    {
+                        var oldHealth = Health.Create(hpBefore, maxHp).Match(h => h, _ => actor.Health);
+                        _logger?.Debug("🔔 Notifying UI of health change for {TargetId}: {OldHP} → {NewHP}",
+                            targetId, oldHealth, actor.Health);
+                        OnActorDamaged.Invoke(targetId, oldHealth, actor.Health);
+                    }
+                    else if (OnActorDamaged == null)
+                    {
+                        _logger?.Debug("⚠️ OnActorDamaged callback is NULL - health bar won't update live");
+                    }
+
                     return LanguageExt.Unit.Default;
                 },
                 None: () =>

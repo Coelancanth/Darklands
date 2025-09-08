@@ -214,6 +214,10 @@ namespace Darklands
                 // Wire up death notification callback for visual cleanup
                 Darklands.Core.Application.Combat.Commands.ExecuteAttackCommandHandler.OnActorDeath = OnActorDeath;
                 _logger?.Information("Death notification callback wired for visual cleanup");
+                
+                // Wire up damage notification callback for health bar updates
+                Darklands.Core.Application.Combat.Commands.ExecuteAttackCommandHandler.OnActorDamaged = OnActorDamaged;
+                _logger?.Information("Damage notification callback wired for health bar updates");
 
                 _logger?.Information("Presenters created and connected - GridPresenter, ActorPresenter, and HealthPresenter initialized with cross-presenter coordination");
 
@@ -271,6 +275,85 @@ namespace Darklands
             catch (Exception ex)
             {
                 _logger?.Error(ex, "💥 [GameManager] Error processing actor death notification for {ActorId}", actorId);
+            }
+        }
+
+        /// <summary>
+        /// Handles actor damage notifications for health bar live updates.
+        /// Updates health bars immediately when actors take damage.
+        /// </summary>
+        private void OnActorDamaged(Darklands.Core.Domain.Grid.ActorId actorId, Darklands.Core.Domain.Actor.Health oldHealth, Darklands.Core.Domain.Actor.Health newHealth)
+        {
+            try
+            {
+                _logger?.Information("🩺 [GameManager] Received damage notification for actor {ActorId}: {OldHealth} → {NewHealth}", 
+                    actorId, oldHealth, newHealth);
+
+                // Update health bar via presenter
+                if (_healthPresenter != null)
+                {
+                    _logger?.Information("🩺 [GameManager] Updating health bar via HealthPresenter");
+                    // Use CallDeferred to ensure this runs on the main thread
+                    CallDeferred(nameof(UpdateHealthBarDeferred), actorId.Value.ToString(), oldHealth.Current, oldHealth.Maximum, newHealth.Current, newHealth.Maximum);
+                }
+                else
+                {
+                    _logger?.Error("❌ [GameManager] HealthPresenter is NULL - cannot update health bar!");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "💥 [GameManager] Error processing actor damage notification for {ActorId}", actorId);
+            }
+        }
+
+        /// <summary>
+        /// Deferred method to update health bar on main thread.
+        /// </summary>
+        private async void UpdateHealthBarDeferred(string actorIdStr, int oldCurrent, int oldMaximum, int newCurrent, int newMaximum)
+        {
+            try
+            {
+                _logger?.Information("🩺 [GameManager] UpdateHealthBarDeferred called for {ActorIdStr}: {OldCurrent}/{OldMax} → {NewCurrent}/{NewMax}", 
+                    actorIdStr, oldCurrent, oldMaximum, newCurrent, newMaximum);
+                
+                var actorId = Darklands.Core.Domain.Grid.ActorId.FromGuid(Guid.Parse(actorIdStr));
+                
+                // Recreate Health objects from the data
+                var oldHealthResult = Darklands.Core.Domain.Actor.Health.Create(oldCurrent, oldMaximum);
+                var newHealthResult = Darklands.Core.Domain.Actor.Health.Create(newCurrent, newMaximum);
+                
+                await oldHealthResult.Match(
+                    Succ: async oldHealth => await newHealthResult.Match(
+                        Succ: async newHealth =>
+                        {
+                            if (_healthPresenter != null)
+                            {
+                                _logger?.Information("🩺 [GameManager] Calling HealthPresenter.HandleHealthChangedAsync");
+                                await _healthPresenter.HandleHealthChangedAsync(actorId, oldHealth, newHealth);
+                                _logger?.Information("✅ Updated health bar for {ActorId}", actorId);
+                            }
+                            else
+                            {
+                                _logger?.Error("❌ [GameManager] HealthPresenter is NULL in deferred health update!");
+                            }
+                        },
+                        Fail: error =>
+                        {
+                            _logger?.Error("Failed to create new health object: {Error}", error.Message);
+                            return Task.CompletedTask;
+                        }
+                    ),
+                    Fail: error =>
+                    {
+                        _logger?.Error("Failed to create old health object: {Error}", error.Message);
+                        return Task.CompletedTask;
+                    }
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "💥 Error in deferred health bar update for {ActorIdStr}", actorIdStr);
             }
         }
 
