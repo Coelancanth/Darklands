@@ -10,6 +10,7 @@ using Darklands.Core.Application.Actor.Commands;
 using Darklands.Core.Application.Grid.Services;
 using Darklands.Core.Domain.Combat;
 using Darklands.Core.Domain.Grid;
+using Darklands.Core.Domain.Actor;
 using static LanguageExt.Prelude;
 
 namespace Darklands.Core.Application.Combat.Commands;
@@ -34,6 +35,18 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
     private readonly IMediator _mediator;
     private readonly ILogger _logger;
     private readonly IAttackFeedbackService? _attackFeedbackService;
+
+    /// <summary>
+    /// Simple callback for actor death notifications.
+    /// GameManager can set this to handle visual cleanup.
+    /// </summary>
+    public static Action<ActorId, Position>? OnActorDeath { get; set; }
+
+    /// <summary>
+    /// Simple callback for actor damage notifications.
+    /// GameManager can set this to handle health bar updates.
+    /// </summary>
+    public static Action<ActorId, Health, Health>? OnActorDamaged { get; set; }
 
     public ExecuteAttackCommandHandler(
         IGridStateService gridStateService,
@@ -62,8 +75,21 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
         return result.Match(
             Succ: _ =>
             {
-                _logger?.Information("Attack successful: {AttackerId} -> {TargetId} with {Action}",
-                    request.AttackerId, request.TargetId, request.CombatAction.Name);
+                // Get target position for logging
+                var targetPos = _gridStateService.GetActorPosition(request.TargetId)
+                    .Match(p => p, () => new Position(0, 0));
+
+                // Check if target died for combat summary
+                var targetAfterAttack = _actorStateService.GetActor(request.TargetId);
+                var outcomeMessage = targetAfterAttack.Match(
+                    Some: actor => actor.IsAlive ? "hit" : "defeated",
+                    None: () => "defeated" // If not found, assume dead
+                );
+
+                _logger?.Information("⚔️ {AttackerId} [{Action}] → {TargetId} at ({X},{Y}): {Damage} damage ({Outcome})",
+                    request.AttackerId, request.CombatAction.Name, request.TargetId,
+                    targetPos.X, targetPos.Y, request.CombatAction.BaseDamage, outcomeMessage);
+
                 return FinSucc(LanguageExt.Unit.Default);
             },
             Fail: error =>
@@ -136,6 +162,10 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
             return rescheduleResult;
         }
 
+        // Log attack timing information
+        _logger?.Information("⏰ Attack completed: {AttackerId} next turn in +{ActionCost}ms",
+            request.AttackerId, request.CombatAction.BaseCost.Value);
+
         // Step 7: Cleanup dead actor
         await CleanupDeadActorAsync(request.TargetId);
 
@@ -150,7 +180,7 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
             );
 
             // Provide attack success feedback (sequential, not concurrent)
-            _attackFeedbackService.ProcessAttackSuccess(
+            _attackFeedbackService?.ProcessAttackSuccess(
                 request.AttackerId,
                 request.TargetId,
                 request.CombatAction,
@@ -176,11 +206,66 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
 
     private async Task<Fin<LanguageExt.Unit>> ApplyDamageAsync(ActorId targetId, int damage, string attackSource)
     {
-        _logger?.Debug("Applying {Damage} damage to {TargetId} from {Source}",
-            damage, targetId, attackSource);
+        // Get target HP before damage for rich logging
+        var targetBeforeOption = _actorStateService.GetActor(targetId);
+        var hpBefore = targetBeforeOption.Match(
+            Some: actor => actor.Health.Current,
+            None: () => 0
+        );
 
+        _logger?.Debug("Applying {Damage} damage to {TargetId} from {Source} (HP: {HPBefore})",
+            damage, targetId, attackSource, hpBefore);
+
+        // Apply the damage
         var damageCommand = DamageActorCommand.Create(targetId, damage, attackSource);
-        return await _mediator.Send(damageCommand);
+        var result = await _mediator.Send(damageCommand);
+
+        // Log HP transition with rich formatting
+        if (result.IsSucc)
+        {
+            var targetAfterOption = _actorStateService.GetActor(targetId);
+            targetAfterOption.Match(
+                Some: actor =>
+                {
+                    var hpAfter = actor.Health.Current;
+                    var maxHp = actor.Health.Maximum;
+                    var actualDamage = hpBefore - hpAfter;
+
+                    if (actor.IsAlive)
+                    {
+                        _logger?.Information("💗 {TargetId} health: {HPBefore} → {HPAfter} ({ActualDamage} damage taken, {HPAfter}/{MaxHP} remaining)",
+                            targetId, hpBefore, hpAfter, actualDamage, hpAfter, maxHp);
+                    }
+                    else
+                    {
+                        _logger?.Information("💀 {TargetId} defeated: {HPBefore} → 0 HP ({ActualDamage} damage taken, DEAD)",
+                            targetId, hpBefore, actualDamage);
+                    }
+
+                    // Notify UI of health change for live health bar updates
+                    if (actualDamage > 0 && OnActorDamaged != null)
+                    {
+                        var oldHealth = Health.Create(hpBefore, maxHp).Match(h => h, _ => actor.Health);
+                        _logger?.Debug("🔔 Notifying UI of health change for {TargetId}: {OldHP} → {NewHP}",
+                            targetId, oldHealth, actor.Health);
+                        OnActorDamaged.Invoke(targetId, oldHealth, actor.Health);
+                    }
+                    else if (OnActorDamaged == null)
+                    {
+                        _logger?.Debug("⚠️ OnActorDamaged callback is NULL - health bar won't update live");
+                    }
+
+                    return LanguageExt.Unit.Default;
+                },
+                None: () =>
+                {
+                    _logger?.Warning("Could not retrieve target {TargetId} after damage application", targetId);
+                    return LanguageExt.Unit.Default;
+                }
+            );
+        }
+
+        return result;
     }
 
     private async Task<Fin<LanguageExt.Unit>> RescheduleAttackerAsync(ActorId attackerId, Position attackerPosition, TimeUnit actionCost)
@@ -205,9 +290,38 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
             {
                 if (!actor.IsAlive)
                 {
-                    _logger?.Information("Target {TargetId} died from attack, cleanup may be needed", targetId);
-                    // TODO: Implement removal from combat scheduler when dead
-                    // For now, we'll leave them in the scheduler - they just won't get processed
+                    _logger?.Information("💀 Target {TargetId} died from attack, performing cleanup", targetId);
+
+                    // Get the target's position before cleanup for notifications
+                    var targetPos = _gridStateService.GetActorPosition(targetId);
+                    var position = targetPos.Match(p => p, () => new Position(0, 0));
+
+                    // Remove dead actor from combat scheduler
+                    var removed = _combatSchedulerService.RemoveActor(targetId);
+                    if (removed)
+                    {
+                        _logger?.Information("✅ Removed dead actor {TargetId} from combat scheduler", targetId);
+                    }
+                    else
+                    {
+                        _logger?.Warning("⚠️ Dead actor {TargetId} was not found in combat scheduler", targetId);
+                    }
+
+                    // Remove dead actor from grid (frees up the position)
+                    _gridStateService.RemoveActorFromGrid(targetId);
+                    _logger?.Information("✅ Removed dead actor {TargetId} from grid position", targetId);
+
+                    // Check if callback is wired before invoking
+                    if (OnActorDeath != null)
+                    {
+                        _logger?.Information("📞 Calling death notification callback for {TargetId} at {Position}", targetId, position);
+                        OnActorDeath.Invoke(targetId, position);
+                        _logger?.Information("✅ Death notification callback completed for {TargetId}", targetId);
+                    }
+                    else
+                    {
+                        _logger?.Error("❌ OnActorDeath callback is NULL - UI cleanup will not occur!");
+                    }
                 }
                 return FinSucc(LanguageExt.Unit.Default);
             },

@@ -42,5 +42,13 @@ namespace Darklands.Core.Application.Combat.Services
         /// Removes all scheduled actors from the timeline.
         /// </summary>
         void ClearSchedule();
+
+        /// <summary>
+        /// Removes a specific actor from the combat timeline.
+        /// Used when actors die or leave combat.
+        /// </summary>
+        /// <param name="actorId">The unique identifier of the actor to remove</param>
+        /// <returns>True if actor was removed, false if not found</returns>
+        bool RemoveActor(ActorId actorId);
     }
 }

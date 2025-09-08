@@ -191,7 +191,9 @@
       "Bash(Remove-Item \"tests\\Application\\Actor\\Services\\ActorStateServiceIntegrationTests.cs\" -Force)",
       "Bash(./scripts/core/build.ps1 test --filter \"Category=Application&ExecuteAttack\")",
       "Bash(dotnet list:*)",
-      "Bash(./scripts/core/build.ps1 test --filter \"Category=Phase1\")"
+      "Bash(./scripts/core/build.ps1 test --filter \"Category=Phase1\")",
+      "Bash(dotnet tool list:*)",
+      "Bash(Remove-Item \"C:\\Users\\Coel\\Documents\\Godot\\darklands\\Views\\AttackView.cs\" -Force)"
     ],
     "deny": [],
     "ask": [],

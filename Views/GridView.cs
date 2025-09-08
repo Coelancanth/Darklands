@@ -94,13 +94,13 @@ namespace Darklands.Views
         {
             _gridWidth = width;
             _gridHeight = height;
-            
+
             // Clear any existing tiles and grid lines
             ClearAllTiles();
             ClearGridLines();
-            
+
             _logger?.Information("Creating {Width}x{Height} grid with lines", width, height);
-            
+
             // Create a basic grid with grass tiles as default
             for (int x = 0; x < width; x++)
             {
@@ -110,10 +110,10 @@ namespace Darklands.Views
                     CreateTile(tilePosition, GrassColor);
                 }
             }
-            
+
             // Create grid lines to separate tiles
             CreateGridLines(width, height);
-            
+
             await Task.CompletedTask;
         }
 
@@ -125,11 +125,11 @@ namespace Darklands.Views
         {
             _gridWidth = grid.Width;
             _gridHeight = grid.Height;
-            
+
             // Clear existing tiles and grid lines
             ClearAllTiles();
             ClearGridLines();
-            
+
             // Render each tile based on its state
             for (int x = 0; x < grid.Width; x++)
             {
@@ -137,7 +137,7 @@ namespace Darklands.Views
                 {
                     var position = new Darklands.Core.Domain.Grid.Position(x, y);
                     var tileResult = grid.GetTile(position);
-                    
+
                     tileResult.Match(
                         Succ: tile =>
                         {
@@ -154,10 +154,10 @@ namespace Darklands.Views
                     );
                 }
             }
-            
+
             // Create grid lines to separate tiles
             CreateGridLines(grid.Width, grid.Height);
-            
+
             await Task.CompletedTask;
         }
 
@@ -169,7 +169,7 @@ namespace Darklands.Views
             var tileColor = GetColorFromTerrain(tile.TerrainType);
             var tilePosition = new Vector2I(position.X, position.Y);
             UpdateTileColor(tilePosition, tileColor);
-            
+
             await Task.CompletedTask;
         }
 
@@ -182,7 +182,7 @@ namespace Darklands.Views
             // Future: Different highlight types could use different visual effects
             var tilePosition = new Vector2I(position.X, position.Y);
             UpdateTileColor(tilePosition, HighlightColor);
-            
+
             await Task.CompletedTask;
         }
 
@@ -194,7 +194,7 @@ namespace Darklands.Views
             // Restore original tile color (assume grass for now)
             var tilePosition = new Vector2I(position.X, position.Y);
             UpdateTileColor(tilePosition, GrassColor);
-            
+
             await Task.CompletedTask;
         }
 
@@ -234,7 +234,7 @@ namespace Darklands.Views
                     UpdateTileColor(tilePosition, GrassColor);
                 }
             }
-            
+
             await Task.CompletedTask;
         }
 
@@ -246,22 +246,22 @@ namespace Darklands.Views
             try
             {
                 if (_presenter == null) return;
-                
+
                 // Convert global position to local position relative to this node
                 var localPosition = ToLocal(globalPosition);
-                
+
                 // Calculate tile position based on tile size
                 var tileX = (int)(localPosition.X / TileSize);
                 var tileY = (int)(localPosition.Y / TileSize);
-                
+
                 // Validate that the click is within grid bounds
-                if (tileX >= 0 && tileX < _gridWidth && 
+                if (tileX >= 0 && tileX < _gridWidth &&
                     tileY >= 0 && tileY < _gridHeight)
                 {
                     var gridPosition = new Darklands.Core.Domain.Grid.Position(tileX, tileY);
-                    
+
                     _logger?.Information("User clicked tile ({X},{Y})", tileX, tileY);
-                    
+
                     // Notify the presenter about the tile click
                     _ = Task.Run(async () =>
                     {
@@ -294,7 +294,7 @@ namespace Darklands.Views
                 Position = new Vector2(position.X * TileSize, position.Y * TileSize),
                 Color = color
             };
-            
+
             CallDeferred(MethodName.AddTileToScene, tile, position);
         }
 
@@ -356,10 +356,10 @@ namespace Darklands.Views
                 Darklands.Core.Domain.Grid.TerrainType.Open => GrassColor,
                 Darklands.Core.Domain.Grid.TerrainType.Rocky => StoneColor,
                 Darklands.Core.Domain.Grid.TerrainType.Water => WaterColor,
-                Darklands.Core.Domain.Grid.TerrainType.Forest => GrassColor, 
-                Darklands.Core.Domain.Grid.TerrainType.Hill => StoneColor,   
-                Darklands.Core.Domain.Grid.TerrainType.Swamp => WaterColor,  
-                Darklands.Core.Domain.Grid.TerrainType.Wall => StoneColor,   
+                Darklands.Core.Domain.Grid.TerrainType.Forest => GrassColor,
+                Darklands.Core.Domain.Grid.TerrainType.Hill => StoneColor,
+                Darklands.Core.Domain.Grid.TerrainType.Swamp => WaterColor,
+                Darklands.Core.Domain.Grid.TerrainType.Wall => StoneColor,
                 _ => GrassColor // Default to grass
             };
         }
@@ -386,18 +386,18 @@ namespace Darklands.Views
                     DefaultColor = GridLineColor,
                     Width = GridLineWidth
                 };
-                
+
                 // Line from top to bottom of grid
                 var startPoint = new Vector2(x * TileSize, 0);
                 var endPoint = new Vector2(x * TileSize, height * TileSize);
-                
+
                 verticalLine.AddPoint(startPoint);
                 verticalLine.AddPoint(endPoint);
-                
+
                 AddChild(verticalLine);
                 _gridLines.Add(verticalLine);
             }
-            
+
             // Create horizontal lines
             for (int y = 0; y <= height; y++)
             {
@@ -406,14 +406,14 @@ namespace Darklands.Views
                     DefaultColor = GridLineColor,
                     Width = GridLineWidth
                 };
-                
+
                 // Line from left to right of grid
                 var startPoint = new Vector2(0, y * TileSize);
                 var endPoint = new Vector2(width * TileSize, y * TileSize);
-                
+
                 horizontalLine.AddPoint(startPoint);
                 horizontalLine.AddPoint(endPoint);
-                
+
                 AddChild(horizontalLine);
                 _gridLines.Add(horizontalLine);
             }

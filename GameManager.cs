@@ -76,7 +76,7 @@ namespace Darklands
                 _gridPresenter?.Dispose();
                 _actorPresenter?.Dispose();
                 _healthPresenter?.Dispose();
-                
+
                 _logger?.Information("Presenters disposed successfully");
 
                 // Dispose DI container
@@ -104,7 +104,7 @@ namespace Darklands
 
                 // Create Godot console sink for rich Editor output
                 var godotConsoleSink = new GodotConsoleSink(
-                    GodotSinkExtensions.DefaultGodotOutputTemplate, 
+                    GodotSinkExtensions.DefaultGodotOutputTemplate,
                     null);
 
                 // Initialize the dependency injection container with Godot console support
@@ -177,7 +177,7 @@ namespace Darklands
                     throw new InvalidOperationException("HealthView node not found. Expected child node named 'HealthBars'");
                 }
 
-                _logger?.Information("Views found successfully - Grid: {GridView}, Actor: {ActorView}, Health: {HealthView}", 
+                _logger?.Information("Views found successfully - Grid: {GridView}, Actor: {ActorView}, Health: {HealthView}",
                     _gridView?.Name ?? "null", _actorView?.Name ?? "null", _healthView?.Name ?? "null");
 
                 // Inject logger into views for proper architectural logging
@@ -193,8 +193,8 @@ namespace Darklands
                 var gridStateService = _serviceProvider.GetRequiredService<Darklands.Core.Application.Grid.Services.IGridStateService>();
                 var actorStateService = _serviceProvider.GetRequiredService<Darklands.Core.Application.Actor.Services.IActorStateService>();
                 var combatQueryService = _serviceProvider.GetRequiredService<Darklands.Core.Application.Combat.Services.ICombatQueryService>();
-                
-                _gridPresenter = new GridPresenter(_gridView!, mediator, _logger!, gridStateService);
+
+                _gridPresenter = new GridPresenter(_gridView!, mediator, _logger!, gridStateService, combatQueryService);
                 _actorPresenter = new ActorPresenter(_actorView!, mediator, _logger!, gridStateService, actorStateService);
                 _healthPresenter = new HealthPresenter(_healthView!, mediator, _logger!, actorStateService, combatQueryService);
 
@@ -202,14 +202,22 @@ namespace Darklands
                 _gridView!.SetPresenter(_gridPresenter);
                 _actorView!.SetPresenter(_actorPresenter);
                 _healthView!.SetPresenter(_healthPresenter);
-                
+
                 // CRITICAL: Connect presenters to each other for coordinated updates
                 // This was missing and caused the visual movement bug!
                 _gridPresenter.SetActorPresenter(_actorPresenter);
-                
+
                 // CRITICAL: Connect ActorPresenter to HealthPresenter for health bar creation
                 // This connection ensures health bars are created when actors are spawned
                 _actorPresenter.SetHealthPresenter(_healthPresenter);
+
+                // Wire up death notification callback for visual cleanup
+                Darklands.Core.Application.Combat.Commands.ExecuteAttackCommandHandler.OnActorDeath = OnActorDeath;
+                _logger?.Information("Death notification callback wired for visual cleanup");
+                
+                // Wire up damage notification callback for health bar updates
+                Darklands.Core.Application.Combat.Commands.ExecuteAttackCommandHandler.OnActorDamaged = OnActorDamaged;
+                _logger?.Information("Damage notification callback wired for health bar updates");
 
                 _logger?.Information("Presenters created and connected - GridPresenter, ActorPresenter, and HealthPresenter initialized with cross-presenter coordination");
 
@@ -237,9 +245,160 @@ namespace Darklands
             _logger?.Fatal(ex, "Unhandled exception in GameManager - application may be unstable");
             // Fallback to GD.PrintErr for critical errors
             GD.PrintErr($"Unhandled exception in GameManager: {ex.Message}");
-            
+
             // For development, we might want to crash to surface the issue
             // For production, we'd log and attempt graceful recovery
+        }
+
+        /// <summary>
+        /// Handles actor death notifications for visual cleanup.
+        /// Removes actor sprites and health bars when actors die.
+        /// </summary>
+        private void OnActorDeath(Darklands.Core.Domain.Grid.ActorId actorId, Darklands.Core.Domain.Grid.Position position)
+        {
+            try
+            {
+                _logger?.Information("🎮 [GameManager] Received death notification for actor {ActorId} at {Position}", actorId, position);
+
+                // Remove actor sprite
+                if (_actorPresenter != null)
+                {
+                    _logger?.Information("🎮 [GameManager] Calling deferred removal for {ActorId}", actorId);
+                    // Use CallDeferred to ensure this runs on the main thread
+                    CallDeferred(nameof(RemoveActorDeferred), actorId.Value.ToString(), position.X, position.Y);
+                }
+                else
+                {
+                    _logger?.Error("❌ [GameManager] ActorPresenter is NULL - cannot remove sprite!");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "💥 [GameManager] Error processing actor death notification for {ActorId}", actorId);
+            }
+        }
+
+        /// <summary>
+        /// Handles actor damage notifications for health bar live updates.
+        /// Updates health bars immediately when actors take damage.
+        /// </summary>
+        private void OnActorDamaged(Darklands.Core.Domain.Grid.ActorId actorId, Darklands.Core.Domain.Actor.Health oldHealth, Darklands.Core.Domain.Actor.Health newHealth)
+        {
+            try
+            {
+                _logger?.Information("🩺 [GameManager] Received damage notification for actor {ActorId}: {OldHealth} → {NewHealth}", 
+                    actorId, oldHealth, newHealth);
+
+                // Update health bar via presenter
+                if (_healthPresenter != null)
+                {
+                    _logger?.Information("🩺 [GameManager] Updating health bar via HealthPresenter");
+                    // Use CallDeferred to ensure this runs on the main thread
+                    CallDeferred(nameof(UpdateHealthBarDeferred), actorId.Value.ToString(), oldHealth.Current, oldHealth.Maximum, newHealth.Current, newHealth.Maximum);
+                }
+                else
+                {
+                    _logger?.Error("❌ [GameManager] HealthPresenter is NULL - cannot update health bar!");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "💥 [GameManager] Error processing actor damage notification for {ActorId}", actorId);
+            }
+        }
+
+        /// <summary>
+        /// Deferred method to update health bar on main thread.
+        /// </summary>
+        private async void UpdateHealthBarDeferred(string actorIdStr, int oldCurrent, int oldMaximum, int newCurrent, int newMaximum)
+        {
+            try
+            {
+                _logger?.Information("🩺 [GameManager] UpdateHealthBarDeferred called for {ActorIdStr}: {OldCurrent}/{OldMax} → {NewCurrent}/{NewMax}", 
+                    actorIdStr, oldCurrent, oldMaximum, newCurrent, newMaximum);
+                
+                var actorId = Darklands.Core.Domain.Grid.ActorId.FromGuid(Guid.Parse(actorIdStr));
+                
+                // Recreate Health objects from the data
+                var oldHealthResult = Darklands.Core.Domain.Actor.Health.Create(oldCurrent, oldMaximum);
+                var newHealthResult = Darklands.Core.Domain.Actor.Health.Create(newCurrent, newMaximum);
+                
+                await oldHealthResult.Match(
+                    Succ: async oldHealth => await newHealthResult.Match(
+                        Succ: async newHealth =>
+                        {
+                            if (_healthPresenter != null)
+                            {
+                                _logger?.Information("🩺 [GameManager] Calling HealthPresenter.HandleHealthChangedAsync");
+                                await _healthPresenter.HandleHealthChangedAsync(actorId, oldHealth, newHealth);
+                                _logger?.Information("✅ Updated health bar for {ActorId}", actorId);
+                            }
+                            else
+                            {
+                                _logger?.Error("❌ [GameManager] HealthPresenter is NULL in deferred health update!");
+                            }
+                        },
+                        Fail: error =>
+                        {
+                            _logger?.Error("Failed to create new health object: {Error}", error.Message);
+                            return Task.CompletedTask;
+                        }
+                    ),
+                    Fail: error =>
+                    {
+                        _logger?.Error("Failed to create old health object: {Error}", error.Message);
+                        return Task.CompletedTask;
+                    }
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "💥 Error in deferred health bar update for {ActorIdStr}", actorIdStr);
+            }
+        }
+
+        /// <summary>
+        /// Deferred method to remove actor and health bar on main thread.
+        /// </summary>
+        private async void RemoveActorDeferred(string actorIdStr, int x, int y)
+        {
+            try
+            {
+                _logger?.Information("🎮 [GameManager] RemoveActorDeferred called for {ActorIdStr} at ({X},{Y})", actorIdStr, x, y);
+                
+                var actorId = Darklands.Core.Domain.Grid.ActorId.FromGuid(Guid.Parse(actorIdStr));
+                var position = new Darklands.Core.Domain.Grid.Position(x, y);
+
+                // Remove actor sprite
+                if (_actorPresenter != null)
+                {
+                    _logger?.Information("🎮 [GameManager] Removing actor sprite via presenter");
+                    await _actorPresenter.RemoveActorAsync(actorId, position);
+                    _logger?.Information("✅ Removed dead actor {ActorId} sprite", actorId);
+                }
+                else
+                {
+                    _logger?.Error("❌ [GameManager] ActorPresenter is NULL in deferred removal!");
+                }
+
+                // Remove health bar
+                if (_healthPresenter != null)
+                {
+                    _logger?.Information("🎮 [GameManager] Removing health bar via presenter");
+                    await _healthPresenter.HandleActorRemovedAsync(actorId, position);
+                    _logger?.Information("✅ Removed dead actor {ActorId} health bar", actorId);
+                }
+                else
+                {
+                    _logger?.Warning("⚠️ [GameManager] HealthPresenter is NULL - no health bar to remove");
+                }
+
+                _logger?.Information("🎉 Visual cleanup complete for dead actor {ActorId} at {Position}", actorId, position);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "💥 Error in deferred actor removal for {ActorIdStr}", actorIdStr);
+            }
         }
     }
 }

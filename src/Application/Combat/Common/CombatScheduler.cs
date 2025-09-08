@@ -4,6 +4,7 @@ using System.Linq;
 using LanguageExt;
 using LanguageExt.Common;
 using Darklands.Core.Domain.Combat;
+using Darklands.Core.Domain.Grid;
 using static LanguageExt.Prelude;
 
 namespace Darklands.Core.Application.Combat.Common
@@ -77,5 +78,24 @@ namespace Darklands.Core.Application.Combat.Common
         /// Removes all scheduled entities
         /// </summary>
         public void Clear() => _scheduledEntities.Clear();
+
+        /// <summary>
+        /// Removes a specific entity from the scheduler by ActorId
+        /// </summary>
+        /// <param name="actorId">The ActorId to remove</param>
+        /// <returns>True if entity was removed, false if not found</returns>
+        public bool RemoveEntity(ActorId actorId)
+        {
+            var targetGuid = actorId.Value;
+            var index = _scheduledEntities.FindIndex(e => e.Id.Equals(targetGuid));
+
+            if (index >= 0)
+            {
+                _scheduledEntities.RemoveAt(index);
+                return true;
+            }
+
+            return false;
+        }
     }
 }

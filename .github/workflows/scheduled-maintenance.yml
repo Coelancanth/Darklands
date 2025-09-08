@@ -44,25 +44,35 @@ jobs:
     - name: 🔧 Update tool manifest
       run: |
         echo "🔧 Ensuring tools are up to date..."
-        dotnet tool restore || dotnet tool update --global
+        dotnet tool restore || {
+          echo "⚠️ Tool restore failed, attempting fresh install..."
+          dotnet tool install --global husky --version 0.7.1 || true
+        }
         
     - name: 📊 Generate code metrics
       run: |
         echo "📊 Analyzing code metrics..."
         
-        # Count lines of code
+        # Count lines of code with robust error handling
         echo "## Code Metrics Report" > metrics.md
         echo "" >> metrics.md
         echo "### Lines of Code" >> metrics.md
-        echo "- Domain: $(find src/Domain -name "*.cs" -exec wc -l {} + | tail -1 | awk '{print $1}')" >> metrics.md
-        echo "- Application: $(find src/Application -name "*.cs" 2>/dev/null -exec wc -l {} + | tail -1 | awk '{print $1}')" >> metrics.md
-        echo "- Infrastructure: $(find src/Infrastructure -name "*.cs" -exec wc -l {} + | tail -1 | awk '{print $1}')" >> metrics.md
-        echo "- Tests: $(find tests -name "*.cs" -exec wc -l {} + | tail -1 | awk '{print $1}')" >> metrics.md
+        
+        # Safer line counting approach
+        domain_lines=$(find src/Domain -name "*.cs" 2>/dev/null | xargs wc -l 2>/dev/null | tail -1 | awk '{print $1}' || echo "0")
+        app_lines=$(find src/Application -name "*.cs" 2>/dev/null | xargs wc -l 2>/dev/null | tail -1 | awk '{print $1}' || echo "0")
+        infra_lines=$(find src/Infrastructure -name "*.cs" 2>/dev/null | xargs wc -l 2>/dev/null | tail -1 | awk '{print $1}' || echo "0")
+        test_lines=$(find tests -name "*.cs" 2>/dev/null | xargs wc -l 2>/dev/null | tail -1 | awk '{print $1}' || echo "0")
+        
+        echo "- Domain: $domain_lines" >> metrics.md
+        echo "- Application: $app_lines" >> metrics.md  
+        echo "- Infrastructure: $infra_lines" >> metrics.md
+        echo "- Tests: $test_lines" >> metrics.md
         echo "" >> metrics.md
         
-        # Count test coverage
+        # Safer test counting
         echo "### Test Count" >> metrics.md
-        echo "- Total Tests: $(dotnet test --no-build --no-restore -v q --list-tests | grep -c 'Test')" >> metrics.md
+        echo "- Total Tests: $(find tests -name "*.cs" -exec grep -l "Test" {} \; 2>/dev/null | wc -l || echo "Unknown")" >> metrics.md
         
     - name: 🔍 Check for outdated packages
       id: check-packages
