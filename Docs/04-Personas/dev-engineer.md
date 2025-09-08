@@ -29,7 +29,7 @@ Error Occurs:
 ### Tier 3: Deep Links
 - **LanguageExt v5 Guide**: [LanguageExt-Usage-Guide.md](../03-Reference/LanguageExt-Usage-Guide.md) ⭐⭐⭐⭐⭐
 - **Error Handling ADR**: [ADR-008](../03-Reference/ADR/ADR-008-functional-error-handling.md) ⭐⭐⭐⭐⭐
-- **Clean Architecture**: [HANDBOOK.md - Architecture](../03-Reference/HANDBOOK.md#architecture)
+- **Clean Architecture**: [HANDBOOK.md - Core Architecture](../03-Reference/HANDBOOK.md#-core-architecture)
 - **Move Block Reference**: `src/Features/Block/Move/` (copy this!)
 - **Quality Gates**: [CLAUDE.md - Build Requirements](../../CLAUDE.md)
 

@@ -41,7 +41,7 @@
 
 - **Need a term definition?** → [Glossary.md](Glossary.md) - MANDATORY terminology
 - **Major architecture decision?** → [ADR Directory](ADR/)
-- **Testing guide?** → [Testing.md](Testing.md) (to be created)
+- **Testing guide?** → [Testing.md](Testing.md)
 - **First-time setup?** → [Development Environment Setup](#-development-environment-setup)
 - **Everything else?** → It's in this handbook
 
@@ -269,93 +269,35 @@ Y↑
 
 ## 🚨 Error Handling with LanguageExt v5
 
-### ADR-008: Functional Error Handling (CRITICAL)
+**We use LanguageExt v5.0.0-beta-54** for functional error handling.
 
-**We use LanguageExt v5.0.0-beta-54** with strict functional error handling:
+### Core Principle
+**Everything that can fail returns `Fin<T>`** - No exceptions for business logic.
 
-#### ❌ FORBIDDEN in Domain/Application/Presentation
+### Quick Reference
 ```csharp
-// NEVER DO THIS - Anti-pattern!
-try {
-    var result = DoSomething();
-    return result;
-} catch (Exception ex) {
-    _logger.Error(ex, "Failed");
-    throw;  // or return default
-}
-```
+using LanguageExt;
+using static LanguageExt.Prelude;
 
-#### ✅ REQUIRED Pattern
-```csharp
-// Domain Layer - Pure functions
+// Domain: Pure functions return Fin<T>
 public static Fin<Position> Move(Position from, Direction dir) =>
     IsValidMove(from, dir)
         ? Pure(from.Move(dir))
-        : Fail(Error.New($"Invalid move from {from} to {dir}"));
+        : Fail(Error.New($"Invalid move"));
 
-// Application Layer - Orchestration  
-public Task<Fin<Unit>> Handle(MoveCommand cmd, CancellationToken ct) =>
-    from actor in GetActor(cmd.ActorId)
-    from newPos in Move(actor.Position, cmd.Direction)
-    from _ in UpdatePosition(cmd.ActorId, newPos)
-    select unit;
+// Application: Chain with from/select
+from actor in GetActor(id)
+from newPos in Move(actor.Position, dir)
+select newPos;
 
-// Presentation Layer - UI handling
-await ProcessMove(position).Match(
-    Succ: _ => View.ShowSuccess("Moved!"),
-    Fail: error => View.ShowError(error.Message)
+// Presentation: Match on result
+result.Match(
+    Succ: value => UpdateUI(value),
+    Fail: error => ShowError(error.Message)
 );
 ```
 
-### Key v5 Breaking Changes
-- **Try<T> REMOVED** → Use `Eff<T>`
-- **TryAsync<T> REMOVED** → Use `IO<T>`
-- **Result<T> REMOVED** → Use `Fin<T>`
-- **EitherAsync<L,R> REMOVED** → Use `EitherT<L, IO, R>`
-
-### When to Use Each Type
-| Scenario | Type | Example |
-|----------|------|---------|
-| Can fail | `Fin<T>` | `Fin<Grid> LoadGrid()` |
-| Might not exist | `Option<T>` | `Option<Actor> FindActor(id)` |
-| Multiple errors | `Validation<Error, T>` | Form validation |
-| Side effects | `Eff<T>` | Database operations |
-| Async I/O | `IO<T>` | File/network operations |
-
-### Infrastructure Boundaries (ONLY place for try/catch)
-```csharp
-// ONLY at true system boundaries
-public override void _Ready() {
-    try {
-        InitializeGame();  // Godot entry point
-    } catch (Exception ex) {
-        GD.PrintErr($"Fatal: {ex}");  // Last resort
-    }
-}
-```
-
-### Essential Imports
-```csharp
-using LanguageExt;
-using static LanguageExt.Prelude;  // Pure, Fail, Some, None, etc.
-```
-
-### Error Creation
-```csharp
-// Business errors (expected)
-Error.New("User not found");
-Error.New(404, "Resource not found");
-
-// System errors (exceptional)
-Error.New(new InvalidOperationException("Unexpected"));
-
-// Multiple errors
-Error.Many(error1, error2);
-// or
-var combined = error1 + error2;
-```
-
-**Full Guide**: [LanguageExt-Usage-Guide.md](LanguageExt-Usage-Guide.md)  
+**📚 Full Guide**: [LanguageExt-Usage-Guide.md](LanguageExt-Usage-Guide.md) ⭐⭐⭐⭐⭐  
 **Architecture Decision**: [ADR-008](ADR/ADR-008-functional-error-handling.md)
 
 ---
@@ -466,285 +408,19 @@ dotnet test --filter "Category=Integration"
 
 ---
 
-## 🚨 MANDATORY: LanguageExt Error Handling Protocol
 
-### The Golden Rules
+## 🔨 Production Patterns Reference
 
-**NEVER use try/catch for business logic!** Use LanguageExt patterns exclusively.
+**📚 Full Catalog**: [PRODUCTION-PATTERNS.md](PRODUCTION-PATTERNS.md) - Battle-tested implementations
 
-#### Rule 1: Business Logic → LanguageExt
-```csharp
-// ✅ CORRECT - All business operations return Fin<T>
-public Fin<Player> MovePlayer(Position from, Position to) =>
-    from valid in ValidateMove(from, to)
-    from updated in UpdatePosition(valid.player, to)
-    from events in TriggerMoveEvents(updated)
-    select events.player;
-
-// ❌ WRONG - Never throw for business logic
-public void MovePlayer(Position from, Position to) {
-    if (!IsValidMove(from, to)) 
-        throw new InvalidMoveException(); // NO!
-}
-```
-
-#### Rule 2: Infrastructure Only → try/catch
-```csharp
-// ✅ CORRECT - Infrastructure concerns only
-private Fin<ServiceProvider> BuildServiceProvider() {
-    try {
-        return FinSucc(services.BuildServiceProvider());
-    } catch (Exception ex) {
-        return FinFail<ServiceProvider>(Error.New("DI setup failed", ex));
-    }
-}
-
-// ❌ WRONG - Presenter logic should use Fin<T>
-private void OnClick(Position pos) {
-    try {
-        _mediator.Send(new MoveCommand(pos)); // Should return Fin<T>!
-    } catch (Exception ex) {
-        _logger.Error(ex, "Move failed");
-    }
-}
-```
-
-#### Rule 3: Always Chain with Bind/Match
-```csharp
-// ✅ CORRECT - Functional composition
-public async Task HandleMoveAsync(MovePlayerCommand cmd) {
-    var result = await _gameService.MovePlayer(cmd.From, cmd.To);
-    result.Match(
-        Succ: move => _logger.Information("Player moved to {Position}", move.NewPosition),
-        Fail: error => _logger.Warning("Move failed: {Error}", error.Message)
-    );
-}
-
-// ❌ WRONG - Not handling failure case
-public async Task HandleMoveAsync(MovePlayerCommand cmd) {
-    var result = await _gameService.MovePlayer(cmd.From, cmd.To);
-    var move = result.ThrowIfFail(); // NO! Never throw
-}
-```
-
-### Current Codebase Issues TO FIX
-
-**FOUND IN AUDIT - These must be converted:**
-
-1. **TimeUnitCalculator.cs:247** - Domain logic using try/catch
-2. **All Presenter classes** - UI interaction using try/catch  
-3. **Any new code** - Must use LanguageExt patterns
-
-### Conversion Examples
-
-**Before (WRONG):**
-```csharp
-// ❌ Current presenter pattern - MUST CHANGE
-private void OnTileClick(Position position) {
-    try {
-        _mediator.Send(new MovePlayerCommand(position));
-        _logger.Information("Move attempted");
-    } catch (Exception ex) {
-        _logger.Error(ex, "Move failed");
-    }
-}
-```
-
-**After (CORRECT):**
-```csharp
-// ✅ Proper LanguageExt pattern
-private async Task OnTileClick(Position position) {
-    var result = await _mediator.Send(new MovePlayerCommand(position));
-    result.Match(
-        Succ: move => {
-            _logger.Information("Player moved to {Position}", move.NewPosition);
-            RefreshUI(move);
-        },
-        Fail: error => _logger.Warning("Move failed: {Error}", error.Message)
-    );
-}
-```
-
-### When try/catch IS Allowed
-
-**Infrastructure/System Concerns ONLY:**
-- DI container setup (GameStrapper.cs) ✅
-- Logger configuration ✅  
-- File system operations ✅
-- Third-party library exceptions you can't control ✅
-
-**NEVER for:**
-- Validation errors ❌
-- Business rule violations ❌
-- Expected domain failures ❌
-- UI interaction failures ❌
-- Network/database operations ❌ (use Fin<T>)
-
-## 🔨 Extracted Production Patterns
-
-### Pattern: Value Object Factory with Validation (VS_001)
-**Problem**: Public constructors allow invalid state (`new TimeUnit(-999)`)
-**Solution**: Private constructor + validated factory methods
-```csharp
-// Implementation pattern from VS_001
-public record TimeUnit {
-    private TimeUnit(int value) { Value = value; }
-    
-    public static Fin<TimeUnit> Create(int value) {
-        if (value < 0 || value > 10000) 
-            return FinFail<TimeUnit>(Error.New($"TimeUnit must be 0-10000, got {value}"));
-        return FinSucc(new TimeUnit(value));
-    }
-    
-    // For known-valid compile-time values only
-    public static TimeUnit CreateUnsafe(int value) => new(value);
-}
-```
-**Key**: Impossible to create invalid instances in production
-
-### Pattern: Thread-Safe DI Container (VS_001)
-**Problem**: Static fields cause race conditions during initialization
-**Solution**: Double-checked locking pattern
-```csharp
-// Implementation from GameStrapper.cs fix
-private static volatile IServiceProvider? _instance;
-private static readonly object _lock = new();
-
-public static IServiceProvider Instance {
-    get {
-        if (_instance == null) {
-            lock (_lock) {
-                if (_instance == null) {
-                    _instance = BuildServiceProvider();
-                }
-            }
-        }
-        return _instance;
-    }
-}
-```
-**Key**: Thread-safe singleton without performance penalty
-
-### Pattern: Cross-Presenter Coordination (VS_010a)
-**Problem**: Isolated presenters can't coordinate cross-cutting features (health bars)
-**Solution**: Explicit presenter coordination via setter injection
-```csharp
-// Implementation from VS_010a health system
-public class ActorPresenter : PresenterBase<IActorView> {
-    private HealthPresenter? _healthPresenter;
-    
-    // Coordination injection
-    public void SetHealthPresenter(HealthPresenter healthPresenter) {
-        _healthPresenter = healthPresenter;
-    }
-    
-    private async Task CreateActor(ActorId id, Position position) {
-        var actor = await _actorService.CreateActor(id);
-        await _view.DisplayActor(id, position);
-        
-        // Coordinate with health presenter
-        _healthPresenter?.HandleActorCreated(id, actor.Health);
-    }
-}
-```
-**Key**: Cross-cutting features need explicit presenter coordination
-
-### Pattern: Optional Feedback Service (VS_010b)
-**Problem**: Presentation layer feedback without violating Clean Architecture
-**Solution**: Optional service injection in handlers
-```csharp
-// From VS_010b combat system
-public interface IAttackFeedbackService {
-    void OnAttackSuccess(ActorId attacker, ActorId target, int damage);
-    void OnAttackFailed(ActorId attacker, string reason);
-}
-
-public class ExecuteAttackCommandHandler {
-    private readonly IAttackFeedbackService? _feedbackService;
-    
-    public ExecuteAttackCommandHandler(
-        IAttackFeedbackService? feedbackService = null) {
-        _feedbackService = feedbackService; // Null in tests, real in production
-    }
-    
-    public Fin<Unit> Handle(ExecuteAttackCommand cmd) {
-        // Business logic...
-        _feedbackService?.OnAttackSuccess(attacker, target, damage);
-        return FinSucc(Unit.Default);
-    }
-}
-```
-**Key**: Optional injection maintains testability while enabling rich UI
-
-### Pattern: Death Cascade Coordination (VS_010b)
-**Problem**: Actor death requires coordinated cleanup across multiple systems
-**Solution**: Ordered removal from all systems
-```csharp
-// Death cascade order matters!
-private void HandleActorDeath(ActorId actorId) {
-    // 1. Remove from scheduler (no more turns)
-    _scheduler.RemoveActor(actorId);
-    
-    // 2. Remove from grid (free position)
-    _gridService.RemoveActor(actorId);
-    
-    // 3. Remove from scene (visual cleanup)
-    _view.RemoveActor(actorId);
-    
-    // 4. Remove from state (memory cleanup)
-    _actorService.RemoveActor(actorId);
-}
-```
-**Key**: Order prevents orphaned state and null references
-
-### Pattern: Godot Node Lifecycle (VS_010a)
-**Problem**: Node initialization in constructor fails - tree not ready
-**Solution**: Always use _Ready() for node initialization
-```csharp
-// WRONG - Constructor too early
-public partial class HealthView : Node2D {
-    public HealthView() {
-        _healthBar = GetNode<ProgressBar>("HealthBar"); // CRASH!
-    }
-}
-
-// CORRECT - _Ready() when tree ready
-public partial class HealthView : Node2D {
-    private ProgressBar? _healthBar;
-    
-    public override void _Ready() {
-        _healthBar = GetNode<ProgressBar>("HealthBar"); // Safe
-        _label = GetNode<Label>("HealthLabel");
-    }
-}
-```
-**Key**: Godot node tree isn't ready until _Ready() is called
-
-### Pattern: Queue-Based CallDeferred (TD_011)
-**Problem**: Shared fields cause race conditions in Godot UI updates
-**Solution**: Queue-based deferred processing
-```csharp
-// Implementation from ActorView.cs fix
-private readonly Queue<ActorCreationData> _pendingCreations = new();
-private readonly object _queueLock = new();
-
-public void DisplayActor(ActorId id, Position pos) {
-    lock (_queueLock) {
-        _pendingCreations.Enqueue(new(id, pos));
-    }
-    CallDeferred(nameof(ProcessPendingCreations));
-}
-
-private void ProcessPendingCreations() {
-    lock (_queueLock) {
-        while (_pendingCreations.Count > 0) {
-            var data = _pendingCreations.Dequeue();
-            // Safe UI update on main thread
-        }
-    }
-}
-```
-**Key**: Thread-safe UI updates without races
+### Quick Pattern Index
+- **Value Object Factory** - Validated creation (VS_001)
+- **Thread-Safe DI** - Double-checked locking (VS_001)
+- **Cross-Presenter Coordination** - Setter injection (VS_010a)
+- **Optional Feedback Service** - Clean Architecture UI (VS_010b)
+- **Death Cascade** - Ordered cleanup (VS_010b)
+- **Godot Node Lifecycle** - _Ready() not constructor (VS_010a)
+- **Queue-Based CallDeferred** - Thread-safe UI (TD_011)
 
 ## 🧪 Testing Patterns
 
@@ -939,113 +615,6 @@ await _gridService.RemoveBlock(id);
 
 ---
 
-## 📚 Technical Debt Patterns
-
-### Pattern: Documentation as Code (TD_001)
-**Problem**: Separate setup docs drift from reality
-**Solution**: Integrate into daily reference (HANDBOOK.md)
-- Single source of truth
-- Used daily = stays current
-- <10 minute setup achieved
-
-### Pattern: Glossary SSOT Enforcement (TD_002)
-**Problem**: Inconsistent terminology causes bugs
-**Solution**: Strict glossary adherence
-- Even small fixes matter ("combatant" → "Actor")
-- Prevents confusion at scale
-- Enforced in code reviews
-
-### Pattern: Interface-First Design (TD_003)
-**Problem**: Implementation before contract
-**Solution**: Define interfaces before coding
-```csharp
-// Define contract first
-public interface ISchedulable {
-    ActorId Id { get; }
-    Position Position { get; }
-    TimeUnit NextTurn { get; }
-}
-// Then implement...
-```
-
-### Pattern: Grid System Design (VS_005)
-**Problem**: Need efficient grid storage and pathfinding
-**Solution**: 1D array with row-major ordering
-```csharp
-// From VS_005 implementation
-public record Grid {
-    private readonly Tile[] _tiles; // 1D array for cache efficiency
-    
-    private int GetIndex(Position pos) => pos.Y * Width + pos.X;
-    
-    public Fin<Tile> GetTile(Position pos) {
-        if (!IsInBounds(pos)) return FinFail<Tile>(Error.New("Out of bounds"));
-        return FinSucc(_tiles[GetIndex(pos)]);
-    }
-}
-```
-**Key**: 1D arrays are faster than 2D, row-major ordering for cache locality
-
-### Pattern: CQRS with Auto-Discovery (VS_006)
-**Problem**: Clean command/query separation with automatic handler registration
-**Solution**: MediatR with namespace-based discovery
-```csharp
-// Commands return Fin<Unit>, Queries return Fin<T>
-public class MoveActorCommand : IRequest<Fin<Unit>> { }
-public class GetGridStateQuery : IRequest<Fin<GridState>> { }
-
-// Handler auto-discovered by namespace
-namespace Darklands.Core.Application.Grid.Commands {
-    public class MoveActorCommandHandler : IRequestHandler<MoveActorCommand, Fin<Unit>> { }
-}
-```
-**Key**: Namespace MUST be Darklands.Core.* for auto-discovery
-
-### Pattern: List vs SortedSet for Scheduling (VS_002)
-**Problem**: Need priority queue that allows duplicates
-**Solution**: List with binary search insertion
-```csharp
-// From VS_002 scheduler
-public class CombatScheduler {
-    private readonly List<ISchedulable> _timeline = new();
-    
-    public void Schedule(ISchedulable entity) {
-        var index = _timeline.BinarySearch(entity, _comparer);
-        if (index < 0) index = ~index;
-        _timeline.Insert(index, entity); // Allows duplicates!
-    }
-}
-```
-**Key**: SortedSet prevents duplicates, List allows rescheduling
-
-### Pattern: Composite Query Service (TD_009)
-**Problem**: Need data from multiple services
-**Solution**: Composite service queries both
-```csharp
-// From TD_009 SSOT refactor
-public class CombatQueryService : ICombatQueryService {
-    public Fin<CombatView> GetCombatView(ActorId id) {
-        var actorResult = _actorService.GetActor(id);
-        var positionResult = _gridService.GetPosition(id);
-        
-        return actorResult.Bind(actor =>
-            positionResult.Map(pos => 
-                new CombatView(actor, pos)));
-    }
-}
-```
-**Key**: Each service owns its domain, composite combines
-
-### Pattern: Library Migration Strategy (TD_004)
-**Problem**: Breaking changes block builds
-**Solution**: Systematic migration approach
-```csharp
-// LanguageExt v4 → v5 patterns
-Error.New(code, msg) → Error.New($"{code}: {msg}")
-.ToSeq() → Seq(collection.AsEnumerable())
-Seq1(x) → [x]
-```
-**Process**: Fix compilation → Test → Refactor patterns
 
 ## 🔥 Common Bug Patterns
 

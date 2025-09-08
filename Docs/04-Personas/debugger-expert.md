@@ -28,7 +28,7 @@ Post-Mortem Decision:
 ```
 
 ### Tier 3: Deep Links
-- **Common Bug Patterns**: [HANDBOOK.md - Gotchas](../03-Reference/HANDBOOK.md#gotchas)
+- **Common Bug Patterns**: [HANDBOOK.md - Critical Gotchas](../03-Reference/HANDBOOK.md#-critical-gotchas)
 - **DI Troubleshooting**: `src/Darklands.Core/GameStrapper.cs`
 - **Post-Mortem Template**: [PostMortemTemplate.md](../06-Templates/PostMortemTemplate.md)
 - **CI/CD Issues**: [Workflow.md - CI Section](../01-Active/Workflow.md)
