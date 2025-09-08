@@ -195,7 +195,8 @@
       "Bash(dotnet tool list:*)",
       "Bash(Remove-Item \"C:\\Users\\Coel\\Documents\\Godot\\darklands\\Views\\AttackView.cs\" -Force)",
       "Bash(git remote:*)",
-      "Bash(./scripts/core/build.ps1 test --filter \"*ExecuteAttackCommandHandler*\")"
+      "Bash(./scripts/core/build.ps1 test --filter \"*ExecuteAttackCommandHandler*\")",
+      "Bash(./scripts/core/build.ps1 test --filter \"*ExecuteAttackCommandHandlerIntegrationTests*Handle_MultipleSequentialAttacks*\")"
     ],
     "deny": [],
     "ask": [],

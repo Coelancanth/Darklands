@@ -1,6 +1,7 @@
 using Darklands.Core.Infrastructure.DependencyInjection;
 using Darklands.Core.Infrastructure.Events;
 using Darklands.Core.Presentation.Presenters;
+using Darklands.Presentation.UI;
 using Darklands.Views;
 using Darklands.Infrastructure.Logging;
 using Darklands.Core.Domain.Combat;
@@ -17,8 +18,10 @@ namespace Darklands
     /// Initializes the dependency injection container, sets up the MVP architecture,
     /// and manages the lifecycle of presenters and views.
     /// Entry point for the Godot application that bridges to the Clean Architecture core.
+    /// 
+    /// Now inherits from EventAwareNode to subscribe to domain events via the UI Event Bus.
     /// </summary>
-    public partial class GameManager : Node2D
+    public partial class GameManager : EventAwareNode
     {
         private GridView? _gridView;
         private ActorView? _actorView;
@@ -40,12 +43,19 @@ namespace Darklands
 
             try
             {
-                // Initialize the DI container
+                // Initialize the DI container FIRST (synchronously for initial setup)
+                InitializeDIContainer();
+                
+                // NOW call base implementation to initialize EventBus from EventAwareNode
+                // This will work because GameStrapper is now initialized
+                base._Ready();
+                
+                // Continue with async initialization for the rest
                 _ = Task.Run(async () =>
                 {
                     try
                     {
-                        await InitializeApplicationAsync();
+                        await CompleteInitializationAsync();
                         _logger?.Information("GameManager initialization completed successfully");
                     }
                     catch (Exception ex)
@@ -93,12 +103,18 @@ namespace Darklands
                 GD.PrintErr($"GameManager cleanup error: {ex.Message}");
                 _logger?.Error(ex, "GameManager cleanup error");
             }
+            finally
+            {
+                // CRITICAL: Call base implementation to unsubscribe from events
+                base._ExitTree();
+            }
         }
 
         /// <summary>
-        /// Initializes the application core and sets up the MVP architecture.
+        /// Initializes the DI container synchronously.
+        /// Must be called before base._Ready() so EventBus can be retrieved.
         /// </summary>
-        private async Task InitializeApplicationAsync()
+        private void InitializeDIContainer()
         {
             try
             {
@@ -129,7 +145,22 @@ namespace Darklands
                 _logger = _serviceProvider.GetRequiredService<Serilog.ILogger>();
 
                 _logger.Information("DI container initialized successfully - switching to structured logging");
+            }
+            catch (Exception ex)
+            {
+                // Use GD.PrintErr as fallback since structured logging may not be available yet
+                GD.PrintErr($"DI container initialization error: {ex.Message}");
+                throw;
+            }
+        }
 
+        /// <summary>
+        /// Completes the initialization by setting up MVP architecture.
+        /// </summary>
+        private async Task CompleteInitializationAsync()
+        {
+            try
+            {
                 // Set up views and presenters on the main thread
                 CallDeferred(MethodName.SetupMvpArchitecture);
 
@@ -213,15 +244,9 @@ namespace Darklands
                 // This connection ensures health bars are created when actors are spawned
                 _actorPresenter.SetHealthPresenter(_healthPresenter);
 
-                // Register GameManager's event handlers with the static router
-                // This bypasses DI instance lifecycle issues that cause multiple router instances
-                GameManagerEventRouter.RegisterHandlers(
-                    onActorDied: HandleActorDiedEvent,
-                    onActorDamaged: HandleActorDamagedEvent,
-                    logger: _logger!
-                );
-                
-                _logger?.Information("GameManager event handlers registered with static router - MediatR events will now route to UI");
+                // Event subscription is now handled automatically by EventAwareNode base class
+                // SubscribeToEvents() will be called after EventBus is initialized
+                _logger?.Information("GameManager will subscribe to domain events via UI Event Bus - modern architecture replaces static router");
 
                 _logger?.Information("Presenters created and connected - GridPresenter, ActorPresenter, and HealthPresenter initialized with cross-presenter coordination");
 
@@ -252,6 +277,37 @@ namespace Darklands
 
             // For development, we might want to crash to surface the issue
             // For production, we'd log and attempt graceful recovery
+        }
+
+        /// <summary>
+        /// Subscribes to domain events via the UI Event Bus.
+        /// Called automatically by EventAwareNode base class after EventBus is initialized.
+        /// 
+        /// Replaces the static GameManagerEventRouter registration with proper event subscriptions.
+        /// Handler methods are implemented in GameManager.NotificationHandlers.cs partial class.
+        /// </summary>
+        protected override void SubscribeToEvents()
+        {
+            if (EventBus == null)
+            {
+                _logger?.Error("❌ [GameManager] Cannot subscribe to events - EventBus is null");
+                return;
+            }
+
+            try
+            {
+                // Subscribe to combat events for UI updates
+                EventBus.Subscribe<ActorDiedEvent>(this, HandleActorDiedEvent);
+                EventBus.Subscribe<ActorDamagedEvent>(this, HandleActorDamagedEvent);
+                
+                _logger?.Information("✅ [GameManager] Successfully subscribed to domain events via UI Event Bus");
+                _logger?.Information("🎉 Modern event architecture active - static router fully replaced");
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "❌ [GameManager] Failed to subscribe to domain events");
+                GD.PrintErr($"GameManager event subscription failed: {ex.Message}");
+            }
         }
 
 
