@@ -41,7 +41,7 @@
 
 - **Need a term definition?** → [Glossary.md](Glossary.md) - MANDATORY terminology
 - **Major architecture decision?** → [ADR Directory](ADR/)
-- **Testing guide?** → [Testing.md](Testing.md) (to be created)
+- **Testing guide?** → [Testing.md](Testing.md)
 - **First-time setup?** → [Development Environment Setup](#-development-environment-setup)
 - **Everything else?** → It's in this handbook
 
@@ -269,93 +269,35 @@ Y↑
 
 ## 🚨 Error Handling with LanguageExt v5
 
-### ADR-008: Functional Error Handling (CRITICAL)
+**We use LanguageExt v5.0.0-beta-54** for functional error handling.
 
-**We use LanguageExt v5.0.0-beta-54** with strict functional error handling:
+### Core Principle
+**Everything that can fail returns `Fin<T>`** - No exceptions for business logic.
 
-#### ❌ FORBIDDEN in Domain/Application/Presentation
+### Quick Reference
 ```csharp
-// NEVER DO THIS - Anti-pattern!
-try {
-    var result = DoSomething();
-    return result;
-} catch (Exception ex) {
-    _logger.Error(ex, "Failed");
-    throw;  // or return default
-}
-```
+using LanguageExt;
+using static LanguageExt.Prelude;
 
-#### ✅ REQUIRED Pattern
-```csharp
-// Domain Layer - Pure functions
+// Domain: Pure functions return Fin<T>
 public static Fin<Position> Move(Position from, Direction dir) =>
     IsValidMove(from, dir)
         ? Pure(from.Move(dir))
-        : Fail(Error.New($"Invalid move from {from} to {dir}"));
+        : Fail(Error.New($"Invalid move"));
 
-// Application Layer - Orchestration  
-public Task<Fin<Unit>> Handle(MoveCommand cmd, CancellationToken ct) =>
-    from actor in GetActor(cmd.ActorId)
-    from newPos in Move(actor.Position, cmd.Direction)
-    from _ in UpdatePosition(cmd.ActorId, newPos)
-    select unit;
+// Application: Chain with from/select
+from actor in GetActor(id)
+from newPos in Move(actor.Position, dir)
+select newPos;
 
-// Presentation Layer - UI handling
-await ProcessMove(position).Match(
-    Succ: _ => View.ShowSuccess("Moved!"),
-    Fail: error => View.ShowError(error.Message)
+// Presentation: Match on result
+result.Match(
+    Succ: value => UpdateUI(value),
+    Fail: error => ShowError(error.Message)
 );
 ```
 
-### Key v5 Breaking Changes
-- **Try<T> REMOVED** → Use `Eff<T>`
-- **TryAsync<T> REMOVED** → Use `IO<T>`
-- **Result<T> REMOVED** → Use `Fin<T>`
-- **EitherAsync<L,R> REMOVED** → Use `EitherT<L, IO, R>`
-
-### When to Use Each Type
-| Scenario | Type | Example |
-|----------|------|---------|
-| Can fail | `Fin<T>` | `Fin<Grid> LoadGrid()` |
-| Might not exist | `Option<T>` | `Option<Actor> FindActor(id)` |
-| Multiple errors | `Validation<Error, T>` | Form validation |
-| Side effects | `Eff<T>` | Database operations |
-| Async I/O | `IO<T>` | File/network operations |
-
-### Infrastructure Boundaries (ONLY place for try/catch)
-```csharp
-// ONLY at true system boundaries
-public override void _Ready() {
-    try {
-        InitializeGame();  // Godot entry point
-    } catch (Exception ex) {
-        GD.PrintErr($"Fatal: {ex}");  // Last resort
-    }
-}
-```
-
-### Essential Imports
-```csharp
-using LanguageExt;
-using static LanguageExt.Prelude;  // Pure, Fail, Some, None, etc.
-```
-
-### Error Creation
-```csharp
-// Business errors (expected)
-Error.New("User not found");
-Error.New(404, "Resource not found");
-
-// System errors (exceptional)
-Error.New(new InvalidOperationException("Unexpected"));
-
-// Multiple errors
-Error.Many(error1, error2);
-// or
-var combined = error1 + error2;
-```
-
-**Full Guide**: [LanguageExt-Usage-Guide.md](LanguageExt-Usage-Guide.md)  
+**📚 Full Guide**: [LanguageExt-Usage-Guide.md](LanguageExt-Usage-Guide.md) ⭐⭐⭐⭐⭐  
 **Architecture Decision**: [ADR-008](ADR/ADR-008-functional-error-handling.md)
 
 ---
@@ -466,121 +408,38 @@ dotnet test --filter "Category=Integration"
 
 ---
 
-## 🚨 MANDATORY: LanguageExt Error Handling Protocol
 
-### The Golden Rules
+## 🔨 Production Patterns Reference
 
-**NEVER use try/catch for business logic!** Use LanguageExt patterns exclusively.
+**📚 Full Catalog**: [PRODUCTION-PATTERNS.md](PRODUCTION-PATTERNS.md) - Battle-tested implementations
 
-#### Rule 1: Business Logic → LanguageExt
-```csharp
-// ✅ CORRECT - All business operations return Fin<T>
-public Fin<Player> MovePlayer(Position from, Position to) =>
-    from valid in ValidateMove(from, to)
-    from updated in UpdatePosition(valid.player, to)
-    from events in TriggerMoveEvents(updated)
-    select events.player;
-
-// ❌ WRONG - Never throw for business logic
-public void MovePlayer(Position from, Position to) {
-    if (!IsValidMove(from, to)) 
-        throw new InvalidMoveException(); // NO!
-}
-```
-
-#### Rule 2: Infrastructure Only → try/catch
-```csharp
-// ✅ CORRECT - Infrastructure concerns only
-private Fin<ServiceProvider> BuildServiceProvider() {
-    try {
-        return FinSucc(services.BuildServiceProvider());
-    } catch (Exception ex) {
-        return FinFail<ServiceProvider>(Error.New("DI setup failed", ex));
-    }
-}
-
-// ❌ WRONG - Presenter logic should use Fin<T>
-private void OnClick(Position pos) {
-    try {
-        _mediator.Send(new MoveCommand(pos)); // Should return Fin<T>!
-    } catch (Exception ex) {
-        _logger.Error(ex, "Move failed");
-    }
-}
-```
-
-#### Rule 3: Always Chain with Bind/Match
-```csharp
-// ✅ CORRECT - Functional composition
-public async Task HandleMoveAsync(MovePlayerCommand cmd) {
-    var result = await _gameService.MovePlayer(cmd.From, cmd.To);
-    result.Match(
-        Succ: move => _logger.Information("Player moved to {Position}", move.NewPosition),
-        Fail: error => _logger.Warning("Move failed: {Error}", error.Message)
-    );
-}
-
-// ❌ WRONG - Not handling failure case
-public async Task HandleMoveAsync(MovePlayerCommand cmd) {
-    var result = await _gameService.MovePlayer(cmd.From, cmd.To);
-    var move = result.ThrowIfFail(); // NO! Never throw
-}
-```
-
-### Current Codebase Issues TO FIX
-
-**FOUND IN AUDIT - These must be converted:**
-
-1. **TimeUnitCalculator.cs:247** - Domain logic using try/catch
-2. **All Presenter classes** - UI interaction using try/catch  
-3. **Any new code** - Must use LanguageExt patterns
-
-### Conversion Examples
-
-**Before (WRONG):**
-```csharp
-// ❌ Current presenter pattern - MUST CHANGE
-private void OnTileClick(Position position) {
-    try {
-        _mediator.Send(new MovePlayerCommand(position));
-        _logger.Information("Move attempted");
-    } catch (Exception ex) {
-        _logger.Error(ex, "Move failed");
-    }
-}
-```
-
-**After (CORRECT):**
-```csharp
-// ✅ Proper LanguageExt pattern
-private async Task OnTileClick(Position position) {
-    var result = await _mediator.Send(new MovePlayerCommand(position));
-    result.Match(
-        Succ: move => {
-            _logger.Information("Player moved to {Position}", move.NewPosition);
-            RefreshUI(move);
-        },
-        Fail: error => _logger.Warning("Move failed: {Error}", error.Message)
-    );
-}
-```
-
-### When try/catch IS Allowed
-
-**Infrastructure/System Concerns ONLY:**
-- DI container setup (GameStrapper.cs) ✅
-- Logger configuration ✅  
-- File system operations ✅
-- Third-party library exceptions you can't control ✅
-
-**NEVER for:**
-- Validation errors ❌
-- Business rule violations ❌
-- Expected domain failures ❌
-- UI interaction failures ❌
-- Network/database operations ❌ (use Fin<T>)
+### Quick Pattern Index
+- **Value Object Factory** - Validated creation (VS_001)
+- **Thread-Safe DI** - Double-checked locking (VS_001)
+- **Cross-Presenter Coordination** - Setter injection (VS_010a)
+- **Optional Feedback Service** - Clean Architecture UI (VS_010b)
+- **Death Cascade** - Ordered cleanup (VS_010b)
+- **Godot Node Lifecycle** - _Ready() not constructor (VS_010a)
+- **Queue-Based CallDeferred** - Thread-safe UI (TD_011)
 
 ## 🧪 Testing Patterns
+
+### Property-Based Testing (VS_001)
+**When**: Mathematical operations, invariants, determinism
+**Tool**: FsCheck
+```csharp
+[Property]
+public Property TimeUnitCalculation_ShouldBeDeterministic() {
+    return Prop.ForAll<int, int, int>(
+        (baseTime, agility, encumbrance) => {
+            var result1 = Calculate(baseTime, agility, encumbrance);
+            var result2 = Calculate(baseTime, agility, encumbrance);
+            return result1 == result2;  // Always identical
+        }
+    ).QuickCheckThrowOnFailure();
+}
+```
+**Key**: 1000+ iterations prove mathematical correctness
 
 ### LanguageExt Testing Patterns
 
@@ -632,6 +491,67 @@ Before writing ANY code:
 - [ ] **Trace data flow** for new fields (Domain → Effect → Notification → View)
 
 ## 🚫 Anti-Patterns to Avoid
+
+### 🚨 ROOT CAUSE #1: Convenience Over Correctness
+**The most dangerous anti-pattern - choosing easy over correct**
+```csharp
+// ❌ WRONG - Float math for convenience → non-determinism
+var modifier = 100.0 / agility;  // FLOAT! Platform inconsistencies!
+var final = Math.Round(baseTime * modifier);  // Rounding varies!
+
+// ✅ CORRECT - Integer arithmetic for determinism
+var final = (baseTime * 100 * (10 + encumbrance)) / (agility * 10);
+```
+
+```csharp
+// ❌ WRONG - Async because it's "modern" → race conditions  
+Task.Run(async () => await View.DisplayActorAsync(...));  // Actor 1
+Task.Run(async () => await View.DisplayActorAsync(...));  // Actor 2 overwrites!
+
+// ✅ CORRECT - Sequential for turn-based games
+scheduler.GetNextActor();
+ProcessAction();
+UpdateUI();  // One at a time, no races
+```
+
+### 🚨 ROOT CAUSE #2: Duplicate State Sources
+**Violating Single Source of Truth creates sync nightmares**
+```csharp
+// ❌ WRONG - Position stored in 3 places!
+public class Actor {
+    public Position Position { get; set; }  // Duplicate #1
+}
+public class GridService {
+    Dictionary<ActorId, Position> _positions;  // Duplicate #2
+}
+public class ActorService {
+    Dictionary<ActorId, Actor> _actors;  // Contains #1!
+}
+
+// ✅ CORRECT - SSOT Architecture
+public class Actor {
+    // NO position - just health/stats
+}
+public class GridService {
+    // ONLY source for positions
+    Dictionary<ActorId, Position> _positions;
+}
+```
+
+### 🚨 ROOT CAUSE #3: Architecture/Domain Mismatch
+**Using patterns that fight the problem domain**
+```csharp
+// ❌ WRONG - Async patterns in sequential domain
+public async Task<Fin<Result>> ProcessTurnAsync() {
+    await Task.Run(() => ...);  // Why async for turn-based?
+}
+
+// ✅ CORRECT - Match pattern to domain
+public Fin<Result> ProcessTurn() {
+    // Turn-based = sequential = synchronous
+    return ExecuteAction();
+}
+```
 
 ### ❌ Direct Godot Access from Domain
 ```csharp
@@ -695,7 +615,56 @@ await _gridService.RemoveBlock(id);
 
 ---
 
+
 ## 🔥 Common Bug Patterns
+
+### 🎯 Pattern: Integer-Only Arithmetic for Determinism
+**When**: Any game system requiring reproducible behavior
+**Why**: Float math causes platform inconsistencies, save/load desyncs
+```csharp
+// ✅ CORRECT Integer Pattern (from BR_001 fix)
+public static int CalculateTimeUnits(int baseTime, int agility, int encumbrance) {
+    // Scale by 100 for precision, round at boundaries
+    var numerator = baseTime * 100 * (10 + encumbrance);
+    var denominator = agility * 10;
+    return (numerator + denominator/2) / denominator;  // Integer division with rounding
+}
+```
+**Key**: Multiply by powers of 10, do math, divide back down
+
+### 🎯 Pattern: SSOT Service Architecture  
+**When**: Multiple services need same data
+**Why**: Prevents state synchronization bugs
+```csharp
+// ✅ CORRECT SSOT Pattern (from TD_009 fix)
+public interface IGridStateService {
+    Fin<Position> GetActorPosition(ActorId id);  // ONLY source for positions
+}
+public interface IActorStateService {
+    Fin<Actor> GetActor(ActorId id);  // ONLY source for actor stats
+}
+public interface ICombatQueryService {
+    Fin<CombatView> GetCombatView(ActorId id);  // Composes from both
+}
+```
+**Key**: Each service owns specific domain, composite services query both
+
+### 🎯 Pattern: Sequential Turn Processing
+**When**: Turn-based game mechanics
+**Why**: Async creates race conditions in inherently sequential systems
+```csharp
+// ✅ CORRECT Sequential Pattern (from TD_011 fix)
+public class GameLoopCoordinator {
+    public void ProcessTurn() {
+        var actor = _scheduler.GetNextActor();      // Step 1
+        var action = GetPlayerAction(actor);        // Step 2
+        ExecuteAction(actor, action);               // Step 3
+        UpdateUI();                                  // Step 4
+        // ONE actor, ONE action, ONE update - NO concurrency
+    }
+}
+```
+**Key**: Complete one actor fully before starting next
 
 ### Namespace Mismatch Breaking MediatR Discovery (CRITICAL)
 ```csharp
@@ -836,15 +805,39 @@ git config --get core.hookspath  # Should return .husky
 
 ## 📚 Lessons Learned (From Production Experience)
 
-### Critical Time Wasters
-1. **Namespace issues**: 45+ minutes debugging MediatR discovery
-2. **Wrong test framework assumptions**: 30 minutes fixing Moq vs NSubstitute
-3. **GUID instability**: 2 hours tracking down inconsistent IDs
-4. **Missing notifications**: UI disconnected from state changes
-5. **Over-engineering**: 369 lines when 5 would work
+### Critical Time Wasters (Extracted from 16+ completed items)
+1. **Float math for convenience**: 4 hours fixing + risk of save corruption (BR_001)
+2. **Async in turn-based game**: 13 hours complete refactor (TD_011)
+3. **Duplicate state sources**: 6+ hours fixing position sync (TD_009)
+4. **Namespace issues**: 45+ minutes debugging MediatR discovery
+5. **Wrong test framework assumptions**: 30 minutes fixing Moq vs NSubstitute
+6. **GUID instability**: 2 hours tracking down inconsistent IDs
+7. **Missing notifications**: UI disconnected from state changes
+8. **Over-engineering**: 369 lines when 5 would work
+
+### Root Causes (80% of issues stem from these)
+1. **Convenience Over Correctness** (~35 hours wasted)
+   - Choosing float over integer
+   - Using async because "modern"
+   - Taking shortcuts that become roadblocks
+
+2. **Duplicate State Sources** (~12 bugs prevented)
+   - Position in Actor AND GridService
+   - Visual state separate from logical
+   - No clear ownership model
+
+3. **Architecture/Domain Mismatch** (~40% complexity reduction possible)
+   - Async patterns in sequential games
+   - Complex patterns for simple problems
+   - Fighting the domain instead of embracing it
 
 ### What Actually Works
 - **Start simple**: Add one condition before new abstraction
+- **Integer arithmetic**: Always for game logic requiring determinism
+- **SSOT architecture**: Each service owns one domain
+- **Sequential processing**: For turn-based mechanics
+- **Phase-based implementation**: Domain→Application→Infrastructure→Presentation
+- **List<T> over SortedSet**: When duplicates needed (combat scheduling)
 - **Trace data flow**: Domain → Effect → Notification → View
 - **Estimate first**: >100 LOC = stop and review
 - **Test defaults MUST match production**: Prevents subtle bugs

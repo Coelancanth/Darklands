@@ -1,6 +1,6 @@
 # Reference Documentation
 
-**Last Updated**: 2025-08-21  
+**Last Updated**: 2025-09-08  
 **Purpose**: Navigate to the right documentation quickly
 
 ## 🎯 Quick Decision Tree
@@ -27,10 +27,10 @@ Need something?
     (it's probably there)
 ```
 
-## 📚 The Three Documents
+## 📚 The Core Documents
 
 ### 1. **[HANDBOOK.md](HANDBOOK.md)** - Your Daily Companion
-**~400 lines of everything you actually need**
+**~870 lines of streamlined daily reference**
 - Architecture patterns & reference implementation
 - Development workflow & git commands
 - Testing patterns (especially LanguageExt)
@@ -52,7 +52,20 @@ Need something?
 - ADR-002: Persona System Architecture
 - Check before implementing related features
 
+### 4. **[PRODUCTION-PATTERNS.md](PRODUCTION-PATTERNS.md)** - Implementation Patterns
+**Battle-tested patterns from production**
+- Value object factories, DI containers, presenter coordination
+- Technical debt patterns and grid system designs
+- Extracted from HANDBOOK.md for focused reference
+
 ## 🗂️ Specialized References
+
+### Testing Documentation
+- **[Testing.md](Testing.md)** - Complete testing patterns and troubleshooting
+- **[TEST_CATEGORIES_GUIDE.md](TEST_CATEGORIES_GUIDE.md)** - Test categorization system
+
+### LanguageExt Documentation
+- **[LanguageExt-Usage-Guide.md](LanguageExt-Usage-Guide.md)** - Complete v5 guide
 
 ### Context7 Library Documentation
 **Location**: `scripts/context7/README.md`

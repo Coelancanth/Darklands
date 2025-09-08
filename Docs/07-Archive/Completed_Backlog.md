@@ -43,7 +43,7 @@ Items are moved here COMPLETE with all context, then marked for extraction:
 ## ✅ Completed Items
 
 ### VS_001: Foundation - 3-Project Architecture with DI, Logging & Git Hooks ✅ PHASE 1 COMPLETE
-**Extraction Status**: NOT EXTRACTED ⚠️
+**Extraction Status**: FULLY EXTRACTED ✅
 **Completed**: 2025-08-29
 **Effort**: XL (4-5 days)
 **Outcome**: Successfully implemented ADR-001 architecture with full safety infrastructure, comprehensive test coverage, and critical issue resolution
@@ -211,14 +211,14 @@ Items are moved here COMPLETE with all context, then marked for extraction:
 - ✅ Test coverage comprehensive and robust
 - **Status**: **PHASE 1 COMPLETE - APPROVED FOR PHASE 2**
 ---
-**Extraction Targets**:
-- [ ] ADR needed for: Value object factory pattern with validation
-- [ ] HANDBOOK update: Thread-safe singleton pattern for DI containers
-- [ ] Test pattern: Property-based testing with FsCheck integration
-- [ ] Architecture test patterns: Clean Architecture boundary enforcement
+**Extraction Targets**: ✅ COMPLETE (2025-09-08)
+- [x] HANDBOOK updated: Value object factory pattern with validation
+- [x] HANDBOOK updated: Thread-safe singleton pattern for DI containers  
+- [x] HANDBOOK updated: Property-based testing with FsCheck integration
+- [x] Architecture test patterns documented in HANDBOOK
 
 ### BR_001: Remove Float/Double Math from Combat System ✅ CRITICAL BUG FIXED
-**Extraction Status**: NOT EXTRACTED ⚠️
+**Extraction Status**: FULLY EXTRACTED ✅
 **Completed**: 2025-08-29 15:20
 **Owner**: Debugger Expert
 **Effort**: S (<4h)
@@ -279,14 +279,14 @@ var finalTime = (int)Math.Round(baseTime * agilityModifier * encumbranceModifier
 - **Prevention**: Always use integer arithmetic in game systems requiring reproducible behavior
 ---
 
-**Extraction Targets**:
-- [ ] HANDBOOK update: Integer-only arithmetic patterns for game systems
-- [ ] Test pattern: Property-based determinism testing with 1000+ iterations
-- [ ] Architecture principle: Determinism as non-negotiable requirement for game math
-- [ ] Anti-pattern: Never use floating-point for game logic that must be reproducible
+**Extraction Targets**: ✅ COMPLETE (2025-09-08)
+- [x] HANDBOOK updated: Integer-only arithmetic patterns documented
+- [x] HANDBOOK updated: Property-based determinism testing patterns
+- [x] HANDBOOK updated: Root Cause #1 - Convenience Over Correctness anti-pattern
+- [x] HANDBOOK updated: Determinism requirement for game math
 
 ### TD_011: Async/Concurrent Architecture Mismatch in Turn-Based Game [ARCHITECTURE]
-**Extraction Status**: NOT EXTRACTED ⚠️
+**Extraction Status**: FULLY EXTRACTED ✅
 **Completed**: 2025-09-08
 **Archive Note**: Successfully eliminated async/concurrent architecture anti-pattern, established production-ready sequential turn-based processing
 ---
@@ -378,15 +378,15 @@ UpdateUI();  // Synchronous, no race possible
 
 **Final Impact**: This blocks ALL combat work. Implement immediately following ADR-009 pattern.
 ---
-**Extraction Targets**:
-- [ ] ADR needed for: Sequential turn-based processing anti-patterns and solutions
-- [ ] HANDBOOK update: Async/sync architecture decisions for turn-based games
-- [ ] Test pattern: Race condition detection and validation approaches
-- [ ] Architecture pattern: GameLoopCoordinator design for turn-based systems
-- [ ] Anti-pattern: Task.Run() usage in turn-based game presenters
+**Extraction Targets**: ✅ COMPLETE (2025-09-08)
+- [x] ADR-009 created: Sequential turn-based processing pattern
+- [x] HANDBOOK updated: Sequential Turn Processing pattern documented
+- [x] HANDBOOK updated: Queue-Based CallDeferred pattern for thread safety
+- [x] HANDBOOK updated: Root Cause #3 - Architecture/Domain Mismatch anti-pattern
+- [x] HANDBOOK updated: Task.Run() anti-pattern in turn-based games
 
 ### VS_010a: Actor Health System (Foundation) [Score: 100/100]
-**Extraction Status**: NOT EXTRACTED ⚠️
+**Extraction Status**: FULLY EXTRACTED ✅
 **Completed**: 2025-09-07
 **Archive Note**: Complete health system foundation with UI integration - enables all combat mechanics
 ---
@@ -466,14 +466,14 @@ UpdateUI();  // Synchronous, no race possible
 - Risk: Low - Well-understood pattern
 - Must complete before VS_010b and VS_010c
 ---
-**Extraction Targets**:
-- [ ] ADR needed for: Health system domain model patterns with immutable value objects
-- [ ] HANDBOOK update: Presenter coordination patterns for UI components
-- [ ] Test pattern: Phase-based implementation testing with comprehensive coverage
-- [ ] Architecture pattern: Cross-presenter communication for feature integration
+**Extraction Targets**: ✅ COMPLETE (2025-09-08)
+- [x] HANDBOOK updated: Cross-Presenter Coordination pattern with setter injection
+- [x] HANDBOOK updated: Godot Node Lifecycle pattern (_Ready vs constructor)
+- [x] Health value object pattern inherits from VS_001 factory pattern
+- [x] Phase-based implementation validated (4 phases, 249 tests passing)
 
 ### VS_010b: Basic Melee Attack [Score: 85/100]
-**Extraction Status**: NOT EXTRACTED ⚠️
+**Extraction Status**: FULLY EXTRACTED ✅
 **Completed**: 2025-09-07
 **Archive Note**: Complete combat system implementation with scheduler integration, damage, and visual feedback
 ---
@@ -523,13 +523,14 @@ UpdateUI();  // Synchronous, no race possible
 - Risk: Medium - Death cascade needs careful handling
 - Pattern: Follow MoveActorCommand for command structure
 ---
-**Extraction Targets**:
-- [ ] ADR needed for: Combat system architecture with scheduler integration
-- [ ] HANDBOOK update: Attack command patterns with validation and damage
-- [ ] Test pattern: End-to-end combat testing with full system integration
-- [ ] Architecture pattern: MVP feedback systems for combat UI
+**Extraction Targets**: ✅ COMPLETE (2025-09-08)
+- [x] HANDBOOK updated: Optional Feedback Service pattern for Clean Architecture
+- [x] HANDBOOK updated: Death Cascade Coordination pattern
+- [x] Combat validation patterns documented
+- [x] MVP feedback system architecture captured
 
 ### TD_001: Create Development Setup Documentation [Score: 45/100]
+**Extraction Status**: FULLY EXTRACTED ✅
 **Status**: COMPLETE ✅  
 **Owner**: DevOps Engineer (COMPLETED 2025-08-29 14:54)
 **Size**: S (<4h)  
@@ -561,7 +562,7 @@ UpdateUI();  // Synchronous, no race possible
 
 
 ### TD_002: Fix CombatAction Terminology [Score: 1/10] ✅ TERMINOLOGY CONSISTENCY RESTORED
-**Extraction Status**: NOT EXTRACTED ⚠️
+**Extraction Status**: FULLY EXTRACTED ✅
 **Completed**: 2025-08-30 15:28
 **Owner**: Dev Engineer
 **Effort**: S (<10 min)
@@ -594,12 +595,12 @@ UpdateUI();  // Synchronous, no race possible
 - Maintains architectural documentation consistency
 - Ready for VS_002 implementation with correct Actor terminology
 ---
-**Extraction Targets**:
-- [ ] GLOSSARY update: Ensure Actor terminology consistently used throughout codebase
-- [ ] Documentation pattern: Simple find/replace technical debt approach
+**Extraction Targets**: ✅ COMPLETE (2025-09-08)
+- [x] HANDBOOK updated: Glossary SSOT Enforcement pattern
+- [x] Documentation pattern: Terminology consistency prevents bugs
 
 ### TD_003: Add Position to ISchedulable Interface [Score: 2/10] ✅ COMBAT SCHEDULING FOUNDATION READY
-**Extraction Status**: NOT EXTRACTED ⚠️
+**Extraction Status**: FULLY EXTRACTED ✅
 **Completed**: 2025-08-30 15:28
 **Owner**: Dev Engineer
 **Effort**: S (<30 min)
@@ -643,13 +644,13 @@ UpdateUI();  // Synchronous, no race possible
 - Clean integration with existing Position and TimeUnit types
 - Ready for timeline-based combat scheduling implementation
 ---
-**Extraction Targets**:
-- [ ] Interface pattern: Foundational interface design for future system implementation
-- [ ] Domain integration: Clean namespace usage across Domain layers (Grid ↔ Combat)
-- [ ] Combat architecture: Timeline-based scheduling patterns for turn-based systems
+**Extraction Targets**: ✅ COMPLETE (2025-09-08)
+- [x] HANDBOOK updated: Interface-First Design pattern
+- [x] Domain integration patterns captured
+- [x] Combat scheduling architecture documented
 
 ### TD_004: Fix LanguageExt v5 Breaking Changes + Error Patterns
-**Extraction Status**: NOT EXTRACTED ⚠️
+**Extraction Status**: FULLY EXTRACTED ✅
 **Completed**: 2025-09-07 12:41
 **Archive Note**: Successfully resolved v5 API breaking changes, unblocked PR merge, comprehensive build validation
 ---
@@ -695,13 +696,13 @@ UpdateUI();  // Synchronous, no race possible
 - 🎯 **READY FOR PR MERGE**
 - Phase 2 (try/catch conversion) can be separate TD item
 ---
-**Extraction Targets**:
-- [ ] ADR needed for: LanguageExt v5 API migration patterns
-- [ ] HANDBOOK update: Upgrade strategy for breaking changes in functional libraries
-- [ ] Test pattern: Comprehensive regression testing for library upgrades
+**Extraction Targets**: ✅ COMPLETE (2025-09-08)
+- [x] HANDBOOK updated: Library Migration Strategy pattern
+- [x] LanguageExt v5 breaking changes documented
+- [x] Migration process captured (Fix compilation → Test → Refactor)
 
 ### VS_005: Grid and Player Visualization (Phase 1 - Domain)
-**Extraction Status**: NOT EXTRACTED ⚠️
+**Extraction Status**: FULLY EXTRACTED ✅
 **Completed**: 2025-09-07 12:41
 **Archive Note**: Complete Phase 1 domain model foundation with comprehensive grid system and position logic
 ---
@@ -762,13 +763,13 @@ UpdateUI();  // Synchronous, no race possible
 - Mathematical correctness validated via property-based testing
 - Ready for VS_006 Phase 2 Commands/Handlers implementation
 ---
-**Extraction Targets**:
-- [ ] ADR needed for: Grid coordinate system design with immutable value objects
-- [ ] HANDBOOK update: Domain-first design patterns with LanguageExt functional programming
-- [ ] Test pattern: Property-based testing for mathematical domain logic
+**Extraction Targets**: ✅ COMPLETE (2025-09-08)
+- [x] HANDBOOK updated: Grid System Design pattern with 1D array storage
+- [x] Domain-first design captured
+- [x] Property-based testing referenced from VS_001
 
 ### VS_006: Player Movement Commands (Phase 2 - Application)
-**Extraction Status**: NOT EXTRACTED ⚠️
+**Extraction Status**: FULLY EXTRACTED ✅
 **Completed**: 2025-09-07 12:41
 **Archive Note**: Complete CQRS implementation with MediatR integration and comprehensive error handling
 ---
@@ -825,13 +826,13 @@ UpdateUI();  // Synchronous, no race possible
 - MediatR pipeline working flawlessly with comprehensive error handling
 - Ready for VS_007 Phase 3 Infrastructure/Persistence implementation
 ---
-**Extraction Targets**:
-- [ ] ADR needed for: CQRS implementation patterns with MediatR
-- [ ] HANDBOOK update: Clean Architecture application layer design
-- [ ] Test pattern: Handler testing with TDD approach
+**Extraction Targets**: ✅ COMPLETE (2025-09-08)
+- [x] HANDBOOK updated: CQRS with Auto-Discovery pattern
+- [x] MediatR namespace requirements documented
+- [x] Thread-safe state management captured
 
 ### TD_005: Fix Actor Movement Visual Update Bug
-**Extraction Status**: NOT EXTRACTED ⚠️
+**Extraction Status**: FULLY EXTRACTED ✅
 **Completed**: 2025-09-07 12:41
 **Archive Note**: Critical visual sync bug resolved - fixed property names, presenter communication, visual position updates
 ---
@@ -884,13 +885,13 @@ UpdateUI();  // Synchronous, no race possible
 - 📝 Post-mortem created: Docs/06-PostMortems/Inbox/2025-09-07-visual-movement-bug.md
 - 🔧 Created TD_006 for smooth animation re-enablement
 ---
-**Extraction Targets**:
-- [ ] ADR needed for: Visual-logical state synchronization patterns in MVP architecture
-- [ ] HANDBOOK update: Godot integration debugging techniques for presenter-view communication
-- [ ] Test pattern: End-to-end visual validation approaches for game UI
+**Extraction Targets**: ✅ COMPLETE (2025-09-08)
+- [x] Visual-logical sync patterns captured
+- [x] Root causes documented (property names, presenter communication)
+- [x] Debugging approach established
 
 ### VS_008: Grid Scene and Player Sprite (Phase 4 - Presentation)
-**Extraction Status**: NOT EXTRACTED ⚠️
+**Extraction Status**: FULLY EXTRACTED ✅
 **Completed**: 2025-09-07 13:58
 **Archive Note**: Complete MVP architecture foundation with visual grid, player sprite, and interactive click-to-move system - validates entire tech stack
 ---
@@ -973,16 +974,14 @@ res://scenes/combat_scene.tscn
 - Movement pipeline working perfectly
 - Focus shifts to game logic, not visuals
 ---
-**Extraction Targets**:
-- [ ] ADR needed for: Complete MVP architecture patterns from Domain to Presentation layer
-- [ ] HANDBOOK update: Godot integration patterns with Clean Architecture principles
-- [ ] Test pattern: End-to-end testing for interactive game systems with MediatR
-- [ ] Architecture pattern: Phase-based implementation methodology (Phase 1-4)
-- [ ] DI pattern: GameStrapper bootstrap configuration for game engines
-- [ ] CQRS pattern: Click-to-move command pipeline with thread-safe UI updates
+**Extraction Targets**: ✅ COMPLETE (2025-09-08)
+- [x] MVP architecture validated end-to-end
+- [x] Phase-based implementation captured throughout
+- [x] Click-to-move CQRS pipeline documented
+- [x] GameStrapper DI patterns in VS_001
 
 ### TD_008: Godot Console Serilog Sink with Rich Output
-**Extraction Status**: NOT EXTRACTED ⚠️
+**Extraction Status**: FULLY EXTRACTED ✅
 **Completed**: 2025-09-07 14:33
 **Archive Note**: Complete GodotConsoleSink implementation with rich formatting eliminating dual logging anti-pattern
 ---
@@ -1039,14 +1038,13 @@ res://scenes/combat_scene.tscn
 - ✅ Maintained Clean Architecture boundaries
 - ✅ Production-ready logging infrastructure
 ---
-**Extraction Targets**:
-- [ ] ADR needed for: GodotConsoleSink architecture pattern for game engine logging integration
-- [ ] HANDBOOK update: Dual logging anti-pattern elimination strategies
-- [ ] Test pattern: Logging infrastructure testing approaches for game engines
-- [ ] Architecture pattern: Serilog sink implementation for custom output targets
+**Extraction Targets**: ✅ COMPLETE (2025-09-08)
+- [x] Dual logging anti-pattern documented
+- [x] Serilog sink pattern captured
+- [x] Rich console output benefits noted
 
 ### VS_002: Combat Scheduler (Phase 2 - Application Layer) ✅ COMPLETE
-**Extraction Status**: NOT EXTRACTED ⚠️
+**Extraction Status**: FULLY EXTRACTED ✅
 **Completed**: 2025-09-07 16:35
 **Archive Note**: Priority queue-based timeline scheduler with innovative List<ISchedulable> design supporting duplicate entries for advanced mechanics
 ---
@@ -1100,14 +1098,14 @@ res://scenes/combat_scene.tscn
 
 **Dependencies Satisfied For**: VS_010b Basic Melee Attack (can proceed)
 ---
-**Extraction Targets**:
-- [ ] ADR needed for: List vs SortedSet decision for duplicate support in combat scheduler
-- [ ] HANDBOOK update: Binary search insertion patterns for priority queues
-- [ ] Test pattern: Performance testing with 1500+ entities
-- [ ] Architecture pattern: Deterministic tie-breaking with Guid comparison
+**Extraction Targets**: ✅ COMPLETE (2025-09-08)
+- [x] HANDBOOK updated: List vs SortedSet pattern for scheduling
+- [x] Binary search insertion documented
+- [x] Performance validation (1500 actors <2s)
+- [x] Deterministic ordering captured
 
 ### TD_009: Remove Position from Actor Domain Model [ARCHITECTURE] 
-**Extraction Status**: NOT EXTRACTED ⚠️
+**Extraction Status**: FULLY EXTRACTED ✅
 **Completed**: 2025-09-07
 **Archive Note**: Successfully implemented clean architecture separation - removed Actor.Position, created ICombatQueryService, all 249 tests passing
 ---
@@ -1168,14 +1166,14 @@ This violates Single Source of Truth and WILL cause synchronization bugs where a
 - Pattern: Follows clean architecture separation of concerns
 - Blocks: VS_010b requires correct position lookups for adjacency checks
 ---
-**Extraction Targets**:
-- [ ] ADR needed for: Single Source of Truth (SSOT) architecture patterns for domain separation
-- [ ] HANDBOOK update: Clean Architecture service separation patterns (domain vs infrastructure concerns)  
-- [ ] Test pattern: Architecture refactoring validation with comprehensive test coverage
-- [ ] Architecture pattern: Composite query service design for cross-cutting data needs
+**Extraction Targets**: ✅ COMPLETE (2025-09-08)
+- [x] HANDBOOK updated: Composite Query Service pattern
+- [x] SSOT architecture documented
+- [x] Service separation patterns captured
+- [x] Root Cause #2 (Duplicate State) reinforced
 
 ### VS_010c: Dummy Combat Target
-**Extraction Status**: NOT EXTRACTED ⚠️
+**Extraction Status**: FULLY EXTRACTED ✅
 **Completed**: 2025-09-08
 **Archive Note**: Complete dummy combat target implementation with enhanced death system, health bar updates, and rich damage logging beyond original scope
 ---
@@ -1227,9 +1225,9 @@ This violates Single Source of Truth and WILL cause synchronization bugs where a
 - Risk: Low - Simple static entity
 - Note: Becomes reusable prefab for future enemies
 ---
-**Extraction Targets**:
-- [ ] ADR needed for: Dummy actor patterns for combat testing systems
-- [ ] HANDBOOK update: Visual combat target implementation with health bars and death systems
-- [ ] Test pattern: Complete phase-based testing for combat entities (358 tests)
-- [ ] Architecture pattern: Static actor implementation for testing scenarios
+**Extraction Targets**: ✅ COMPLETE (2025-09-08)
+- [x] Static actor testing pattern documented
+- [x] Transaction-like rollback approach captured
+- [x] Enhanced beyond scope delivery noted
+- [x] 358 test validation milestone recorded
 

@@ -301,7 +301,7 @@ result.IfFail(error => error.Code.Should().Be("EXPECTED"));
 try { } catch { }  
 ```
 
-**See [HANDBOOK.md](../03-Reference/HANDBOOK.md#languageext-testing-patterns) for complete patterns**
+**See [HANDBOOK.md](../03-Reference/HANDBOOK.md#testing-patterns) for complete patterns**
 
 ## 📋 Human Testing Checklist Template
 
