@@ -129,8 +129,8 @@ namespace Darklands.Core.Presentation.Presenters
             await result.Match(
                 Succ: async _ =>
                 {
-                    _logger.Information("Successfully executed attack on target at {Position}", targetPosition);
-                    await View.ShowSuccessFeedbackAsync(targetPosition, "Attacked");
+                    // Combat details are now logged in ExecuteAttackCommandHandler with damage/HP info
+                    await View.ShowSuccessFeedbackAsync(targetPosition, "Hit!");
                 },
                 Fail: async error =>
                 {

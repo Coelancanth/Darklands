@@ -254,22 +254,23 @@ namespace Darklands
         {
             try
             {
-                _logger?.Information("Processing death notification for actor {ActorId} at {Position}", actorId, position);
+                _logger?.Information("🎮 [GameManager] Received death notification for actor {ActorId} at {Position}", actorId, position);
 
                 // Remove actor sprite
                 if (_actorPresenter != null)
                 {
+                    _logger?.Information("🎮 [GameManager] Calling deferred removal for {ActorId}", actorId);
                     // Use CallDeferred to ensure this runs on the main thread
                     CallDeferred(nameof(RemoveActorDeferred), actorId.Value.ToString(), position.X, position.Y);
                 }
                 else
                 {
-                    _logger?.Warning("ActorPresenter not available for death cleanup");
+                    _logger?.Error("❌ [GameManager] ActorPresenter is NULL - cannot remove sprite!");
                 }
             }
             catch (Exception ex)
             {
-                _logger?.Error(ex, "Error processing actor death notification for {ActorId}", actorId);
+                _logger?.Error(ex, "💥 [GameManager] Error processing actor death notification for {ActorId}", actorId);
             }
         }
 
@@ -280,28 +281,40 @@ namespace Darklands
         {
             try
             {
+                _logger?.Information("🎮 [GameManager] RemoveActorDeferred called for {ActorIdStr} at ({X},{Y})", actorIdStr, x, y);
+                
                 var actorId = Darklands.Core.Domain.Grid.ActorId.FromGuid(Guid.Parse(actorIdStr));
                 var position = new Darklands.Core.Domain.Grid.Position(x, y);
 
                 // Remove actor sprite
                 if (_actorPresenter != null)
                 {
+                    _logger?.Information("🎮 [GameManager] Removing actor sprite via presenter");
                     await _actorPresenter.RemoveActorAsync(actorId, position);
-                    _logger?.Information("Removed dead actor {ActorId} sprite", actorId);
+                    _logger?.Information("✅ Removed dead actor {ActorId} sprite", actorId);
+                }
+                else
+                {
+                    _logger?.Error("❌ [GameManager] ActorPresenter is NULL in deferred removal!");
                 }
 
                 // Remove health bar
                 if (_healthPresenter != null)
                 {
+                    _logger?.Information("🎮 [GameManager] Removing health bar via presenter");
                     await _healthPresenter.HandleActorRemovedAsync(actorId, position);
-                    _logger?.Information("Removed dead actor {ActorId} health bar", actorId);
+                    _logger?.Information("✅ Removed dead actor {ActorId} health bar", actorId);
+                }
+                else
+                {
+                    _logger?.Warning("⚠️ [GameManager] HealthPresenter is NULL - no health bar to remove");
                 }
 
-                _logger?.Information("Visual cleanup complete for dead actor {ActorId} at {Position}", actorId, position);
+                _logger?.Information("🎉 Visual cleanup complete for dead actor {ActorId} at {Position}", actorId, position);
             }
             catch (Exception ex)
             {
-                _logger?.Error(ex, "Error in deferred actor removal for {ActorIdStr}", actorIdStr);
+                _logger?.Error(ex, "💥 Error in deferred actor removal for {ActorIdStr}", actorIdStr);
             }
         }
     }
