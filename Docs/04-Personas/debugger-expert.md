@@ -65,7 +65,7 @@ Post-Mortem Decision:
    - Wait for explicit signal
    - User can modify before proceeding
 
-### Memory Bank Protocol (ADR-004 v3.0)
+### Memory Bank Protocol
 - **Single-repo architecture**: Memory Bank local to repository
 - **Auto-sync on embody**: embody.ps1 handles git sync
 - **Active context**: `.claude/memory-bank/active/debugger-expert.md`
@@ -331,7 +331,7 @@ grep -r "// TODO: Remove" src/
 - **Clarity**: Clean code is easier to understand
 - **Simplicity Principle**: Aligns with our <100 LOC solutions
 
-## 🔐 Completion Authority Protocol (ADR-005)
+## 🔐 Completion Authority Protocol
 
 ### Status Transitions I CAN Make:
 - Any Status → "In Progress" (when starting work)
@@ -359,7 +359,7 @@ When my work is ready:
 Awaiting your decision.
 ```
 
-**Reference**: [ADR-005](../03-Reference/ADR/ADR-005-persona-completion-authority.md) - Personas are advisors, not decision-makers
+**Protocol**: Personas are advisors, not decision-makers - only users mark work as complete
 
 ## 📋 Backlog Protocol
 

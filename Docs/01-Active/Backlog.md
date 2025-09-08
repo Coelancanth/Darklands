@@ -70,72 +70,127 @@
 
 
 
-### TD_018: Create Integration Tests for MediatR Event Routing [TESTING] [Score: 75/100]
-**Status**: Proposed
+### TD_018: Integration Tests for C# Event Infrastructure [TESTING] [Score: 65/100]
+**Status**: Approved ✅
 **Owner**: Test Specialist
-**Size**: M (1 day)
-**Priority**: Important (Prevent future incidents like TD_012)
-**Markers**: [TESTING] [INTEGRATION] [MEDIATR] [UI]
+**Size**: M (4-6h)
+**Priority**: Important (Prevent DI/MediatR integration failures)
+**Markers**: [TESTING] [INTEGRATION] [MEDIATR] [EVENT-BUS]
 **Created**: 2025-09-08 16:40
-**What**: Create integration tests covering complete event flow from domain to UI
-**Why**: TD_012 incident showed unit tests with mocks don't catch DI lifecycle issues
+**Approved**: 2025-09-08 20:15
+
+**What**: Integration tests for MediatR→UIEventBus pipeline WITHOUT Godot runtime
+**Why**: TD_017 post-mortem revealed 5 cascade failures that pure C# integration tests could catch
+
 **Problem Statement**:
-- Current tests only cover individual components with mocks
-- MediatR event routing to UI is not covered by automated tests
-- Critical UI functionality only discovered broken during manual testing
-- Need end-to-end validation of event publishing and handler invocation
-**How**:
-- Create test scenarios that publish domain events
-- Verify events are received by UI handlers
-- Test with actual DI container (not mocks)
-- Include parallel execution tests to catch static state issues
+- TD_017 incident had 5 failures, 3 were pure C# infrastructure issues
+- Current unit tests with mocks don't catch DI lifecycle problems
+- MediatR auto-discovery conflicts not covered by tests
+- WeakReference cleanup behavior untested
+- Thread safety of event bus never validated
+
+**Integration Test Definition** (for this codebase):
+> Tests that verify REAL interaction between C# components (MediatR, UIEventBus, UIEventForwarder, DI container) WITHOUT mocking these infrastructure pieces, but WITHOUT requiring Godot runtime.
+
+**Scope** (C# Infrastructure Only):
+1. **MediatR Pipeline Tests**
+   - Real MediatR → UIEventForwarder → UIEventBus flow
+   - Handler auto-discovery validation
+   - No duplicate handler registration
+   
+2. **DI Container Tests**
+   - Service lifetime verification (singleton vs transient)
+   - Registration conflict detection
+   - Container initialization order
+   
+3. **UIEventBus Infrastructure**
+   - WeakReference cleanup with mock subscribers (not Godot nodes)
+   - Concurrent event publishing thread safety
+   - Multiple subscriber scenarios
+   
+4. **NOT Testing** (Requires GDUnit/Manual):
+   - Actual Godot node lifecycle
+   - CallDeferred thread marshalling  
+   - UI presenter updates
+   - Scene tree integration
+
 **Done When**:
-- Integration tests cover ActorDiedEvent → UI removal
-- Integration tests cover ActorDamagedEvent → health bar updates  
-- Tests run with real MediatR pipeline and DI container
-- Test suite catches event routing failures before manual testing
-**Depends On**: TD_017 (proper architecture first)
+- Integration test suite covers C# event infrastructure
+- Tests use real DI container and MediatR pipeline (no mocks)
+- Concurrent publishing scenarios validated
+- WeakReference memory management verified
+- All tests run in CI without Godot dependency
+- Would have caught 3/5 issues from TD_017 incident
+
+**Depends On**: None (TD_017 already complete)
+
+**Tech Lead Decision** (2025-09-08 20:15):
+- **APPROVED WITH FOCUSED SCOPE** - Pure C# integration tests only
+- 80% value for 20% complexity (no Godot runtime needed)
+- Catches critical DI/MediatR issues that caused TD_017 incident
+- Defer Godot UI testing to future GDUnit initiative
+- Test Specialist should implement immediately after current work
 
 ---
 
 
-### TD_013: Extract Test Data from Production Presenters [SEPARATION] [Score: 85/100]
+### TD_013: Extract Test Data from Production Presenters [SEPARATION] [Score: 40/100]
 **Status**: Approved ✅
 **Owner**: Dev Engineer
-**Size**: S (3-4h)
+**Size**: S (2-3h)
 **Priority**: Critical (Test code in production)
-**Markers**: [SEPARATION-OF-CONCERNS] [TESTING]
+**Markers**: [SEPARATION-OF-CONCERNS] [SIMPLIFICATION]
 **Created**: 2025-09-08 14:42
+**Revised**: 2025-09-08 20:35
 
-**What**: Remove hardcoded test actor creation from ActorPresenter
-**Why**: Production code contains test/demo data, violating separation of concerns
+**What**: Extract test actor creation to simple IActorFactory
+**Why**: ActorPresenter contains 90+ lines of hardcoded test setup, violating SRP
 
 **Problem Statement**:
 - ActorPresenter.InitializeTestPlayer() creates hardcoded test actors
-- Static TestPlayerId field exposes test state
-- Presenter creating domain objects violates SRP
-- Makes it impossible to start with different scenarios
+- Static TestPlayerId field exposes test state globally
+- Presenter directly creating domain objects violates Clean Architecture
+- 90+ lines of test initialization code in production presenter
 
-**How**:
-- Create IActorFactory service for actor creation
-- Move test setup to separate TestScenarioService
-- Inject scenario service only in development/test builds
-- Use application commands to create actors properly
+**How** (SIMPLIFIED APPROACH):
+- Create simple IActorFactory interface with CreatePlayer/CreateDummy methods
+- Factory internally uses existing MediatR commands (follow SpawnDummyCommand pattern)
+- Each scene handles its own initialization in _Ready()
+- Remove ALL test code from ActorPresenter
+- NO TestScenarioService needed (over-engineering)
+
+**Implementation**:
+```csharp
+// Simple factory interface
+public interface IActorFactory
+{
+    Task<Fin<ActorId>> CreatePlayerAsync(Position position, string name = "Player");
+    Task<Fin<ActorId>> CreateDummyAsync(Position position, int health = 50);
+}
+
+// Scene decides what it needs
+public override void _Ready() 
+{
+    await _actorFactory.CreatePlayerAsync(new Position(0, 0));
+    await _actorFactory.CreateDummyAsync(new Position(5, 5));
+}
+```
 
 **Done When**:
-- No test data in ActorPresenter
-- Actor creation through proper application services
-- Test scenarios injectable via configuration
-- Clean separation between production and test code
+- No test initialization code in presenters
+- IActorFactory handles all actor creation via commands
+- Each scene initializes its own actors
+- Static TestPlayerId completely removed
+- Clean separation achieved with minimal complexity
 
 **Depends On**: None
 
-**Tech Lead Decision** (2025-09-08 14:45):
-- **APPROVED WITH HIGH PRIORITY** - Test data in production is serious anti-pattern
-- Violates Clean Architecture separation of concerns
-- Solution: IActorFactory + TestScenarioService pattern is correct
-- Enables flexible scenario testing and maintains boundaries
-- Route to Dev Engineer (implement after TD_012)
+**Tech Lead Decision** (2025-09-08 20:35):
+- **REVISED TO SIMPLER APPROACH** - TestScenarioService is over-engineering
+- Simple IActorFactory + scene-driven init is sufficient
+- Follows YAGNI principle - don't build what we don't need
+- Reduces complexity from 85/100 to 40/100
+- Same result, half the code, easier to maintain
 
 ---
 

@@ -64,7 +64,7 @@ New Feature Testing:
    - Wait for explicit signal
    - User can modify before proceeding
 
-### Memory Bank Protocol (ADR-004 v3.0)
+### Memory Bank Protocol
 - **Single-repo architecture**: Memory Bank local to repository
 - **Auto-sync on embody**: embody.ps1 handles git sync
 - **Active context**: `.claude/memory-bank/active/test-specialist.md`
@@ -250,10 +250,63 @@ public Property GridOperations_NeverLoseBlocks() {
 - Mathematical properties
 
 ### 3. Integration Testing
-- End-to-end workflows
-- Component interactions
-- Acceptance criteria verification
-- Cross-feature integration
+
+**📍 DARKLANDS INTEGRATION TEST DEFINITION:**
+> Tests that verify REAL interaction between C# components (MediatR, services, repositories, DI container) WITHOUT mocking these infrastructure pieces, but WITHOUT requiring Godot runtime.
+
+**What Integration Tests ARE in this codebase:**
+- Real DI container with actual service lifetimes
+- Real MediatR pipeline with handler discovery
+- Real service interactions (not mocked)
+- Real event flow through infrastructure
+- Tests that would catch DI/lifecycle issues
+
+**What Integration Tests ARE NOT:**
+- Full E2E tests with Godot UI (requires GDUnit/manual)
+- Tests with mocked services (those are unit tests)
+- Tests requiring Godot node lifecycle
+- Tests needing CallDeferred or scene tree
+- Visual verification tests
+
+**Integration Test Scope:**
+```csharp
+// ✅ GOOD Integration Test - Tests real C# infrastructure
+[Fact]
+public async Task MediatR_To_UIEventBus_RealFlow()
+{
+    // Real DI, real MediatR, real UIEventBus
+    var services = ConfigureRealServices();
+    var mediator = services.GetRequiredService<IMediator>();
+    var eventBus = services.GetRequiredService<IUIEventBus>();
+    
+    // Test real event flow without mocks
+    await mediator.Publish(new ActorDiedEvent(...));
+    // Verify event reached bus subscribers
+}
+
+// ❌ NOT Integration Test - This is a unit test
+[Fact]
+public void Handler_WithMockedService_DoesStuff()
+{
+    var mockService = new Mock<IActorService>();
+    // Using mocks = unit test, not integration
+}
+
+// ❌ NOT Possible - Requires Godot runtime
+[Fact]
+public void GameManager_UpdatesHealthBar_OnDamage()
+{
+    // Can't test Godot nodes in xUnit
+}
+```
+
+**Value of C# Integration Tests:**
+- Catch DI container misconfigurations
+- Find service lifetime conflicts (singleton vs transient)
+- Detect MediatR handler registration issues  
+- Verify event flow through real components
+- Test thread safety and concurrency
+- **Would have prevented 3/5 issues from TD_017 incident**
 
 ### 4. Stress Testing
 ```csharp
@@ -390,7 +443,7 @@ Tested by: ___________
 - **To Product Owner**: Acceptance verification
 - **To Human Testers**: E2E checklists
 
-## 🔐 Completion Authority Protocol (ADR-005)
+## 🔐 Completion Authority Protocol
 
 ### Status Transitions I CAN Make:
 - Any Status → "In Progress" (when starting work)
@@ -418,7 +471,7 @@ When my work is ready:
 Awaiting your decision.
 ```
 
-**Reference**: [ADR-005](../03-Reference/ADR/ADR-005-persona-completion-authority.md) - Personas are advisors, not decision-makers
+**Protocol**: Personas are advisors, not decision-makers - only users mark work as complete
 
 ## 🚨 When I Cause an Incident
 
