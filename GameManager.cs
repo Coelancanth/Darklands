@@ -211,6 +211,10 @@ namespace Darklands
                 // This connection ensures health bars are created when actors are spawned
                 _actorPresenter.SetHealthPresenter(_healthPresenter);
 
+                // Wire up death notification callback for visual cleanup
+                Darklands.Core.Application.Combat.Commands.ExecuteAttackCommandHandler.OnActorDeath = OnActorDeath;
+                _logger?.Information("Death notification callback wired for visual cleanup");
+
                 _logger?.Information("Presenters created and connected - GridPresenter, ActorPresenter, and HealthPresenter initialized with cross-presenter coordination");
 
                 // Initialize presenters (this will set up initial state)
@@ -240,6 +244,65 @@ namespace Darklands
 
             // For development, we might want to crash to surface the issue
             // For production, we'd log and attempt graceful recovery
+        }
+
+        /// <summary>
+        /// Handles actor death notifications for visual cleanup.
+        /// Removes actor sprites and health bars when actors die.
+        /// </summary>
+        private void OnActorDeath(Darklands.Core.Domain.Grid.ActorId actorId, Darklands.Core.Domain.Grid.Position position)
+        {
+            try
+            {
+                _logger?.Information("Processing death notification for actor {ActorId} at {Position}", actorId, position);
+
+                // Remove actor sprite
+                if (_actorPresenter != null)
+                {
+                    // Use CallDeferred to ensure this runs on the main thread
+                    CallDeferred(nameof(RemoveActorDeferred), actorId.Value.ToString(), position.X, position.Y);
+                }
+                else
+                {
+                    _logger?.Warning("ActorPresenter not available for death cleanup");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "Error processing actor death notification for {ActorId}", actorId);
+            }
+        }
+
+        /// <summary>
+        /// Deferred method to remove actor and health bar on main thread.
+        /// </summary>
+        private async void RemoveActorDeferred(string actorIdStr, int x, int y)
+        {
+            try
+            {
+                var actorId = Darklands.Core.Domain.Grid.ActorId.FromGuid(Guid.Parse(actorIdStr));
+                var position = new Darklands.Core.Domain.Grid.Position(x, y);
+
+                // Remove actor sprite
+                if (_actorPresenter != null)
+                {
+                    await _actorPresenter.RemoveActorAsync(actorId, position);
+                    _logger?.Information("Removed dead actor {ActorId} sprite", actorId);
+                }
+
+                // Remove health bar
+                if (_healthPresenter != null)
+                {
+                    await _healthPresenter.HandleActorRemovedAsync(actorId, position);
+                    _logger?.Information("Removed dead actor {ActorId} health bar", actorId);
+                }
+
+                _logger?.Information("Visual cleanup complete for dead actor {ActorId} at {Position}", actorId, position);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "Error in deferred actor removal for {ActorIdStr}", actorIdStr);
+            }
         }
     }
 }

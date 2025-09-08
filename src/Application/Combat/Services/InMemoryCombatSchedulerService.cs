@@ -82,5 +82,16 @@ namespace Darklands.Core.Application.Combat.Services
                 _scheduler.Clear();
             }
         }
+
+        /// <summary>
+        /// Removes a specific actor from the combat timeline.
+        /// </summary>
+        public bool RemoveActor(ActorId actorId)
+        {
+            lock (_schedulerLock)
+            {
+                return _scheduler.RemoveEntity(actorId);
+            }
+        }
     }
 }

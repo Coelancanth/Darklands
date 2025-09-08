@@ -39,6 +39,7 @@ namespace Darklands.Core.Tests.Application.Combat.Queries
             public Fin<Option<Guid>> ProcessNextTurn() => throw new NotImplementedException();
             public int GetScheduledCount() => throw new NotImplementedException();
             public void ClearSchedule() => throw new NotImplementedException();
+            public bool RemoveActor(ActorId actorId) => true; // Always succeed in tests
         }
 
         [Fact]

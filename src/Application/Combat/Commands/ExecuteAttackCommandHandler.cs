@@ -35,6 +35,12 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
     private readonly ILogger _logger;
     private readonly IAttackFeedbackService? _attackFeedbackService;
 
+    /// <summary>
+    /// Simple callback for actor death notifications.
+    /// GameManager can set this to handle visual cleanup.
+    /// </summary>
+    public static Action<ActorId, Position>? OnActorDeath { get; set; }
+
     public ExecuteAttackCommandHandler(
         IGridStateService gridStateService,
         IActorStateService actorStateService,
@@ -150,7 +156,7 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
             );
 
             // Provide attack success feedback (sequential, not concurrent)
-            _attackFeedbackService.ProcessAttackSuccess(
+            _attackFeedbackService?.ProcessAttackSuccess(
                 request.AttackerId,
                 request.TargetId,
                 request.CombatAction,
@@ -205,9 +211,30 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
             {
                 if (!actor.IsAlive)
                 {
-                    _logger?.Information("Target {TargetId} died from attack, cleanup may be needed", targetId);
-                    // TODO: Implement removal from combat scheduler when dead
-                    // For now, we'll leave them in the scheduler - they just won't get processed
+                    _logger?.Information("Target {TargetId} died from attack, performing cleanup", targetId);
+
+                    // Get the target's position before cleanup for notifications
+                    var targetPos = _gridStateService.GetActorPosition(targetId);
+                    var position = targetPos.Match(p => p, () => new Position(0, 0));
+
+                    // Remove dead actor from combat scheduler
+                    var removed = _combatSchedulerService.RemoveActor(targetId);
+                    if (removed)
+                    {
+                        _logger?.Information("Removed dead actor {TargetId} from combat scheduler", targetId);
+                    }
+                    else
+                    {
+                        _logger?.Warning("Dead actor {TargetId} was not found in combat scheduler", targetId);
+                    }
+
+                    // Remove dead actor from grid (frees up the position)
+                    _gridStateService.RemoveActorFromGrid(targetId);
+                    _logger?.Information("Removed dead actor {TargetId} from grid position", targetId);
+
+                    // Notify UI layer of actor death for visual cleanup
+                    OnActorDeath?.Invoke(targetId, position);
+                    _logger?.Information("Notified UI layer of actor {TargetId} death at {Position}", targetId, position);
                 }
                 return FinSucc(LanguageExt.Unit.Default);
             },
