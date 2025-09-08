@@ -428,12 +428,86 @@ function Sync-GitBranch {
     return $success
 }
 
+<#
+.SYNOPSIS
+    Handles post-PR merge cleanup automatically
+.DESCRIPTION
+    When a PR has been merged, this function:
+    - Switches to main and pulls latest
+    - Deletes the old feature branch
+    - Preserves any uncommitted work
+    - Leaves you on main ready for next task
+.PARAMETER CurrentBranch
+    The current branch to check
+.OUTPUTS
+    Boolean indicating if a merged PR was handled
+#>
+function Handle-MergedPR {
+    param(
+        [string]$CurrentBranch = (git branch --show-current)
+    )
+    
+    # Don't process if already on main
+    if ($CurrentBranch -eq "main") {
+        return $false
+    }
+    
+    # Check if PR was merged using GitHub API
+    $prMerged = $false
+    if (Get-Command gh -ErrorAction SilentlyContinue) {
+        try {
+            $pr = gh pr list --head $CurrentBranch --state merged --limit 1 --json number,mergedAt 2>$null | ConvertFrom-Json
+            if ($pr -and $pr.Count -gt 0) {
+                Write-Success "PR #$($pr[0].number) was merged! Auto-switching to fresh main..."
+                $prMerged = $true
+            }
+        } catch {
+            # Silent fallback to other detection methods
+        }
+    }
+    
+    # If no merged PR detected, return
+    if (-not $prMerged) {
+        return $false
+    }
+    
+    # Save any uncommitted work
+    $hasChanges = (git status --porcelain)
+    if ($hasChanges) {
+        Write-Status "Saving uncommitted changes..."
+        git stash push -m "Auto-stash: PR merged for $CurrentBranch" *>$null
+    }
+    
+    # Switch to main and pull
+    Write-Status "Switching to main and pulling latest..."
+    git checkout main *>$null
+    git pull origin main --ff-only *>$null
+    
+    # Delete old branch
+    Write-Status "Removing merged branch: $CurrentBranch"
+    git branch -D $CurrentBranch *>$null
+    
+    # Restore stashed changes if any
+    if ($hasChanges) {
+        Write-Status "Restoring uncommitted changes..."
+        git stash pop *>$null
+    }
+    
+    # Provide clear status message
+    Write-Success "Switched to main after PR merge!"
+    Write-Info "Your PR for '$CurrentBranch' was merged and branch deleted"
+    Write-Info "Ready for next task - create new branch when needed"
+    
+    return $true
+}
+
 # Export module functions
 Export-ModuleMember -Function @(
     'Test-SquashMerge',
     'Get-SyncStrategy',
     'Preserve-LocalCommits',
     'Sync-GitBranch',
+    'Handle-MergedPR',
     'Write-Status',
     'Write-Decision',
     'Write-Success',

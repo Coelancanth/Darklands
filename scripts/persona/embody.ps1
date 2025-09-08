@@ -28,11 +28,25 @@ param(
 $scriptStartTime = Get-Date
 $timestampFormatted = $scriptStartTime.ToString("yyyy-MM-dd HH:mm")
 
-# Import sync-core module
+# Import sync-core module with validation
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $gitScripts = Join-Path (Split-Path $scriptRoot) "git"
 $syncModule = Join-Path $gitScripts "sync-core.psm1"
-Import-Module $syncModule -Force -DisableNameChecking
+
+# Validate module exists
+if (-not (Test-Path $syncModule)) {
+    Write-Host "❌ Critical: sync-core.psm1 module not found!" -ForegroundColor Red
+    Write-Host "   Expected location: $syncModule" -ForegroundColor Yellow
+    exit 1
+}
+
+# Import with error checking
+try {
+    Import-Module $syncModule -Force -DisableNameChecking -ErrorAction Stop
+} catch {
+    Write-Host "❌ Failed to import sync-core module: $_" -ForegroundColor Red
+    exit 1
+}
 
 # Color functions for embody-specific output (module has its own)
 function Write-Phase($message) { 
@@ -61,21 +75,53 @@ function Resolve-EmbodyGitState {
         }
     }
     
-    # Use module's sync function
+    # Store original branch name before potential switch
+    $originalBranch = $branch
+    
+    # First check if PR was merged and handle automatic branch switch
+    $prHandled = Handle-MergedPR -CurrentBranch $branch
+    
+    if ($prHandled) {
+        # Branch was switched to main, update our reference
+        $branch = git branch --show-current
+        Write-Info "Note: Your PR was merged. Now on main branch, ready for next task."
+        
+        # Warn if there are uncommitted changes that will be moved to main
+        if ($hasUncommitted) {
+            Write-Warning "Your uncommitted changes from '$originalBranch' will be restored on main"
+            Write-Info "You'll need to create a new feature branch before committing"
+        }
+    }
+    
+    # Use module's sync function (whether PR was handled or not)
     $syncResult = Sync-GitBranch -Branch $branch -Verbose:$false
     
     if ($syncResult) {
         # EMBODY-SPECIFIC: Set upstream tracking after sync
-        git branch --set-upstream-to=origin/$branch $branch 2>$null
+        $upstreamResult = git branch --set-upstream-to=origin/$branch $branch 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            # Only warn if it's not the common "no remote branch" case
+            if ($upstreamResult -notmatch "no such branch") {
+                Write-Warning "Could not set upstream tracking: $upstreamResult"
+            }
+        }
         
         # Restore stash if we created one
         if ($hasUncommitted) {
             Write-Status "Restoring stashed changes..."
-            git stash pop --quiet
+            $stashOutput = git stash pop 2>&1
             if ($LASTEXITCODE -ne 0) {
-                Write-Warning "Couldn't auto-restore stash. Run 'git stash pop' manually"
+                Write-Warning "Stash restoration had conflicts!"
+                Write-Info "Your changes are preserved in stash. To retry: git stash pop"
+                Write-Info "To see conflicts: git status"
             } else {
                 Write-Success "Restored uncommitted changes"
+                
+                # Additional warning if we switched branches
+                if ($prHandled) {
+                    Write-Warning "Remember: Your changes are now on main branch"
+                    Write-Info "Create a new feature branch with: git checkout -b feat/your-feature"
+                }
             }
         }
         
@@ -83,8 +129,15 @@ function Resolve-EmbodyGitState {
     } else {
         # Sync failed - try to restore stash before exiting
         if ($hasUncommitted) {
-            Write-Warning "Attempting to restore stash after sync failure..."
-            git stash pop --quiet 2>$null
+            Write-Warning "Sync failed. Attempting to restore your stashed changes..."
+            $stashRestore = git stash pop 2>&1
+            if ($LASTEXITCODE -eq 0) {
+                Write-Success "Your changes have been restored"
+            } else {
+                Write-Error "Could not auto-restore stash: $stashRestore"
+                Write-Info "Your changes are safe in stash. View with: git stash list"
+                Write-Info "Restore manually with: git stash pop"
+            }
         }
         return $false
     }
