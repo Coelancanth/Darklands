@@ -57,65 +57,40 @@ public sealed class UIEventBus : IUIEventBus
         {
             if (Subscriber.TryGetTarget(out var target))
             {
-                // Thread-safe UI update for Godot nodes
+                // For Godot nodes, check if they're still in the tree
                 if (IsGodotNode(target))
                 {
-                    InvokeOnMainThread(target, Handler, eventData);
+                    // Check if node is still valid and in tree
+                    try
+                    {
+                        var isInsideTree = (bool)target.GetType().GetMethod("IsInsideTree")!.Invoke(target, null)!;
+                        if (!isInsideTree)
+                        {
+                            return false; // Node removed from tree, skip invocation
+                        }
+                    }
+                    catch
+                    {
+                        return false; // Node is invalid
+                    }
                 }
-                else
-                {
-                    // Direct invocation for non-Godot subscribers (testing)
-                    ((Action<TEvent>)Handler).Invoke(eventData);
-                }
+
+                // Direct invocation - we're already on the main thread in Godot
+                // The handler methods themselves use CallDeferred if needed
+                ((Action<TEvent>)Handler).Invoke(eventData);
                 return true;
             }
             return false; // Subscriber was garbage collected
         }
 
         /// <summary>
-        /// Checks if the target object is a Godot Node that requires CallDeferred.
+        /// Checks if the target object is a Godot Node.
         /// Uses duck typing to avoid direct Godot dependency in Infrastructure layer.
         /// </summary>
         private static bool IsGodotNode(object target)
         {
             // Check if object has IsInsideTree method (Godot Node signature)
-            return target.GetType().GetMethod("IsInsideTree") != null &&
-                   target.GetType().GetMethod("CallDeferred") != null;
-        }
-
-        /// <summary>
-        /// Invokes handler on main thread using Godot's CallDeferred mechanism.
-        /// This ensures UI updates happen safely from background threads.
-        /// </summary>
-        private static void InvokeOnMainThread<TEvent>(object godotNode, Delegate handler, TEvent eventData)
-        {
-            try
-            {
-                var isInsideTree = (bool)godotNode.GetType().GetMethod("IsInsideTree")!.Invoke(godotNode, null)!;
-
-                if (isInsideTree)
-                {
-                    // Use CallDeferred to marshal to main thread
-                    var callDeferred = godotNode.GetType().GetMethod("CallDeferred",
-                        new[] { typeof(Action<TEvent>), typeof(TEvent) });
-
-                    if (callDeferred != null)
-                    {
-                        callDeferred.Invoke(godotNode, new object?[] { handler, eventData });
-                    }
-                    else
-                    {
-                        // Fallback: direct invocation if CallDeferred not available
-                        ((Action<TEvent>)handler).Invoke(eventData);
-                    }
-                }
-                // If node is not in scene tree, skip the invocation
-            }
-            catch (Exception ex)
-            {
-                // Log but don't throw - UI failures shouldn't break event processing
-                Serilog.Log.Warning(ex, "Failed to invoke event handler on Godot node");
-            }
+            return target.GetType().GetMethod("IsInsideTree") != null;
         }
     }
 

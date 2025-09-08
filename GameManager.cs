@@ -43,12 +43,19 @@ namespace Darklands
 
             try
             {
-                // Initialize the DI container
+                // Initialize the DI container FIRST (synchronously for initial setup)
+                InitializeDIContainer();
+                
+                // NOW call base implementation to initialize EventBus from EventAwareNode
+                // This will work because GameStrapper is now initialized
+                base._Ready();
+                
+                // Continue with async initialization for the rest
                 _ = Task.Run(async () =>
                 {
                     try
                     {
-                        await InitializeApplicationAsync();
+                        await CompleteInitializationAsync();
                         _logger?.Information("GameManager initialization completed successfully");
                     }
                     catch (Exception ex)
@@ -96,12 +103,18 @@ namespace Darklands
                 GD.PrintErr($"GameManager cleanup error: {ex.Message}");
                 _logger?.Error(ex, "GameManager cleanup error");
             }
+            finally
+            {
+                // CRITICAL: Call base implementation to unsubscribe from events
+                base._ExitTree();
+            }
         }
 
         /// <summary>
-        /// Initializes the application core and sets up the MVP architecture.
+        /// Initializes the DI container synchronously.
+        /// Must be called before base._Ready() so EventBus can be retrieved.
         /// </summary>
-        private async Task InitializeApplicationAsync()
+        private void InitializeDIContainer()
         {
             try
             {
@@ -132,7 +145,22 @@ namespace Darklands
                 _logger = _serviceProvider.GetRequiredService<Serilog.ILogger>();
 
                 _logger.Information("DI container initialized successfully - switching to structured logging");
+            }
+            catch (Exception ex)
+            {
+                // Use GD.PrintErr as fallback since structured logging may not be available yet
+                GD.PrintErr($"DI container initialization error: {ex.Message}");
+                throw;
+            }
+        }
 
+        /// <summary>
+        /// Completes the initialization by setting up MVP architecture.
+        /// </summary>
+        private async Task CompleteInitializationAsync()
+        {
+            try
+            {
                 // Set up views and presenters on the main thread
                 CallDeferred(MethodName.SetupMvpArchitecture);
 

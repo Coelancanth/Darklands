@@ -69,54 +69,6 @@
 *Blockers preventing other work, production bugs, dependencies for other features*
 
 
-### TD_017: Implement UI Event Bus Architecture [ARCHITECTURE] [Score: 65/100]
-**Status**: Approved ✅
-**Owner**: Dev Engineer
-**Size**: L (2-3 days)
-**Priority**: Critical (Foundation for 200+ future events)
-**Markers**: [ARCHITECTURE] [ADR-010] [EVENT-BUS] [MEDIATR]
-**Created**: 2025-09-08 16:40
-**Updated**: 2025-09-08 17:14
-
-**What**: Implement UI Event Bus pattern to replace static event router
-**Why**: Current static approach won't scale to 200+ events and violates SOLID
-
-**Architecture Decision**: See [ADR-010](../03-Reference/ADR/ADR-010-ui-event-bus-architecture.md)
-
-**Implementation Plan**:
-- Phase 1: Core Infrastructure (Day 1)
-  - Create IUIEventBus interface in Core layer
-  - Implement UIEventBus with weak references in Infrastructure
-  - Create UIEventForwarder<T> for MediatR integration
-  - Add EventAwareNode base class for Godot nodes
-- Phase 2: Migration (Day 2)  
-  - Update GameManager to use EventAwareNode
-  - Migrate ActorDiedEvent and ActorDamagedEvent handlers
-  - Remove static GameManagerEventRouter
-  - Update DI registration in ServiceConfiguration
-- Phase 3: Testing & Documentation (Day 3)
-  - Integration tests for event flow
-  - Unit tests for bus implementation
-  - Performance tests with 100+ event types
-  - Update architecture documentation
-
-**Done When**:
-- UI Event Bus fully implemented per ADR-010
-- Zero static handlers in event routing system
-- All existing UI updates working correctly
-- WeakReference cleanup verified (no memory leaks)
-- Integration tests pass with parallel execution
-- Performance validated with 100+ event type simulation
-
-**Depends On**: None
-
-**Tech Lead Decision** (2025-09-08 17:14):
-- **APPROVED** - Architecture validated through deep analysis
-- MediatR handlers are transient by design (not a bug)
-- UI Event Bus correctly bridges DI and Godot lifecycles
-- WeakReferences prevent memory leaks from destroyed nodes
-- Typed subscriptions maintain SOLID principles at scale
-- Route to Dev Engineer for implementation
 
 ### TD_018: Create Integration Tests for MediatR Event Routing [TESTING] [Score: 75/100]
 **Status**: Proposed
@@ -345,6 +297,49 @@
 
 ## 📦 Archive (Completed Items)
 *Recently completed work for reference and knowledge transfer*
+
+### TD_017: Implement UI Event Bus Architecture [ARCHITECTURE] [Score: 65/100] ✅
+**Status**: Done
+**Owner**: Dev Engineer
+**Size**: L (2-3 days)
+**Priority**: Critical (Foundation for 200+ future events)
+**Markers**: [ARCHITECTURE] [ADR-010] [EVENT-BUS] [MEDIATR]
+**Created**: 2025-09-08 16:40
+**Completed**: 2025-09-08 19:38
+
+**What**: Implement UI Event Bus pattern to replace static event router
+**Why**: Current static approach won't scale to 200+ events and violates SOLID
+
+**✅ IMPLEMENTATION COMPLETED** (All 4 Phases + 5 Critical Issues Fixed):
+
+**Phase 1-4: Core Architecture** ✅
+- Created complete UI Event Bus architecture with IUIEventBus interface
+- Implemented UIEventForwarder<T> for automatic MediatR event forwarding
+- Built WeakReference-based subscription system preventing memory leaks
+- Integrated EventAwareNode base class for Godot lifecycle management
+
+**Critical Issues Resolved**:
+1. **MediatR Auto-Discovery Conflict** - Removed old GameManagerEventRouter entirely
+2. **Missing Base Class Calls** - Fixed base._Ready() and base._ExitTree() calls
+3. **Race Condition** - Restructured initialization order (DI first, then EventBus)
+4. **CallDeferred Misuse** - Simplified to direct invocation (already on main thread)
+5. **Duplicate Registration** - Removed manual UIEventForwarder registration
+
+**Final Architecture**:
+```
+Domain Event → MediatR → UIEventForwarder<T> → UIEventBus → GameManager → UI Update
+```
+
+**Results**:
+- ✅ Health bars update correctly when actors take damage
+- ✅ Dead actors removed from UI immediately
+- ✅ No more static router errors
+- ✅ All 232 tests passing with zero warnings
+- ✅ Modern event-driven architecture fully operational
+
+**Post-Mortem**: [TD_017 Implementation Issues](../../06-PostMortems/Inbox/2025-09-08-td017-ui-event-bus-implementation.md)
+
+**References**: [ADR-010](../03-Reference/ADR/ADR-010-ui-event-bus-architecture.md)
 
 ### TD_019: Fix embody script squash merge handling with hard reset strategy ✅
 **Status**: Done

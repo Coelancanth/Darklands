@@ -237,14 +237,12 @@ public static class GameStrapper
             // Domain services (Singleton - stateless business logic)
             // TODO: Register domain services here as they're implemented
 
-            // Event Router (Singleton - routes events to GameManager using static handlers)
-            services.AddSingleton<Infrastructure.Events.GameManagerEventRouter>();
-
             // UI Event Bus (Singleton - bridges MediatR events to Godot UI components)
+            // Replaces the old static GameManagerEventRouter with modern publish/subscribe architecture
             services.AddSingleton<Application.Events.IUIEventBus, Infrastructure.Events.UIEventBus>();
 
-            // Generic event forwarder (Transient - auto-discovered by MediatR for all INotification types)
-            services.AddTransient(typeof(INotificationHandler<>), typeof(Application.Events.UIEventForwarder<>));
+            // Note: UIEventForwarder<T> is auto-discovered by MediatR's RegisterServicesFromAssembly
+            // No manual registration needed - MediatR finds all INotificationHandler<T> implementations
 
             return FinSucc(LanguageExt.Unit.Default);
         }
