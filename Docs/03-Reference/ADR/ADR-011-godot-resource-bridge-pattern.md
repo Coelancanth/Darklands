@@ -169,6 +169,19 @@ public sealed class GodotResourceLoader : IResourceLoader
             return Error.New($"Resource loading error: {ex.Message}");
         }
     }
+
+    public Fin<bool> Exists(string path)
+    {
+        try { return ResourceLoader.Exists(path); }
+        catch (Exception ex) { return Error.New($"Exists failed: {ex.Message}"); }
+    }
+
+    public IObservable<ResourceChanged> WatchForChanges(string path)
+    {
+        // Development-only simplistic watcher: polls ResourceLoader.Exists and version tag.
+        // In production builds, return an empty observable to avoid overhead.
+        return Observable.Empty<ResourceChanged>();
+    }
 }
 ```
 

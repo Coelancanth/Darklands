@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-08 21:31 (Critical ADR implementations added by Tech Lead)
+**Last Updated**: 2025-09-08 22:59 (Added TD_023 for ADR review alignment by Tech Lead)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 002
-- **Next TD**: 023  
+- **Next TD**: 024  
 - **Next VS**: 011 
 
 
@@ -219,6 +219,78 @@
 - These enable testing and future modding
 - Start with Audio and Input (highest value)
 - Settings can be slightly delayed if needed
+
+---
+
+### TD_023: Review and Align Implementation with Enhanced ADRs [ARCHITECTURE] [Score: 70/100]
+**Status**: Approved ✅
+**Owner**: Tech Lead
+**Size**: M (4-6h)
+**Priority**: Critical (Must align before implementation begins)
+**Markers**: [ARCHITECTURE] [ADR-REVIEW] [STRATEGIC] [SCOPE-MANAGEMENT]
+**Created**: 2025-09-08 22:59
+**Approved**: 2025-09-08 22:59
+
+**What**: Strategic review of ADR enhancements and alignment of existing TD items with new specifications
+**Why**: ADRs 004, 005, 006, 011, 012 received substantial professional-grade enhancements that may change implementation scope and requirements
+
+**Enhanced ADR Changes Requiring Review**:
+
+**ADR-004 (Deterministic Simulation) Enhancements**:
+- Unbiased range generation (rejection sampling)
+- Stable FNV-1a hashing for cross-platform fork derivation
+- Comprehensive input validation with edge case handling
+- Enhanced diagnostics (Stream, RootSeed properties)
+- Cross-platform CI testing requirements
+- Architecture tests for non-determinism prevention
+- Microsoft.Extensions.Logging alignment
+
+**ADR-005 (Save-Ready Architecture) Enhancements**:
+- IStableIdGenerator interface for deterministic-friendly ID creation
+- Enhanced recursive type validation for save readiness
+- Pluggable serialization provider (Newtonsoft.Json support)
+- World Hydration/Rehydration process specification
+- ModData extension points for mod-friendly entities
+- ISaveStorage abstraction for filesystem independence
+- Save migration pipeline with discrete steps
+- Architecture tests for Godot type prevention
+
+**ADR-006 (Selective Abstraction) Enhancements**:
+- Core value types (CoreVector2) to prevent Godot leakage
+- IGameClock abstraction added to decision matrix
+- Architecture tests for dependency enforcement
+- Enhanced testing examples with NetArchTest
+- Expanded abstraction decision matrix
+
+**ADR-011/012 (Bridge Patterns) Enhancements**:
+- Improved service integration patterns
+- Enhanced error handling approaches
+- Better DI integration examples
+
+**Strategic Questions for Review**:
+1. **Scope Impact**: Do TD_020, TD_021, TD_022 need scope adjustments for enhanced requirements?
+2. **Split Decision**: Should complex enhancements become separate TD items (e.g., architecture tests, cross-platform CI)?
+3. **Priority Sequencing**: Which enhanced features are Phase 1 vs Phase 2 implementations?
+4. **Implementation Complexity**: Are complexity scores (90/85/75) still accurate with enhancements?
+5. **Resource Allocation**: Do we need additional specialist input (DevOps for CI, Test Specialist for architecture tests)?
+
+**Done When**:
+- All four enhanced ADRs reviewed for implementation impact
+- TD_020, TD_021, TD_022 scope validated or adjusted
+- Decision made on splitting complex enhancements into separate items
+- Implementation priority and sequence confirmed
+- Resource requirements validated (Dev Engineer vs multi-persona)
+- Any new TD items created for deferred enhancements
+- Updated complexity scores if needed
+
+**Depends On**: Review of enhanced ADR-004, ADR-005, ADR-006, ADR-011, ADR-012
+
+**Tech Lead Decision** (2025-09-08 22:59):
+- **AUTO-APPROVED** - Critical strategic review before implementation
+- Must complete before Dev Engineer starts TD_020/021/022
+- Enhanced ADRs significantly more comprehensive than original versions
+- Risk of implementation drift without alignment review
+- 4-6 hours well-spent to ensure we build the right architecture
 
 ---
 

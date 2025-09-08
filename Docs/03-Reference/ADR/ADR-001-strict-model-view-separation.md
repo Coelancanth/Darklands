@@ -200,7 +200,7 @@ public partial class CombatView : Control, ICombatView
 
 3. **REQUIRED Tech Stack (proven architecture)**:
    - **Microsoft.Extensions.DependencyInjection** (9.0.8): Full DI container
-   - **Serilog** (4.3.0): Fallback-safe logging that never crashes
+   - **Microsoft.Extensions.Logging** abstractions in Core; Serilog provider in host: Fallback-safe logging that never crashes
    - **LanguageExt.Core** (4.4.9): Fin<T>, Option<T> for error handling
    - **MediatR** (13.0.0): Command/query/notification pipeline
    - **FsCheck.Xunit** (3.3.0): Property-based testing for time-units
@@ -284,6 +284,11 @@ dotnet build Darklands.csproj
 - Core tests complete in <20 seconds
 - Zero Godot references in Darklands.Core.csproj
 - Modders can reference only Core.dll
+
+### Reviewer Addendum (2025-09-08)
+- Standardize logging on `Microsoft.Extensions.Logging` within Core. Configure Serilog as the logging provider in the Godot host project.
+- Provide a synchronous command bus adapter for any async MediatR handlers to avoid deadlocks (see ADR-009). Presenters should call the adapter, not `.GetAwaiter().GetResult()` directly.
+- Add architecture tests (see ADR-006 examples) to enforce: no `Godot.*` references in Core/Application; no references from Core/Application to Presentation assemblies.
 
 ## Status
 

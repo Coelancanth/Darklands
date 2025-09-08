@@ -63,6 +63,7 @@ public sealed class UIEventBus : IUIEventBus
 {
     private readonly Dictionary<Type, List<WeakSubscription>> _subscriptions = new();
     private readonly ILogger<UIEventBus> _logger;
+    private readonly UIDispatcher _dispatcher;
     
     private class WeakSubscription
     {
@@ -90,6 +91,24 @@ public sealed class UIEventBus : IUIEventBus
             subscriber.GetType().Name, eventType.Name);
     }
     
+    public void Unsubscribe<TEvent>(object subscriber)
+        where TEvent : INotification
+    {
+        var eventType = typeof(TEvent);
+        if (_subscriptions.TryGetValue(eventType, out var subs))
+        {
+            subs.RemoveAll(s => !s.Subscriber.TryGetTarget(out var t) || ReferenceEquals(t, subscriber));
+        }
+    }
+    
+    public void UnsubscribeAll(object subscriber)
+    {
+        foreach (var kvp in _subscriptions)
+        {
+            kvp.Value.RemoveAll(s => !s.Subscriber.TryGetTarget(out var t) || ReferenceEquals(t, subscriber));
+        }
+    }
+    
     public async Task PublishAsync<TEvent>(TEvent notification) 
         where TEvent : INotification
     {
@@ -103,19 +122,8 @@ public sealed class UIEventBus : IUIEventBus
         {
             if (sub.Subscriber.TryGetTarget(out var target))
             {
-                // Thread-safe UI update for Godot
-                if (target is Node godotNode && godotNode.IsInsideTree())
-                {
-                    godotNode.CallDeferred(() => 
-                    {
-                        ((Action<TEvent>)sub.Handler).Invoke(notification);
-                    });
-                }
-                else if (target is not Node)
-                {
-                    // Non-Godot subscribers (for testing)
-                    ((Action<TEvent>)sub.Handler).Invoke(notification);
-                }
+                // Thread-safe UI update for Godot via UIDispatcher
+                _dispatcher.Enqueue(() => ((Action<TEvent>)sub.Handler).Invoke(notification), target);
             }
             else
             {
@@ -127,6 +135,43 @@ public sealed class UIEventBus : IUIEventBus
         foreach (var dead in deadSubscriptions)
         {
             subs.Remove(dead);
+        }
+    }
+}
+```
+
+```csharp
+/// <summary>
+/// Godot-side dispatcher that marshals actions onto the main thread via CallDeferred.
+/// Register a single instance early (e.g., under /root) and provide it to UIEventBus.
+/// </summary>
+public sealed partial class UIDispatcher : Node
+{
+    private readonly Queue<(object? target, Action action)> _queue = new();
+    
+    public void Enqueue(Action action, object? target = null)
+    {
+        lock (_queue)
+        {
+            _queue.Enqueue((target, action));
+        }
+        CallDeferred(nameof(Drain));
+    }
+    
+    private void Drain()
+    {
+        while (true)
+        {
+            (object? target, Action action) item;
+            lock (_queue)
+            {
+                if (_queue.Count == 0) break;
+                item = _queue.Dequeue();
+            }
+            // If a target Node was provided, ensure it is still valid
+            if (item.target is Node node && !node.IsInsideTree())
+                continue;
+            item.action();
         }
     }
 }
@@ -156,6 +201,9 @@ public class UIEventForwarder<TEvent> : INotificationHandler<TEvent>
 public abstract class EventAwareNode : Node2D
 {
     protected IUIEventBus EventBus { get; private set; }
+    
+    // Optional: Keep a reference to unsubscribe specific event types if needed
+    
     
     public override void _Ready()
     {

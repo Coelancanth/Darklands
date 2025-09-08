@@ -39,6 +39,19 @@ We will implement a **Save-Ready Architecture** with three stages:
 2. **ALPHA: Debug Saves** - Simple JSON saves for development
 3. **BETA: Production Saves** - Versioned, validated, compressed saves
 
+### Reviewer Addendum (2025-09-08)
+
+> Reviewer: Solid foundation. To make this bulletproof and aligned with ADR-004 and our handbook, apply these refinements (reflected in examples below):
+> - Replace ad-hoc `Guid.NewGuid()` in domain IDs with an `IStableIdGenerator` (injected) to keep Core deterministic-friendly and testable.
+> - Expand compile-time validation: scan properties and nested generic types; flag static mutable fields; flag events/delegates; detect Godot/System.Threading types recursively.
+> - Persist deterministic RNG streams alongside states (for integrity checks and lockstep determinism) matching ADR-004.
+> - Fix save validation return pattern; fail fast with the Fin result directly.
+> - Add architecture tests: prohibit Godot types in Core assemblies and ensure entities are serializable.
+> - Prefer GUIDv7/ULID for globally unique IDs in non-deterministic contexts (in Infra), and RNG-derived IDs for in-sim deterministic contexts (via the generator).
+> - Define a clear World Hydration/Rehydration process to rebuild Godot scene graph from saved state without leaking Godot into Core.
+> - Introduce a mod data extension point on core entities (`ModData`) and a registry to read/write mod payloads safely.
+> - Standardize on a pluggable serialization provider; allow Newtonsoft.Json for advanced scenarios (polymorphism, `JsonExtensionData`, converters) while keeping Core free of concrete serializer dependencies.
+
 ### Stage 1: Save-Conscious Development (Implement Now)
 
 ```csharp
@@ -61,7 +74,8 @@ namespace Darklands.Core.Domain.Actors
         Position Position,
         ActorId? TargetId,            // ID reference, not object reference
         TurnTime NextTurn,
-        ImmutableList<StatusEffectInstance> StatusEffects
+        ImmutableList<StatusEffectInstance> StatusEffects,
+        ImmutableDictionary<string, string> ModData
     ) : IPersistentEntity
     {
         // Transient state is kept separate
@@ -74,7 +88,8 @@ namespace Darklands.Core.Domain.Actors
     /// </summary>
     public readonly record struct ActorId(Guid Value) : IEntityId
     {
-        public static ActorId NewId() => new(Guid.NewGuid());
+        // Deterministic-friendly: obtain IDs from injected generator
+        public static ActorId NewId(IStableIdGenerator ids) => new(ids.NewGuid());
         public static ActorId Empty => new(Guid.Empty);
         public override string ToString() => Value.ToString("N")[..8];
     }
@@ -107,6 +122,20 @@ namespace Darklands.Core.Domain.Actors
     );
 }
 
+// Domain Layer - Stable ID generator contract
+namespace Darklands.Core.Domain.Identity
+{
+    /// <summary>
+    /// Provides stable ID creation without leaking framework specifics.
+    /// Infra can implement via GUIDv7/ULID or deterministic RNG depending on context.
+    /// </summary>
+    public interface IStableIdGenerator
+    {
+        Guid NewGuid();
+        string NewStringId(int length = 26); // e.g., ULID-like (base32/crockford)
+    }
+}
+
 // Domain Layer - Game state root
 namespace Darklands.Core.Domain.GameState
 {
@@ -124,7 +153,8 @@ namespace Darklands.Core.Domain.GameState
         ImmutableDictionary<string, CampaignVariable> Variables,
         InventoryState Inventory,
         QuestState Quests,
-        RandomState RandomStates      // All RNG states
+        RandomState RandomStates,     // All RNG states
+        ImmutableDictionary<string, string> ModData  // Global mod payloads (serializer-agnostic)
     ) : IPersistentEntity
     {
         public IEntityId Id => SessionId;
@@ -144,10 +174,16 @@ namespace Darklands.Core.Domain.GameState
     /// Random generator states for save/load
     /// </summary>
     public sealed record RandomState(
+        // States (PCG state)
         ulong MasterState,
         ulong CombatState,
         ulong LootState,
-        ulong EventState
+        ulong EventState,
+        // Streams (PCG increment), for integrity checks (see ADR-004)
+        ulong MasterStream,
+        ulong CombatStream,
+        ulong LootStream,
+        ulong EventStream
     );
 }
 
@@ -163,36 +199,110 @@ namespace Darklands.Core.Infrastructure.Serialization
         {
             var type = typeof(T);
             
-            // Check for problematic types
-            var fields = type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            // Events are never allowed on persistent entities
+            var events = type.GetEvents(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            if (events.Length > 0)
+            {
+                throw new InvalidOperationException($"Entity {type.Name} declares events (not save-ready)");
+            }
+            
+            // Fields: reject static mutable and problematic types
+            var fields = type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
             foreach (var field in fields)
             {
-                if (IsProblematicType(field.FieldType))
+                if (field.IsStatic && !field.IsInitOnly)
+                {
+                    throw new InvalidOperationException($"Entity {type.Name} has mutable static field {field.Name}");
+                }
+                if (IsProblematicTypeRecursive(field.FieldType))
                 {
                     throw new InvalidOperationException(
                         $"Entity {type.Name} has unsaveable field {field.Name} of type {field.FieldType}");
                 }
             }
             
+            // Properties: scan types recursively
+            var properties = type.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            foreach (var prop in properties)
+            {
+                if (IsProblematicTypeRecursive(prop.PropertyType))
+                {
+                    throw new InvalidOperationException(
+                        $"Entity {type.Name} has unsaveable property {prop.Name} of type {prop.PropertyType}");
+                }
+            }
+            
             return true;
         }
         
-        private static bool IsProblematicType(Type type)
+        private static bool IsProblematicTypeRecursive(Type type)
         {
-            // Delegates/Events can't serialize
-            if (typeof(Delegate).IsAssignableFrom(type))
-                return true;
+            if (type == null) return false;
             
-            // Godot types can't serialize
-            if (type.Namespace?.StartsWith("Godot") == true)
-                return true;
+            if (typeof(Delegate).IsAssignableFrom(type)) return true;
+            if (type.Namespace?.StartsWith("Godot") == true) return true;
+            if (type.Namespace?.StartsWith("System.Threading") == true) return true;
             
-            // Thread/Task types indicate wrong patterns
-            if (type.Namespace?.StartsWith("System.Threading") == true)
-                return true;
+            if (type.IsArray)
+            {
+                return IsProblematicTypeRecursive(type.GetElementType()!);
+            }
+            
+            if (type.IsGenericType)
+            {
+                foreach (var arg in type.GetGenericArguments())
+                {
+                    if (IsProblematicTypeRecursive(arg)) return true;
+                }
+            }
             
             return false;
         }
+    }
+}
+
+// Infrastructure Layer - Pluggable serialization provider
+namespace Darklands.Core.Infrastructure.Serialization
+{
+    public interface ISerializationProvider
+    {
+        string Serialize<T>(T value);
+        T? Deserialize<T>(string json);
+        object? Deserialize(string json, Type type);
+    }
+
+    /// <summary>
+    /// Abstracts filesystem access for saves to keep Core free of Godot APIs.
+    /// Godot host provides an implementation that maps to OS.GetUserDataDir().
+    /// </summary>
+    public interface ISaveStorage
+    {
+        string GetUserDataDir();
+        string Combine(params string[] parts);
+        bool FileExists(string path);
+        void EnsureDirectory(string path);
+        void WriteAllText(string path, string contents);
+        string ReadAllText(string path);
+    }
+    
+    /// <summary>
+    /// Newtonsoft.Json implementation for advanced scenarios (polymorphism, extension data, converters).
+    /// </summary>
+    public sealed class NewtonsoftSerializationProvider : ISerializationProvider
+    {
+        private readonly JsonSerializerSettings _settings;
+        public NewtonsoftSerializationProvider(JsonSerializerSettings? settings = null)
+        {
+            _settings = settings ?? new JsonSerializerSettings
+            {
+                Formatting = Formatting.None,
+                TypeNameHandling = TypeNameHandling.None,
+                NullValueHandling = NullValueHandling.Ignore
+            };
+        }
+        public string Serialize<T>(T value) => Newtonsoft.Json.JsonConvert.SerializeObject(value, _settings);
+        public T? Deserialize<T>(string json) => Newtonsoft.Json.JsonConvert.DeserializeObject<T>(json, _settings);
+        public object? Deserialize(string json, Type type) => Newtonsoft.Json.JsonConvert.DeserializeObject(json, type, _settings);
     }
 }
 ```
@@ -207,10 +317,13 @@ namespace Darklands.Core.Infrastructure.Saves
     {
         private readonly ILogger _logger;
         private readonly JsonSerializerOptions _options;
+        private readonly ISerializationProvider _serializer;  // Pluggable serializer
+        private readonly ISaveStorage _storage;
         
-        public DebugSaveService(ILogger logger)
+        public DebugSaveService(ILogger logger, ISaveStorage storage, ISerializationProvider? serializer = null)
         {
             _logger = logger;
+            _storage = storage;
             _options = new JsonSerializerOptions
             {
                 WriteIndented = true,
@@ -221,17 +334,18 @@ namespace Darklands.Core.Infrastructure.Saves
                     new ImmutableDictionaryJsonConverter()
                 }
             };
+            // Default to Newtonsoft for advanced scenarios; DI can supply another
+            _serializer = serializer ?? new NewtonsoftSerializationProvider();
         }
         
         public Fin<Unit> QuickSave(GameState state)
         {
             try
             {
-                var json = JsonSerializer.Serialize(state, _options);
-                var path = Path.Combine(OS.GetUserDataDir(), "debug_saves", "quicksave.json");
-                
-                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-                File.WriteAllText(path, json);
+                var json = _serializer.Serialize(state);
+                var path = _storage.Combine(_storage.GetUserDataDir(), "debug_saves", "quicksave.json");
+                _storage.EnsureDirectory(Path.GetDirectoryName(path)!);
+                _storage.WriteAllText(path, json);
                 
                 _logger.Information("Quick saved to {Path} ({Size} bytes)", path, json.Length);
                 return unit;
@@ -246,12 +360,12 @@ namespace Darklands.Core.Infrastructure.Saves
         {
             try
             {
-                var path = Path.Combine(OS.GetUserDataDir(), "debug_saves", "quicksave.json");
-                if (!File.Exists(path))
+                var path = _storage.Combine(_storage.GetUserDataDir(), "debug_saves", "quicksave.json");
+                if (!_storage.FileExists(path))
                     return Error.New("No quicksave found");
                 
-                var json = File.ReadAllText(path);
-                var state = JsonSerializer.Deserialize<GameState>(json, _options);
+                var json = _storage.ReadAllText(path);
+                var state = _serializer.Deserialize<GameState>(json);
                 
                 if (state == null)
                     return Error.New("Failed to deserialize save");
@@ -313,7 +427,7 @@ namespace Darklands.Core.Infrastructure.Saves
                 // Validate before writing
                 var validation = _validator.ValidateSave(saveData);
                 if (validation.IsFail)
-                    return validation.Match(Succ: _ => unit, Fail: e => FinFail<Unit>(e));
+                    return validation;  // Fail fast with validator's Fin result
                 
                 // Write atomically (temp file -> rename)
                 var path = GetSavePath(slot);
@@ -372,11 +486,18 @@ namespace Darklands.Core.Infrastructure.Saves
         
         private async Task<Fin<SaveContainer>> MigrateSave(SaveContainer save)
         {
-            return save.Version switch
+            // Scalable migration pipeline (Vn -> Vn+1 sequence)
+            var current = save;
+            while (current.Version != CurrentSaveVersion)
             {
-                0 => MigrateV0ToV1(save),
-                _ => Error.New($"Unknown save version: {save.Version}")
-            };
+                var step = _migrations.FirstOrDefault(m => m.FromVersion == current.Version);
+                if (step is null)
+                    return Error.New($"Missing migration from v{current.Version} -> v{CurrentSaveVersion}");
+                var result = step.Apply(current);
+                if (result.IsFail) return result.Match(Succ: _ => FinSucc(current), Fail: e => FinFail<SaveContainer>(e));
+                current = result.Match(Succ: s => s, Fail: _ => current);
+            }
+            return current;
         }
     }
 }
@@ -391,7 +512,8 @@ public sealed record Item(
     string DefinitionId,
     int StackCount,
     ItemRarity Rarity,
-    ImmutableList<string> ModifierIds
+    ImmutableList<string> ModifierIds,
+    ImmutableDictionary<string, string> ModData
 );
 
 // ❌ BAD: Unsaveable entity
@@ -458,12 +580,15 @@ public class Inventory
 - [ ] No events/delegates in domain
 - [ ] Immutable collections
 - [ ] Stable ID generation
+- [ ] Add `ModData` extension dictionary on extensible entities
 
 ### Alpha (When needed)
 - [ ] Implement DebugSaveService
 - [ ] Add F5/F9 quicksave/load
 - [ ] Test save/load regularly
 - [ ] Find serialization issues
+- [ ] Introduce serialization provider (default Newtonsoft.Json) with settings in DI
+- [ ] Implement World Hydration: scene rebuild from state via hydrator/adapters
 
 ### Beta (Production)
 - [ ] Implement SaveService
@@ -472,6 +597,7 @@ public class Inventory
 - [ ] Add validation
 - [ ] Add save slots UI
 - [ ] Add cloud save support
+- [ ] Implement migration pipeline with discrete IMigration steps
 
 ## Testing Strategy
 
@@ -486,9 +612,9 @@ public void AllDomainEntities_AreSerializable()
     
     foreach (var type in entityTypes)
     {
-        var instance = CreateTestInstance(type);
-        var json = JsonSerializer.Serialize(instance);
-        var deserialized = JsonSerializer.Deserialize(json, type);
+        var instance = CreateTestInstance(type); // Use AutoFixture or builders
+        var json = _serializer.Serialize(instance);
+        var deserialized = _serializer.Deserialize(json, type);
         
         deserialized.Should().BeEquivalentTo(instance);
     }
@@ -499,12 +625,26 @@ public void GameState_WithCircularReferences_StillSerializes()
 {
     var state = CreateGameStateWithCombat();
     
-    var json = JsonSerializer.Serialize(state);
-    var loaded = JsonSerializer.Deserialize<GameState>(json);
+    var json = _serializer.Serialize(state);
+    var loaded = _serializer.Deserialize<GameState>(json);
     
     loaded.Should().BeEquivalentTo(state);
 }
 ```
+
+### World Hydration/Rehydration (Critical)
+
+Define a dedicated hydrator that reconstructs the Godot scene graph from pure `GameState` after load. Keep Core/Application free of Godot. The hydrator and adapters live in Infrastructure/Presentation and bind domain IDs to views.
+
+Key components:
+- WorldHydrator (Infrastructure): traverses `GameState`, instantiates scenes, binds `ActorId` -> `Node2D` via a registry.
+- TransientStateFactory (Application/Infra): creates `ITransientState` instances without polluting domain entities.
+- Presenter/Adapters (Presentation): apply domain data to views; never reference Godot from Core.
+
+Pitfalls:
+- Never couple hydrator into save/deserialization; it is a separate step post-load.
+- Never mutate domain records to attach transient state; use separate registries/factories.
+- Ensure stable ordering when iterating collections during hydration (see ADR-004).
 
 ## References
 

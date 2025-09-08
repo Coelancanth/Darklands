@@ -198,7 +198,7 @@ namespace Darklands.Presentation.Views
     public partial class CombatLogView : RichTextLabel
     {
         private ILocalizationService? _localizationService;
-        private IDisposable? _eventSubscription;
+        private IUIEventBus? _eventBus;
 
         public override void _Ready()
         {
@@ -208,12 +208,14 @@ namespace Darklands.Presentation.Views
                     Succ: service => service,
                     Fail: _ => null);
 
-            // Subscribe to combat events
-            _eventSubscription = GameStrapper.GetServices()
-                .Bind(sp => sp.GetService<IMediator>().ToFin())
+            _eventBus = GameStrapper.GetServices()
+                .Bind(sp => sp.GetService<IUIEventBus>().ToFin())
                 .Match(
-                    Succ: mediator => mediator.Subscribe<AttackExecutedEvent>(OnAttackExecuted),
+                    Succ: bus => bus,
                     Fail: _ => null);
+
+            // Subscribe to combat events via UI Event Bus (ADR-010)
+            _eventBus?.Subscribe<AttackExecutedEvent>(this, OnAttackExecuted);
         }
 
         private void OnAttackExecuted(AttackExecutedEvent evt)
