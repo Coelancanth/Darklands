@@ -36,17 +36,6 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
     private readonly ILogger _logger;
     private readonly IAttackFeedbackService? _attackFeedbackService;
 
-    /// <summary>
-    /// Simple callback for actor death notifications.
-    /// GameManager can set this to handle visual cleanup.
-    /// </summary>
-    public static Action<ActorId, Position>? OnActorDeath { get; set; }
-
-    /// <summary>
-    /// Simple callback for actor damage notifications.
-    /// GameManager can set this to handle health bar updates.
-    /// </summary>
-    public static Action<ActorId, Health, Health>? OnActorDamaged { get; set; }
 
     public ExecuteAttackCommandHandler(
         IGridStateService gridStateService,
@@ -224,45 +213,39 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
         if (result.IsSucc)
         {
             var targetAfterOption = _actorStateService.GetActor(targetId);
-            targetAfterOption.Match(
-                Some: actor =>
+            if (targetAfterOption.IsSome)
+            {
+                var actor = targetAfterOption.Match(a => a, () => throw new InvalidOperationException("Actor should exist"));
+                var hpAfter = actor.Health.Current;
+                var maxHp = actor.Health.Maximum;
+                var actualDamage = hpBefore - hpAfter;
+
+                if (actor.IsAlive)
                 {
-                    var hpAfter = actor.Health.Current;
-                    var maxHp = actor.Health.Maximum;
-                    var actualDamage = hpBefore - hpAfter;
-
-                    if (actor.IsAlive)
-                    {
-                        _logger?.Information("💗 {TargetId} health: {HPBefore} → {HPAfter} ({ActualDamage} damage taken, {HPAfter}/{MaxHP} remaining)",
-                            targetId, hpBefore, hpAfter, actualDamage, hpAfter, maxHp);
-                    }
-                    else
-                    {
-                        _logger?.Information("💀 {TargetId} defeated: {HPBefore} → 0 HP ({ActualDamage} damage taken, DEAD)",
-                            targetId, hpBefore, actualDamage);
-                    }
-
-                    // Notify UI of health change for live health bar updates
-                    if (actualDamage > 0 && OnActorDamaged != null)
-                    {
-                        var oldHealth = Health.Create(hpBefore, maxHp).Match(h => h, _ => actor.Health);
-                        _logger?.Debug("🔔 Notifying UI of health change for {TargetId}: {OldHP} → {NewHP}",
-                            targetId, oldHealth, actor.Health);
-                        OnActorDamaged.Invoke(targetId, oldHealth, actor.Health);
-                    }
-                    else if (OnActorDamaged == null)
-                    {
-                        _logger?.Debug("⚠️ OnActorDamaged callback is NULL - health bar won't update live");
-                    }
-
-                    return LanguageExt.Unit.Default;
-                },
-                None: () =>
-                {
-                    _logger?.Warning("Could not retrieve target {TargetId} after damage application", targetId);
-                    return LanguageExt.Unit.Default;
+                    _logger?.Information("💗 {TargetId} health: {HPBefore} → {HPAfter} ({ActualDamage} damage taken, {HPAfter}/{MaxHP} remaining)",
+                        targetId, hpBefore, hpAfter, actualDamage, hpAfter, maxHp);
                 }
-            );
+                else
+                {
+                    _logger?.Information("💀 {TargetId} defeated: {HPBefore} → 0 HP ({ActualDamage} damage taken, DEAD)",
+                        targetId, hpBefore, actualDamage);
+                }
+
+                // Publish damage event for live health bar updates
+                if (actualDamage > 0)
+                {
+                    var oldHealth = Health.Create(hpBefore, maxHp).Match(h => h, _ => actor.Health);
+                    _logger?.Debug("🔔 Publishing damage event for {TargetId}: {OldHP} → {NewHP}",
+                        targetId, oldHealth, actor.Health);
+
+                    var damageEvent = ActorDamagedEvent.Create(targetId, oldHealth, actor.Health);
+                    await _mediator.Publish(damageEvent);
+                }
+            }
+            else
+            {
+                _logger?.Warning("Could not retrieve target {TargetId} after damage application", targetId);
+            }
         }
 
         return result;
@@ -285,52 +268,45 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
         // Check if target died from the attack
         var targetOption = _actorStateService.GetActor(targetId);
 
-        return await Task.FromResult(targetOption.Match(
-            Some: actor =>
+        if (targetOption.IsSome)
+        {
+            var actor = targetOption.Match(a => a, () => throw new InvalidOperationException("Actor should exist"));
+            if (!actor.IsAlive)
             {
-                if (!actor.IsAlive)
+                _logger?.Information("💀 Target {TargetId} died from attack, performing cleanup", targetId);
+
+                // Get the target's position before cleanup for notifications
+                var targetPos = _gridStateService.GetActorPosition(targetId);
+                var position = targetPos.Match(p => p, () => new Position(0, 0));
+
+                // Remove dead actor from combat scheduler
+                var removed = _combatSchedulerService.RemoveActor(targetId);
+                if (removed)
                 {
-                    _logger?.Information("💀 Target {TargetId} died from attack, performing cleanup", targetId);
-
-                    // Get the target's position before cleanup for notifications
-                    var targetPos = _gridStateService.GetActorPosition(targetId);
-                    var position = targetPos.Match(p => p, () => new Position(0, 0));
-
-                    // Remove dead actor from combat scheduler
-                    var removed = _combatSchedulerService.RemoveActor(targetId);
-                    if (removed)
-                    {
-                        _logger?.Information("✅ Removed dead actor {TargetId} from combat scheduler", targetId);
-                    }
-                    else
-                    {
-                        _logger?.Warning("⚠️ Dead actor {TargetId} was not found in combat scheduler", targetId);
-                    }
-
-                    // Remove dead actor from grid (frees up the position)
-                    _gridStateService.RemoveActorFromGrid(targetId);
-                    _logger?.Information("✅ Removed dead actor {TargetId} from grid position", targetId);
-
-                    // Check if callback is wired before invoking
-                    if (OnActorDeath != null)
-                    {
-                        _logger?.Information("📞 Calling death notification callback for {TargetId} at {Position}", targetId, position);
-                        OnActorDeath.Invoke(targetId, position);
-                        _logger?.Information("✅ Death notification callback completed for {TargetId}", targetId);
-                    }
-                    else
-                    {
-                        _logger?.Error("❌ OnActorDeath callback is NULL - UI cleanup will not occur!");
-                    }
+                    _logger?.Information("✅ Removed dead actor {TargetId} from combat scheduler", targetId);
                 }
-                return FinSucc(LanguageExt.Unit.Default);
-            },
-            None: () =>
-            {
-                _logger?.Warning("Could not verify target state after attack: target not found");
-                return FinSucc(LanguageExt.Unit.Default); // Don't fail the whole attack for this
+                else
+                {
+                    _logger?.Warning("⚠️ Dead actor {TargetId} was not found in combat scheduler", targetId);
+                }
+
+                // Remove dead actor from grid (frees up the position)
+                _gridStateService.RemoveActorFromGrid(targetId);
+                _logger?.Information("✅ Removed dead actor {TargetId} from grid position", targetId);
+
+                // Publish death event for UI cleanup
+                _logger?.Information("📞 Publishing death event for {TargetId} at {Position}", targetId, position);
+                var deathEvent = ActorDiedEvent.Create(targetId, position);
+                await _mediator.Publish(deathEvent);
+                _logger?.Information("✅ Death event published for {TargetId}", targetId);
             }
-        ));
+        }
+        else
+        {
+            _logger?.Warning("Could not verify target state after attack: target not found");
+        }
+
+        return FinSucc(LanguageExt.Unit.Default);
     }
 
     private Error MapError(Error error)

@@ -20,8 +20,11 @@
 
 param(
     [Parameter(Position = 0)]
-    [ValidateSet("create", "merge", "sync", "status")]
-    [string]$Action = "status"
+    [ValidateSet("create", "merge", "sync", "status", "continue", "start", "ready", "abandon")]
+    [string]$Action = "status",
+    
+    [Parameter(Position = 1)]
+    [string]$BranchName = ""
 )
 
 $scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -144,5 +147,88 @@ switch ($Action) {
             Write-Host ""
             Write-Host "💡 Sync with: pr sync" -ForegroundColor Yellow
         }
+    }
+    
+    "continue" {
+        Write-Title "PR Continue - Post-Merge Workflow"
+        & "$scriptPath\pr-continue.ps1"
+    }
+    
+    "start" {
+        Write-Title "Starting New Feature Branch"
+        
+        # Ensure on main and up to date
+        $current = git branch --show-current
+        if ($current -ne "main") {
+            Write-Host "🔄 Switching to main..." -ForegroundColor Yellow
+            git checkout main
+        }
+        
+        Write-Host "⬇️  Pulling latest main..." -ForegroundColor Cyan
+        git pull origin main --ff-only
+        
+        # Get branch name
+        if (-not $BranchName) {
+            Write-Host "Enter branch name (e.g., TD_012, fix-bug): " -ForegroundColor Yellow -NoNewline
+            $BranchName = Read-Host
+        }
+        
+        # Normalize branch name
+        if ($BranchName -match '^(TD|VS|BR)_\d+') {
+            $BranchName = "feat/$BranchName"
+        } elseif ($BranchName -notmatch '^(feat|fix|docs|refactor)/') {
+            $BranchName = "feat/$BranchName"
+        }
+        
+        Write-Host "🌿 Creating branch: $BranchName" -ForegroundColor Green
+        git checkout -b $BranchName
+        
+        Write-Host "✅ Ready to work! Next: Make changes, then 'pr ready'" -ForegroundColor Green
+    }
+    
+    "ready" {
+        Write-Title "Preparing Pull Request"
+        
+        # Alias for create with better messaging
+        Write-Host "📤 Pushing branch and creating PR..." -ForegroundColor Cyan
+        
+        # Push current branch
+        $branch = git branch --show-current
+        git push -u origin $branch
+        
+        # Create PR using existing logic
+        $PSCmdlet.MyInvocation.MyCommand.Parameters["Action"].DefaultValue = "create"
+        & $MyInvocation.MyCommand.Path create
+    }
+    
+    "abandon" {
+        Write-Title "Abandoning Current Branch"
+        
+        $branch = git branch --show-current
+        if ($branch -eq "main") {
+            Write-Host "✅ Already on main" -ForegroundColor Green
+            exit 0
+        }
+        
+        Write-Host "⚠️  This will delete branch: $branch" -ForegroundColor Yellow
+        Write-Host "Are you sure? (y/N): " -ForegroundColor Yellow -NoNewline
+        $confirm = Read-Host
+        
+        if ($confirm -ne 'y') {
+            Write-Host "Cancelled" -ForegroundColor Gray
+            exit 0
+        }
+        
+        # Switch to main
+        Write-Host "🔄 Switching to main..." -ForegroundColor Cyan
+        git checkout main -f
+        git pull origin main --ff-only
+        
+        # Delete branch
+        Write-Host "🗑️  Deleting branch: $branch" -ForegroundColor Yellow
+        git branch -D $branch
+        git push origin --delete $branch 2>$null
+        
+        Write-Host "✅ Branch abandoned. You're now on main." -ForegroundColor Green
     }
 }

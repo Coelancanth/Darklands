@@ -1,7 +1,9 @@
 using Darklands.Core.Infrastructure.DependencyInjection;
+using Darklands.Core.Infrastructure.Events;
 using Darklands.Core.Presentation.Presenters;
 using Darklands.Views;
 using Darklands.Infrastructure.Logging;
+using Darklands.Core.Domain.Combat;
 using Godot;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
@@ -211,13 +213,15 @@ namespace Darklands
                 // This connection ensures health bars are created when actors are spawned
                 _actorPresenter.SetHealthPresenter(_healthPresenter);
 
-                // Wire up death notification callback for visual cleanup
-                Darklands.Core.Application.Combat.Commands.ExecuteAttackCommandHandler.OnActorDeath = OnActorDeath;
-                _logger?.Information("Death notification callback wired for visual cleanup");
+                // Register GameManager's event handlers with the static router
+                // This bypasses DI instance lifecycle issues that cause multiple router instances
+                GameManagerEventRouter.RegisterHandlers(
+                    onActorDied: HandleActorDiedEvent,
+                    onActorDamaged: HandleActorDamagedEvent,
+                    logger: _logger!
+                );
                 
-                // Wire up damage notification callback for health bar updates
-                Darklands.Core.Application.Combat.Commands.ExecuteAttackCommandHandler.OnActorDamaged = OnActorDamaged;
-                _logger?.Information("Damage notification callback wired for health bar updates");
+                _logger?.Information("GameManager event handlers registered with static router - MediatR events will now route to UI");
 
                 _logger?.Information("Presenters created and connected - GridPresenter, ActorPresenter, and HealthPresenter initialized with cross-presenter coordination");
 
@@ -250,62 +254,7 @@ namespace Darklands
             // For production, we'd log and attempt graceful recovery
         }
 
-        /// <summary>
-        /// Handles actor death notifications for visual cleanup.
-        /// Removes actor sprites and health bars when actors die.
-        /// </summary>
-        private void OnActorDeath(Darklands.Core.Domain.Grid.ActorId actorId, Darklands.Core.Domain.Grid.Position position)
-        {
-            try
-            {
-                _logger?.Information("🎮 [GameManager] Received death notification for actor {ActorId} at {Position}", actorId, position);
 
-                // Remove actor sprite
-                if (_actorPresenter != null)
-                {
-                    _logger?.Information("🎮 [GameManager] Calling deferred removal for {ActorId}", actorId);
-                    // Use CallDeferred to ensure this runs on the main thread
-                    CallDeferred(nameof(RemoveActorDeferred), actorId.Value.ToString(), position.X, position.Y);
-                }
-                else
-                {
-                    _logger?.Error("❌ [GameManager] ActorPresenter is NULL - cannot remove sprite!");
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, "💥 [GameManager] Error processing actor death notification for {ActorId}", actorId);
-            }
-        }
-
-        /// <summary>
-        /// Handles actor damage notifications for health bar live updates.
-        /// Updates health bars immediately when actors take damage.
-        /// </summary>
-        private void OnActorDamaged(Darklands.Core.Domain.Grid.ActorId actorId, Darklands.Core.Domain.Actor.Health oldHealth, Darklands.Core.Domain.Actor.Health newHealth)
-        {
-            try
-            {
-                _logger?.Information("🩺 [GameManager] Received damage notification for actor {ActorId}: {OldHealth} → {NewHealth}", 
-                    actorId, oldHealth, newHealth);
-
-                // Update health bar via presenter
-                if (_healthPresenter != null)
-                {
-                    _logger?.Information("🩺 [GameManager] Updating health bar via HealthPresenter");
-                    // Use CallDeferred to ensure this runs on the main thread
-                    CallDeferred(nameof(UpdateHealthBarDeferred), actorId.Value.ToString(), oldHealth.Current, oldHealth.Maximum, newHealth.Current, newHealth.Maximum);
-                }
-                else
-                {
-                    _logger?.Error("❌ [GameManager] HealthPresenter is NULL - cannot update health bar!");
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, "💥 [GameManager] Error processing actor damage notification for {ActorId}", actorId);
-            }
-        }
 
         /// <summary>
         /// Deferred method to update health bar on main thread.

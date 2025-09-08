@@ -194,7 +194,8 @@
       "Bash(./scripts/core/build.ps1 test --filter \"Category=Phase1\")",
       "Bash(dotnet tool list:*)",
       "Bash(Remove-Item \"C:\\Users\\Coel\\Documents\\Godot\\darklands\\Views\\AttackView.cs\" -Force)",
-      "Bash(git remote:*)"
+      "Bash(git remote:*)",
+      "Bash(./scripts/core/build.ps1 test --filter \"*ExecuteAttackCommandHandler*\")"
     ],
     "deny": [],
     "ask": [],

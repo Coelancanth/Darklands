@@ -237,6 +237,9 @@ public static class GameStrapper
             // Domain services (Singleton - stateless business logic)
             // TODO: Register domain services here as they're implemented
 
+            // Event Router (Singleton - routes events to GameManager using static handlers)
+            services.AddSingleton<Infrastructure.Events.GameManagerEventRouter>();
+
             return FinSucc(LanguageExt.Unit.Default);
         }
         catch (Exception ex)

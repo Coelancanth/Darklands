@@ -1231,3 +1231,56 @@ This violates Single Source of Truth and WILL cause synchronization bugs where a
 - [x] Enhanced beyond scope delivery noted
 - [x] 358 test validation milestone recorded
 
+### TD_012: Remove Static Callbacks from ExecuteAttackCommandHandler [ARCHITECTURE]
+**Extraction Status**: NOT EXTRACTED ⚠️
+**Completed**: 2025-09-08 16:40
+**Archive Note**: Static callbacks eliminated, introduced new technical debt (static handlers), created follow-up TDs for proper solution
+---
+### TD_012: Remove Static Callbacks from ExecuteAttackCommandHandler [ARCHITECTURE] [Score: 90/100]
+**Status**: Done ✅ (2025-09-08 16:40)
+**Owner**: Dev Engineer
+**Size**: S (2-3h) - **Actual**: 4h (included incident response)
+**Priority**: Critical (Breaks testability and creates hidden dependencies)
+**Markers**: [ARCHITECTURE] [ANTI-PATTERN] [TESTABILITY] [COMPLETED]
+**Created**: 2025-09-08 14:42
+**Completed**: 2025-09-08 16:40
+**Result**: ✅ Static callbacks eliminated, ❌ Introduced new technical debt (static handlers)
+**Post-Mortem**: Docs/06-PostMortems/Inbox/2025-09-08-ui-event-routing-failure.md
+**Follow-up**: Created TD_017, TD_018 for proper architectural solution
+
+**What**: Replace static mutable callbacks with proper event bus or MediatR notifications
+**Why**: Static callbacks break testability, create hidden dependencies, and prevent parallel test execution
+
+**Problem Statement**:
+- ExecuteAttackCommandHandler uses `public static Action<>? OnActorDeath/OnActorDamaged`
+- Static mutable state makes testing difficult
+- Hidden coupling between handler and UI layer
+- Cannot run tests in parallel due to shared state
+
+**How**:
+- Create domain events: `ActorDiedEvent`, `ActorDamagedEvent` as INotification
+- Publish via MediatR: `await _mediator.Publish(new ActorDiedEvent(...))`
+- Subscribe in presenters via INotificationHandler<T>
+- Remove all static callback fields
+
+**Done When**:
+- Zero static mutable fields in ExecuteAttackCommandHandler
+- Events published through MediatR pipeline
+- Presenters receive events via handlers
+- Tests can run in parallel without interference
+- No regression in UI updates
+
+**Depends On**: None
+
+**Tech Lead Decision** (2025-09-08 14:45):
+- **APPROVED WITH HIGH PRIORITY** - Critical architectural flaw affecting testability
+- Static mutable callbacks violate fundamental OOP principles
+- MediatR notifications are the correct pattern (already in our pipeline)
+- Implementation: Create ActorDiedEvent/ActorDamagedEvent as INotification
+- Route to Dev Engineer for immediate implementation
+---
+**Extraction Targets**:
+- [ ] ADR needed for: Event-driven architecture patterns with MediatR notifications
+- [ ] HANDBOOK update: Static callback anti-patterns and proper event handling
+- [ ] Test pattern: Event-driven testing patterns for UI-domain decoupling
+

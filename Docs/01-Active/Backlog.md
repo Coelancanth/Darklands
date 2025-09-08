@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-08 14:42
+**Last Updated**: 2025-09-08 16:42 (TD_012 moved to archive)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 002
-- **Next TD**: 017  
+- **Next TD**: 019  
 - **Next VS**: 011 
 
 
@@ -68,44 +68,58 @@
 ## 🔥 Critical (Do First)
 *Blockers preventing other work, production bugs, dependencies for other features*
 
-### TD_012: Remove Static Callbacks from ExecuteAttackCommandHandler [ARCHITECTURE] [Score: 90/100]
-**Status**: Approved ✅
-**Owner**: Dev Engineer
-**Size**: S (2-3h)
-**Priority**: Critical (Breaks testability and creates hidden dependencies)
-**Markers**: [ARCHITECTURE] [ANTI-PATTERN] [TESTABILITY]
-**Created**: 2025-09-08 14:42
 
-**What**: Replace static mutable callbacks with proper event bus or MediatR notifications
-**Why**: Static callbacks break testability, create hidden dependencies, and prevent parallel test execution
-
+### TD_017: Replace Static Event Router with Proper DI Architecture [ARCHITECTURE] [Score: 95/100]
+**Status**: Proposed
+**Owner**: Tech Lead
+**Size**: M (1-2 days)
+**Priority**: Critical (Technical debt from TD_012 incident)
+**Markers**: [ARCHITECTURE] [TECHNICAL-DEBT] [DI] [MEDIATR]
+**Created**: 2025-09-08 16:40
+**What**: Replace GameManagerEventRouter static handler registration with proper DI-based solution
+**Why**: Current static approach is an anti-pattern that violates Clean Architecture principles
 **Problem Statement**:
-- ExecuteAttackCommandHandler uses `public static Action<>? OnActorDeath/OnActorDamaged`
-- Static mutable state makes testing difficult
-- Hidden coupling between handler and UI layer
-- Cannot run tests in parallel due to shared state
-
+- TD_012 introduced static handler registration as emergency fix
+- Global mutable state breaks testability and thread safety
+- Static coupling violates dependency injection principles
+- Technical debt that must be resolved before it becomes permanent
 **How**:
-- Create domain events: `ActorDiedEvent`, `ActorDamagedEvent` as INotification
-- Publish via MediatR: `await _mediator.Publish(new ActorDiedEvent(...))`
-- Subscribe in presenters via INotificationHandler<T>
-- Remove all static callback fields
-
+- Research MediatR notification handler lifecycle configuration
+- Investigate proper singleton behavior for notification handlers
+- Consider custom event bus with proper DI registration
+- Explore observer pattern with weak references for UI events
 **Done When**:
-- Zero static mutable fields in ExecuteAttackCommandHandler
-- Events published through MediatR pipeline
-- Presenters receive events via handlers
-- Tests can run in parallel without interference
-- No regression in UI updates
-
+- Zero static handlers in event routing system
+- Proper DI-managed event routing to UI
+- No regression in UI update functionality
+- All tests can run in parallel without shared state issues
 **Depends On**: None
 
-**Tech Lead Decision** (2025-09-08 14:45):
-- **APPROVED WITH HIGH PRIORITY** - Critical architectural flaw affecting testability
-- Static mutable callbacks violate fundamental OOP principles
-- MediatR notifications are the correct pattern (already in our pipeline)
-- Implementation: Create ActorDiedEvent/ActorDamagedEvent as INotification
-- Route to Dev Engineer for immediate implementation
+### TD_018: Create Integration Tests for MediatR Event Routing [TESTING] [Score: 75/100]
+**Status**: Proposed
+**Owner**: Test Specialist
+**Size**: M (1 day)
+**Priority**: Important (Prevent future incidents like TD_012)
+**Markers**: [TESTING] [INTEGRATION] [MEDIATR] [UI]
+**Created**: 2025-09-08 16:40
+**What**: Create integration tests covering complete event flow from domain to UI
+**Why**: TD_012 incident showed unit tests with mocks don't catch DI lifecycle issues
+**Problem Statement**:
+- Current tests only cover individual components with mocks
+- MediatR event routing to UI is not covered by automated tests
+- Critical UI functionality only discovered broken during manual testing
+- Need end-to-end validation of event publishing and handler invocation
+**How**:
+- Create test scenarios that publish domain events
+- Verify events are received by UI handlers
+- Test with actual DI container (not mocks)
+- Include parallel execution tests to catch static state issues
+**Done When**:
+- Integration tests cover ActorDiedEvent → UI removal
+- Integration tests cover ActorDamagedEvent → health bar updates  
+- Tests run with real MediatR pipeline and DI container
+- Test suite catches event routing failures before manual testing
+**Depends On**: TD_017 (proper architecture first)
 
 ---
 
