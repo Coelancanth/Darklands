@@ -4,25 +4,13 @@ This directory contains Architecture Decision Records (ADRs) - documents that ca
 
 ## Active ADRs
 
-- [ADR-001: Pattern Recognition Framework](ADR-001-pattern-recognition-framework.md) - **Approved**
-  - Establishes patterns for identifying and reusing code structures
+- [ADR-001: Strict Model View Separation](ADR-001-strict-model-view-separation.md) - **Approved**
+  - Establishes strict separation between domain models and view components
   
 - [ADR-002: Phased Implementation Protocol](ADR-002-phased-implementation-protocol.md) - **Approved**
   - Mandates Domain → Application → Infrastructure → Presentation phases
   
-- [ADR-003: Memory Bank Architecture](ADR-003-memory-bank-architecture.md) - **Approved**
-  - Single-repo memory bank with auto-sync via embody.ps1
-  
-- [ADR-004: Embody Script v4.0](ADR-004-embody-script-v4.md) - **Approved**
-  - Intelligent Git sync with automatic squash merge resolution
-  
-- [ADR-005: Persona Completion Authority](ADR-005-persona-completion-authority.md) - **Approved**
-  - Personas are advisors; only users mark work as complete
-  
-- [ADR-006: Model-First Development](ADR-006-model-first-development.md) - **Approved**
-  - Always implement domain model before UI
-  
-- [ADR-007: TileMap Variant Selection Strategy](ADR-007-tilemap-variant-selection-strategy.md) - **Proposed**
+- [ADR-003: TileMap Variant Selection Strategy](ADR-003-tilemap-variant-selection-strategy.md) - **Approved**
   - Hybrid approach: Domain decides WHAT tiles, Godot's autotiling selects WHICH variants
   
 - [ADR-008: Functional Error Handling with LanguageExt v5](ADR-008-functional-error-handling.md) - **Approved**
@@ -33,6 +21,16 @@ This directory contains Architecture Decision Records (ADRs) - documents that ca
   
 - [ADR-010: UI Event Bus Architecture](ADR-010-ui-event-bus-architecture.md) - **Approved**
   - Establishes UIEventBus pattern for routing domain events to Godot UI components
+  
+- [ADR-011: Godot Resource Bridge Pattern](ADR-011-godot-resource-bridge-pattern.md) - **Proposed**
+  - Infrastructure layer bridges Godot Resources to Domain models while preserving Clean Architecture
+
+## Missing ADRs (Need Creation)
+
+The following concepts are referenced in persona documents but lack formal ADRs:
+- **Memory Bank Protocol**: Referenced as "ADR-004 v3.0" in all personas
+- **Persona Completion Authority**: Referenced as "ADR-005" in all personas  
+- **Model-First Development**: Referenced as "ADR-006" in tech-lead.md
 
 ## ADR Template
 

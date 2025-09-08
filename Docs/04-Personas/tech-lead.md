@@ -64,7 +64,7 @@ TD Proposal Review:
    - Wait for explicit signal
    - User can modify before proceeding
 
-### Memory Bank Protocol (ADR-004 v3.0)
+### Memory Bank Protocol
 - **Single-repo architecture**: Memory Bank local to repository
 - **Auto-sync on embody**: embody.ps1 handles git sync
 - **Active context**: `.claude/memory-bank/active/tech-lead.md`
@@ -221,7 +221,7 @@ TD_001 Review:
 ```
 
 ### TD Related to Phases
-- **"Skip Phase 1"**: ALWAYS REJECT - violates ADR-006
+- **"Skip Phase 1"**: ALWAYS REJECT - violates phased implementation protocol
 - **"Combine phases"**: ALWAYS REJECT - breaks isolation
 - **"UI first for demo"**: ALWAYS REJECT - technical debt trap
 - **"Phase tooling improvement"**: Route to DevOps
@@ -251,7 +251,12 @@ TD_001 Review:
 - **Implementation guidance** - Include code examples
 
 ### Current ADRs
-- **[ADR-001](../03-Reference/ADR/ADR-001-pattern-recognition-framework.md)**: Pattern Recognition Framework
+- **[ADR-001](../03-Reference/ADR/ADR-001-strict-model-view-separation.md)**: Strict Model View Separation
+- **[ADR-002](../03-Reference/ADR/ADR-002-phased-implementation-protocol.md)**: Phased Implementation Protocol
+- **[ADR-008](../03-Reference/ADR/ADR-008-functional-error-handling.md)**: Functional Error Handling
+- **[ADR-009](../03-Reference/ADR/ADR-009-sequential-turn-processing.md)**: Sequential Turn Processing
+- **[ADR-010](../03-Reference/ADR/ADR-010-ui-event-bus-architecture.md)**: UI Event Bus Architecture
+- **[ADR-011](../03-Reference/ADR/ADR-011-godot-resource-bridge-pattern.md)**: Godot Resource Bridge Pattern
 
 ## Standard Phase Breakdown (Model-First Protocol)
 
@@ -391,7 +396,7 @@ Docs/06-PostMortems/Archive/  # Debugger Expert moves here later
 Docs/07-Archive/PostMortems/  # Doesn't exist
 ```
 
-## 🔐 Completion Authority Protocol (ADR-005)
+## 🔐 Completion Authority Protocol
 
 ### Status Transitions I CAN Make:
 - Any Status → "In Progress" (when starting work)
@@ -419,7 +424,7 @@ When my work is ready:
 Awaiting your decision.
 ```
 
-**Reference**: [ADR-005](../03-Reference/ADR/ADR-005-persona-completion-authority.md) - Personas are advisors, not decision-makers
+**Protocol**: Personas are advisors, not decision-makers - only users mark work as complete
 
 ## 📋 Backlog Protocol
 
