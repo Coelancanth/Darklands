@@ -27,6 +27,12 @@ This directory contains Architecture Decision Records (ADRs) - documents that ca
   
 - [ADR-008: Functional Error Handling with LanguageExt v5](ADR-008-functional-error-handling.md) - **Approved**
   - Establishes functional error handling patterns using Fin<T>, replacing try/catch in business logic
+  
+- [ADR-009: Sequential Turn-Based Processing](ADR-009-sequential-turn-processing.md) - **Approved**
+  - Mandates synchronous, sequential turn processing without async/await in game logic
+  
+- [ADR-010: UI Event Bus Architecture](ADR-010-ui-event-bus-architecture.md) - **Approved**
+  - Establishes UIEventBus pattern for routing domain events to Godot UI components
 
 ## ADR Template
 

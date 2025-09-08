@@ -478,10 +478,10 @@ function Handle-MergedPR {
         git stash push -m "Auto-stash: PR merged for $CurrentBranch" *>$null
     }
     
-    # Switch to main and pull
-    Write-Status "Switching to main and pulling latest..."
+    # Switch to main and hard reset (safe after PR merge)
+    Write-Status "Switching to main and syncing with remote..."
     git checkout main *>$null
-    git pull origin main --ff-only *>$null
+    git reset --hard origin/main *>$null
     
     # Delete old branch
     Write-Status "Removing merged branch: $CurrentBranch"
