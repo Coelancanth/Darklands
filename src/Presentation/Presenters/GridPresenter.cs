@@ -1,6 +1,10 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
+using Darklands.Core.Application.Combat.Commands;
+using Darklands.Core.Application.Combat.Services;
 using Darklands.Core.Application.Grid.Queries;
+using Darklands.Core.Domain.Combat;
 using Darklands.Core.Presentation.Views;
 using LanguageExt;
 using MediatR;
@@ -18,6 +22,7 @@ namespace Darklands.Core.Presentation.Presenters
         private readonly IMediator _mediator;
         private readonly ILogger _logger;
         private readonly Application.Grid.Services.IGridStateService _gridStateService;
+        private readonly ICombatQueryService _combatQueryService;
         private ActorPresenter? _actorPresenter;
 
         /// <summary>
@@ -27,12 +32,14 @@ namespace Darklands.Core.Presentation.Presenters
         /// <param name="mediator">MediatR instance for sending commands and queries</param>
         /// <param name="logger">Logger for tracking grid operations</param>
         /// <param name="gridStateService">Service for accessing grid state directly</param>
-        public GridPresenter(IGridView view, IMediator mediator, ILogger logger, Application.Grid.Services.IGridStateService gridStateService)
+        /// <param name="combatQueryService">Service for querying actor positions and combat data</param>
+        public GridPresenter(IGridView view, IMediator mediator, ILogger logger, Application.Grid.Services.IGridStateService gridStateService, ICombatQueryService combatQueryService)
             : base(view)
         {
             _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _gridStateService = gridStateService ?? throw new ArgumentNullException(nameof(gridStateService));
+            _combatQueryService = combatQueryService ?? throw new ArgumentNullException(nameof(combatQueryService));
         }
 
         /// <summary>
@@ -77,57 +84,97 @@ namespace Darklands.Core.Presentation.Presenters
 
             try
             {
-                // For Phase 4, we'll implement simple click-to-move for a test player
-                // In the future, this would check for selected units, valid actions, etc.
-
-                // For Phase 4 MVP - get the test player ID from ActorPresenter
-                // This is a temporary implementation for Phase 4 MVP
+                // Get the test player ID from ActorPresenter
                 if (ActorPresenter.TestPlayerId == null)
                 {
-                    _logger.Warning("No test player available for movement");
+                    _logger.Warning("No test player available for action");
                     await View.ShowErrorFeedbackAsync(position, "No player available");
                     return;
                 }
 
-                var moveCommand = Application.Grid.Commands.MoveActorCommand.Create(ActorPresenter.TestPlayerId.Value, position);
+                var playerId = ActorPresenter.TestPlayerId.Value;
 
-                // CRITICAL: Get the actor's current position BEFORE the move for visual updates
-                // Use GridStateService directly to get the actor's position
-                var fromPositionOption = _gridStateService.GetActorPosition(ActorPresenter.TestPlayerId.Value);
+                // Check if there's a living enemy at the clicked position
+                var targetActors = _combatQueryService.GetActorsInRadius(position, 0); // Exact position only
+                var targetActor = targetActors.FirstOrDefault(a => a.Position == position && a.IsAlive);
 
-                var result = await _mediator.Send(moveCommand);
-
-                await result.Match(
-                    Succ: async _ =>
-                    {
-                        _logger.Information("Successfully processed move to position {Position}", position);
-
-                        // CRITICAL: Notify ActorPresenter about the successful move
-                        // This was missing and causing the visual bug!
-                        if (_actorPresenter != null && fromPositionOption.IsSome && ActorPresenter.TestPlayerId.HasValue)
-                        {
-                            var from = fromPositionOption.Match(p => p, () => new Domain.Grid.Position(0, 0));
-                            await _actorPresenter.HandleActorMovedAsync(ActorPresenter.TestPlayerId.Value, from, position);
-                        }
-                        else
-                        {
-                            _logger.Warning("ActorPresenter not available or from position unknown - visual update skipped");
-                        }
-
-                        await View.ShowSuccessFeedbackAsync(position, "Moved");
-                    },
-                    Fail: async error =>
-                    {
-                        _logger.Warning("Move to position {Position} failed: {Error}", position, error.Message);
-                        await View.ShowErrorFeedbackAsync(position, error.Message);
-                    }
-                );
+                if (targetActor != null)
+                {
+                    // There's a living enemy at this position - attempt attack
+                    _logger.Information("Attempting to attack {TargetName} at position {Position}", targetActor.Actor.Name, position);
+                    await HandleAttackActionAsync(playerId, targetActor.Id, position);
+                }
+                else
+                {
+                    // No enemy at position - attempt move
+                    _logger.Information("Attempting to move to empty position {Position}", position);
+                    await HandleMoveActionAsync(playerId, position);
+                }
             }
             catch (Exception ex)
             {
                 _logger.Error(ex, "Unexpected error handling tile click at position {Position}", position);
                 await View.ShowErrorFeedbackAsync(position, "An unexpected error occurred");
             }
+        }
+
+        /// <summary>
+        /// Handles attack action when clicking on an enemy.
+        /// </summary>
+        private async Task HandleAttackActionAsync(Domain.Grid.ActorId attackerId, Domain.Grid.ActorId targetId, Domain.Grid.Position targetPosition)
+        {
+            var attackCommand = ExecuteAttackCommand.Create(attackerId, targetId);
+            var result = await _mediator.Send(attackCommand);
+
+            await result.Match(
+                Succ: async _ =>
+                {
+                    _logger.Information("Successfully executed attack on target at {Position}", targetPosition);
+                    await View.ShowSuccessFeedbackAsync(targetPosition, "Attacked");
+                },
+                Fail: async error =>
+                {
+                    _logger.Warning("Attack on target at {Position} failed: {Error}", targetPosition, error.Message);
+                    await View.ShowErrorFeedbackAsync(targetPosition, error.Message);
+                }
+            );
+        }
+
+        /// <summary>
+        /// Handles move action when clicking on an empty position.
+        /// </summary>
+        private async Task HandleMoveActionAsync(Domain.Grid.ActorId playerId, Domain.Grid.Position targetPosition)
+        {
+            // Get the player's current position BEFORE the move for visual updates
+            var fromPositionOption = _gridStateService.GetActorPosition(playerId);
+
+            var moveCommand = Application.Grid.Commands.MoveActorCommand.Create(playerId, targetPosition);
+            var result = await _mediator.Send(moveCommand);
+
+            await result.Match(
+                Succ: async _ =>
+                {
+                    _logger.Information("Successfully processed move to position {Position}", targetPosition);
+
+                    // Notify ActorPresenter about the successful move
+                    if (_actorPresenter != null && fromPositionOption.IsSome)
+                    {
+                        var from = fromPositionOption.Match(p => p, () => new Domain.Grid.Position(0, 0));
+                        await _actorPresenter.HandleActorMovedAsync(playerId, from, targetPosition);
+                    }
+                    else
+                    {
+                        _logger.Warning("ActorPresenter not available or from position unknown - visual update skipped");
+                    }
+
+                    await View.ShowSuccessFeedbackAsync(targetPosition, "Moved");
+                },
+                Fail: async error =>
+                {
+                    _logger.Warning("Move to position {Position} failed: {Error}", targetPosition, error.Message);
+                    await View.ShowErrorFeedbackAsync(targetPosition, error.Message);
+                }
+            );
         }
 
         /// <summary>

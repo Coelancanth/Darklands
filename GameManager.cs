@@ -194,7 +194,7 @@ namespace Darklands
                 var actorStateService = _serviceProvider.GetRequiredService<Darklands.Core.Application.Actor.Services.IActorStateService>();
                 var combatQueryService = _serviceProvider.GetRequiredService<Darklands.Core.Application.Combat.Services.ICombatQueryService>();
 
-                _gridPresenter = new GridPresenter(_gridView!, mediator, _logger!, gridStateService);
+                _gridPresenter = new GridPresenter(_gridView!, mediator, _logger!, gridStateService, combatQueryService);
                 _actorPresenter = new ActorPresenter(_actorView!, mediator, _logger!, gridStateService, actorStateService);
                 _healthPresenter = new HealthPresenter(_healthView!, mediator, _logger!, actorStateService, combatQueryService);
 
