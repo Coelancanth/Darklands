@@ -109,13 +109,13 @@ namespace Darklands.Core.Presentation.Presenters
                         var placeResult = _gridStateService.AddActorToGrid(actor.Id, startPosition);
                         if (placeResult.IsSucc)
                         {
-                            // Display the actor visually
-                            _ = Task.Run(async () => await View.DisplayActorAsync(actor.Id, startPosition, ActorType.Player));
+                            // Display the actor visually (sequential, not concurrent)
+                            View.DisplayActorAsync(actor.Id, startPosition, ActorType.Player);
 
                             // CRITICAL: Notify the health presenter to create a health bar for this actor
                             if (_healthPresenter != null)
                             {
-                                _ = Task.Run(async () => await _healthPresenter.HandleActorCreatedAsync(actor.Id, startPosition, actor.Health));
+                                _healthPresenter.HandleActorCreatedAsync(actor.Id, startPosition, actor.Health);
                                 _logger.Information("Test player actor created with health bar at position {Position} with ID {ActorId} and health {Health}",
                                     startPosition, actor.Id, actor.Health);
                             }
@@ -180,13 +180,13 @@ namespace Darklands.Core.Presentation.Presenters
                             var placeResult = _gridStateService.AddActorToGrid(actor.Id, dummyPosition);
                             if (placeResult.IsSucc)
                             {
-                                // Display the dummy visually with brown/enemy coloring
-                                _ = Task.Run(async () => await View.DisplayActorAsync(actor.Id, dummyPosition, ActorType.Enemy));
+                                // Display the dummy visually with brown/enemy coloring (sequential, not concurrent)
+                                View.DisplayActorAsync(actor.Id, dummyPosition, ActorType.Enemy);
 
                                 // CRITICAL: Notify the health presenter to create a health bar for the dummy
                                 if (_healthPresenter != null)
                                 {
-                                    _ = Task.Run(async () => await _healthPresenter.HandleActorCreatedAsync(actor.Id, dummyPosition, actor.Health));
+                                    _healthPresenter.HandleActorCreatedAsync(actor.Id, dummyPosition, actor.Health);
                                     _logger.Information("Dummy target created with health bar at {Position} - ID: {ActorId}, Health: {Health}",
                                         dummyPosition, actor.Id, actor.Health);
                                 }

@@ -27,12 +27,14 @@ namespace Darklands.Views
         private readonly Color NeutralColor = new(0.61f, 0.61f, 0.61f, 1.0f); // Gray #9E9E9E
         private readonly Color InteractiveColor = new(1.0f, 0.59f, 0.0f, 1.0f); // Orange #FF9800
 
-        // Temporary storage for deferred method parameters
-        private ColorRect? _pendingActorNode;
-        private Darklands.Core.Domain.Grid.ActorId _pendingActorId;
-        private Vector2 _pendingEndPosition;
-        private Darklands.Core.Domain.Grid.Position _pendingFromPosition;
-        private Darklands.Core.Domain.Grid.Position _pendingToPosition;
+        // Queue-based storage for deferred operations - fixes race condition (TD_011)
+        private readonly Queue<ActorCreationData> _pendingActorCreations = new();
+        private readonly Queue<ActorMoveData> _pendingActorMoves = new();
+        
+        // Data structures to hold operation parameters
+        private record ActorCreationData(ColorRect ActorNode, Darklands.Core.Domain.Grid.ActorId ActorId);
+        private record ActorMoveData(ColorRect ActorNode, Vector2 EndPosition, Darklands.Core.Domain.Grid.ActorId ActorId, 
+            Darklands.Core.Domain.Grid.Position FromPosition, Darklands.Core.Domain.Grid.Position ToPosition);
 
         /// <summary>
         /// Called when the node is added to the scene tree.
@@ -90,10 +92,12 @@ namespace Darklands.Views
                     Position = new Vector2(position.X * TileSize, position.Y * TileSize)
                 };
 
-                // Store for deferred call
-                _pendingActorNode = actorNode;
-                _pendingActorId = actorId;
-                CallDeferred("AddActorNodeDeferred");
+                // Queue for deferred call - prevents race condition
+                lock (_pendingActorCreations)
+                {
+                    _pendingActorCreations.Enqueue(new ActorCreationData(actorNode, actorId));
+                }
+                CallDeferred("ProcessPendingActorCreations");
 
                 _logger?.Information("Actor {ActorId} created at ({X},{Y})", actorId, position.X, position.Y);
 
@@ -106,16 +110,30 @@ namespace Darklands.Views
         }
 
         /// <summary>
-        /// Helper method to add actor node on main thread.
+        /// Helper method to process queued actor creations on main thread.
+        /// Fixes race condition by processing all queued operations sequentially.
         /// </summary>
+        private void ProcessPendingActorCreations()
+        {
+            lock (_pendingActorCreations)
+            {
+                while (_pendingActorCreations.Count > 0)
+                {
+                    var creationData = _pendingActorCreations.Dequeue();
+                    AddChild(creationData.ActorNode);
+                    _actorNodes[creationData.ActorId] = creationData.ActorNode;
+                    _logger?.Debug("Processed actor creation for {ActorId}", creationData.ActorId);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Legacy method - kept for backwards compatibility but should not be used
+        /// </summary>
+        [Obsolete("Use ProcessPendingActorCreations instead")]
         private void AddActorNodeDeferred()
         {
-            if (_pendingActorNode != null)
-            {
-                AddChild(_pendingActorNode);
-                _actorNodes[_pendingActorId] = _pendingActorNode;
-                _pendingActorNode = null;
-            }
+            // This method is now obsolete - the race condition fix uses ProcessPendingActorCreations
         }
 
 
@@ -134,15 +152,14 @@ namespace Darklands.Views
 
                 var endPosition = new Vector2(toPosition.X * TileSize, toPosition.Y * TileSize);
 
-                // Store parameters for deferred call
-                _pendingActorNode = actorNode;
-                _pendingEndPosition = endPosition;
-                _pendingActorId = actorId;
-                _pendingFromPosition = fromPosition;
-                _pendingToPosition = toPosition;
+                // Queue parameters for deferred call - prevents race condition
+                lock (_pendingActorMoves)
+                {
+                    _pendingActorMoves.Enqueue(new ActorMoveData(actorNode, endPosition, actorId, fromPosition, toPosition));
+                }
 
                 // Use deferred call for tween operations to ensure main thread execution
-                CallDeferred("MoveActorNodeDeferred");
+                CallDeferred("ProcessPendingActorMoves");
                 
                 await Task.CompletedTask;
             }
@@ -153,56 +170,46 @@ namespace Darklands.Views
         }
 
         /// <summary>
-        /// Helper method to move actor node on main thread.
+        /// Helper method to process queued actor moves on main thread.
+        /// Fixes race condition by processing all queued move operations sequentially.
         /// </summary>
+        private void ProcessPendingActorMoves()
+        {
+            lock (_pendingActorMoves)
+            {
+                while (_pendingActorMoves.Count > 0)
+                {
+                    var moveData = _pendingActorMoves.Dequeue();
+                    
+                    if (_actorNodes.ContainsKey(moveData.ActorId))
+                    {
+                        // Get the ACTUAL actor node from our dictionary
+                        var actualActorNode = _actorNodes[moveData.ActorId];
+                        
+                        // Set position immediately
+                        actualActorNode.Position = moveData.EndPosition;
+                        _logger?.Information("Actor {ActorId} moved to ({FromX},{FromY}) → ({ToX},{ToY})", 
+                            moveData.ActorId, 
+                            moveData.FromPosition.X, moveData.FromPosition.Y,
+                            moveData.ToPosition.X, moveData.ToPosition.Y);
+                        
+                        // TODO: Re-enable tween animation once basic movement is verified working
+                    }
+                    else
+                    {
+                        _logger?.Warning("Cannot move actor {ActorId} - not found in actor nodes", moveData.ActorId);
+                    }
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Legacy method - kept for backwards compatibility but should not be used
+        /// </summary>
+        [Obsolete("Use ProcessPendingActorMoves instead")]
         private void MoveActorNodeDeferred()
         {
-            if (_pendingActorNode != null && _actorNodes.ContainsKey(_pendingActorId))
-            {
-                // Get the ACTUAL actor node from our dictionary (not the pending one which might be stale)
-                var actualActorNode = _actorNodes[_pendingActorId];
-                
-                // Set position immediately
-                actualActorNode.Position = _pendingEndPosition;
-                _logger?.Information("Actor {ActorId} moved to ({FromX},{FromY}) → ({ToX},{ToY})", 
-                    _pendingActorId, 
-                    _pendingFromPosition.X, _pendingFromPosition.Y,
-                    _pendingToPosition.X, _pendingToPosition.Y);
-                
-                // TODO: Re-enable tween animation once basic movement is verified working
-                // The tween code below should work but may have timing issues with deferred calls
-                /*
-                // Create and configure tween for smooth movement
-                // CRITICAL FIX: Use "Position" (PascalCase) not "position" for C# property
-                var tween = CreateTween();
-                var tweenResult = tween.TweenProperty(actualActorNode, "Position", _pendingEndPosition, MoveDuration);
-                
-                // Check if tween was created successfully
-                if (tween == null)
-                {
-                    GD.PrintErr($"[MOVE DEBUG] Failed to create tween!");
-                    actualActorNode.Position = _pendingEndPosition; // Fallback: set directly
-                }
-                else
-                {
-                    GD.Print($"[MOVE DEBUG] Tween created successfully, animating over {MoveDuration}s");
-                    
-                    // Add completion callback to verify movement
-                    tween.Finished += () => {
-                        if (_actorNodes.TryGetValue(actorId, out var node))
-                        {
-                            GD.Print($"[MOVE DEBUG] Tween completed! Actor {actorId.Value} now at: {node.Position} (target was: {targetPos})");
-                        }
-                    };
-                }
-                */
-                
-                _pendingActorNode = null;
-            }
-            else
-            {
-                _logger?.Warning("Actor {ActorId} node not found", _pendingActorId);
-            }
+            // This method is now obsolete - the race condition fix uses ProcessPendingActorMoves
         }
 
         /// <summary>

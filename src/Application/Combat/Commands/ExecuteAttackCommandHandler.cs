@@ -71,18 +71,15 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
                 _logger?.Warning("Attack failed: {AttackerId} -> {TargetId}: {Error}",
                     request.AttackerId, request.TargetId, error.Message);
 
-                // Provide attack failure feedback
-                _ = Task.Run(async () =>
+                // Provide attack failure feedback (sequential, not concurrent)
+                if (_attackFeedbackService != null)
                 {
-                    if (_attackFeedbackService != null)
-                    {
-                        await _attackFeedbackService.ProcessAttackFailureAsync(
-                            request.AttackerId,
-                            request.TargetId,
-                            request.CombatAction,
-                            error.Message);
-                    }
-                });
+                    _attackFeedbackService.ProcessAttackFailureAsync(
+                        request.AttackerId,
+                        request.TargetId,
+                        request.CombatAction,
+                        error.Message);
+                }
 
                 return FinFail<LanguageExt.Unit>(error);
             }
@@ -152,15 +149,13 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
                 None: () => true // If not found, assume dead
             );
 
-            _ = Task.Run(async () =>
-            {
-                await _attackFeedbackService.ProcessAttackSuccessAsync(
-                    request.AttackerId,
-                    request.TargetId,
-                    request.CombatAction,
-                    request.CombatAction.BaseDamage,
-                    wasLethal);
-            });
+            // Provide attack success feedback (sequential, not concurrent)
+            _attackFeedbackService.ProcessAttackSuccessAsync(
+                request.AttackerId,
+                request.TargetId,
+                request.CombatAction,
+                request.CombatAction.BaseDamage,
+                wasLethal);
         }
 
         return FinSucc(LanguageExt.Unit.Default);
