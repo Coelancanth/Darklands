@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-08 14:23
+**Last Updated**: 2025-09-08 14:42
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 002
-- **Next TD**: 012  
+- **Next TD**: 017  
 - **Next VS**: 011 
 
 
@@ -68,16 +68,130 @@
 ## 🔥 Critical (Do First)
 *Blockers preventing other work, production bugs, dependencies for other features*
 
+### TD_012: Remove Static Callbacks from ExecuteAttackCommandHandler [ARCHITECTURE] [Score: 90/100]
+**Status**: Approved ✅
+**Owner**: Dev Engineer
+**Size**: S (2-3h)
+**Priority**: Critical (Breaks testability and creates hidden dependencies)
+**Markers**: [ARCHITECTURE] [ANTI-PATTERN] [TESTABILITY]
+**Created**: 2025-09-08 14:42
 
+**What**: Replace static mutable callbacks with proper event bus or MediatR notifications
+**Why**: Static callbacks break testability, create hidden dependencies, and prevent parallel test execution
+
+**Problem Statement**:
+- ExecuteAttackCommandHandler uses `public static Action<>? OnActorDeath/OnActorDamaged`
+- Static mutable state makes testing difficult
+- Hidden coupling between handler and UI layer
+- Cannot run tests in parallel due to shared state
+
+**How**:
+- Create domain events: `ActorDiedEvent`, `ActorDamagedEvent` as INotification
+- Publish via MediatR: `await _mediator.Publish(new ActorDiedEvent(...))`
+- Subscribe in presenters via INotificationHandler<T>
+- Remove all static callback fields
+
+**Done When**:
+- Zero static mutable fields in ExecuteAttackCommandHandler
+- Events published through MediatR pipeline
+- Presenters receive events via handlers
+- Tests can run in parallel without interference
+- No regression in UI updates
+
+**Depends On**: None
+
+**Tech Lead Decision** (2025-09-08 14:45):
+- **APPROVED WITH HIGH PRIORITY** - Critical architectural flaw affecting testability
+- Static mutable callbacks violate fundamental OOP principles
+- MediatR notifications are the correct pattern (already in our pipeline)
+- Implementation: Create ActorDiedEvent/ActorDamagedEvent as INotification
+- Route to Dev Engineer for immediate implementation
+
+---
+
+### TD_013: Extract Test Data from Production Presenters [SEPARATION] [Score: 85/100]
+**Status**: Approved ✅
+**Owner**: Dev Engineer
+**Size**: S (3-4h)
+**Priority**: Critical (Test code in production)
+**Markers**: [SEPARATION-OF-CONCERNS] [TESTING]
+**Created**: 2025-09-08 14:42
+
+**What**: Remove hardcoded test actor creation from ActorPresenter
+**Why**: Production code contains test/demo data, violating separation of concerns
+
+**Problem Statement**:
+- ActorPresenter.InitializeTestPlayer() creates hardcoded test actors
+- Static TestPlayerId field exposes test state
+- Presenter creating domain objects violates SRP
+- Makes it impossible to start with different scenarios
+
+**How**:
+- Create IActorFactory service for actor creation
+- Move test setup to separate TestScenarioService
+- Inject scenario service only in development/test builds
+- Use application commands to create actors properly
+
+**Done When**:
+- No test data in ActorPresenter
+- Actor creation through proper application services
+- Test scenarios injectable via configuration
+- Clean separation between production and test code
+
+**Depends On**: None
+
+**Tech Lead Decision** (2025-09-08 14:45):
+- **APPROVED WITH HIGH PRIORITY** - Test data in production is serious anti-pattern
+- Violates Clean Architecture separation of concerns
+- Solution: IActorFactory + TestScenarioService pattern is correct
+- Enables flexible scenario testing and maintains boundaries
+- Route to Dev Engineer (implement after TD_012)
+
+---
 
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*
 
 
+### TD_015: Reduce Logging Verbosity and Remove Emojis [PRODUCTION] [Score: 60/100]
+**Status**: Approved ✅
+**Owner**: Dev Engineer
+**Size**: S (2h)
+**Priority**: Important (Production readiness)
+**Markers**: [LOGGING] [PRODUCTION]
+**Created**: 2025-09-08 14:42
 
+**What**: Clean up excessive logging and remove emoji decorations
+**Why**: Info-level logs too verbose, emojis inappropriate for production
 
+**Problem Statement**:
+- Info logs contain step-by-step execution details
+- Emojis in production logs (💗 ✅ 💀 ⚔️)
+- Makes log analysis and parsing difficult
+- Log files grow too quickly
 
+**How**:
+- Move verbose logs from Information to Debug level
+- Remove all emoji characters from log messages
+- Keep Information logs for significant events only
+- Add structured logging properties instead of string interpolation
 
+**Done When**:
+- No emojis in any log messages
+- Information logs only for important events
+- Debug logs contain detailed execution flow
+- Log output reduced by >50% at Info level
+
+**Depends On**: None
+
+**Tech Lead Decision** (2025-09-08 14:45):
+- **APPROVED** - Clean logging essential for production
+- Emojis inappropriate for professional logs
+- Simple log level adjustments, no architectural changes
+- Low-risk, high-value cleanup work
+- Route to Dev Engineer (can be done anytime)
+
+---
 
 ## 🗄️ Backup (Complex Features for Later)
 *Advanced mechanics postponed until core loop is proven fun*
@@ -134,6 +248,40 @@
  **Decision**: APPROVED for immediate implementation
 
 ---
+
+---
+
+### TD_016: Split Large Service Interfaces (ISP) [ARCHITECTURE] [Score: 50/100]
+**Status**: Deferred 🟪
+**Owner**: Tech Lead (for future review)
+**Size**: M (4-6h)
+**Priority**: Backup (Not urgent)
+**Markers**: [ARCHITECTURE] [SOLID]
+**Created**: 2025-09-08 14:42
+
+**What**: Split IGridStateService and IActorStateService into query/command interfaces
+**Why**: Large interfaces violate Interface Segregation Principle
+
+**How**:
+- Split IGridStateService → IGridQueryService + IGridCommandService
+- Split IActorStateService → IActorQueryService + IActorCommandService
+- Update all consumers to use appropriate interface
+- Maintain backward compatibility with composite interface
+
+**Done When**:
+- Separate query and command interfaces
+- Each interface has single responsibility
+- No breaking changes to existing code
+- Clear separation of read/write operations
+
+**Depends On**: None
+
+**Tech Lead Decision** (2025-09-08 14:45):
+- **DEFERRED TO BACKUP** - Valid but not urgent
+- Score understated (actually 70/100 due to breaking change risk)
+- Not blocking current work, risk outweighs benefit now
+- When implemented: use composite interfaces for backward compatibility
+- Revisit after critical items complete
 
 ---
 
