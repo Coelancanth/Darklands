@@ -270,10 +270,10 @@ namespace Darklands.Core.Tests.Application.Grid.Commands
             // Arrange
             var position1 = new Position(1, 1);
             var position2 = new Position(2, 2);
-            
+
             var command1 = SpawnDummyCommand.CreateCombatDummy(position1);
             var command2 = SpawnDummyCommand.CreateTrainingDummy(position2);
-            
+
             var gridStateService = new TestGridStateService();
             var actorStateService = new TestActorStateService();
             var handler = new SpawnDummyCommandHandler(gridStateService, actorStateService, null!);

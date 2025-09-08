@@ -156,7 +156,7 @@ public class ArchitectureTests
         foreach (var domainType in domainTypes)
         {
             var asyncMethods = domainType.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static)
-                .Where(m => m.ReturnType == typeof(System.Threading.Tasks.Task) || 
+                .Where(m => m.ReturnType == typeof(System.Threading.Tasks.Task) ||
                            (m.ReturnType.IsGenericType && m.ReturnType.GetGenericTypeDefinition() == typeof(System.Threading.Tasks.Task<>)))
                 .ToList();
 
@@ -165,7 +165,7 @@ public class ArchitectureTests
     }
 
     [Fact]
-    [Trait("Category", "Architecture")]  
+    [Trait("Category", "Architecture")]
     [Trait("Category", "Phase1")]
     public void Application_Layer_Has_Some_Async_Services_Currently()
     {
@@ -179,7 +179,7 @@ public class ArchitectureTests
         foreach (var appType in applicationTypes)
         {
             var asyncMethods = appType.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static)
-                .Where(m => m.ReturnType == typeof(System.Threading.Tasks.Task) || 
+                .Where(m => m.ReturnType == typeof(System.Threading.Tasks.Task) ||
                            (m.ReturnType.IsGenericType && m.ReturnType.GetGenericTypeDefinition() == typeof(System.Threading.Tasks.Task<>)))
                 .ToList();
 
@@ -191,7 +191,7 @@ public class ArchitectureTests
 
         // Document current state - after TD_011, this should be empty
         typesWithAsyncMethods.Should().NotBeEmpty("CURRENT STATE: Some application types have async methods (will be fixed in TD_011)");
-        
+
         // After TD_011 implementation:
         // typesWithAsyncMethods.Should().BeEmpty("Application layer should be synchronous for turn-based processing");
     }
@@ -203,20 +203,20 @@ public class ArchitectureTests
     {
         // CURRENT STATE: View interfaces are async (causing race conditions)
         // TARGET STATE after TD_011: Should be synchronous for turn-based games
-        
+
         var viewInterfaces = _coreAssembly.GetTypes()
             .Where(t => t.IsInterface && t.Name.StartsWith("I") && t.Name.EndsWith("View"));
 
         foreach (var viewInterface in viewInterfaces)
         {
             var asyncMethods = viewInterface.GetMethods()
-                .Where(m => m.ReturnType == typeof(System.Threading.Tasks.Task) || 
+                .Where(m => m.ReturnType == typeof(System.Threading.Tasks.Task) ||
                            (m.ReturnType.IsGenericType && m.ReturnType.GetGenericTypeDefinition() == typeof(System.Threading.Tasks.Task<>)))
                 .ToList();
 
             // Current state - all view methods are async
             asyncMethods.Should().NotBeEmpty($"CURRENT STATE: {viewInterface.Name} has async methods (will be fixed in TD_011)");
-            
+
             // After TD_011 implementation, flip this assertion:
             // asyncMethods.Should().BeEmpty($"Turn-based view {viewInterface.Name} should be synchronous to prevent race conditions");
         }
@@ -229,12 +229,12 @@ public class ArchitectureTests
     {
         // Task.Run() in turn-based games creates concurrency where sequential processing is needed
         // This test documents the current problem that TD_011 will fix
-        
+
         var presenterTypes = _coreAssembly.GetTypes()
             .Where(t => t.Name.EndsWith("Presenter"));
 
         presenterTypes.Should().NotBeEmpty("Should have presenter types to validate");
-        
+
         // Note: We can't easily inspect method bodies for Task.Run usage in compiled assemblies
         // This test serves as documentation of the architectural constraint
         // The actual fix will be verified by manual code review and integration testing

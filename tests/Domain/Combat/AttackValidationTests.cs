@@ -26,7 +26,7 @@ public class AttackValidationTests
         // Arrange
         var attackValidation = AttackValidation.Create(
             _attackerId,
-            _attackerPosition, 
+            _attackerPosition,
             _targetId,
             _adjacentPosition,
             isTargetAlive: true);
@@ -42,7 +42,7 @@ public class AttackValidationTests
         var attackValidation = AttackValidation.Create(
             _attackerId,
             _attackerPosition,
-            _targetId, 
+            _targetId,
             _diagonalPosition,
             isTargetAlive: true);
 
@@ -96,7 +96,7 @@ public class AttackValidationTests
             _attackerId,
             _attackerPosition,
             _attackerId, // Same as attacker
-            _attackerPosition, 
+            _attackerPosition,
             isTargetAlive: true);
 
         // Act & Assert

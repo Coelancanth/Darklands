@@ -173,8 +173,8 @@ public class ExecuteAttackCommandHandlerTests
 
         // Assert - Should send DamageActorCommand
         _mediator.Verify(x => x.Send(
-            It.IsAny<IRequest<Fin<LanguageExt.Unit>>>(), 
-            It.IsAny<CancellationToken>()), 
+            It.IsAny<IRequest<Fin<LanguageExt.Unit>>>(),
+            It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -192,9 +192,9 @@ public class ExecuteAttackCommandHandlerTests
 
         // Assert - Should reschedule attacker with time cost
         _combatSchedulerService.Verify(x => x.ScheduleActor(
-            _attackerId, 
-            _attackerPosition, 
-            It.IsAny<TimeUnit>()), 
+            _attackerId,
+            _attackerPosition,
+            It.IsAny<TimeUnit>()),
             Times.Once);
     }
 
@@ -221,7 +221,7 @@ public class ExecuteAttackCommandHandlerTests
     {
         return new ExecuteAttackCommandHandler(
             _gridStateService.Object,
-            _actorStateService.Object, 
+            _actorStateService.Object,
             _combatSchedulerService.Object,
             _mediator.Object,
             _logger.Object);

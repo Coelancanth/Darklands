@@ -62,11 +62,11 @@ public class ExecuteAttackCommandHandlerIntegrationTests : IDisposable
         var targetId = ActorId.NewId();
         var attackerPosition = new Position(2, 2);
         var targetPosition = new Position(2, 3); // Adjacent
-        
+
         // Create actors with full health
         var attackerResult = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(attackerId, 100, "Warrior");
         var targetResult = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(targetId, 50, "Orc");
-        
+
         var attacker = attackerResult.Match(a => a, _ => throw new Exception("Test setup failed"));
         var target = targetResult.Match(a => a, _ => throw new Exception("Test setup failed"));
 
@@ -90,7 +90,7 @@ public class ExecuteAttackCommandHandlerIntegrationTests : IDisposable
         // Verify target took damage
         var targetAfterAttack = _actorStateService.GetActor(targetId);
         targetAfterAttack.IsSome.Should().BeTrue("Target should still exist in state service");
-        
+
         targetAfterAttack.IfSome(actor =>
         {
             actor.Health.Current.Should().BeLessThan(50, "Target should have taken damage");
@@ -114,7 +114,7 @@ public class ExecuteAttackCommandHandlerIntegrationTests : IDisposable
 
         var attackerResult = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(attackerId, 100, "Warrior");
         var targetResult = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(targetId, 5, "WeakOrc"); // Very low health
-        
+
         var attacker = attackerResult.Match(a => a, _ => throw new Exception("Test setup failed"));
         var target = targetResult.Match(a => a, _ => throw new Exception("Test setup failed"));
 
@@ -139,7 +139,7 @@ public class ExecuteAttackCommandHandlerIntegrationTests : IDisposable
         // Verify target is dead
         var targetAfterAttack = _actorStateService.GetActor(targetId);
         targetAfterAttack.IsSome.Should().BeTrue("Target should still exist in state service");
-        
+
         targetAfterAttack.IfSome(actor =>
         {
             actor.IsAlive.Should().BeFalse("Target should be dead after lethal damage");
@@ -158,7 +158,7 @@ public class ExecuteAttackCommandHandlerIntegrationTests : IDisposable
 
         var attackerResult = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(attackerId, 100, "Warrior");
         var targetResult = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(targetId, 50, "Orc");
-        
+
         var attacker = attackerResult.Match(a => a, _ => throw new Exception("Test setup failed"));
         var target = targetResult.Match(a => a, _ => throw new Exception("Test setup failed"));
 
@@ -175,7 +175,7 @@ public class ExecuteAttackCommandHandlerIntegrationTests : IDisposable
 
         // Assert: Attack should fail due to range
         result.IsFail.Should().BeTrue("Attack on non-adjacent target should fail");
-        result.IfFail(error => 
+        result.IfFail(error =>
         {
             error.Message.Should().Contain("not adjacent", "Error should indicate adjacency violation");
         });
@@ -199,10 +199,10 @@ public class ExecuteAttackCommandHandlerIntegrationTests : IDisposable
 
         var attackerResult = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(attackerId, 100, "Warrior");
         var targetResult = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(targetId, 50, "Orc");
-        
+
         var attacker = attackerResult.Match(a => a, _ => throw new Exception("Test setup failed"));
         var aliveTarget = targetResult.Match(a => a, _ => throw new Exception("Test setup failed"));
-        
+
         // Kill the target first
         var deadTargetResult = aliveTarget.TakeDamage(100); // More than max health
         var deadTarget = deadTargetResult.Match(a => a, _ => throw new Exception("Test setup failed"));
@@ -220,7 +220,7 @@ public class ExecuteAttackCommandHandlerIntegrationTests : IDisposable
 
         // Assert: Attack should fail due to dead target
         result.IsFail.Should().BeTrue("Attack on dead target should fail");
-        result.IfFail(error => 
+        result.IfFail(error =>
         {
             error.Message.Should().Contain("dead", "Error should indicate target is dead");
         });
@@ -237,7 +237,7 @@ public class ExecuteAttackCommandHandlerIntegrationTests : IDisposable
 
         var attackerResult = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(attackerId, 100, "Warrior");
         var targetResult = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(targetId, 100, "ToughOrc");
-        
+
         var attacker = attackerResult.Match(a => a, _ => throw new Exception("Test setup failed"));
         var target = targetResult.Match(a => a, _ => throw new Exception("Test setup failed"));
 

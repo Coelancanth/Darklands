@@ -104,7 +104,7 @@ namespace Darklands.Core.Tests.Application.Combat.Coordination
         {
             // Arrange
             var expectedResult = FinSucc(Option<Guid>.None);
-            
+
             _mockMediator.Setup(m => m.Send(It.IsAny<ProcessNextTurnCommand>(), default))
                 .ReturnsAsync(expectedResult);
 
@@ -164,7 +164,7 @@ namespace Darklands.Core.Tests.Application.Combat.Coordination
                 Succ: _ => true.Should().BeTrue("Initialization should succeed with valid actors"),
                 Fail: error => Assert.Fail($"Expected success but got error: {error}")
             );
-            _mockMediator.Verify(m => m.Send(It.IsAny<ScheduleActorCommand>(), default), 
+            _mockMediator.Verify(m => m.Send(It.IsAny<ScheduleActorCommand>(), default),
                 Times.Exactly(2), "Should schedule each actor once");
         }
 
