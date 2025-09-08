@@ -38,7 +38,7 @@ public class ErrorHandlingBehavior<TRequest, TResponse> : IPipelineBehavior<TReq
                 typeof(TResponse).GetGenericTypeDefinition() == typeof(Fin<>))
             {
                 var errorMethod = typeof(Prelude)
-                    .GetMethod(nameof(Prelude.Fail))
+                    .GetMethod(nameof(Prelude.Fail), new[] { typeof(Error) })
                     ?.MakeGenericMethod(typeof(TResponse).GetGenericArguments()[0]);
 
                 if (errorMethod != null)

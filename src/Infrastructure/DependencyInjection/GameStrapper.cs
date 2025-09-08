@@ -240,6 +240,12 @@ public static class GameStrapper
             // Event Router (Singleton - routes events to GameManager using static handlers)
             services.AddSingleton<Infrastructure.Events.GameManagerEventRouter>();
 
+            // UI Event Bus (Singleton - bridges MediatR events to Godot UI components)
+            services.AddSingleton<Application.Events.IUIEventBus, Infrastructure.Events.UIEventBus>();
+
+            // Generic event forwarder (Transient - auto-discovered by MediatR for all INotification types)
+            services.AddTransient(typeof(INotificationHandler<>), typeof(Application.Events.UIEventForwarder<>));
+
             return FinSucc(LanguageExt.Unit.Default);
         }
         catch (Exception ex)
