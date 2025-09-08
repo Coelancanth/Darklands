@@ -215,6 +215,26 @@ namespace Darklands.Core.Presentation.Presenters
         }
 
         /// <summary>
+        /// Handles actor creation synchronously for sequential turn-based processing.
+        /// Part of TD_011 async→sync transformation.
+        /// </summary>
+        public void HandleActorCreated(ActorId actorId, Position position, Health health)
+        {
+            _logger.Information("Creating health bar for new actor {ActorId} at {Position} with health {Health}",
+                actorId, position, health);
+
+            try
+            {
+                View.DisplayHealthBar(actorId, position, health);
+                _logger.Debug("Successfully created health bar for {ActorId}", actorId);
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Error creating health bar for {ActorId}", actorId);
+            }
+        }
+
+        /// <summary>
         /// Handles actor removal notifications - removes health bar when actors are destroyed.
         /// </summary>
         /// <param name="actorId">ID of the actor being removed</param>

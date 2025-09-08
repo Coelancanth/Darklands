@@ -150,7 +150,7 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
             );
 
             // Provide attack success feedback (sequential, not concurrent)
-            _attackFeedbackService.ProcessAttackSuccessAsync(
+            _attackFeedbackService.ProcessAttackSuccess(
                 request.AttackerId,
                 request.TargetId,
                 request.CombatAction,

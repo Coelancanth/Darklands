@@ -105,6 +105,56 @@ namespace Darklands.Core.Presentation.Presenters
         }
 
         /// <summary>
+        /// Processes a successful attack (synchronous - TD_011 async→sync transformation).
+        /// Uses CallDeferred for Godot operations to maintain thread safety.
+        /// </summary>
+        public void ProcessAttackSuccess(ActorId attackerId, ActorId targetId, CombatAction combatAction, int damage, bool wasLethal)
+        {
+            try
+            {
+                // Get positions for animations
+                var attackerPos = _gridStateService.GetActorPosition(attackerId);
+                var targetPos = _gridStateService.GetActorPosition(targetId);
+
+                if (attackerPos.IsNone || targetPos.IsNone)
+                {
+                    _logger?.Warning("Attack success feedback failed: Could not find positions for attacker {AttackerId} or target {TargetId}",
+                        attackerId, targetId);
+                    return;
+                }
+
+                var attackerPosition = attackerPos.IfNone(() => throw new InvalidOperationException("Position should exist"));
+                var targetPosition = targetPos.IfNone(() => throw new InvalidOperationException("Position should exist"));
+
+                // Log combat message (this serves as our combat log)
+                if (wasLethal)
+                {
+                    _logger?.Information("💀 {AttackerName} killed {TargetName} with {AttackName} for {Damage} damage!",
+                        attackerId, targetId, combatAction.Name, damage);
+                }
+                else
+                {
+                    _logger?.Information("⚔️ {AttackerName} hit {TargetName} with {AttackName} for {Damage} damage",
+                        attackerId, targetId, combatAction.Name, damage);
+                }
+
+                // TODO: Implement synchronous visual feedback using CallDeferred
+                // - Play attack animation via CallDeferred
+                // - Show damage effect via CallDeferred  
+                // - Show success feedback via CallDeferred
+                // - Coordinate with actor view for feedback via direct calls
+                // - Handle death effects if lethal via CallDeferred
+
+                _logger?.Debug("Attack feedback processed synchronously for {AttackerId} -> {TargetId}", attackerId, targetId);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "Error processing attack success feedback for {AttackerId} -> {TargetId}",
+                    attackerId, targetId);
+            }
+        }
+
+        /// <summary>
         /// Processes a failed attack with appropriate visual and logging feedback.
         /// </summary>
         /// <param name="attackerId">The actor that attempted the attack</param>

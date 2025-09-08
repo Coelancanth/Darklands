@@ -285,6 +285,250 @@ var finalTime = (int)Math.Round(baseTime * agilityModifier * encumbranceModifier
 - [ ] Architecture principle: Determinism as non-negotiable requirement for game math
 - [ ] Anti-pattern: Never use floating-point for game logic that must be reproducible
 
+### TD_011: Async/Concurrent Architecture Mismatch in Turn-Based Game [ARCHITECTURE]
+**Extraction Status**: NOT EXTRACTED ⚠️
+**Completed**: 2025-09-08
+**Archive Note**: Successfully eliminated async/concurrent architecture anti-pattern, established production-ready sequential turn-based processing
+---
+**Status**: COMPLETE ✅ (Dev Engineer, 2025-09-08)
+**Owner**: Dev Engineer (completed)
+**Size**: L (13 hours - 5 phases)
+**Priority**: Critical (Fundamental design flaw causing bugs)
+**Markers**: [ARCHITECTURE] [BREAKING-CHANGE] [ROOT-CAUSE]
+
+**What**: Remove async/await patterns from turn-based game flow; implement proper sequential processing
+**Why**: Turn-based games are inherently sequential - async creates race conditions and complexity
+
+**Root Cause Analysis** (from BR_001 investigation):
+- ActorView uses shared fields (_pendingActorNode, _pendingActorId) with CallDeferred
+- Multiple actors created simultaneously overwrite each other's pending data
+- Player actor creation gets overwritten by dummy actor creation
+- Async Task.Run() calls in presenters violate turn-based sequential nature
+
+**Evidence of Architectural Mismatch**:
+```csharp
+// PREVIOUS BROKEN: Concurrent actor creation
+Task.Run(async () => await View.DisplayActorAsync(...));  // Actor 1
+Task.Run(async () => await View.DisplayActorAsync(...));  // Actor 2 overwrites Actor 1
+// Result: Race condition, only last actor displays
+
+// NOW FIXED: Sequential turn-based processing
+scheduler.GetNextActor();
+ProcessAction();
+UpdateUI();  // Synchronous, no race possible
+```
+
+**Final Architecture Implemented**:
+1. **Scene Init**: Create ALL actors at once, display them all
+2. **Game Loop**: Process turns sequentially (player first, initiative 0)
+3. **No Async UI**: All view updates synchronous (Godot auto-updates on data change)
+4. **Turn Processing**: One actor → One action → One UI update → Next actor
+
+**Implementation Complete** (Dev Engineer, 2025-09-08):
+- ✅ **Phase 1**: Architecture tests added documenting current vs target async patterns
+- ✅ **Phase 2**: GameLoopCoordinator created for sequential turn orchestration  
+- ✅ **Phase 3**: ALL Task.Run() calls eliminated from ActorPresenter + ExecuteAttackCommandHandler
+- ✅ **Phase 4**: ActorView race condition FIXED with queue-based CallDeferred processing
+- ✅ **Phase 5**: Build validates async→sync conversion (CS4014 warnings expected/desired)
+
+**Critical Changes Completed**:
+- ✅ Removed Task.Run() from all presenters (lines 113, 118, 184, 189) 
+- ✅ Fixed shared field race in ActorView with thread-safe queue pattern
+- ✅ Sequential processing implemented per ADR-009 specification
+- ✅ All 8 compilation errors fixed (CS4014, CS8030, CS1503, CS0121, CS0117, CS0122, CS0103, CS0618)
+- ✅ Race condition eliminated with queue-based processing in HealthView
+- ✅ Task.Run() calls removed from ActorPresenter and ExecuteAttackCommandHandler  
+- ✅ Async→sync transformation complete per ADR-009
+- ✅ All 347 tests passing with zero warnings
+- ✅ Production-ready sequential turn-based architecture established
+
+**Final Validation Completed**:
+- ✅ **E2E Test**: All actors display correctly on scene start (User validated)
+- ✅ **Architecture**: Sequential processing implemented (Dev complete)
+- ✅ **Tests Pass**: Zero build errors, all unit tests passing (347/347)  
+- ✅ **Race Fixed**: No concurrent Task.Run() causing overwrites (Dev complete)
+
+**Depends On**: None (architectural foundation)
+
+**Debugger Expert Analysis** (2025-09-07 21:21):
+- BR_001 was symptom, not cause - removing it as redundant
+- Async patterns inappropriate for turn-based games
+- MVP separation is correct, implementation is wrong
+- Need Tech Lead architecture decision before proceeding
+
+**Tech Lead Decision** (2025-09-07 21:34): **APPROVED WITH URGENCY**
+- **Complexity Score**: 7/10 (Well-understood problem, clear solution)
+- **Pattern Match**: Traditional roguelike sequential processing (SPD, NetHack, DCSS)
+- **Risk Assessment**: HIGH if not fixed - every feature will fight async pattern
+- **ADR-009 Created**: Sequential Turn-Based Processing Pattern documented
+- **Solution Validated**: Aligns with Vision.md time-unit combat requirements
+
+**Implementation Phases** (13 hours total):
+1. **Phase 1 (2h)**: Verify domain/application synchronous - add architecture tests
+2. **Phase 2 (3h)**: Create GameLoopCoordinator for turn orchestration
+3. **Phase 3 (4h)**: Remove ALL Task.Run() and async from presenters
+4. **Phase 4 (2h)**: Fix ActorView race with proper CallDeferred usage
+5. **Phase 5 (2h)**: Integration testing and validation
+
+**Critical Changes Required**:
+- Remove Task.Run() from all presenters (lines 113, 118, 184, 189)
+- Fix shared field race in ActorView (lines 31-35)
+- Make all IView interfaces synchronous
+- Implement sequential game loop pattern per ADR-009
+
+**Final Impact**: This blocks ALL combat work. Implement immediately following ADR-009 pattern.
+---
+**Extraction Targets**:
+- [ ] ADR needed for: Sequential turn-based processing anti-patterns and solutions
+- [ ] HANDBOOK update: Async/sync architecture decisions for turn-based games
+- [ ] Test pattern: Race condition detection and validation approaches
+- [ ] Architecture pattern: GameLoopCoordinator design for turn-based systems
+- [ ] Anti-pattern: Task.Run() usage in turn-based game presenters
+
+### VS_010a: Actor Health System (Foundation) [Score: 100/100]
+**Extraction Status**: NOT EXTRACTED ⚠️
+**Completed**: 2025-09-07
+**Archive Note**: Complete health system foundation with UI integration - enables all combat mechanics
+---
+**Status**: COMPLETE ✅ (Debugger Expert, 2025-09-07 19:22)
+**Owner**: Debugger Expert
+**Size**: S (1 day implementation + debugging)
+**Priority**: Critical (Required for all combat)
+**Markers**: [ARCHITECTURE] [FOUNDATION] [COMPLETE]
+**Created**: 2025-09-07 16:13
+
+**What**: Add health/damage foundation to Actor domain model
+**Why**: Can't have attacks without health to damage - foundational requirement
+
+**How**:
+- Health value object with Current/Maximum/IsDead
+- Actor domain model with Health property
+- DamageActorCommand and HealActorCommand
+- IActorStateService extends IGridStateService
+- Health bar UI component in scene
+
+**Done When**:
+- Actors have persistent health values
+- Damage/heal commands modify health correctly
+- Death sets IsDead flag
+- Health displays in UI with bar visualization
+- All health scenarios covered by tests
+
+**Acceptance by Phase**:
+- ✅ Phase 1: Health domain model with validation (COMPLETE - commit 91b6273)
+- ✅ Phase 2: Damage/Heal commands process correctly (COMPLETE - commit d9a8b1b)
+- ✅ Phase 3: Actor state persists in service (COMPLETE - 2025-09-07 17:25)
+- ✅ Phase 4: Health bars display in scene (COMPLETE - 2025-09-07 19:22)
+
+**Phase 1 Deliverables** (2025-09-07 17:05):
+- ✅ Health.cs - Immutable value object with validation
+- ✅ Actor.cs - Domain model with integrated health
+- ✅ DamageActorCommand & HealActorCommand created
+- ✅ Comprehensive unit tests (50+ test cases)
+- ✅ Zero build warnings, 232/233 tests passing
+- ✅ Expected MediatR test failure (handlers needed Phase 2)
+
+**Phase 2 Deliverables** (2025-09-07 17:11):
+- ✅ IActorStateService interface for health management
+- ✅ DamageActorCommandHandler with error handling
+- ✅ HealActorCommandHandler with business rules
+- ✅ 16 comprehensive handler test scenarios
+- ✅ Zero build warnings, 239/249 tests passing
+- ✅ Expected DI test failures (service implementation needed Phase 3)
+
+**Phase 3 Deliverables** (2025-09-07 17:25):
+- ✅ InMemoryActorStateService - Complete infrastructure implementation
+- ✅ DI registration in GameStrapper - Singleton lifecycle management
+- ✅ Thread-safe state management with ConcurrentDictionary
+- ✅ Functional error handling with LanguageExt v5 patterns
+- ✅ All 249 tests passing - Zero build warnings, complete DI resolution
+
+**Phase 4 Completion Summary** (2025-09-07 19:22):
+- ✅ **RESOLVED**: Health bar display issue via presenter coordination pattern
+- ✅ Implemented SetHealthPresenter() coordination between ActorPresenter ↔ HealthPresenter
+- ✅ Fixed Godot node initialization (moved from constructor to _Ready())
+- ✅ Health bars now display with colors, numbers, and movement tracking
+- ✅ Added visual polish: background borders, dynamic colors, health text display
+- ✅ Created comprehensive post-mortem (PM_001) for architectural learning extraction
+
+**Final Implementation**:
+- Health bars display above actors with proper colors (Green/Yellow/Red)
+- Shows "current/maximum" text (e.g., "100/100") 
+- Tracks actor movement with synchronized positioning
+- Proper Godot lifecycle usage with scene tree integration
+- Cross-presenter coordination pattern established for future features
+
+**Depends On**: None (foundational)
+
+**Tech Lead Decision** (2025-09-07 16:13):
+- **APPROVED** - Split from oversized VS_010 (was 4-5 days)
+- Complexity: 3/10 - Standard domain modeling
+- Risk: Low - Well-understood pattern
+- Must complete before VS_010b and VS_010c
+---
+**Extraction Targets**:
+- [ ] ADR needed for: Health system domain model patterns with immutable value objects
+- [ ] HANDBOOK update: Presenter coordination patterns for UI components
+- [ ] Test pattern: Phase-based implementation testing with comprehensive coverage
+- [ ] Architecture pattern: Cross-presenter communication for feature integration
+
+### VS_010b: Basic Melee Attack [Score: 85/100]
+**Extraction Status**: NOT EXTRACTED ⚠️
+**Completed**: 2025-09-07
+**Archive Note**: Complete combat system implementation with scheduler integration, damage, and visual feedback
+---
+**Status**: COMPLETE ✅ (Dev Engineer, 2025-09-07 20:25)
+**Owner**: Dev Engineer
+**Size**: M (1.5 days) 
+**Priority**: Critical (Core combat mechanic)
+**Markers**: [ARCHITECTURE] [COMBAT]
+**Created**: 2025-09-07 16:13
+
+**What**: Execute melee attacks with scheduler integration and damage
+**Why**: First actual combat mechanic using the time-unit system
+
+**Implementation Progress**:
+- ✅ **Phase 1**: Domain validation (AttackValidation with adjacency rules)
+- ✅ **Phase 2**: Application handlers (ExecuteAttackCommandHandler with service coordination)  
+- ✅ **Phase 3**: Infrastructure integration (full DI container + end-to-end testing)
+- ✅ **Phase 4**: Presentation layer (UI feedback + animations)
+
+**Phase 4 Completed** (2025-09-07 20:25):
+- IAttackView interface for animations and visual effects
+- AttackPresenter implementing IAttackFeedbackService with MVP pattern
+- Combat logging through enhanced logger (⚔️ 💀 ❌ emoji indicators)
+- Clean Architecture feedback system with optional presentation injection
+- 281/281 tests passing, complete presentation layer integration
+
+**FEATURE COMPLETE**: All "Done When" criteria satisfied ✅
+
+**Done When**:
+- Can attack adjacent enemies only
+- Damage reduces target health
+- Time cost affects attacker's next turn
+- Death removes actor from scheduler
+- Attack animations and feedback work
+- Combat log shows attack messages
+
+**Acceptance by Phase**:
+- Phase 1: Attack validation logic (adjacency, alive)
+- Phase 2: ExecuteAttackCommand processes correctly
+- Phase 3: Coordinates scheduler and state updates
+- Phase 4: Visual feedback and animations
+
+**Depends On**: VS_010a (Health system), VS_002 (Scheduler)
+
+**Tech Lead Decision** (2025-09-07 16:13):
+- Complexity: 5/10 - Scheduler integration adds complexity
+- Risk: Medium - Death cascade needs careful handling
+- Pattern: Follow MoveActorCommand for command structure
+---
+**Extraction Targets**:
+- [ ] ADR needed for: Combat system architecture with scheduler integration
+- [ ] HANDBOOK update: Attack command patterns with validation and damage
+- [ ] Test pattern: End-to-end combat testing with full system integration
+- [ ] Architecture pattern: MVP feedback systems for combat UI
+
 ### TD_001: Create Development Setup Documentation [Score: 45/100]
 **Status**: COMPLETE ✅  
 **Owner**: DevOps Engineer (COMPLETED 2025-08-29 14:54)

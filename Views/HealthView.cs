@@ -36,12 +36,19 @@ namespace Darklands.Views
         private readonly Color HealingTextColor = new(0.3f, 1.0f, 0.3f, 1.0f);  // Bright green for healing
         private readonly Color CriticalTextColor = new(1.0f, 0.8f, 0.0f, 1.0f); // Orange for critical warnings
 
-        // Temporary storage for deferred method parameters
+        // TD_011 Race Condition Fix: Queue-based deferred processing (thread-safe)
+        private readonly Queue<HealthBarCreationData> _pendingHealthBars = new();
+        private readonly object _healthBarLock = new object();
+
+        // Data structure for thread-safe health bar creation
+        private readonly record struct HealthBarCreationData(ActorId ActorId, Position Position, Health Health);
+
+        // Legacy temporary storage for other deferred methods (to be migrated)
         private ActorId _pendingActorId;
         private Position _pendingPosition;
+        private Health _pendingHealth;
         private Position _pendingFromPosition;
         private Position _pendingToPosition;
-        private Health _pendingHealth;
         private Health _pendingOldHealth;
         private Health _pendingNewHealth;
         private HealthFeedbackType _pendingFeedbackType;
@@ -100,6 +107,19 @@ namespace Darklands.Views
         }
 
         /// <summary>
+        /// Creates and displays a health bar synchronously (TD_011 async→sync transformation).
+        /// Uses thread-safe queue to eliminate race conditions from shared field overwrites.
+        /// </summary>
+        public void DisplayHealthBar(ActorId actorId, Position position, Health health)
+        {
+            lock (_healthBarLock)
+            {
+                _pendingHealthBars.Enqueue(new HealthBarCreationData(actorId, position, health));
+            }
+            CallDeferred(nameof(ProcessPendingHealthBarCreations));
+        }
+
+        /// <summary>
         /// Deferred method to create health bar on main thread.
         /// </summary>
         private void DisplayHealthBarDeferred()
@@ -125,6 +145,46 @@ namespace Darklands.Views
             catch (Exception ex)
             {
                 _logger?.Error(ex, "Error creating health bar for actor {ActorId}", _pendingActorId);
+            }
+        }
+
+        /// <summary>
+        /// TD_011 Race Condition Fix: Process all pending health bar creations from queue.
+        /// Eliminates race conditions by processing one item at a time sequentially.
+        /// </summary>
+        private void ProcessPendingHealthBarCreations()
+        {
+            while (true)
+            {
+                HealthBarCreationData? data = null;
+                lock (_healthBarLock)
+                {
+                    if (_pendingHealthBars.Count == 0)
+                        break;
+                    data = _pendingHealthBars.Dequeue();
+                }
+
+                try
+                {
+                    if (_healthBars.ContainsKey(data.Value.ActorId))
+                    {
+                        _logger?.Debug("Health bar already exists for actor {ActorId}, replacing with new one", data.Value.ActorId);
+                        var existingHealthBar = _healthBars[data.Value.ActorId];
+                        existingHealthBar.QueueFree();
+                        _healthBars.Remove(data.Value.ActorId);
+                    }
+
+                    var healthBarNode = CreateHealthBarNode(data.Value.ActorId, data.Value.Position, data.Value.Health);
+                    _healthBars[data.Value.ActorId] = healthBarNode;
+                    AddChild(healthBarNode);
+
+                    _logger?.Debug("Created health bar for actor {ActorId} at {Position} with health {Health}", 
+                        data.Value.ActorId, data.Value.Position, data.Value.Health);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Error(ex, "Error creating health bar for actor {ActorId}", data?.ActorId);
+                }
             }
         }
 

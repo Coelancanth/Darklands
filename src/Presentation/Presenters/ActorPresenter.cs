@@ -115,7 +115,7 @@ namespace Darklands.Core.Presentation.Presenters
                             // CRITICAL: Notify the health presenter to create a health bar for this actor
                             if (_healthPresenter != null)
                             {
-                                _healthPresenter.HandleActorCreatedAsync(actor.Id, startPosition, actor.Health);
+                                _healthPresenter.HandleActorCreated(actor.Id, startPosition, actor.Health);
                                 _logger.Information("Test player actor created with health bar at position {Position} with ID {ActorId} and health {Health}",
                                     startPosition, actor.Id, actor.Health);
                             }
@@ -186,7 +186,7 @@ namespace Darklands.Core.Presentation.Presenters
                                 // CRITICAL: Notify the health presenter to create a health bar for the dummy
                                 if (_healthPresenter != null)
                                 {
-                                    _healthPresenter.HandleActorCreatedAsync(actor.Id, dummyPosition, actor.Health);
+                                    _healthPresenter.HandleActorCreated(actor.Id, dummyPosition, actor.Health);
                                     _logger.Information("Dummy target created with health bar at {Position} - ID: {ActorId}, Health: {Health}",
                                         dummyPosition, actor.Id, actor.Health);
                                 }

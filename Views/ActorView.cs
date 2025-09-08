@@ -127,14 +127,6 @@ namespace Darklands.Views
             }
         }
 
-        /// <summary>
-        /// Legacy method - kept for backwards compatibility but should not be used
-        /// </summary>
-        [Obsolete("Use ProcessPendingActorCreations instead")]
-        private void AddActorNodeDeferred()
-        {
-            // This method is now obsolete - the race condition fix uses ProcessPendingActorCreations
-        }
 
 
         /// <summary>
@@ -203,14 +195,6 @@ namespace Darklands.Views
             }
         }
         
-        /// <summary>
-        /// Legacy method - kept for backwards compatibility but should not be used
-        /// </summary>
-        [Obsolete("Use ProcessPendingActorMoves instead")]
-        private void MoveActorNodeDeferred()
-        {
-            // This method is now obsolete - the race condition fix uses ProcessPendingActorMoves
-        }
 
         /// <summary>
         /// Updates an actor's visual state or appearance.

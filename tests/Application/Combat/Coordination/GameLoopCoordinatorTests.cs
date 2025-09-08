@@ -76,7 +76,7 @@ namespace Darklands.Core.Tests.Application.Combat.Coordination
         public async Task ProcessNextTurnAsync_WithScheduledActor_ReturnsActor()
         {
             // Arrange
-            var expectedActorId = ActorId.NewActorId();
+            var expectedActorId = ActorId.NewId();
             var expectedResult = FinSucc(Some(expectedActorId.Value)); // Returns Guid, not ISchedulable
 
             _mockMediator.Setup(m => m.Send(It.IsAny<ProcessNextTurnCommand>(), default))
@@ -114,7 +114,7 @@ namespace Darklands.Core.Tests.Application.Combat.Coordination
             // Assert
             result.Match(
                 Succ: actorOption => actorOption.Match(
-                    Some: actor => Assert.Fail($"Expected None but got actor: {actor.Id}"),
+                    Some: actor => Assert.Fail($"Expected None but got actor: {actor.Value}"),
                     None: () => { /* Expected - test passes */ }
                 ),
                 Fail: error => Assert.Fail($"Expected success but got error: {error}")
@@ -127,7 +127,7 @@ namespace Darklands.Core.Tests.Application.Combat.Coordination
         public async Task ProcessNextTurnAsync_WithMediatorError_ReturnsError()
         {
             // Arrange
-            var expectedError = Error.New("MEDIATOR_ERROR", "Test error");
+            var expectedError = Error.New("MEDIATOR_ERROR: Test error");
             _mockMediator.Setup(m => m.Send(It.IsAny<ProcessNextTurnCommand>(), default))
                 .ReturnsAsync(FinFail<Option<Guid>>(expectedError));
 
@@ -149,8 +149,8 @@ namespace Darklands.Core.Tests.Application.Combat.Coordination
             // Arrange
             var actors = new[]
             {
-                CreateMockSchedulable(ActorId.NewActorId(), TimeUnit.FromMilliseconds(1000)),
-                CreateMockSchedulable(ActorId.NewActorId(), TimeUnit.FromMilliseconds(2000))
+                CreateMockSchedulable(ActorId.NewId(), TimeUnit.FromMilliseconds(1000).IfFail(TimeUnit.Zero)),
+                CreateMockSchedulable(ActorId.NewId(), TimeUnit.FromMilliseconds(2000).IfFail(TimeUnit.Zero))
             };
 
             _mockMediator.Setup(m => m.Send(It.IsAny<ScheduleActorCommand>(), default))
@@ -176,13 +176,13 @@ namespace Darklands.Core.Tests.Application.Combat.Coordination
             // Arrange
             var actors = new[]
             {
-                CreateMockSchedulable(ActorId.NewActorId(), TimeUnit.FromMilliseconds(1000)),
-                CreateMockSchedulable(ActorId.NewActorId(), TimeUnit.FromMilliseconds(2000))
+                CreateMockSchedulable(ActorId.NewId(), TimeUnit.FromMilliseconds(1000).IfFail(TimeUnit.Zero)),
+                CreateMockSchedulable(ActorId.NewId(), TimeUnit.FromMilliseconds(2000).IfFail(TimeUnit.Zero))
             };
 
             _mockMediator.SetupSequence(m => m.Send(It.IsAny<ScheduleActorCommand>(), default))
                 .ReturnsAsync(FinSucc(LanguageExt.Unit.Default))  // First succeeds
-                .ReturnsAsync(FinFail<LanguageExt.Unit>(Error.New("SCHEDULE_ERROR", "Test failure")));  // Second fails
+                .ReturnsAsync(FinFail<LanguageExt.Unit>(Error.New("SCHEDULE_ERROR: Test failure")));  // Second fails
 
             // Act  
             var result = await _coordinator.InitializeGameLoopAsync(actors);
@@ -202,8 +202,8 @@ namespace Darklands.Core.Tests.Application.Combat.Coordination
             // Arrange
             var expectedActors = new List<ISchedulable>
             {
-                CreateMockSchedulable(ActorId.NewActorId(), TimeUnit.FromMilliseconds(1000)),
-                CreateMockSchedulable(ActorId.NewActorId(), TimeUnit.FromMilliseconds(2000))
+                CreateMockSchedulable(ActorId.NewId(), TimeUnit.FromMilliseconds(1000).IfFail(TimeUnit.Zero)),
+                CreateMockSchedulable(ActorId.NewId(), TimeUnit.FromMilliseconds(2000).IfFail(TimeUnit.Zero))
             };
 
             _mockMediator.Setup(m => m.Send(It.IsAny<GetSchedulerQuery>(), default))
@@ -227,7 +227,7 @@ namespace Darklands.Core.Tests.Application.Combat.Coordination
             // Arrange
             var actors = new List<ISchedulable>
             {
-                CreateMockSchedulable(ActorId.NewActorId(), TimeUnit.FromMilliseconds(1000))
+                CreateMockSchedulable(ActorId.NewId(), TimeUnit.FromMilliseconds(1000).IfFail(TimeUnit.Zero))
             };
 
             _mockMediator.Setup(m => m.Send(It.IsAny<GetSchedulerQuery>(), default))
@@ -270,7 +270,7 @@ namespace Darklands.Core.Tests.Application.Combat.Coordination
         private static ISchedulable CreateMockSchedulable(ActorId actorId, TimeUnit nextTurn)
         {
             var mock = new Mock<ISchedulable>();
-            mock.SetupGet(s => s.Id).Returns(actorId);
+            mock.SetupGet(s => s.Id).Returns(actorId.Value);
             mock.SetupGet(s => s.NextTurn).Returns(nextTurn);
             return mock.Object;
         }

@@ -54,25 +54,20 @@ namespace Darklands.Core.Application.Combat.Coordination
                 // Step 1: Get next actor from scheduler (synchronously)
                 var nextTurnResult = await _mediator.Send(new ProcessNextTurnCommand());
 
-                return nextTurnResult.Match(
+                // Handle result with proper type mapping from Guid to ActorId
+                var result = from turnOption in nextTurnResult
+                             select turnOption.Map(guid => ActorId.FromGuid(guid));
+
+                // Side effects for logging
+                result.Match(
                     Succ: turnOption => turnOption.Match(
-                        Some: actorId =>
-                        {
-                            _logger.Information("Turn processed for actor {ActorId}", actorId);
-                            return FinSucc(Some(actorId));
-                        },
-                        None: () =>
-                        {
-                            _logger.Debug("No actors scheduled for processing");
-                            return FinSucc(Option<ActorId>.None);
-                        }
+                        Some: actorId => _logger.Information("Turn processed for actor {ActorId}", actorId),
+                        None: () => _logger.Debug("No actors scheduled for processing")
                     ),
-                    Fail: error =>
-                    {
-                        _logger.Warning("Failed to process next turn: {Error}", error.Message);
-                        return FinFail<Option<ActorId>>(error);
-                    }
+                    Fail: error => _logger.Warning("Failed to process next turn: {Error}", error.Message)
                 );
+
+                return result;
             }
             catch (Exception ex)
             {
@@ -101,7 +96,7 @@ namespace Darklands.Core.Application.Combat.Coordination
                 {
                     // For now, we need a position - this will be provided by caller in real implementation
                     var dummyPosition = new Position(5, 5);
-                    var scheduleCommand = ScheduleActorCommand.Create(actor.Id, dummyPosition, actor.NextTurn);
+                    var scheduleCommand = ScheduleActorCommand.Create(ActorId.FromGuid(actor.Id), dummyPosition, actor.NextTurn);
                     var scheduleResult = await _mediator.Send(scheduleCommand);
 
                     scheduleResult.Match(
@@ -125,7 +120,7 @@ namespace Darklands.Core.Application.Combat.Coordination
                 else
                 {
                     var aggregateError = Error.New($"INITIALIZATION_PARTIAL_FAILURE: {errors.Count}/{initialActors.Length} actors failed to schedule",
-                        new AggregateException(errors.Select(e => new Exception(e.Message))));
+                        (Exception)new AggregateException(errors.Select(e => new Exception(e.Message))));
                     return FinFail<LanguageExt.Unit>(aggregateError);
                 }
             }
