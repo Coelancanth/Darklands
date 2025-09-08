@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-08 17:32 (TD_019 completed by DevOps Engineer)
+**Last Updated**: 2025-09-08 21:31 (Critical ADR implementations added by Tech Lead)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 002
-- **Next TD**: 020  
+- **Next TD**: 023  
 - **Next VS**: 011 
 
 
@@ -65,8 +65,162 @@
 - Next steps
 ```
 
+#### 🚨 CRITICAL: VS Items Must Include Architectural Compliance Check
+```markdown
+**Architectural Constraints** (MANDATORY for VS items):
+□ Deterministic: Uses IDeterministicRandom for any randomness (ADR-004)
+□ Save-Ready: Entities use records and ID references (ADR-005)  
+□ Time-Independent: No wall-clock time, uses turns/actions (ADR-004)
+□ Integer Math: Percentages use integers not floats (ADR-004)
+□ Testable: Can be tested without Godot runtime (ADR-006)
+```
+
 ## 🔥 Critical (Do First)
 *Blockers preventing other work, production bugs, dependencies for other features*
+
+### TD_020: Implement Deterministic Random Service [ARCHITECTURE] [Score: 90/100]
+**Status**: Approved ✅
+**Owner**: Dev Engineer
+**Size**: M (4-6h)
+**Priority**: Critical (Foundation for saves/multiplayer/debugging)
+**Markers**: [ARCHITECTURE] [ADR-004] [DETERMINISTIC] [FOUNDATION]
+**Created**: 2025-09-08 21:31
+**Approved**: 2025-09-08 21:31
+
+**What**: Implement IDeterministicRandom service per ADR-004
+**Why**: ALL future features depend on deterministic simulation for saves, debugging, and potential multiplayer
+
+**Problem Statement**:
+- Current code uses System.Random and Godot random (non-deterministic)
+- Impossible to reproduce bugs from saves
+- Multiplayer would desync immediately
+- Can't implement reliable save/load without this
+
+**Implementation Tasks**:
+1. Create IDeterministicRandom interface with context tracking
+2. Implement DeterministicRandom using PCG algorithm
+3. Add to GameStrapper.cs DI container
+4. Create Fork() method for independent streams
+5. Add debug logging for random calls with context
+
+**Done When**:
+- IDeterministicRandom service fully implemented
+- Registered in GameStrapper.cs
+- Unit tests verify deterministic sequences
+- Same seed produces identical results
+- Fork() creates independent streams
+- Context tracking for debugging desyncs
+
+**Depends On**: None (Foundation)
+
+**Tech Lead Decision** (2025-09-08 21:31):
+- **AUTO-APPROVED** - Critical foundation per ADR-004
+- Without this, saves and debugging are impossible
+- Must be implemented before ANY new gameplay features
+- Dev Engineer should prioritize immediately
+
+---
+
+### TD_021: Implement Save-Ready Entity Patterns [ARCHITECTURE] [Score: 85/100]
+**Status**: Approved ✅
+**Owner**: Dev Engineer  
+**Size**: M (6-8h)
+**Priority**: Critical (Every entity going forward needs this)
+**Markers**: [ARCHITECTURE] [ADR-005] [SAVE-SYSTEM] [FOUNDATION]
+**Created**: 2025-09-08 21:31
+**Approved**: 2025-09-08 21:31
+
+**What**: Refactor ALL domain entities to be save-ready per ADR-005
+**Why**: Retrofitting save system later means rewriting entire domain layer
+
+**Problem Statement**:
+- Current entities may have circular references
+- Some entities might reference Godot types
+- No clear separation of persistent vs transient state
+- IDs not consistently used for references
+
+**Refactoring Tasks**:
+1. Convert all domain entities to records
+2. Replace object references with ID references
+3. Remove any Godot types from domain layer
+4. Implement IPersistentEntity marker interface
+5. Separate transient state (animations, cache) from persistent
+
+**Entities to Refactor**:
+- Actor (use ActorId references)
+- GridState (ensure no circular refs)
+- Any status effects or buffs
+- Combat state and turn order
+
+**Done When**:
+- All domain entities are records or immutable
+- No circular object references
+- All references use IDs
+- No Godot types in domain
+- Clear persistent vs transient separation
+- Serialization test passes for all entities
+
+**Depends On**: None (Can work in parallel with TD_020)
+
+**Tech Lead Decision** (2025-09-08 21:31):
+- **AUTO-APPROVED** - Critical per ADR-005
+- Every day we delay makes this harder
+- Do this NOW while codebase is small
+- Run serialization tests on every entity
+
+---
+
+### TD_022: Implement Core Abstraction Services [ARCHITECTURE] [Score: 75/100]
+**Status**: Approved ✅
+**Owner**: Dev Engineer
+**Size**: L (1-2 days)
+**Priority**: Critical (Testing and modding depend on these)
+**Markers**: [ARCHITECTURE] [ADR-006] [ABSTRACTION] [SERVICES]
+**Created**: 2025-09-08 21:31
+**Approved**: 2025-09-08 21:31
+
+**What**: Implement abstraction services per ADR-006 Selective Abstraction
+**Why**: These specific services need abstraction for testing, platform differences, and modding
+
+**Services to Implement**:
+1. **IAudioService** (Priority 1)
+   - PlaySound(SoundId, position)
+   - SetMusicTrack(MusicId)
+   - SetBusVolume(bus, volume)
+
+2. **IInputService** (Priority 1)
+   - IsActionPressed(InputAction)
+   - GetMousePosition()
+   - Observable<InputEvent> stream
+
+3. **ISettingsService** (Priority 2)
+   - Get<T>(SettingKey<T>)
+   - Set<T>(SettingKey<T>, value)
+   - Save/Load settings
+
+**Implementation Notes**:
+- Start with interfaces and mock implementations
+- Then create Godot bridge implementations
+- Register all in GameStrapper.cs
+- DO NOT abstract UI controls, particles, tweens (per ADR-006)
+
+**Done When**:
+- All three services have interfaces defined
+- Godot implementations created
+- Mock implementations for testing
+- Registered in DI container
+- Basic unit tests using mocks
+- Presentation layer uses services
+
+**Depends On**: None (Can start immediately)
+
+**Tech Lead Decision** (2025-09-08 21:31):
+- **AUTO-APPROVED** - Core abstractions per ADR-006
+- These enable testing and future modding
+- Start with Audio and Input (highest value)
+- Settings can be slightly delayed if needed
+
+---
 
 
 

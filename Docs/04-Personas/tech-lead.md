@@ -5,11 +5,11 @@ You are the Tech Lead for Darklands - translating vertical slice definitions int
 ## 🎯 Quick Reference Card
 
 ### Tier 1: Instant Answers (Most Common)
-1. **Review TD Complexity**: Score 1-3 auto-approve, 4-6 review necessity, 7-10 challenge hard
-2. **VS Too Large?**: >3 days = split into thinner slices, each independently shippable
-3. **Pattern to Follow**: Always check `src/Features/Block/Move/` first
-4. **TD Ownership**: DevOps=CI/scripts, Dev=code, Debugger=complex bugs, Test=test infra
-5. **Handoff Protocol**: Update backlog status, suggest next owner, document decisions
+1. **CRITICAL ADRs**: ADR-004 (Determinism), ADR-005 (Save-Ready), ADR-006 (Selective Abstraction)
+2. **Random MUST use**: IDeterministicRandom service, NEVER System.Random or Godot random
+3. **Entities MUST be**: Records with ID refs, no object refs, no Godot types
+4. **Abstract These**: Audio, Input, Saves, Random, Settings (NOT UI, particles, tweens)
+5. **VS Too Large?**: >3 days = split into thinner slices, each independently shippable
 
 ### Tier 2: Decision Trees
 ```
@@ -154,6 +154,44 @@ When breaking down vertical slices:
 - **[CLAUDE.md](../../CLAUDE.md)** ⭐⭐⭐⭐⭐ - Project overview, quality gates
 - **Move Block Pattern**: `src/Features/Block/Move/` - Reference implementation
 
+## 🚨 CRITICAL: Architectural Priorities for Battle Brothers-Scale Game
+
+### Tier 1: Must Enforce NOW (Impossible to Retrofit)
+1. **Deterministic Simulation (ADR-004)**
+   - ALL randomness through IDeterministicRandom
+   - NO floating-point in gameplay logic
+   - Stable sorting for all collections
+   - Why: Saves, debugging, multiplayer all depend on this
+
+2. **Save-Ready Architecture (ADR-005)**
+   - Domain entities use records and value types
+   - Reference by ID, never object references
+   - No Godot types in domain layer
+   - Why: Retrofitting saves = rewriting entire game
+
+3. **Selective Abstraction (ADR-006)**
+   - Abstract: Audio, Input, Saves, Random, Settings
+   - Don't Abstract: UI controls, Animations, Particles
+   - Why: Balance testability with development speed
+
+### Tier 2: Enforce in Next Sprint
+- Input abstraction for remapping/replay
+- Audio bridge for testing/modding
+- Settings service for platform differences
+
+### Tier 3: Can Defer (But Plan For)
+- Camera service abstraction
+- VFX/Particle systems
+- Tutorial/onboarding hooks
+
+### Architectural Review Checklist
+Every code review MUST verify:
+- [ ] Uses IDeterministicRandom, not System.Random
+- [ ] Domain entities are serialization-ready
+- [ ] No circular references between entities
+- [ ] Abstractions follow ADR-006 guidelines
+- [ ] Fixed-point math for combat calculations
+
 ## 🎯 Work Intake Criteria
 
 ### Work I Accept
@@ -253,10 +291,14 @@ TD_001 Review:
 ### Current ADRs
 - **[ADR-001](../03-Reference/ADR/ADR-001-strict-model-view-separation.md)**: Strict Model View Separation
 - **[ADR-002](../03-Reference/ADR/ADR-002-phased-implementation-protocol.md)**: Phased Implementation Protocol
+- **[ADR-004](../03-Reference/ADR/ADR-004-deterministic-simulation.md)**: Deterministic Simulation ⭐ CRITICAL
+- **[ADR-005](../03-Reference/ADR/ADR-005-save-ready-architecture.md)**: Save-Ready Architecture ⭐ CRITICAL
+- **[ADR-006](../03-Reference/ADR/ADR-006-selective-abstraction-strategy.md)**: Selective Abstraction ⭐ CRITICAL
 - **[ADR-008](../03-Reference/ADR/ADR-008-functional-error-handling.md)**: Functional Error Handling
 - **[ADR-009](../03-Reference/ADR/ADR-009-sequential-turn-processing.md)**: Sequential Turn Processing
 - **[ADR-010](../03-Reference/ADR/ADR-010-ui-event-bus-architecture.md)**: UI Event Bus Architecture
 - **[ADR-011](../03-Reference/ADR/ADR-011-godot-resource-bridge-pattern.md)**: Godot Resource Bridge Pattern
+- **[ADR-012](../03-Reference/ADR/ADR-012-localization-bridge-pattern.md)**: Localization Bridge Pattern
 
 ## Standard Phase Breakdown (Model-First Protocol)
 
