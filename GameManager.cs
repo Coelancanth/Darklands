@@ -76,7 +76,7 @@ namespace Darklands
                 _gridPresenter?.Dispose();
                 _actorPresenter?.Dispose();
                 _healthPresenter?.Dispose();
-                
+
                 _logger?.Information("Presenters disposed successfully");
 
                 // Dispose DI container
@@ -104,7 +104,7 @@ namespace Darklands
 
                 // Create Godot console sink for rich Editor output
                 var godotConsoleSink = new GodotConsoleSink(
-                    GodotSinkExtensions.DefaultGodotOutputTemplate, 
+                    GodotSinkExtensions.DefaultGodotOutputTemplate,
                     null);
 
                 // Initialize the dependency injection container with Godot console support
@@ -177,7 +177,7 @@ namespace Darklands
                     throw new InvalidOperationException("HealthView node not found. Expected child node named 'HealthBars'");
                 }
 
-                _logger?.Information("Views found successfully - Grid: {GridView}, Actor: {ActorView}, Health: {HealthView}", 
+                _logger?.Information("Views found successfully - Grid: {GridView}, Actor: {ActorView}, Health: {HealthView}",
                     _gridView?.Name ?? "null", _actorView?.Name ?? "null", _healthView?.Name ?? "null");
 
                 // Inject logger into views for proper architectural logging
@@ -193,7 +193,7 @@ namespace Darklands
                 var gridStateService = _serviceProvider.GetRequiredService<Darklands.Core.Application.Grid.Services.IGridStateService>();
                 var actorStateService = _serviceProvider.GetRequiredService<Darklands.Core.Application.Actor.Services.IActorStateService>();
                 var combatQueryService = _serviceProvider.GetRequiredService<Darklands.Core.Application.Combat.Services.ICombatQueryService>();
-                
+
                 _gridPresenter = new GridPresenter(_gridView!, mediator, _logger!, gridStateService);
                 _actorPresenter = new ActorPresenter(_actorView!, mediator, _logger!, gridStateService, actorStateService);
                 _healthPresenter = new HealthPresenter(_healthView!, mediator, _logger!, actorStateService, combatQueryService);
@@ -202,11 +202,11 @@ namespace Darklands
                 _gridView!.SetPresenter(_gridPresenter);
                 _actorView!.SetPresenter(_actorPresenter);
                 _healthView!.SetPresenter(_healthPresenter);
-                
+
                 // CRITICAL: Connect presenters to each other for coordinated updates
                 // This was missing and caused the visual movement bug!
                 _gridPresenter.SetActorPresenter(_actorPresenter);
-                
+
                 // CRITICAL: Connect ActorPresenter to HealthPresenter for health bar creation
                 // This connection ensures health bars are created when actors are spawned
                 _actorPresenter.SetHealthPresenter(_healthPresenter);
@@ -237,7 +237,7 @@ namespace Darklands
             _logger?.Fatal(ex, "Unhandled exception in GameManager - application may be unstable");
             // Fallback to GD.PrintErr for critical errors
             GD.PrintErr($"Unhandled exception in GameManager: {ex.Message}");
-            
+
             // For development, we might want to crash to surface the issue
             // For production, we'd log and attempt graceful recovery
         }

@@ -30,10 +30,10 @@ namespace Darklands.Views
         // Queue-based storage for deferred operations - fixes race condition (TD_011)
         private readonly Queue<ActorCreationData> _pendingActorCreations = new();
         private readonly Queue<ActorMoveData> _pendingActorMoves = new();
-        
+
         // Data structures to hold operation parameters
         private record ActorCreationData(ColorRect ActorNode, Darklands.Core.Domain.Grid.ActorId ActorId);
-        private record ActorMoveData(ColorRect ActorNode, Vector2 EndPosition, Darklands.Core.Domain.Grid.ActorId ActorId, 
+        private record ActorMoveData(ColorRect ActorNode, Vector2 EndPosition, Darklands.Core.Domain.Grid.ActorId ActorId,
             Darklands.Core.Domain.Grid.Position FromPosition, Darklands.Core.Domain.Grid.Position ToPosition);
 
         /// <summary>
@@ -152,7 +152,7 @@ namespace Darklands.Views
 
                 // Use deferred call for tween operations to ensure main thread execution
                 CallDeferred("ProcessPendingActorMoves");
-                
+
                 await Task.CompletedTask;
             }
             catch (Exception ex)
@@ -172,19 +172,19 @@ namespace Darklands.Views
                 while (_pendingActorMoves.Count > 0)
                 {
                     var moveData = _pendingActorMoves.Dequeue();
-                    
+
                     if (_actorNodes.ContainsKey(moveData.ActorId))
                     {
                         // Get the ACTUAL actor node from our dictionary
                         var actualActorNode = _actorNodes[moveData.ActorId];
-                        
+
                         // Set position immediately
                         actualActorNode.Position = moveData.EndPosition;
-                        _logger?.Information("Actor {ActorId} moved to ({FromX},{FromY}) → ({ToX},{ToY})", 
-                            moveData.ActorId, 
+                        _logger?.Information("Actor {ActorId} moved to ({FromX},{FromY}) → ({ToX},{ToY})",
+                            moveData.ActorId,
                             moveData.FromPosition.X, moveData.FromPosition.Y,
                             moveData.ToPosition.X, moveData.ToPosition.Y);
-                        
+
                         // TODO: Re-enable tween animation once basic movement is verified working
                     }
                     else
@@ -194,7 +194,7 @@ namespace Darklands.Views
                 }
             }
         }
-        
+
 
         /// <summary>
         /// Updates an actor's visual state or appearance.
@@ -202,7 +202,7 @@ namespace Darklands.Views
         public async Task UpdateActorAsync(Darklands.Core.Domain.Grid.ActorId actorId, Darklands.Core.Domain.Grid.Position position, ActorType actorType)
         {
             await CallDeferredAsync(actorId, position, actorType);
-            
+
             async Task CallDeferredAsync(Darklands.Core.Domain.Grid.ActorId id, Darklands.Core.Domain.Grid.Position pos, ActorType type)
             {
                 try
@@ -215,7 +215,7 @@ namespace Darklands.Views
 
                     // Update color based on new type
                     actorNode.Color = GetActorColor(type);
-                    
+
                     // Update position if needed
                     actorNode.Position = new Vector2(pos.X * TileSize, pos.Y * TileSize);
 
@@ -234,7 +234,7 @@ namespace Darklands.Views
         public async Task RemoveActorAsync(Darklands.Core.Domain.Grid.ActorId actorId, Darklands.Core.Domain.Grid.Position position)
         {
             await CallDeferredAsync(actorId, position);
-            
+
             async Task CallDeferredAsync(Darklands.Core.Domain.Grid.ActorId id, Darklands.Core.Domain.Grid.Position pos)
             {
                 try
@@ -264,7 +264,7 @@ namespace Darklands.Views
         public async Task HighlightActorAsync(Darklands.Core.Domain.Grid.ActorId actorId, ActorHighlightType highlightType)
         {
             await CallDeferredAsync(actorId, highlightType);
-            
+
             async Task CallDeferredAsync(Darklands.Core.Domain.Grid.ActorId id, ActorHighlightType type)
             {
                 try
@@ -279,7 +279,7 @@ namespace Darklands.Views
                     // Future: Different highlight types could use different effects
                     var originalColor = actorNode.Color;
                     var highlightColor = originalColor.Lightened(0.3f);
-                    
+
                     // Create border effect by slightly increasing size and changing color temporarily
                     var tween = CreateTween();
                     tween.TweenProperty(actorNode, "Modulate", highlightColor, 0.1f);
@@ -299,7 +299,7 @@ namespace Darklands.Views
         public async Task UnhighlightActorAsync(Darklands.Core.Domain.Grid.ActorId actorId)
         {
             await CallDeferredAsync(actorId);
-            
+
             async Task CallDeferredAsync(Darklands.Core.Domain.Grid.ActorId id)
             {
                 try
@@ -329,7 +329,7 @@ namespace Darklands.Views
         public async Task ShowActorFeedbackAsync(Darklands.Core.Domain.Grid.ActorId actorId, ActorFeedbackType feedbackType, string? message = null)
         {
             await CallDeferredAsync(actorId, feedbackType, message);
-            
+
             async Task CallDeferredAsync(Darklands.Core.Domain.Grid.ActorId id, ActorFeedbackType type, string? msg)
             {
                 try
@@ -353,7 +353,7 @@ namespace Darklands.Views
         public async Task RefreshAllActorsAsync()
         {
             await CallDeferredAsync();
-            
+
             async Task CallDeferredAsync()
             {
                 try

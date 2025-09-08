@@ -99,7 +99,7 @@ namespace Darklands.Views
             _pendingActorId = actorId;
             _pendingPosition = position;
             _pendingHealth = health;
-            
+
             await Task.Run(() =>
             {
                 CallDeferred("DisplayHealthBarDeferred");
@@ -139,7 +139,7 @@ namespace Darklands.Views
                 _healthBars[_pendingActorId] = healthBarNode;
                 AddChild(healthBarNode);
 
-                _logger?.Debug("Created health bar for actor {ActorId} at {Position} with health {Health}", 
+                _logger?.Debug("Created health bar for actor {ActorId} at {Position} with health {Health}",
                     _pendingActorId, _pendingPosition, _pendingHealth);
             }
             catch (Exception ex)
@@ -178,7 +178,7 @@ namespace Darklands.Views
                     _healthBars[data.Value.ActorId] = healthBarNode;
                     AddChild(healthBarNode);
 
-                    _logger?.Debug("Created health bar for actor {ActorId} at {Position} with health {Health}", 
+                    _logger?.Debug("Created health bar for actor {ActorId} at {Position} with health {Health}",
                         data.Value.ActorId, data.Value.Position, data.Value.Health);
                 }
                 catch (Exception ex)
@@ -196,7 +196,7 @@ namespace Darklands.Views
             _pendingActorId = actorId;
             _pendingOldHealth = oldHealth;
             _pendingNewHealth = newHealth;
-            
+
             await Task.Run(() =>
             {
                 CallDeferred("UpdateHealthDeferred");
@@ -235,7 +235,7 @@ namespace Darklands.Views
             _pendingActorId = actorId;
             _pendingFromPosition = fromPosition;
             _pendingToPosition = toPosition;
-            
+
             await Task.Run(() =>
             {
                 CallDeferred("MoveHealthBarDeferred");
@@ -277,7 +277,7 @@ namespace Darklands.Views
         {
             _pendingActorId = actorId;
             _pendingPosition = position;
-            
+
             await Task.Run(() =>
             {
                 CallDeferred("RemoveHealthBarDeferred");
@@ -317,7 +317,7 @@ namespace Darklands.Views
             _pendingFeedbackType = feedbackType;
             _pendingAmount = amount;
             _pendingPosition = position;
-            
+
             await Task.Run(() =>
             {
                 CallDeferred("ShowHealthFeedbackDeferred");
@@ -335,12 +335,12 @@ namespace Darklands.Views
                 // Center the feedback text on the tile
                 pixelPosition.X += TileSize / 2;
                 pixelPosition.Y += TileSize / 2;
-                
+
                 var feedbackLabel = CreateFeedbackLabel(_pendingFeedbackType, _pendingAmount);
                 feedbackLabel.Position = pixelPosition + new Vector2(0, HealthBarOffsetY - 10);
-                
+
                 AddChild(feedbackLabel);
-                
+
                 // Animate the feedback text
                 AnimateFeedbackText(feedbackLabel);
 
@@ -360,7 +360,7 @@ namespace Darklands.Views
         {
             _pendingActorId = actorId;
             _pendingHighlightType = highlightType;
-            
+
             await Task.Run(() =>
             {
                 CallDeferred("HighlightHealthBarDeferred");
@@ -397,7 +397,7 @@ namespace Darklands.Views
         public async Task UnhighlightHealthBarAsync(ActorId actorId)
         {
             _pendingActorId = actorId;
-            
+
             await Task.Run(() =>
             {
                 CallDeferred("UnhighlightHealthBarDeferred");
@@ -449,7 +449,7 @@ namespace Darklands.Views
                 {
                     healthBarNode.RefreshDisplay();
                 }
-                
+
                 _logger?.Debug("Refreshed all health bar displays");
             }
             catch (Exception ex)
@@ -467,10 +467,10 @@ namespace Darklands.Views
             // Center the health bar on the tile (add half tile size to X and Y)
             pixelPosition.X += TileSize / 2;
             pixelPosition.Y += TileSize / 2;
-            
+
             return new HealthBarNode(
-                actorId, 
-                health, 
+                actorId,
+                health,
                 pixelPosition,
                 HealthBarWidth,
                 HealthBarHeight,
@@ -488,7 +488,7 @@ namespace Darklands.Views
         private Label CreateFeedbackLabel(HealthFeedbackType feedbackType, int amount)
         {
             var label = new Label();
-            
+
             switch (feedbackType)
             {
                 case HealthFeedbackType.Damage:
@@ -515,7 +515,7 @@ namespace Darklands.Views
 
             // Make text bold and visible
             label.AddThemeStyleboxOverride("normal", new StyleBoxFlat());
-            
+
             return label;
         }
 
@@ -526,14 +526,14 @@ namespace Darklands.Views
         {
             var tween = CreateTween();
             tween.SetParallel(true);
-            
+
             // Move up and fade out
             var startPos = label.Position;
             var endPos = startPos + new Vector2(0, -30);
-            
+
             tween.TweenProperty(label, "position", endPos, 1.0f);
             tween.TweenProperty(label, "modulate:a", 0.0f, 1.0f);
-            
+
             // Remove after animation
             tween.TweenCallback(Callable.From(() => label.QueueFree())).SetDelay(1.0f);
         }
@@ -562,7 +562,7 @@ namespace Darklands.Views
         private readonly Color _yellowColor;
         private readonly Color _redColor;
         private readonly Color _bgColor;
-        
+
         private ColorRect? _backgroundRect;
         private ColorRect? _healthRect;
         private Label? _healthText;
@@ -581,7 +581,7 @@ namespace Darklands.Views
             _yellowColor = yellowColor;
             _redColor = redColor;
             _bgColor = bgColor;
-            
+
             Position = position;
             // Don't create elements here - wait for _Ready()
         }
@@ -647,15 +647,15 @@ namespace Darklands.Views
 
             var healthPercent = _health.HealthPercentage;
             var healthWidth = Math.Max(0, (float)(_width * healthPercent)); // Ensure non-negative
-            
+
             _healthRect.Size = new Vector2(healthWidth, _height);
             _healthRect.Color = GetHealthColor(healthPercent);
-            
+
             // Update the text display
             if (_healthText != null)
             {
                 _healthText.Text = $"{_health.Current}/{_health.Maximum}";
-                
+
                 // Change text color based on health level
                 if (healthPercent <= 0.25)
                 {
@@ -691,7 +691,7 @@ namespace Darklands.Views
         public void SetHighlight(HealthHighlightType highlightType)
         {
             _currentHighlight = highlightType;
-            
+
             // Add visual highlight effect based on type
             switch (highlightType)
             {
@@ -702,15 +702,15 @@ namespace Darklands.Views
                     criticalTween.TweenProperty(this, "modulate", Colors.Red, 0.5f);
                     criticalTween.TweenProperty(this, "modulate", Colors.White, 0.5f);
                     break;
-                    
+
                 case HealthHighlightType.HealTarget:
                     Modulate = Colors.LightGreen;
                     break;
-                    
+
                 case HealthHighlightType.DamageTarget:
                     Modulate = Colors.LightCoral;
                     break;
-                    
+
                 case HealthHighlightType.Selected:
                     Modulate = Colors.Yellow;
                     break;
@@ -724,7 +724,7 @@ namespace Darklands.Views
         {
             _currentHighlight = null;
             Modulate = Colors.White;
-            
+
             // Stop any running highlight tweens - Godot 4.4 approach
             // Note: In Godot 4.4, tweens are automatically cleaned up when nodes are freed
         }

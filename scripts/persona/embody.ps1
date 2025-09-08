@@ -296,7 +296,35 @@ foreach ($point in $reminder.Points) {
 }
 Write-Host ""
 
-# Step 5: Final Status
+# Step 5: Session Log Maintenance
+Write-Phase "Session Log Maintenance"
+
+# Auto-sort session log to prevent entropy
+$sessionLogScript = Join-Path $PSScriptRoot ".." "utils" "fix-session-log-order.ps1"
+if (Test-Path $sessionLogScript) {
+    Write-Host "🔧 Checking session log chronological order..." -ForegroundColor Cyan
+    
+    # First validate only to see if there are issues
+    & $sessionLogScript -ValidateOnly *>$null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "⚠️  Session log has chronological ordering issues" -ForegroundColor Yellow
+        Write-Host "🔧 Auto-fixing session log order..." -ForegroundColor Cyan
+        & $sessionLogScript *>$null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "✅ Session log chronological order fixed!" -ForegroundColor Green
+        } else {
+            Write-Host "⚠️  Could not fix session log order - check manually later" -ForegroundColor Yellow
+        }
+    } else {
+        Write-Host "✅ Session log is properly ordered" -ForegroundColor Green
+    }
+} else {
+    Write-Host "ℹ️  Session log auto-sort script not found (optional)" -ForegroundColor Gray
+}
+
+Write-Host ""
+
+# Step 6: Final Status
 Write-Phase "Ready to Work!"
 
 $currentBranch = git branch --show-current

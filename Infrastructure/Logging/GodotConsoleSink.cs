@@ -42,7 +42,7 @@ public class GodotConsoleSink : ILogEventSink
 
             // Split into lines and process each line separately to avoid empty line artifacts
             var lines = writer.ToString()?.Split('\n') ?? Array.Empty<string>();
-            
+
             foreach (var line in lines)
             {
                 if (!string.IsNullOrEmpty(line))
@@ -153,22 +153,22 @@ public class GodotConsoleSink : ILogEventSink
         {
             return token switch
             {
-                TextToken textToken => 
+                TextToken textToken =>
                     (_, output) => output.Write(textToken.Text),
-                    
+
                 PropertyToken propertyToken => propertyToken.PropertyName switch
                 {
-                    OutputProperties.LevelPropertyName => 
+                    OutputProperties.LevelPropertyName =>
                         (logEvent, output) => output.Write(logEvent.Level),
-                    OutputProperties.MessagePropertyName => 
+                    OutputProperties.MessagePropertyName =>
                         (logEvent, output) => logEvent.RenderMessage(output, _formatProvider),
-                    OutputProperties.NewLinePropertyName => 
+                    OutputProperties.NewLinePropertyName =>
                         (_, output) => output.Write('\n'),
-                    OutputProperties.TimestampPropertyName => 
+                    OutputProperties.TimestampPropertyName =>
                         RenderTimestamp(propertyToken.Format),
-                    "SourceContext" => 
+                    "SourceContext" =>
                         RenderSourceContext(propertyToken.Format),
-                    _ => 
+                    _ =>
                         RenderProperty(propertyToken.PropertyName, propertyToken.Format),
                 },
                 _ => null,
@@ -178,13 +178,13 @@ public class GodotConsoleSink : ILogEventSink
         private Renderer RenderTimestamp(string? format)
         {
             var formatter = _formatProvider?.GetFormat(typeof(ICustomFormatter)) as ICustomFormatter;
-            
+
             return (logEvent, output) =>
             {
                 var timestampText = formatter != null
                     ? formatter.Format(format, logEvent.Timestamp, _formatProvider)
                     : logEvent.Timestamp.ToString(format, _formatProvider ?? CultureInfo.InvariantCulture);
-                    
+
                 output.Write(timestampText);
             };
         }
@@ -227,7 +227,7 @@ public static class GodotSinkExtensions
     /// Default output template optimized for Godot console readability.
     /// Shows timestamp, level, short source context, and message with exception details.
     /// </summary>
-    public const string DefaultGodotOutputTemplate = 
+    public const string DefaultGodotOutputTemplate =
         "[{Timestamp:HH:mm:ss}] [{Level:u3}] [{SourceContext}] {Message:lj}{NewLine}{Exception}";
 
     /// <summary>
