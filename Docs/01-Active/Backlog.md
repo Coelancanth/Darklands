@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-08 12:53
+**Last Updated**: 2025-09-08 14:23
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -76,50 +76,6 @@
 
 
 
-### VS_010c: Dummy Combat Target [Score: 85/100]  
-**Status**: Ready to Resume (Dev Engineer, 2025-09-08) ← UNBLOCKED: BR_001 resolved by TD_011
-**Owner**: Dev Engineer (scene integration work)
-**Size**: XS (0.2 days remaining - only scene integration left)
-**Priority**: Critical (Testing/visualization)
-**Markers**: [TESTING] [SCENE]
-**Created**: 2025-09-07 16:13
-
-**What**: Static enemy target in grid scene for combat testing
-**Why**: Need something visible to attack and test combat mechanics
-
-**How**:
-- ✅ DummyActor with health but no AI (IsStatic = true)  
-- ✅ SpawnDummyCommand places at grid position
-- ✅ Registers in actor state + grid services
-- 🔄 brown sprite with health bar
-- 🔄 Death animation on zero health
-
-**Done When**:
-- 🔄 Dummy appears at grid position (5,5) on scene start
-- 🔄 Has visible health bar above sprite
-- ✅ Takes damage from player attacks (service integration done)
-- 🔄 Shows hit flash on damage  
-- 🔄 Fades out when killed
-- 🔄 Respawns on scene reload
-
-**Acceptance by Phase**:
-- ✅ Phase 1: DummyActor domain model (18 tests)
-- ✅ Phase 2: SpawnDummyCommand places in grid (27 tests) 
-- ✅ Phase 3: Registers in all services (transaction rollback)
-- 🔄 Phase 4: Sprite with health bar in scene
-
-**PROGRESS UPDATE (2025-09-07 20:47)**:
-- **Complete**: Domain model, command/handler, service integration
-- **Test Status**: 343/343 tests passing, 45 comprehensive tests
-- **Remaining**: Visual sprite + health bar in combat_scene.tscn
-- **Implementation**: Commit 496e781 has core functionality ready
-
-**Depends On**: VS_010a (Health system), VS_008 (Grid scene)
-
-**Tech Lead Decision** (2025-09-07 16:13):
-- Complexity: 2/10 - Minimal logic, mostly scene setup
-- Risk: Low - Simple static entity
-- Note: Becomes reusable prefab for future enemies
 
 
 

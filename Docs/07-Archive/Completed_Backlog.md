@@ -4,7 +4,7 @@
 
 **Purpose**: Completed and rejected work items for historical reference and lessons learned.
 
-**Last Updated**: 2025-09-07 16:50 
+**Last Updated**: 2025-09-08 14:23 
 
 ## Archive Protocol
 
@@ -1173,4 +1173,63 @@ This violates Single Source of Truth and WILL cause synchronization bugs where a
 - [ ] HANDBOOK update: Clean Architecture service separation patterns (domain vs infrastructure concerns)  
 - [ ] Test pattern: Architecture refactoring validation with comprehensive test coverage
 - [ ] Architecture pattern: Composite query service design for cross-cutting data needs
+
+### VS_010c: Dummy Combat Target
+**Extraction Status**: NOT EXTRACTED ⚠️
+**Completed**: 2025-09-08
+**Archive Note**: Complete dummy combat target implementation with enhanced death system, health bar updates, and rich damage logging beyond original scope
+---
+### VS_010c: Dummy Combat Target [Score: 85/100]  
+**Status**: COMPLETE ✅ (All phases delivered, enhanced combat features implemented)
+**Owner**: Dev Engineer (completed all 4 phases)
+**Size**: XS (0.2 days remaining - only scene integration left)
+**Priority**: Critical (Testing/visualization)
+**Markers**: [TESTING] [SCENE] [COMPLETE]
+**Created**: 2025-09-07 16:13
+
+**What**: Static enemy target in grid scene for combat testing
+**Why**: Need something visible to attack and test combat mechanics
+
+**How**:
+- ✅ DummyActor with health but no AI (IsStatic = true)  
+- ✅ SpawnDummyCommand places at grid position
+- ✅ Registers in actor state + grid services
+- ✅ brown sprite with health bar (implemented)
+- ✅ Death animation on zero health (immediate cleanup system)
+
+**Done When**:
+- ✅ Dummy appears at grid position (5,5) on scene start
+- ✅ Has visible health bar above sprite
+- ✅ Takes damage from player attacks (service integration done)
+- ✅ Shows hit flash on damage  
+- ✅ Fades out when killed (immediate sprite removal)
+- ✅ Respawns on scene reload
+
+**Acceptance by Phase**:
+- ✅ Phase 1: DummyActor domain model (18 tests)
+- ✅ Phase 2: SpawnDummyCommand places in grid (27 tests) 
+- ✅ Phase 3: Registers in all services (transaction rollback)
+- ✅ Phase 4: Sprite with health bar in scene (complete visual implementation)
+
+**FINAL STATUS (2025-09-08)**:
+- **Complete**: All 4 phases fully implemented and tested
+- **Test Status**: 358/358 tests passing, zero warnings
+- **Enhanced Features Beyond Scope**: 
+  - Death cleanup system with immediate sprite removal
+  - Health bar live updates during damage
+  - Enhanced combat logging with rich damage information (⚔️ 💀 ❌ indicators)
+- **Implementation**: Complete with visual dummy target in combat scene
+
+**Depends On**: VS_010a (Health system), VS_008 (Grid scene)
+
+**Tech Lead Decision** (2025-09-07 16:13):
+- Complexity: 2/10 - Minimal logic, mostly scene setup
+- Risk: Low - Simple static entity
+- Note: Becomes reusable prefab for future enemies
+---
+**Extraction Targets**:
+- [ ] ADR needed for: Dummy actor patterns for combat testing systems
+- [ ] HANDBOOK update: Visual combat target implementation with health bars and death systems
+- [ ] Test pattern: Complete phase-based testing for combat entities (358 tests)
+- [ ] Architecture pattern: Static actor implementation for testing scenarios
 
