@@ -68,12 +68,12 @@ namespace Darklands.Core.Presentation.Presenters
                 // Log combat message (this serves as our combat log)
                 if (wasLethal)
                 {
-                    _logger?.Information("💀 {AttackerName} killed {TargetName} with {AttackName} for {Damage} damage!",
+                    _logger?.Information("{AttackerName} killed {TargetName} with {AttackName} for {Damage} damage",
                         attackerId, targetId, combatAction.Name, damage);
                 }
                 else
                 {
-                    _logger?.Information("⚔️ {AttackerName} hit {TargetName} with {AttackName} for {Damage} damage",
+                    _logger?.Information("{AttackerName} hit {TargetName} with {AttackName} for {Damage} damage",
                         attackerId, targetId, combatAction.Name, damage);
                 }
 
@@ -94,7 +94,7 @@ namespace Darklands.Core.Presentation.Presenters
                 if (wasLethal)
                 {
                     await View.ShowDeathEffectAsync(targetId, targetPosition);
-                    _logger?.Information("💀 {TargetName} has been defeated", targetId);
+                    _logger?.Information("{TargetName} has been defeated", targetId);
                 }
             }
             catch (Exception ex)
@@ -129,12 +129,12 @@ namespace Darklands.Core.Presentation.Presenters
                 // Log combat message (this serves as our combat log)
                 if (wasLethal)
                 {
-                    _logger?.Information("💀 {AttackerName} killed {TargetName} with {AttackName} for {Damage} damage!",
+                    _logger?.Information("{AttackerName} killed {TargetName} with {AttackName} for {Damage} damage",
                         attackerId, targetId, combatAction.Name, damage);
                 }
                 else
                 {
-                    _logger?.Information("⚔️ {AttackerName} hit {TargetName} with {AttackName} for {Damage} damage",
+                    _logger?.Information("{AttackerName} hit {TargetName} with {AttackName} for {Damage} damage",
                         attackerId, targetId, combatAction.Name, damage);
                 }
 
@@ -179,7 +179,7 @@ namespace Darklands.Core.Presentation.Presenters
                 var targetPosition = targetPos.IfNone(new Position(0, 0)); // Default if target not on grid
 
                 // Log combat message
-                _logger?.Warning("❌ {AttackerName} failed to attack {TargetName} with {AttackName}: {Reason}",
+                _logger?.Warning("{AttackerName} failed to attack {TargetName} with {AttackName}: {Reason}",
                     attackerId, targetId, combatAction.Name, reason);
 
                 // Show failure feedback

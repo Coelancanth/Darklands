@@ -55,7 +55,7 @@ namespace Darklands.Core.Presentation.Presenters
                 // For Phase 4, display health for the test player if it exists
                 // Future versions would load all actors from the application state
                 _ = InitializeHealthBarsAsync();
-                _logger.Information("Initial health bar display setup initiated");
+                _logger.Debug("Initial health bar display setup initiated");
             }
             catch (Exception ex)
             {
@@ -317,7 +317,7 @@ namespace Darklands.Core.Presentation.Presenters
 
                 await View.RefreshAllHealthBarsAsync();
 
-                _logger.Information("All health bar displays refreshed successfully");
+                _logger.Debug("All health bar displays refreshed successfully");
             }
             catch (Exception ex)
             {

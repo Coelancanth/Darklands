@@ -74,7 +74,7 @@ namespace Darklands.Core.Presentation.Presenters
                 // Create a dummy target for combat testing (VS_010c Phase 4)
                 InitializeDummyTarget();
 
-                _logger.Information("Initial actor display setup initiated - player and dummy target");
+                _logger.Debug("Initial actor display setup initiated - player and dummy target");
             }
             catch (Exception ex)
             {
@@ -116,13 +116,13 @@ namespace Darklands.Core.Presentation.Presenters
                             if (_healthPresenter != null)
                             {
                                 _healthPresenter.HandleActorCreated(actor.Id, startPosition, actor.Health);
-                                _logger.Information("Test player actor created with health bar at position {Position} with ID {ActorId} and health {Health}",
+                                _logger.Debug("Test player actor created with health bar at position {Position} with ID {ActorId} and health {Health}",
                                     startPosition, actor.Id, actor.Health);
                             }
                             else
                             {
                                 _logger.Warning("HealthPresenter not connected - health bar will not be displayed for test player");
-                                _logger.Information("Test player actor created (no health bar) at position {Position} with ID {ActorId} and health {Health}",
+                                _logger.Debug("Test player actor created (no health bar) at position {Position} with ID {ActorId} and health {Health}",
                                     startPosition, actor.Id, actor.Health);
                             }
                         }
@@ -187,7 +187,7 @@ namespace Darklands.Core.Presentation.Presenters
                                 if (_healthPresenter != null)
                                 {
                                     _healthPresenter.HandleActorCreated(actor.Id, dummyPosition, actor.Health);
-                                    _logger.Information("Dummy target created with health bar at {Position} - ID: {ActorId}, Health: {Health}",
+                                    _logger.Debug("Dummy target created with health bar at {Position} - ID: {ActorId}, Health: {Health}",
                                         dummyPosition, actor.Id, actor.Health);
                                 }
                                 else
@@ -306,7 +306,7 @@ namespace Darklands.Core.Presentation.Presenters
                 // Future versions would query the application layer for all actors
                 await View.RefreshAllActorsAsync();
 
-                _logger.Information("All actor displays refreshed successfully");
+                _logger.Debug("All actor displays refreshed successfully");
             }
             catch (Exception ex)
             {

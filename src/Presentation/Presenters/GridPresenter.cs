@@ -154,7 +154,7 @@ namespace Darklands.Core.Presentation.Presenters
             await result.Match(
                 Succ: async _ =>
                 {
-                    _logger.Information("Successfully processed move to position {Position}", targetPosition);
+                    _logger.Debug("Successfully processed move to position {Position}", targetPosition);
 
                     // Notify ActorPresenter about the successful move
                     if (_actorPresenter != null && fromPositionOption.IsSome)
@@ -233,7 +233,7 @@ namespace Darklands.Core.Presentation.Presenters
                         // Refresh the complete grid state
                         await View.RefreshGridAsync(grid);
 
-                        _logger.Information("Grid display refreshed successfully with {Width}x{Height} grid",
+                        _logger.Debug("Grid display refreshed successfully with {Width}x{Height} grid",
                             grid.Width, grid.Height);
 
                     },

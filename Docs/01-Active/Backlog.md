@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-09 18:50 (TD_020, TD_026 moved to archive with property tests complete; backlog cleaned)
+**Last Updated**: 2025-09-09 18:58 (Added TD_030: Fix Code Formatting CI/Local Inconsistency)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 002
-- **Next TD**: 030  
+- **Next TD**: 031  
 - **Next VS**: 011 
 
 
@@ -497,6 +497,38 @@ public override void _Ready()
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*
 
+### TD_030: Fix Code Formatting CI/Local Inconsistency [DEVOPS] [Score: 75/100]
+**Status**: Proposed 📋
+**Owner**: DevOps Engineer
+**Size**: S (2-4h)
+**Priority**: Important (Developer Experience)
+**Markers**: [DEVOPS] [CI-CD] [FORMATTING] [DX]
+**Created**: 2025-09-09 18:58
+
+**What**: Eliminate formatting inconsistency between local and remote environments
+**Why**: Prevents wasted time on formatting failures and improves developer experience
+
+**Problem Statement**:
+- Local pre-commit hooks don't catch same formatting issues as remote CI
+- Causes PR failures after code appears clean locally
+- Wastes developer time and breaks flow
+- Inconsistent formatting enforcement creates friction
+
+**Solution Options**:
+1. **Fix local hooks** to match remote formatting exactly, OR
+2. **Enable auto-formatting** in CI with push back to PR, OR
+3. **Remove formatting checks** from CI entirely
+
+**Done When**:
+- Local formatting matches remote CI exactly, OR
+- Alternative solution implemented and tested
+- No more formatting-only PR failures
+- Developer experience improved
+- Solution documented for team
+
+**Depends On**: None
+
+---
 
 ### TD_015: Reduce Logging Verbosity and Remove Emojis [PRODUCTION] [Score: 60/100]
 **Status**: Approved ✅

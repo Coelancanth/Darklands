@@ -24,13 +24,13 @@ public partial class GameManager
     {
         try
         {
-            _logger?.Information("🎮 [GameManager] Received death notification for actor {ActorId} at {Position}", 
+            _logger?.Information("[GameManager] Received death notification for actor {ActorId} at {Position}", 
                 notification.ActorId, notification.Position);
 
             // Remove actor sprite using the same logic as the old callback
             if (_actorPresenter != null)
             {
-                _logger?.Information("🎮 [GameManager] Calling deferred removal for {ActorId}", notification.ActorId);
+                _logger?.Information("[GameManager] Calling deferred removal for {ActorId}", notification.ActorId);
                 // Use CallDeferred to ensure this runs on the main thread
                 CallDeferred(nameof(RemoveActorDeferred), 
                     notification.ActorId.Value.ToString(), 
@@ -39,7 +39,7 @@ public partial class GameManager
             }
             else
             {
-                _logger?.Error("❌ [GameManager] ActorPresenter is NULL - cannot remove sprite!");
+                _logger?.Error("[GameManager] ActorPresenter is NULL - cannot remove sprite!");
             }
 
         }
@@ -63,13 +63,13 @@ public partial class GameManager
     {
         try
         {
-            _logger?.Information("🩺 [GameManager] Received damage notification for actor {ActorId}: {OldHealth} → {NewHealth}", 
+            _logger?.Information("[GameManager] Received damage notification for actor {ActorId}: {OldHealth} → {NewHealth}", 
                 notification.ActorId, notification.OldHealth, notification.NewHealth);
 
             // Update health bar via presenter using the same logic as the old callback
             if (_healthPresenter != null)
             {
-                _logger?.Information("🩺 [GameManager] Updating health bar via HealthPresenter");
+                _logger?.Information("[GameManager] Updating health bar via HealthPresenter");
                 // Use CallDeferred to ensure this runs on the main thread
                 CallDeferred(nameof(UpdateHealthBarDeferred), 
                     notification.ActorId.Value.ToString(), 
@@ -80,7 +80,7 @@ public partial class GameManager
             }
             else
             {
-                _logger?.Error("❌ [GameManager] HealthPresenter is NULL - cannot update health bar!");
+                _logger?.Error("[GameManager] HealthPresenter is NULL - cannot update health bar!");
             }
 
         }
