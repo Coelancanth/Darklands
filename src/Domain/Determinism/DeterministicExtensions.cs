@@ -213,8 +213,8 @@ public static class DeterministicExtensions
         // Use stable hash for deterministic partitioning
         foreach (var item in array)
         {
-            var key = keySelector(item);
-            var hash = DeterministicHash(key);
+            var partitionValue = keySelector(item);
+            var hash = DeterministicHash(partitionValue);
             var partition = (int)(hash % (uint)partitionCount);
             partitions[partition].Add(item);
         }

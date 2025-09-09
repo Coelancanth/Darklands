@@ -47,10 +47,10 @@ public class DeterministicRandomTests
         {
             var result1 = random1.Next(100, $"test_{i}");
             var result2 = random2.Next(100, $"test_{i}");
-            
+
             result1.IsSucc.Should().BeTrue($"iteration {i} result1 should succeed");
             result2.IsSucc.Should().BeTrue($"iteration {i} result2 should succeed");
-            
+
             var value1 = result1.Match(Succ: x => x, Fail: _ => -1);
             var value2 = result2.Match(Succ: x => x, Fail: _ => -1);
             value1.Should().Be(value2, $"iteration {i} should produce same result");
@@ -217,7 +217,7 @@ public class DeterministicRandomTests
         // Assert
         result.IsSucc.Should().BeTrue($"{count}d{sides}+{modifier} should succeed");
         result.Match(
-            Succ: value => value.Should().BeInRange(count + modifier, count * sides + modifier, 
+            Succ: value => value.Should().BeInRange(count + modifier, count * sides + modifier,
                 $"{count}d{sides}+{modifier} should be in range [{count + modifier}, {count * sides + modifier}]"),
             Fail: _ => throw new InvalidOperationException("Expected success")
         );
@@ -375,18 +375,18 @@ public class DeterministicRandomTests
 
         // Assert
         childResult.IsSucc.Should().BeTrue();
-        
+
         childResult.Match(
             Succ: child =>
             {
                 child.Should().NotBeNull();
                 child.RootSeed.Should().Be(12345UL, "child should have same root seed as original");
                 child.Stream.Should().NotBe(parent.Stream, "child should have different stream");
-                
+
                 // Verify independence - parent and child produce different sequences
                 var parentValue = parent.Next(1000, "parent_test");
                 var childValue = child.Next(1000, "child_test");
-                
+
                 var parentVal = parentValue.Match(Succ: x => x, Fail: _ => -1);
                 var childVal = childValue.Match(Succ: x => x, Fail: _ => -2);
                 parentVal.Should().NotBe(childVal, "parent and child should produce different values");
@@ -415,7 +415,7 @@ public class DeterministicRandomTests
 
         // Same fork name from same root seed should produce identical streams
         child1.Stream.Should().Be(child2.Stream);
-        
+
         // Verify they produce identical sequences
         for (int i = 0; i < 50; i++)
         {

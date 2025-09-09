@@ -26,10 +26,10 @@ public class DeterministicExtensionsTests
         // Act
         var sorted = items.OrderByStable(x => x.Key).ToArray();
 
-        // Assert - Items with key=3 should appear in original order (B, D)
+        // Assert - Items with value=3 should appear in original order (B, D)
         sorted.Where(x => x.Key == 3).Select(x => x.Value).Should().Equal("B", "D");
-        
-        // Items with key=5 should appear in original order (A, C, E)
+
+        // Items with value=5 should appear in original order (A, C, E)
         sorted.Where(x => x.Key == 5).Select(x => x.Value).Should().Equal("A", "C", "E");
     }
 
@@ -135,7 +135,7 @@ public class DeterministicExtensionsTests
         );
     }
 
-    [Fact] 
+    [Fact]
     public void Shuffle_NullInput_ReturnsFail()
     {
         // Arrange
@@ -278,10 +278,10 @@ public class DeterministicExtensionsTests
             Succ: partitions =>
             {
                 partitions.Should().HaveCount(partitionCount, "should create requested number of partitions");
-                
+
                 var totalItems = partitions.Sum(p => p.Count);
                 totalItems.Should().Be(items.Length, "should preserve all items across partitions");
-                
+
                 var allPartitionedItems = partitions.SelectMany(p => p);
                 allPartitionedItems.Should().BeEquivalentTo(items, "should contain all original items");
             },
@@ -337,7 +337,7 @@ public class DeterministicExtensionsTests
     {
         // This test verifies that all deterministic operations produce
         // identical results across different platforms
-        
+
         // Arrange
         var testData = new[] { "Alpha", "Beta", "Gamma", "Delta", "Echo", "Foxtrot" };
         var testRandom = new DeterministicRandom(777UL);
@@ -345,21 +345,21 @@ public class DeterministicExtensionsTests
         // Act - Perform multiple operations
         var shuffleResult = testData.Shuffle(testRandom, "crossplatform_test");
         testRandom.State = 777UL; // Reset to same state
-        
+
         var selectResult = testData.SelectRandom(testRandom, "crossplatform_select");
         testRandom.State = 777UL; // Reset again
-        
+
         var manyResult = testData.SelectRandomMany(3, testRandom, "crossplatform_many");
-        
+
         var partitionResult = testData.PartitionDeterministic(2, x => x);
         var sortedResult = testData.OrderByStable(x => x.Length).ToArray();
 
         // Assert - These specific results should be deterministic
         shuffleResult.IsSucc.Should().BeTrue("shuffle should succeed");
-        selectResult.IsSucc.Should().BeTrue("select should succeed"); 
+        selectResult.IsSucc.Should().BeTrue("select should succeed");
         manyResult.IsSucc.Should().BeTrue("select many should succeed");
         partitionResult.IsSucc.Should().BeTrue("partition should succeed");
-        
+
         // The exact values should be deterministic across platforms
         // (These are implementation-specific but should be consistent)
         sortedResult.Should().StartWith("Beta", "stable sort by length should be deterministic");

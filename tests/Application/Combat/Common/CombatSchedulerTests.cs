@@ -215,7 +215,7 @@ namespace Darklands.Core.Tests.Application.Combat.Common
                     Succ: value => value + 1, // +1 to shift from [0,9999) to [1,10000)
                     Fail: _ => 5000 // Fallback value
                 );
-                
+
                 actors.Add(new SchedulableActor(
                     Guid.NewGuid(),
                     TimeUnit.CreateUnsafe(randomTime),

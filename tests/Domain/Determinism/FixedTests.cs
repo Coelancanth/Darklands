@@ -427,7 +427,7 @@ public class FixedTests
     {
         // This test verifies that Fixed arithmetic produces identical results
         // across different platforms and architectures
-        
+
         // Arrange
         var a = Fixed.FromFloat(123.456f);
         var b = Fixed.FromFloat(78.901f);
@@ -437,7 +437,7 @@ public class FixedTests
 
         // Assert - Just verify calculation is deterministic (exact value doesn't matter)
         result.ToRaw().Should().NotBe(0, "Fixed arithmetic should produce deterministic non-zero result");
-        
+
         // Verify same calculation produces same result
         var result2 = (a * b) + (a / b) - Fixed.FromInt(42);
         result.ToRaw().Should().Be(result2.ToRaw(), "Same calculation should produce identical results");
