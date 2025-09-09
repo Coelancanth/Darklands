@@ -64,19 +64,19 @@ public sealed class UIEventForwarder<TEvent> : INotificationHandler<TEvent>
     {
         try
         {
-            _logger.Debug("🔄 [UIEventForwarder<{EventType}>] Forwarding event to UI subscribers: {Event}",
+            _logger.Debug("[UIEventForwarder<{EventType}>] Forwarding event to UI subscribers: {Event}",
                 typeof(TEvent).Name, notification);
 
             await _eventBus.PublishAsync(notification);
 
-            _logger.Debug("✅ [UIEventForwarder<{EventType}>] Successfully forwarded event to UI",
+            _logger.Debug("[UIEventForwarder<{EventType}>] Successfully forwarded event to UI",
                 typeof(TEvent).Name);
         }
         catch (System.Exception ex)
         {
             // Log but don't rethrow - UI failures shouldn't break domain event processing
             _logger.Error(ex,
-                "❌ [UIEventForwarder<{EventType}>] Failed to forward event to UI: {Event}",
+                "[UIEventForwarder<{EventType}>] Failed to forward event to UI: {Event}",
                 typeof(TEvent).Name, notification);
         }
     }

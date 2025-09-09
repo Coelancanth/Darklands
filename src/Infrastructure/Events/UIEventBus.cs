@@ -100,7 +100,7 @@ public sealed class UIEventBus : IUIEventBus
     public UIEventBus(ILogger logger)
     {
         _logger = logger;
-        _logger.Debug("🚌 [UIEventBus] Initialized - Ready to bridge domain events to UI");
+        _logger.Debug("[UIEventBus] Initialized - Ready to bridge domain events to UI");
     }
 
     /// <summary>
@@ -123,7 +123,7 @@ public sealed class UIEventBus : IUIEventBus
 
             _subscriptions[eventType].Add(new WeakSubscription(subscriber, handler));
 
-            _logger.Debug("✅ [UIEventBus] Subscriber {SubscriberType} registered for {EventType} (Total: {Count})",
+            _logger.Debug("[UIEventBus] Subscriber {SubscriberType} registered for {EventType} (Total: {Count})",
                 subscriber.GetType().Name, eventType.Name, _subscriptions[eventType].Count);
         }
     }
@@ -147,7 +147,7 @@ public sealed class UIEventBus : IUIEventBus
 
                 if (removed > 0)
                 {
-                    _logger.Debug("🗑️ [UIEventBus] Removed {Count} subscriptions for {SubscriberType} from {EventType}",
+                    _logger.Debug("[UIEventBus] Removed {Count} subscriptions for {SubscriberType} from {EventType}",
                         removed, subscriber.GetType().Name, eventType.Name);
                 }
             }
@@ -184,7 +184,7 @@ public sealed class UIEventBus : IUIEventBus
 
             if (totalRemoved > 0)
             {
-                _logger.Debug("🧹 [UIEventBus] Unsubscribed {SubscriberType} from ALL events (Removed {Count} subscriptions)",
+                _logger.Debug("[UIEventBus] Unsubscribed {SubscriberType} from ALL events (Removed {Count} subscriptions)",
                     subscriber.GetType().Name, totalRemoved);
             }
         }
@@ -207,7 +207,7 @@ public sealed class UIEventBus : IUIEventBus
 
             if (!_subscriptions.TryGetValue(eventType, out var subscriptions) || subscriptions.Count == 0)
             {
-                _logger.Debug("📭 [UIEventBus] No subscribers for {EventType}: {Event}",
+                _logger.Debug("[UIEventBus] No subscribers for {EventType}: {Event}",
                     eventType.Name, notification);
                 return;
             }
@@ -215,7 +215,7 @@ public sealed class UIEventBus : IUIEventBus
             subscriptionsToNotify = new List<WeakSubscription>(subscriptions);
         }
 
-        _logger.Debug("📢 [UIEventBus] Publishing {EventType} to {Count} subscribers: {Event}",
+        _logger.Debug("[UIEventBus] Publishing {EventType} to {Count} subscribers: {Event}",
             typeof(TEvent).Name, subscriptionsToNotify.Count, notification);
 
         var deadSubscriptions = new List<WeakSubscription>();
@@ -237,7 +237,7 @@ public sealed class UIEventBus : IUIEventBus
             }
             catch (Exception ex)
             {
-                _logger.Warning(ex, "⚠️ [UIEventBus] Handler failed for {EventType}: {Event}",
+                _logger.Warning(ex, "[UIEventBus] Handler failed for {EventType}: {Event}",
                     typeof(TEvent).Name, notification);
             }
         }
@@ -264,11 +264,11 @@ public sealed class UIEventBus : IUIEventBus
                 }
             }
 
-            _logger.Debug("🧹 [UIEventBus] Cleaned up {Count} dead subscribers for {EventType}",
+            _logger.Debug("[UIEventBus] Cleaned up {Count} dead subscribers for {EventType}",
                 deadSubscriptions.Count, typeof(TEvent).Name);
         }
 
-        _logger.Debug("✅ [UIEventBus] Published {EventType} successfully to {Count}/{Total} subscribers",
+        _logger.Debug("[UIEventBus] Published {EventType} successfully to {Count}/{Total} subscribers",
             typeof(TEvent).Name, successCount, subscriptionsToNotify.Count);
 
         await Task.CompletedTask; // Satisfy async contract
