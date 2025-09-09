@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-08 22:59 (Added TD_023 for ADR review alignment by Tech Lead)
+**Last Updated**: 2025-09-09 17:53 (TD_017, TD_019, TD_023 moved to archive; backlog cleaned)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 002
-- **Next TD**: 024  
+- **Next TD**: 030  
 - **Next VS**: 011 
 
 
@@ -222,75 +222,224 @@
 
 ---
 
-### TD_023: Review and Align Implementation with Enhanced ADRs [ARCHITECTURE] [Score: 70/100]
-**Status**: Approved ✅
-**Owner**: Tech Lead
-**Size**: M (4-6h)
-**Priority**: Critical (Must align before implementation begins)
-**Markers**: [ARCHITECTURE] [ADR-REVIEW] [STRATEGIC] [SCOPE-MANAGEMENT]
-**Created**: 2025-09-08 22:59
-**Approved**: 2025-09-08 22:59
+<!-- TD_023 completed and moved to archive (2025-09-09 17:50) -->
 
-**What**: Strategic review of ADR enhancements and alignment of existing TD items with new specifications
-**Why**: ADRs 004, 005, 006, 011, 012 received substantial professional-grade enhancements that may change implementation scope and requirements
+### TD_024: Architecture Tests for ADR Compliance [TESTING] [Score: 85/100]
+**Status**: Proposed 📋
+**Owner**: Test Specialist
+**Size**: M (6-8h)
+**Priority**: Critical (Foundation - prevents regression)
+**Markers**: [TESTING] [ARCHITECTURE] [ADR-COMPLIANCE] [FOUNDATION]
+**Created**: 2025-09-09 17:44
 
-**Enhanced ADR Changes Requiring Review**:
+**What**: Implement architecture tests to enforce ADR compliance at compile/test time
+**Why**: Prevent architectural drift and regression; enforce boundaries automatically
 
-**ADR-004 (Deterministic Simulation) Enhancements**:
-- Unbiased range generation (rejection sampling)
-- Stable FNV-1a hashing for cross-platform fork derivation
-- Comprehensive input validation with edge case handling
-- Enhanced diagnostics (Stream, RootSeed properties)
-- Cross-platform CI testing requirements
-- Architecture tests for non-determinism prevention
-- Microsoft.Extensions.Logging alignment
+**Problem Statement**:
+- No automated enforcement of architectural boundaries
+- Developers could accidentally violate ADR decisions
+- Manual code reviews miss subtle violations
+- Regression risk increases as team grows
 
-**ADR-005 (Save-Ready Architecture) Enhancements**:
-- IStableIdGenerator interface for deterministic-friendly ID creation
-- Enhanced recursive type validation for save readiness
-- Pluggable serialization provider (Newtonsoft.Json support)
-- World Hydration/Rehydration process specification
-- ModData extension points for mod-friendly entities
-- ISaveStorage abstraction for filesystem independence
-- Save migration pipeline with discrete steps
-- Architecture tests for Godot type prevention
-
-**ADR-006 (Selective Abstraction) Enhancements**:
-- Core value types (CoreVector2) to prevent Godot leakage
-- IGameClock abstraction added to decision matrix
-- Architecture tests for dependency enforcement
-- Enhanced testing examples with NetArchTest
-- Expanded abstraction decision matrix
-
-**ADR-011/012 (Bridge Patterns) Enhancements**:
-- Improved service integration patterns
-- Enhanced error handling approaches
-- Better DI integration examples
-
-**Strategic Questions for Review**:
-1. **Scope Impact**: Do TD_020, TD_021, TD_022 need scope adjustments for enhanced requirements?
-2. **Split Decision**: Should complex enhancements become separate TD items (e.g., architecture tests, cross-platform CI)?
-3. **Priority Sequencing**: Which enhanced features are Phase 1 vs Phase 2 implementations?
-4. **Implementation Complexity**: Are complexity scores (90/85/75) still accurate with enhancements?
-5. **Resource Allocation**: Do we need additional specialist input (DevOps for CI, Test Specialist for architecture tests)?
+**Implementation Tasks**:
+1. **NetArchTest setup** for assembly dependency rules
+2. **Prohibit Godot types** in Core assemblies (ADR-006)
+3. **Enforce deterministic patterns** - flag System.Random usage (ADR-004)
+4. **Validate save-ready entities** - no events/delegates in domain (ADR-005)
+5. **Check abstraction boundaries** - Core can't reference Presentation
+6. **Stable sorting enforcement** - flag unstable OrderBy usage
+7. **Fixed-point validation** - flag float usage in gameplay logic
 
 **Done When**:
-- All four enhanced ADRs reviewed for implementation impact
-- TD_020, TD_021, TD_022 scope validated or adjusted
-- Decision made on splitting complex enhancements into separate items
-- Implementation priority and sequence confirmed
-- Resource requirements validated (Dev Engineer vs multi-persona)
-- Any new TD items created for deferred enhancements
-- Updated complexity scores if needed
+- Architecture test project created and integrated
+- All ADR rules have corresponding tests
+- Tests run in CI pipeline
+- Violations fail the build
+- Clear error messages guide developers
 
-**Depends On**: Review of enhanced ADR-004, ADR-005, ADR-006, ADR-011, ADR-012
+**Depends On**: Understanding of ADR-004, ADR-005, ADR-006
 
-**Tech Lead Decision** (2025-09-08 22:59):
-- **AUTO-APPROVED** - Critical strategic review before implementation
-- Must complete before Dev Engineer starts TD_020/021/022
-- Enhanced ADRs significantly more comprehensive than original versions
-- Risk of implementation drift without alignment review
-- 4-6 hours well-spent to ensure we build the right architecture
+---
+
+### TD_025: Cross-Platform Determinism CI Pipeline [DEVOPS] [Score: 75/100]
+**Status**: Proposed 📋
+**Owner**: DevOps Engineer
+**Size**: M (4-6h)
+**Priority**: Important (Phase 2 - after core implementation)
+**Markers**: [DEVOPS] [CI-CD] [DETERMINISM] [CROSS-PLATFORM]
+**Created**: 2025-09-09 17:44
+
+**What**: CI pipeline to verify deterministic simulation across platforms
+**Why**: Ensure saves/multiplayer work identically on Windows/Linux/macOS
+
+**Problem Statement**:
+- Determinism might break across different platforms
+- No automated verification of cross-platform consistency
+- Manual testing won't catch subtle platform differences
+- Multiplayer/saves could fail silently
+
+**Implementation Tasks**:
+1. **GitHub Actions matrix** for Windows, Linux, macOS
+2. **Seed-based determinism tests** - same seed must produce identical results
+3. **Sequence verification** - 10,000+ random draws must match byte-for-byte
+4. **Performance benchmarks** - track deterministic operations speed
+5. **Save compatibility tests** - saves must load across platforms
+6. **Automated regression detection** - flag any determinism breaks
+
+**Done When**:
+- CI runs on all three platforms
+- Determinism tests pass consistently
+- Performance tracked and reported
+- Failures block PR merges
+- Clear diagnostics for failures
+
+**Depends On**: TD_020 (Deterministic Random implementation)
+
+---
+
+### TD_026: Determinism Hardening Implementation [ARCHITECTURE] [Score: 80/100]
+**Status**: Proposed 📋
+**Owner**: Dev Engineer
+**Size**: S (2-4h)
+**Priority**: Critical (Must complete with TD_020)
+**Markers**: [ARCHITECTURE] [DETERMINISM] [ADR-004] [HARDENING]
+**Created**: 2025-09-09 17:44
+
+**What**: Production-grade hardening of deterministic random service
+**Why**: Basic implementation insufficient for production reliability
+
+**Problem Statement**:
+- Modulo bias in range generation affects fairness
+- string.GetHashCode() unstable across runtimes
+- No input validation could cause crashes
+- Missing diagnostic properties for debugging
+
+**Hardening Tasks**:
+1. **Rejection sampling** for unbiased range generation
+2. **FNV-1a stable hashing** to replace GetHashCode()
+3. **Input validation** for Check (0-100), Choose (weights), Range bounds
+4. **Expose Stream/RootSeed** properties for diagnostics
+5. **Property-based tests** with FsCheck for edge cases
+6. **Context validation** - ensure non-empty debug contexts
+
+**Done When**:
+- All ADR-004 hardening requirements implemented
+- Property tests verify correctness
+- No modulo bias in distributions
+- Stable hashing across platforms
+- Comprehensive input validation
+
+**Depends On**: Should be done WITH TD_020, not after
+
+---
+
+### TD_027: Advanced Save Infrastructure [ARCHITECTURE] [Score: 85/100]
+**Status**: Proposed 📋
+**Owner**: Dev Engineer
+**Size**: L (1-2 days)
+**Priority**: Important (Phase 2 - needed before save system)
+**Markers**: [ARCHITECTURE] [SAVE-SYSTEM] [ADR-005] [INFRASTRUCTURE]
+**Created**: 2025-09-09 17:44
+
+**What**: Production-ready save system infrastructure per enhanced ADR-005
+**Why**: Basic save patterns insufficient for production game
+
+**Problem Statement**:
+- No abstraction for ID generation strategy
+- Missing filesystem abstraction for platform differences
+- No pluggable serialization for advanced scenarios
+- World hydration process undefined
+- No save migration strategy
+
+**Infrastructure Tasks**:
+1. **IStableIdGenerator** interface and implementations
+2. **ISaveStorage** abstraction for filesystem operations
+3. **Pluggable ISerializationProvider** with Newtonsoft support
+4. **World Hydration/Rehydration** process for Godot scene rebuild
+5. **Save migration pipeline** with version detection
+6. **ModData extension** points on all entities
+7. **Recursive validation** for nested generic types
+
+**Done When**:
+- All infrastructure interfaces defined
+- Reference implementations complete
+- Save/load works with test data
+- Migration pipeline tested
+- Platform differences abstracted
+
+**Depends On**: TD_021 (Save-Ready entities)
+
+---
+
+### TD_028: Core Value Types and Boundaries [ARCHITECTURE] [Score: 70/100]
+**Status**: Proposed 📋
+**Owner**: Dev Engineer
+**Size**: S (2-4h)
+**Priority**: Critical (Prevents Godot leakage)
+**Markers**: [ARCHITECTURE] [BOUNDARIES] [ADR-006] [CORE-TYPES]
+**Created**: 2025-09-09 17:44
+
+**What**: Core value types to prevent framework leakage into domain
+**Why**: Godot types in Core would break saves, testing, and architecture
+
+**Problem Statement**:
+- Godot Vector2/Vector3 could leak into Core
+- No IGameClock abstraction for deterministic time
+- Missing boundary enforcement utilities
+- Conversion overhead not optimized
+
+**Implementation Tasks**:
+1. **CoreVector2/CoreVector3** value types in Domain
+2. **Efficient conversion** utilities to/from Godot types
+3. **IGameClock** abstraction for game time
+4. **Boundary validation** helpers for type checking
+5. **Performance tests** for conversion overhead
+6. **Usage examples** in documentation
+
+**Done When**:
+- Core types defined and tested
+- Conversion utilities optimized
+- IGameClock implemented
+- No Godot types in Core
+- Performance acceptable (<1% overhead)
+
+**Depends On**: Understanding of ADR-006 boundaries
+
+---
+
+### TD_029: Roslyn Analyzers for Forbidden Patterns [TOOLING] [Score: 60/100]
+**Status**: Proposed 📋
+**Owner**: DevOps Engineer
+**Size**: M (6-8h)
+**Priority**: Nice to Have (Phase 3 - quality of life)
+**Markers**: [TOOLING] [ANALYZERS] [COMPILE-TIME] [ENFORCEMENT]
+**Created**: 2025-09-09 17:44
+
+**What**: Custom Roslyn analyzers to catch forbidden patterns at compile time
+**Why**: Catch violations immediately, not in tests or code review
+
+**Problem Statement**:
+- Architecture tests only run during test phase
+- Developers get late feedback on violations
+- Some patterns hard to catch in tests
+- Want immediate IDE feedback
+
+**Analyzer Tasks**:
+1. **System.Random detector** - flag any usage in gameplay code
+2. **Godot type detector** - flag in Core/Application layers
+3. **Float arithmetic detector** - flag in combat/gameplay logic
+4. **Unstable sort detector** - flag OrderBy without ThenBy
+5. **Event/delegate detector** - flag in domain entities
+6. **IDE integration** - warnings/errors in Visual Studio/Rider
+
+**Done When**:
+- Analyzer project created
+- All forbidden patterns detected
+- IDE shows warnings immediately
+- Build integration complete
+- Documentation for developers
+
+**Depends On**: TD_024 (Architecture tests define the rules)
 
 ---
 
@@ -574,84 +723,7 @@ public override void _Ready()
 
 
 
----
-
-## 📦 Archive (Completed Items)
-*Recently completed work for reference and knowledge transfer*
-
-### TD_017: Implement UI Event Bus Architecture [ARCHITECTURE] [Score: 65/100] ✅
-**Status**: Done
-**Owner**: Dev Engineer
-**Size**: L (2-3 days)
-**Priority**: Critical (Foundation for 200+ future events)
-**Markers**: [ARCHITECTURE] [ADR-010] [EVENT-BUS] [MEDIATR]
-**Created**: 2025-09-08 16:40
-**Completed**: 2025-09-08 19:38
-
-**What**: Implement UI Event Bus pattern to replace static event router
-**Why**: Current static approach won't scale to 200+ events and violates SOLID
-
-**✅ IMPLEMENTATION COMPLETED** (All 4 Phases + 5 Critical Issues Fixed):
-
-**Phase 1-4: Core Architecture** ✅
-- Created complete UI Event Bus architecture with IUIEventBus interface
-- Implemented UIEventForwarder<T> for automatic MediatR event forwarding
-- Built WeakReference-based subscription system preventing memory leaks
-- Integrated EventAwareNode base class for Godot lifecycle management
-
-**Critical Issues Resolved**:
-1. **MediatR Auto-Discovery Conflict** - Removed old GameManagerEventRouter entirely
-2. **Missing Base Class Calls** - Fixed base._Ready() and base._ExitTree() calls
-3. **Race Condition** - Restructured initialization order (DI first, then EventBus)
-4. **CallDeferred Misuse** - Simplified to direct invocation (already on main thread)
-5. **Duplicate Registration** - Removed manual UIEventForwarder registration
-
-**Final Architecture**:
-```
-Domain Event → MediatR → UIEventForwarder<T> → UIEventBus → GameManager → UI Update
-```
-
-**Results**:
-- ✅ Health bars update correctly when actors take damage
-- ✅ Dead actors removed from UI immediately
-- ✅ No more static router errors
-- ✅ All 232 tests passing with zero warnings
-- ✅ Modern event-driven architecture fully operational
-
-**Post-Mortem**: [TD_017 Implementation Issues](../../06-PostMortems/Inbox/2025-09-08-td017-ui-event-bus-implementation.md)
-
-**References**: [ADR-010](../03-Reference/ADR/ADR-010-ui-event-bus-architecture.md)
-
-### TD_019: Fix embody script squash merge handling with hard reset strategy ✅
-**Status**: Done
-**Owner**: DevOps Engineer  
-**Size**: M (4-6h)
-**Priority**: Important (Developer friction)
-**Markers**: [DEVOPS] [AUTOMATION] [GIT]
-**Created**: 2025-09-08 17:00
-**Completed**: 2025-09-08 17:31
-
-**What**: Fix embody.ps1 script's squash merge handling with simplified reset strategy
-**Why**: Script fails when PRs are squash merged, causing sync failures and manual intervention
-
-**✅ IMPLEMENTATION COMPLETED**:
-1. **Hard Reset Strategy**: Modified Handle-MergedPR() in sync-core.psm1 to use `git reset --hard origin/main` instead of problematic `git pull origin main --ff-only`
-2. **Enhanced Pre-push**: Added dotnet format verification/auto-fix to pre-push hook to prevent verify-local-fixes CI failures
-3. **Safety Preserved**: Maintains existing stash/restore logic for uncommitted changes
-4. **Zero Friction Achieved**: Eliminates manual `git reset --hard origin/main` interventions
-
-**Impact Delivered**:
-- ✅ Squash merge handling works without sync failures
-- ✅ Persona switching flows smoothly after PR merges  
-- ✅ Enhanced format verification prevents CI failures
-- ✅ Saves ~5-10 minutes per PR merge per developer
-- ✅ branch-status-check.ps1 remains functional for awareness
-
-**DevOps Engineer Decision** (2025-09-08 17:31):
-- **COMPLETED** with elegant hard reset solution
-- Both Handle-MergedPR() fix and pre-push format verification deployed
-- Zero-friction automation philosophy maintained
-- All tests pass, ready for production use
+<!-- TD_017 and TD_019 moved to permanent archive (2025-09-09 17:53) -->
 
 ---
 *Single Source of Truth for all Darklands development work. Simple, maintainable, actually used.*
