@@ -235,7 +235,17 @@ public static class GameStrapper
             // TODO: Register presenters and views in Godot project, not in Core
 
             // Domain services (Singleton - stateless business logic)
-            // TODO: Register domain services here as they're implemented
+
+            // Deterministic simulation foundation (ADR-004 + TD_026)
+            services.AddSingleton<Domain.Determinism.IDeterministicRandom>(provider =>
+            {
+                // Get game seed from configuration, save file, or generate new seed
+                // For now, use a development seed - TODO: integrate with save system
+                const ulong developmentSeed = 12345UL;
+
+                var logger = provider.GetService<ILogger<Domain.Determinism.DeterministicRandom>>();
+                return new Domain.Determinism.DeterministicRandom(developmentSeed, logger: logger);
+            });
 
             // UI Event Bus (Singleton - bridges MediatR events to Godot UI components)
             // Replaces the old static GameManagerEventRouter with modern publish/subscribe architecture
