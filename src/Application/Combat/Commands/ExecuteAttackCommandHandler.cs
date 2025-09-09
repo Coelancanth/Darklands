@@ -152,7 +152,7 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
         }
 
         // Log attack timing information
-        _logger?.Information("⏰ Attack completed: {AttackerId} next turn in +{ActionCost}ms",
+        _logger?.Information("Attack completed: {AttackerId} next turn in +{ActionCost}ms",
             request.AttackerId, request.CombatAction.BaseCost.Value);
 
         // Step 7: Cleanup dead actor

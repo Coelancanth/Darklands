@@ -290,7 +290,7 @@ namespace Darklands
         {
             if (EventBus == null)
             {
-                _logger?.Error("❌ [GameManager] Cannot subscribe to events - EventBus is null");
+                _logger?.Error("[GameManager] Cannot subscribe to events - EventBus is null");
                 return;
             }
 
@@ -300,12 +300,12 @@ namespace Darklands
                 EventBus.Subscribe<ActorDiedEvent>(this, HandleActorDiedEvent);
                 EventBus.Subscribe<ActorDamagedEvent>(this, HandleActorDamagedEvent);
                 
-                _logger?.Information("✅ [GameManager] Successfully subscribed to domain events via UI Event Bus");
-                _logger?.Information("🎉 Modern event architecture active - static router fully replaced");
+                _logger?.Information("[GameManager] Successfully subscribed to domain events via UI Event Bus");
+                _logger?.Information("Modern event architecture active - static router fully replaced");
             }
             catch (Exception ex)
             {
-                _logger?.Error(ex, "❌ [GameManager] Failed to subscribe to domain events");
+                _logger?.Error(ex, "[GameManager] Failed to subscribe to domain events");
                 GD.PrintErr($"GameManager event subscription failed: {ex.Message}");
             }
         }
@@ -319,7 +319,7 @@ namespace Darklands
         {
             try
             {
-                _logger?.Information("🩺 [GameManager] UpdateHealthBarDeferred called for {ActorIdStr}: {OldCurrent}/{OldMax} → {NewCurrent}/{NewMax}", 
+                _logger?.Information("[GameManager] UpdateHealthBarDeferred called for {ActorIdStr}: {OldCurrent}/{OldMax} → {NewCurrent}/{NewMax}", 
                     actorIdStr, oldCurrent, oldMaximum, newCurrent, newMaximum);
                 
                 var actorId = Darklands.Core.Domain.Grid.ActorId.FromGuid(Guid.Parse(actorIdStr));
@@ -334,13 +334,13 @@ namespace Darklands
                         {
                             if (_healthPresenter != null)
                             {
-                                _logger?.Information("🩺 [GameManager] Calling HealthPresenter.HandleHealthChangedAsync");
+                                _logger?.Information("[GameManager] Calling HealthPresenter.HandleHealthChangedAsync");
                                 await _healthPresenter.HandleHealthChangedAsync(actorId, oldHealth, newHealth);
-                                _logger?.Information("✅ Updated health bar for {ActorId}", actorId);
+                                _logger?.Information("Updated health bar for {ActorId}", actorId);
                             }
                             else
                             {
-                                _logger?.Error("❌ [GameManager] HealthPresenter is NULL in deferred health update!");
+                                _logger?.Error("[GameManager] HealthPresenter is NULL in deferred health update!");
                             }
                         },
                         Fail: error =>
@@ -369,7 +369,7 @@ namespace Darklands
         {
             try
             {
-                _logger?.Information("🎮 [GameManager] RemoveActorDeferred called for {ActorIdStr} at ({X},{Y})", actorIdStr, x, y);
+                _logger?.Information("[GameManager] RemoveActorDeferred called for {ActorIdStr} at ({X},{Y})", actorIdStr, x, y);
                 
                 var actorId = Darklands.Core.Domain.Grid.ActorId.FromGuid(Guid.Parse(actorIdStr));
                 var position = new Darklands.Core.Domain.Grid.Position(x, y);
@@ -377,28 +377,28 @@ namespace Darklands
                 // Remove actor sprite
                 if (_actorPresenter != null)
                 {
-                    _logger?.Information("🎮 [GameManager] Removing actor sprite via presenter");
+                    _logger?.Information("[GameManager] Removing actor sprite via presenter");
                     await _actorPresenter.RemoveActorAsync(actorId, position);
-                    _logger?.Information("✅ Removed dead actor {ActorId} sprite", actorId);
+                    _logger?.Information("Removed dead actor {ActorId} sprite", actorId);
                 }
                 else
                 {
-                    _logger?.Error("❌ [GameManager] ActorPresenter is NULL in deferred removal!");
+                    _logger?.Error("[GameManager] ActorPresenter is NULL in deferred removal!");
                 }
 
                 // Remove health bar
                 if (_healthPresenter != null)
                 {
-                    _logger?.Information("🎮 [GameManager] Removing health bar via presenter");
+                    _logger?.Information("[GameManager] Removing health bar via presenter");
                     await _healthPresenter.HandleActorRemovedAsync(actorId, position);
-                    _logger?.Information("✅ Removed dead actor {ActorId} health bar", actorId);
+                    _logger?.Information("Removed dead actor {ActorId} health bar", actorId);
                 }
                 else
                 {
-                    _logger?.Warning("⚠️ [GameManager] HealthPresenter is NULL - no health bar to remove");
+                    _logger?.Warning("[GameManager] HealthPresenter is NULL - no health bar to remove");
                 }
 
-                _logger?.Information("🎉 Visual cleanup complete for dead actor {ActorId} at {Position}", actorId, position);
+                _logger?.Information("Visual cleanup complete for dead actor {ActorId} at {Position}", actorId, position);
             }
             catch (Exception ex)
             {
