@@ -7,6 +7,8 @@ using System.Linq;
 using Darklands.Core.Application.Combat.Common;
 using Darklands.Core.Domain.Combat;
 using Darklands.Core.Domain.Grid;
+using Darklands.Core.Domain.Determinism;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Darklands.Core.Tests.Application.Combat.Common
 {
@@ -203,14 +205,23 @@ namespace Darklands.Core.Tests.Application.Combat.Common
             // Arrange
             var scheduler = new CombatScheduler();
             var actorCount = 1500; // Exceeds required 1000+ actors
-            var random = new Random(42); // Fixed seed for reproducible tests
+            var random = new DeterministicRandom(42UL, logger: NullLogger<DeterministicRandom>.Instance); // Fixed seed for reproducible tests
 
-            var actors = Enumerable.Range(0, actorCount)
-                .Select(i => new SchedulableActor(
+            var actors = new List<SchedulableActor>();
+            for (int i = 0; i < actorCount; i++)
+            {
+                var randomTimeResult = random.Next(9999, $"perf_test_time_{i}");
+                var randomTime = randomTimeResult.Match(
+                    Succ: value => value + 1, // +1 to shift from [0,9999) to [1,10000)
+                    Fail: _ => 5000 // Fallback value
+                );
+                
+                actors.Add(new SchedulableActor(
                     Guid.NewGuid(),
-                    TimeUnit.CreateUnsafe(random.Next(1, 10000)), // Random times for realistic scenario
-                    new Position(i % 100, i / 100)))
-                .ToList();
+                    TimeUnit.CreateUnsafe(randomTime),
+                    new Position(i % 100, i / 100)
+                ));
+            }
 
             var stopwatch = Stopwatch.StartNew();
 
