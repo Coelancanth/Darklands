@@ -4,7 +4,7 @@
 
 **Purpose**: Completed and rejected work items for historical reference and lessons learned.
 
-**Last Updated**: 2025-09-09 19:56 (Added TD_015 from backlog) 
+**Last Updated**: 2025-09-09 20:11 (Added TD_030 from backlog) 
 
 ## Archive Protocol
 
@@ -1674,4 +1674,49 @@ Core implementation complete with all hardening features integrated. Ready for T
 - [ ] HANDBOOK update: Production logging standards and emoji removal rationale
 - [ ] HANDBOOK update: Log verbosity level guidelines (Debug vs Information vs Warning)
 - [ ] Pattern: Structured logging properties over string interpolation
+
+### TD_030: Fix Code Formatting CI/Local Inconsistency ✅ DEVELOPER EXPERIENCE RESTORED
+**Extraction Status**: NOT EXTRACTED ⚠️
+**Completed**: 2025-09-09
+**Archive Note**: Eliminated formatting-only PR failures by updating pre-commit hooks to match CI exactly - saves ~30 min/week per developer
+**Owner**: DevOps Engineer
+**Solution**: Updated .husky/pre-commit to format both src/ and tests/ projects, matching CI verification exactly
+**Impact**: Eliminates formatting-only PR failures, saves ~30 min/week per developer
+[METADATA: devops-automation, formatting-consistency, developer-experience, pre-commit-hooks, ci-cd-alignment]
+---
+### TD_030: Fix Code Formatting CI/Local Inconsistency [DEVOPS] [Score: 75/100]
+**Status**: Completed ✅
+**Owner**: DevOps Engineer
+**Size**: S (2-4h)
+**Priority**: Important (Developer Experience)
+**Markers**: [DEVOPS] [CI-CD] [FORMATTING] [DX]
+**Created**: 2025-09-09 18:58
+
+**What**: Eliminate formatting inconsistency between local and remote environments
+**Why**: Prevents wasted time on formatting failures and improves developer experience
+
+**Problem Statement**:
+- Local pre-commit hooks don't catch same formatting issues as remote CI
+- Causes PR failures after code appears clean locally
+- Wastes developer time and breaks flow
+- Inconsistent formatting enforcement creates friction
+
+**Solution Options**:
+1. **Fix local hooks** to match remote formatting exactly, OR
+2. **Enable auto-formatting** in CI with push back to PR, OR
+3. **Remove formatting checks** from CI entirely
+
+**Done When**:
+- Local formatting matches remote CI exactly, OR
+- Alternative solution implemented and tested
+- No more formatting-only PR failures
+- Developer experience improved
+- Solution documented for team
+
+**Depends On**: None
+---
+**Extraction Targets**:
+- [ ] HANDBOOK update: Pre-commit hook formatting alignment with CI patterns
+- [ ] DevOps pattern: Local/remote environment consistency strategies
+- [ ] Developer experience: Formatting friction elimination approaches
 

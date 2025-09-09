@@ -497,36 +497,7 @@ public override void _Ready()
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*
 
-### TD_030: Fix Code Formatting CI/Local Inconsistency [DEVOPS] [Score: 75/100]
-**Status**: Proposed 📋
-**Owner**: DevOps Engineer
-**Size**: S (2-4h)
-**Priority**: Important (Developer Experience)
-**Markers**: [DEVOPS] [CI-CD] [FORMATTING] [DX]
-**Created**: 2025-09-09 18:58
-
-**What**: Eliminate formatting inconsistency between local and remote environments
-**Why**: Prevents wasted time on formatting failures and improves developer experience
-
-**Problem Statement**:
-- Local pre-commit hooks don't catch same formatting issues as remote CI
-- Causes PR failures after code appears clean locally
-- Wastes developer time and breaks flow
-- Inconsistent formatting enforcement creates friction
-
-**Solution Options**:
-1. **Fix local hooks** to match remote formatting exactly, OR
-2. **Enable auto-formatting** in CI with push back to PR, OR
-3. **Remove formatting checks** from CI entirely
-
-**Done When**:
-- Local formatting matches remote CI exactly, OR
-- Alternative solution implemented and tested
-- No more formatting-only PR failures
-- Developer experience improved
-- Solution documented for team
-
-**Depends On**: None
+<!-- TD_030 completed and moved to archive (2025-09-09 20:11) -->
 
 ---
 
