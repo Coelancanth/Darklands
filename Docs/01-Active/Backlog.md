@@ -497,76 +497,11 @@ public override void _Ready()
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*
 
-### TD_030: Fix Code Formatting CI/Local Inconsistency [DEVOPS] [Score: 75/100]
-**Status**: Proposed 📋
-**Owner**: DevOps Engineer
-**Size**: S (2-4h)
-**Priority**: Important (Developer Experience)
-**Markers**: [DEVOPS] [CI-CD] [FORMATTING] [DX]
-**Created**: 2025-09-09 18:58
-
-**What**: Eliminate formatting inconsistency between local and remote environments
-**Why**: Prevents wasted time on formatting failures and improves developer experience
-
-**Problem Statement**:
-- Local pre-commit hooks don't catch same formatting issues as remote CI
-- Causes PR failures after code appears clean locally
-- Wastes developer time and breaks flow
-- Inconsistent formatting enforcement creates friction
-
-**Solution Options**:
-1. **Fix local hooks** to match remote formatting exactly, OR
-2. **Enable auto-formatting** in CI with push back to PR, OR
-3. **Remove formatting checks** from CI entirely
-
-**Done When**:
-- Local formatting matches remote CI exactly, OR
-- Alternative solution implemented and tested
-- No more formatting-only PR failures
-- Developer experience improved
-- Solution documented for team
-
-**Depends On**: None
+<!-- TD_030 completed and moved to archive (2025-09-09 20:11) -->
 
 ---
 
-### TD_015: Reduce Logging Verbosity and Remove Emojis [PRODUCTION] [Score: 60/100]
-**Status**: Approved ✅
-**Owner**: Dev Engineer
-**Size**: S (2h)
-**Priority**: Important (Production readiness)
-**Markers**: [LOGGING] [PRODUCTION]
-**Created**: 2025-09-08 14:42
-
-**What**: Clean up excessive logging and remove emoji decorations
-**Why**: Info-level logs too verbose, emojis inappropriate for production
-
-**Problem Statement**:
-- Info logs contain step-by-step execution details
-- Emojis in production logs (💗 ✅ 💀 ⚔️)
-- Makes log analysis and parsing difficult
-- Log files grow too quickly
-
-**How**:
-- Move verbose logs from Information to Debug level
-- Remove all emoji characters from log messages
-- Keep Information logs for significant events only
-- Add structured logging properties instead of string interpolation
-
-**Done When**:
-- No emojis in any log messages
-- Information logs only for important events
-- Debug logs contain detailed execution flow
-- Log output reduced by >50% at Info level
-
-**Depends On**: None
-
-**Tech Lead Decision** (2025-09-08 14:45):
-- **APPROVED** - Clean logging essential for production
-- Emojis inappropriate for professional logs
-- Simple log level adjustments, no architectural changes
-- Low-risk, high-value cleanup work
-- Route to Dev Engineer (can be done anytime)
+<!-- TD_015 completed and moved to archive (2025-09-09 19:56) -->
 
 ---
 
