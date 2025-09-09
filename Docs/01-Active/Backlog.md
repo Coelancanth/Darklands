@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-09 17:53 (TD_017, TD_019, TD_023 moved to archive; backlog cleaned)
+**Last Updated**: 2025-09-09 18:50 (TD_020, TD_026 moved to archive with property tests complete; backlog cleaned)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -78,50 +78,7 @@
 ## 🔥 Critical (Do First)
 *Blockers preventing other work, production bugs, dependencies for other features*
 
-### TD_020: Implement Deterministic Random Service [ARCHITECTURE] [Score: 90/100]
-**Status**: Complete ✅
-**Owner**: Dev Engineer → Test Specialist (for property-based tests)
-**Size**: M (4-6h)
-**Priority**: Critical (Foundation for saves/multiplayer/debugging)
-**Markers**: [ARCHITECTURE] [ADR-004] [DETERMINISTIC] [FOUNDATION]
-**Created**: 2025-09-08 21:31
-**Approved**: 2025-09-08 21:31
-
-**What**: Implement IDeterministicRandom service per ADR-004
-**Why**: ALL future features depend on deterministic simulation for saves, debugging, and potential multiplayer
-
-**Problem Statement**:
-- Current code uses System.Random and Godot random (non-deterministic)
-- Impossible to reproduce bugs from saves
-- Multiplayer would desync immediately
-- Can't implement reliable save/load without this
-
-**Implementation Tasks**:
-1. Create IDeterministicRandom interface with context tracking
-2. Implement DeterministicRandom using PCG algorithm
-3. Add to GameStrapper.cs DI container
-4. Create Fork() method for independent streams
-5. Add debug logging for random calls with context
-
-**Done When**:
-- ✅ IDeterministicRandom service fully implemented
-- ✅ Registered in GameStrapper.cs
-- ✅ Unit tests verify deterministic sequences
-- ✅ Same seed produces identical results
-- ✅ Fork() creates independent streams
-- ✅ Context tracking for debugging desyncs
-
-**Completed**: 2025-09-09 (Dev Engineer)
-
-**Depends On**: None (Foundation)
-
-**Tech Lead Decision** (2025-09-08 21:31):
-- **AUTO-APPROVED** - Critical foundation per ADR-004
-- Without this, saves and debugging are impossible
-- Must be implemented before ANY new gameplay features
-- Dev Engineer should prioritize immediately
-
----
+<!-- TD_020 completed with property tests and moved to archive (2025-09-09 18:50) -->
 
 ### TD_021: Implement Save-Ready Entity Patterns [ARCHITECTURE] [Score: 85/100]
 **Status**: Approved ✅
@@ -299,51 +256,7 @@
 
 ---
 
-### TD_026: Determinism Hardening Implementation [ARCHITECTURE] [Score: 80/100]
-**Status**: Complete ✅
-**Owner**: Dev Engineer (Integrated with TD_020)
-**Size**: S (2-4h)
-**Priority**: Critical (Must complete with TD_020)
-**Markers**: [ARCHITECTURE] [DETERMINISM] [ADR-004] [HARDENING]
-**Created**: 2025-09-09 17:44
-
-**What**: Production-grade hardening of deterministic random service
-**Why**: Basic implementation insufficient for production reliability
-
-**Problem Statement**:
-- Modulo bias in range generation affects fairness
-- string.GetHashCode() unstable across runtimes
-- No input validation could cause crashes
-- Missing diagnostic properties for debugging
-
-**Hardening Tasks**:
-1. **Rejection sampling** for unbiased range generation
-2. **FNV-1a stable hashing** to replace GetHashCode()
-3. **Input validation** for Check (0-100), Choose (weights), Range bounds
-4. **Expose Stream/RootSeed** properties for diagnostics
-5. **Property-based tests** with FsCheck for edge cases
-6. **Context validation** - ensure non-empty debug contexts
-
-**Done When**:
-- ✅ All ADR-004 hardening requirements implemented
-- ✅ Rejection sampling eliminates modulo bias
-- ✅ Stable FNV-1a hashing across platforms
-- ✅ Comprehensive input validation with meaningful errors
-- 🔄 Property tests (Handoff to Test Specialist)
-
-**Completed**: 2025-09-09 (Dev Engineer - integrated with TD_020)
-
-**Depends On**: Completed WITH TD_020
-
-**Dev Engineer Handoff Note** (2025-09-09):
-Core implementation complete with all hardening features integrated. Ready for Test Specialist to add property-based tests using FsCheck to verify:
-- Next(n) never returns n or negatives  
-- Range(min,max) stays within bounds
-- Choose selects only from provided items with frequencies ~proportional to weights
-- Cross-platform determinism (Windows/Linux/macOS byte-for-byte identical sequences)
-- See comprehensive unit tests in `tests/Domain/Determinism/` as foundation.
-
----
+<!-- TD_026 completed with property tests and moved to archive (2025-09-09 18:50) -->
 
 ### TD_027: Advanced Save Infrastructure [ARCHITECTURE] [Score: 85/100]
 **Status**: Proposed 📋
