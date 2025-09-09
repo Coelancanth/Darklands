@@ -111,7 +111,7 @@ public sealed class DeterministicRandom : IDeterministicRandom
         {
             var rollResult = Range(1, sides + 1, $"{context}_d{sides}_{i}");
             if (rollResult.IsFail)
-                return rollResult.Map(value => total + value);
+                return FinFail<int>(rollResult.Match(Succ: _ => Error.New("Unreachable"), Fail: err => err));
 
             total += rollResult.Match(
                 Succ: value => value,
