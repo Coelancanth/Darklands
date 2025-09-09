@@ -4,7 +4,7 @@
 
 **Purpose**: Completed and rejected work items for historical reference and lessons learned.
 
-**Last Updated**: 2025-09-08 14:23 
+**Last Updated**: 2025-09-09 17:53 (Added TD_017, TD_019, TD_023 from backlog) 
 
 ## Archive Protocol
 
@@ -1283,4 +1283,224 @@ This violates Single Source of Truth and WILL cause synchronization bugs where a
 - [ ] ADR needed for: Event-driven architecture patterns with MediatR notifications
 - [ ] HANDBOOK update: Static callback anti-patterns and proper event handling
 - [ ] Test pattern: Event-driven testing patterns for UI-domain decoupling
+
+### TD_023: Review and Align Implementation with Enhanced ADRs ✅ STRATEGIC ANALYSIS COMPLETE
+**Extraction Status**: NOT EXTRACTED ⚠️
+**Completed**: 2025-09-09 17:44
+**Owner**: Tech Lead
+**Effort**: M (4-6h)
+**Archive Note**: Strategic review of enhanced ADRs created 6 new TD items (TD_024-029) with comprehensive gap analysis - prevents implementation drift
+**Impact**: Identified production-grade requirements missing from existing TD items; established Phase 1/2 priorities for architectural enhancements
+[METADATA: architecture-review, strategic-analysis, gap-identification, td-creation, adr-enhancement, scope-management]
+
+---
+### TD_023: Review and Align Implementation with Enhanced ADRs [ARCHITECTURE] [Score: 70/100]
+**Status**: Completed ✅
+**Completed**: 2025-09-09 17:44
+**Owner**: Tech Lead
+**Size**: M (4-6h)
+**Priority**: Critical (Must align before implementation begins)
+**Markers**: [ARCHITECTURE] [ADR-REVIEW] [STRATEGIC] [SCOPE-MANAGEMENT]
+**Created**: 2025-09-08 22:59
+**Approved**: 2025-09-08 22:59
+
+**What**: Strategic review of ADR enhancements and alignment of existing TD items with new specifications
+**Why**: ADRs 004, 005, 006, 011, 012 received substantial professional-grade enhancements that may change implementation scope and requirements
+
+**Enhanced ADR Changes Requiring Review**:
+
+**ADR-004 (Deterministic Simulation) Enhancements**:
+- Unbiased range generation (rejection sampling)
+- Stable FNV-1a hashing for cross-platform fork derivation
+- Comprehensive input validation with edge case handling
+- Enhanced diagnostics (Stream, RootSeed properties)
+- Cross-platform CI testing requirements
+- Architecture tests for non-determinism prevention
+- Microsoft.Extensions.Logging alignment
+
+**ADR-005 (Save-Ready Architecture) Enhancements**:
+- IStableIdGenerator interface for deterministic-friendly ID creation
+- Enhanced recursive type validation for save readiness
+- Pluggable serialization provider (Newtonsoft.Json support)
+- World Hydration/Rehydration process specification
+- ModData extension points for mod-friendly entities
+- ISaveStorage abstraction for filesystem independence
+- Save migration pipeline with discrete steps
+- Architecture tests for Godot type prevention
+
+**ADR-006 (Selective Abstraction) Enhancements**:
+- Core value types (CoreVector2) to prevent Godot leakage
+- IGameClock abstraction added to decision matrix
+- Architecture tests for dependency enforcement
+- Enhanced testing examples with NetArchTest
+- Expanded abstraction decision matrix
+
+**ADR-011/012 (Bridge Patterns) Enhancements**:
+- Improved service integration patterns
+- Enhanced error handling approaches
+- Better DI integration examples
+
+**Strategic Questions for Review**:
+1. **Scope Impact**: Do TD_020, TD_021, TD_022 need scope adjustments for enhanced requirements?
+2. **Split Decision**: Should complex enhancements become separate TD items (e.g., architecture tests, cross-platform CI)?
+3. **Priority Sequencing**: Which enhanced features are Phase 1 vs Phase 2 implementations?
+4. **Implementation Complexity**: Are complexity scores (90/85/75) still accurate with enhancements?
+5. **Resource Allocation**: Do we need additional specialist input (DevOps for CI, Test Specialist for architecture tests)?
+
+**Done When**:
+- All four enhanced ADRs reviewed for implementation impact
+- TD_020, TD_021, TD_022 scope validated or adjusted
+- Decision made on splitting complex enhancements into separate items
+- Implementation priority and sequence confirmed
+- Resource requirements validated (Dev Engineer vs multi-persona)
+- Any new TD items created for deferred enhancements
+- Updated complexity scores if needed
+
+**Depends On**: Review of enhanced ADR-004, ADR-005, ADR-006, ADR-011, ADR-012
+
+**Tech Lead Decision** (2025-09-08 22:59):
+- **AUTO-APPROVED** - Critical strategic review before implementation
+- Must complete before Dev Engineer starts TD_020/021/022
+- Enhanced ADRs significantly more comprehensive than original versions
+- Risk of implementation drift without alignment review
+- 4-6 hours well-spent to ensure we build the right architecture
+
+**COMPLETION ANALYSIS (Tech Lead 2025-09-09 17:44)**:
+- ✅ Created comprehensive analysis document: `Docs/01-Active/TD_023_Analysis.md`
+- ✅ Added 6 new TD items (TD_024-029) covering production-grade gaps
+- ✅ Established Phase 1 (Critical) vs Phase 2 (Important) priorities
+- ✅ Routed specialized work to appropriate personas (Test Specialist, DevOps)
+- ✅ Identified ~3-5 days additional work needed for production-ready architecture
+- ✅ Prevented expensive retrofitting by addressing enhancements up-front
+
+**New TD Items Created**:
+- **TD_024**: Architecture Tests for ADR Compliance (Test Specialist, Critical)
+- **TD_025**: Cross-Platform Determinism CI Pipeline (DevOps, Important)
+- **TD_026**: Determinism Hardening Implementation (Dev Engineer, Critical)
+- **TD_027**: Advanced Save Infrastructure (Dev Engineer, Important)  
+- **TD_028**: Core Value Types and Boundaries (Dev Engineer, Critical)
+- **TD_029**: Roslyn Analyzers for Forbidden Patterns (DevOps, Nice to Have)
+
+**Strategic Recommendations Delivered**:
+1. DO NOT expand TD_020-022 (prevents scope creep)
+2. Implement Phase 1 items immediately (TD_024, TD_026, TD_028)
+3. Route to specialists for expertise leverage
+4. Additional effort justified to prevent exponential refactoring costs
+
+---
+**Extraction Targets**:
+- [ ] ADR needed for: Strategic Architecture Review Process
+- [ ] HANDBOOK update: Gap Analysis methodology for enhanced requirements
+- [ ] HANDBOOK update: Phase-based prioritization patterns (Critical/Important/Nice to Have)
+- [ ] Process pattern: TD creation from architectural enhancement gaps
+- [ ] Strategic pattern: Multi-persona work routing based on expertise
+
+### TD_017: Implement UI Event Bus Architecture ✅ EVENT-DRIVEN ARCHITECTURE COMPLETE
+**Extraction Status**: NOT EXTRACTED ⚠️
+**Completed**: 2025-09-08 19:38
+**Owner**: Dev Engineer
+**Effort**: L (2-3 days)
+**Archive Note**: Complete UI Event Bus implementation with MediatR integration - replaces static router, enables scalable event-driven architecture
+**Impact**: Foundation for 200+ future events; modern SOLID architecture replacing static violations; all tests passing
+[METADATA: event-bus, mediatr-integration, ui-architecture, static-elimination, scalable-events, solid-principles]
+
+---
+### TD_017: Implement UI Event Bus Architecture [ARCHITECTURE] [Score: 65/100] ✅
+**Status**: Done
+**Owner**: Dev Engineer
+**Size**: L (2-3 days)
+**Priority**: Critical (Foundation for 200+ future events)
+**Markers**: [ARCHITECTURE] [ADR-010] [EVENT-BUS] [MEDIATR]
+**Created**: 2025-09-08 16:40
+**Completed**: 2025-09-08 19:38
+
+**What**: Implement UI Event Bus pattern to replace static event router
+**Why**: Current static approach won't scale to 200+ events and violates SOLID
+
+**✅ IMPLEMENTATION COMPLETED** (All 4 Phases + 5 Critical Issues Fixed):
+
+**Phase 1-4: Core Architecture** ✅
+- Created complete UI Event Bus architecture with IUIEventBus interface
+- Implemented UIEventForwarder<T> for automatic MediatR event forwarding
+- Built WeakReference-based subscription system preventing memory leaks
+- Integrated EventAwareNode base class for Godot lifecycle management
+
+**Critical Issues Resolved**:
+1. **MediatR Auto-Discovery Conflict** - Removed old GameManagerEventRouter entirely
+2. **Missing Base Class Calls** - Fixed base._Ready() and base._ExitTree() calls
+3. **Race Condition** - Restructured initialization order (DI first, then EventBus)
+4. **CallDeferred Misuse** - Simplified to direct invocation (already on main thread)
+5. **Duplicate Registration** - Removed manual UIEventForwarder registration
+
+**Final Architecture**:
+```
+Domain Event → MediatR → UIEventForwarder<T> → UIEventBus → GameManager → UI Update
+```
+
+**Results**:
+- ✅ Health bars update correctly when actors take damage
+- ✅ Dead actors removed from UI immediately
+- ✅ No more static router errors
+- ✅ All 232 tests passing with zero warnings
+- ✅ Modern event-driven architecture fully operational
+
+**Post-Mortem**: [TD_017 Implementation Issues](../../06-PostMortems/Inbox/2025-09-08-td017-ui-event-bus-implementation.md)
+**References**: [ADR-010](../03-Reference/ADR/ADR-010-ui-event-bus-architecture.md)
+
+---
+**Extraction Targets**:
+- [ ] ADR needed for: Complete Event-Driven Architecture Pattern with MediatR
+- [ ] HANDBOOK update: UI Event Bus implementation with WeakReference lifecycle
+- [ ] HANDBOOK update: MediatR Auto-Discovery conflict resolution patterns
+- [ ] Architecture pattern: EventAwareNode base class for Godot integration
+- [ ] Anti-pattern: Static event router replaced with proper dependency injection
+
+### TD_019: Fix embody script squash merge handling ✅ ZERO-FRICTION AUTOMATION RESTORED  
+**Extraction Status**: NOT EXTRACTED ⚠️
+**Completed**: 2025-09-08 17:31
+**Owner**: DevOps Engineer
+**Effort**: M (4-6h)
+**Archive Note**: Hard reset strategy eliminates squash merge sync failures - restores zero-friction persona switching workflow
+**Impact**: Saves 5-10 minutes per PR merge per developer; eliminates manual git interventions; maintains automation philosophy
+[METADATA: devops-automation, git-workflow, squash-merge-handling, zero-friction, developer-experience, script-reliability]
+
+---
+### TD_019: Fix embody script squash merge handling with hard reset strategy ✅
+**Status**: Done
+**Owner**: DevOps Engineer  
+**Size**: M (4-6h)
+**Priority**: Important (Developer friction)
+**Markers**: [DEVOPS] [AUTOMATION] [GIT]
+**Created**: 2025-09-08 17:00
+**Completed**: 2025-09-08 17:31
+
+**What**: Fix embody.ps1 script's squash merge handling with simplified reset strategy
+**Why**: Script fails when PRs are squash merged, causing sync failures and manual intervention
+
+**✅ IMPLEMENTATION COMPLETED**:
+1. **Hard Reset Strategy**: Modified Handle-MergedPR() in sync-core.psm1 to use `git reset --hard origin/main` instead of problematic `git pull origin main --ff-only`
+2. **Enhanced Pre-push**: Added dotnet format verification/auto-fix to pre-push hook to prevent verify-local-fixes CI failures
+3. **Safety Preserved**: Maintains existing stash/restore logic for uncommitted changes
+4. **Zero Friction Achieved**: Eliminates manual `git reset --hard origin/main` interventions
+
+**Impact Delivered**:
+- ✅ Squash merge handling works without sync failures
+- ✅ Persona switching flows smoothly after PR merges  
+- ✅ Enhanced format verification prevents CI failures
+- ✅ Saves ~5-10 minutes per PR merge per developer
+- ✅ branch-status-check.ps1 remains functional for awareness
+
+**DevOps Engineer Decision** (2025-09-08 17:31):
+- **COMPLETED** with elegant hard reset solution
+- Both Handle-MergedPR() fix and pre-push format verification deployed
+- Zero-friction automation philosophy maintained
+- All tests pass, ready for production use
+
+---
+**Extraction Targets**:
+- [ ] HANDBOOK update: Hard reset strategy for squash merge handling
+- [ ] HANDBOOK update: Pre-push format verification pattern
+- [ ] DevOps pattern: Zero-friction automation philosophy
+- [ ] Git workflow: Squash merge detection and recovery automation
+- [ ] Developer experience: Time-saving automation patterns
 

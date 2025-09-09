@@ -66,6 +66,10 @@ We will implement **Selective Abstraction** based on clear criteria:
 | **Scene Loading** | ❌ NO | Godot-specific | Direct Godot |
 | **Tweens** | ❌ NO | Presentation only | Direct Godot |
 
+### Note on Animations and Timing Events
+
+Animations remain a ❌ NO for abstraction. However, tactical gameplay often requires core logic to be triggered at specific animation keyframes (e.g., hit on frame 15, cleanup on finish). To support this without abstracting Godot's animation system, we adopt an approved Presentation-to-Core callback pattern (see "Presentation-to-Core Animation Event Bridge" below).
+
 ### Reviewer Addendum (2025-09-08)
 
 > Reviewer: This ADR is pragmatic and aligns with the handbook. To lock it down:
@@ -150,6 +154,70 @@ namespace Darklands.Presentation
     }
 }
 ```
+
+### Presentation-to-Core Animation Event Bridge (Approved Pattern)
+
+Problem: Some interactions must be driven by precise presentation timing (e.g., applying damage at a hit frame). We need a clean way for the View to notify Application/Core at specific keyframes without coupling layers or introducing global signal buses.
+
+Decision: Use a small, Core-level callback interface passed from Presenter to View when initiating an animation. The View uses AnimationPlayer call-method tracks (or signals) to invoke the interface methods at exact keyframes.
+
+```csharp
+// Core/Application layer (no Godot types)
+namespace Darklands.Core.Application
+{
+    public interface IAnimationEvents
+    {
+        void OnKeyframe(string eventName);
+        void OnAnimationFinished(string animationName);
+    }
+}
+
+// Presenter coordinates the animation and provides the handler
+public sealed class AttackPresenter
+{
+    private readonly ActorView _view;
+
+    public AttackPresenter(ActorView view)
+    {
+        _view = view;
+    }
+
+    public void PresentAttack(IAnimationEvents animationEvents)
+    {
+        _view.PlayAttackAnimation(animationEvents);
+    }
+}
+
+// Presentation/View layer (Godot-specific)
+public partial class ActorView : Node2D
+{
+    private IAnimationEvents? _animationEvents;
+
+    public void PlayAttackAnimation(IAnimationEvents animationEvents)
+    {
+        _animationEvents = animationEvents;
+        GetNode<AnimationPlayer>("AnimationPlayer").Play("attack");
+    }
+
+    // Called by AnimationPlayer via call-method track at a specific keyframe
+    public void OnAnimationKeyframe(string eventName)
+    {
+        _animationEvents?.OnKeyframe(eventName);
+    }
+
+    // Called by AnimationPlayer on animation finished (signal → method)
+    public void OnAnimationFinished(string animationName)
+    {
+        _animationEvents?.OnAnimationFinished(animationName);
+        _animationEvents = null;
+    }
+}
+```
+
+Notes:
+- This preserves layer boundaries: Core defines a tiny contract; View stays in Godot; no global event bus is introduced.
+- Keep the interface focused on semantic events, not frames. Name events (e.g., "Hit", "WindUpDone").
+- This complements ADR-010's Core→UI event flow; it covers the reverse, for timing-critical cases only.
 
 ### Abstraction Criteria Checklist
 
@@ -334,6 +402,73 @@ public partial class CombatView : Control
 }
 ```
 
+### 3. Decompose Coordinator/Orchestrator Interfaces
+
+Avoid "God" orchestrator interfaces. Prefer small, role-focused interfaces composed by a thin coordinator. This follows the Interface Segregation Principle and keeps units testable.
+
+```csharp
+// Core/Application abstractions (no Godot types)
+public interface IActorHydrator { void HydrateActors(GameState state); }
+public interface IItemHydrator { void HydrateItems(GameState state); }
+
+public interface IWorldHydrator
+{
+    void HydrateWorld(GameState state);
+}
+
+// Coordinator composes smaller roles
+public sealed class WorldHydrator : IWorldHydrator
+{
+    private readonly IActorHydrator _actorHydrator;
+    private readonly IItemHydrator _itemHydrator;
+
+    public WorldHydrator(IActorHydrator actorHydrator, IItemHydrator itemHydrator)
+    {
+        _actorHydrator = actorHydrator;
+        _itemHydrator = itemHydrator;
+    }
+
+    public void HydrateWorld(GameState state)
+    {
+        _actorHydrator.HydrateActors(state);
+        _itemHydrator.HydrateItems(state);
+    }
+}
+```
+
+Guidelines:
+- Keep coordinator interfaces minimal (often a single verb like `HydrateWorld`).
+- Split by domain roles (Actors, Items, Quests, UI) behind separate interfaces.
+- Register and compose the smaller roles in the container; avoid passing the container into implementations.
+
+### 4. Service Locator Discipline (Presentation Only)
+
+When a service locator is unavoidable in Godot views, enforce strict usage rules to prevent hidden dependencies:
+
+- Resolve dependencies only in a composition-root-like method (`_EnterTree`/`_Ready`) of top-level scene nodes.
+- Cache resolved dependencies in fields; never call the locator in `_Process`, `_Input`, or event handlers.
+- Prefer passing dependencies to child nodes through constructors/factory methods or property assignment at initialization time.
+
+```csharp
+// Anti-pattern: hidden resolution per frame
+public override void _Process(double delta)
+{
+    var audio = GameStrapper.GetService<IAudioService>(); // ❌ Don't do this
+    audio.PlaySound(SoundId.Tick);
+}
+
+// Approved pattern: resolve once in _Ready and cache
+private IAudioService? _audio;
+public override void _Ready()
+{
+    _audio = GameStrapper.GetService<IAudioService>(); // ✅ Resolve at init
+}
+public override void _Process(double delta)
+{
+    _audio?.PlaySound(SoundId.Tick); // ✅ Use cached dependency
+}
+```
+
 ### 3. Testing Strategy
 
 ```csharp
@@ -444,6 +579,17 @@ public interface IHealthBarService
     void SetHealth(int current, int max);
 }
 // Just update the ProgressBar directly!
+ 
+// ❌ ANTI-PATTERN: Orchestrator God Interface
+public interface IWorldHydrator
+{
+    void HydrateActors(GameState s);
+    void HydrateItems(GameState s);
+    void HydrateQuests(GameState s);
+    void HydrateUI(GameState s);
+    // ... grows indefinitely
+}
+// ✅ Prefer small role interfaces + a thin coordinator (see guidelines)
 ```
 
 ## References
@@ -452,3 +598,5 @@ public interface IHealthBarService
 - [YAGNI Principle](https://martinfowler.com/bliki/Yagni.html) - You Aren't Gonna Need It
 - [Pragmatic Clean Architecture](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html) - Robert C. Martin
 - [Godot Best Practices](https://docs.godotengine.org/en/stable/tutorials/best_practices/) - Official Godot docs
+- [Interface Segregation Principle](https://en.wikipedia.org/wiki/Interface_segregation_principle)
+- [Godot AnimationPlayer](https://docs.godotengine.org/en/stable/classes/class_animationplayer.html) - Call Method tracks
