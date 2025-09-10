@@ -84,14 +84,8 @@ jobs:
       run: |
         echo "🔢 Running cross-platform sequence verification..."
         
-        # Use workflow input seed or default
-        SEED="${{ github.event.inputs.seed || '12345' }}"
-        SEQUENCE_LENGTH="${{ github.event.inputs.sequence_length || '1000' }}"
-        
-        echo "Using seed: $SEED, sequence length: $SEQUENCE_LENGTH"
-        
-        # Run specific sequence verification test
-        dotnet test tests/Darklands.Core.Tests.csproj --configuration Release --no-build --logger "console;verbosity=normal" --filter "FullyQualifiedName~DeterministicSequence_SameSeedProducesIdenticalResults" --verbosity normal
+        # Run cross-platform determinism tests (using hardcoded reference seeds)
+        dotnet test tests/Darklands.Core.Tests.csproj --configuration Release --no-build --logger "console;verbosity=normal" --filter "Category=CrossPlatform" --verbosity normal
           
         echo "✅ Sequence verification completed on ${{ matrix.platform_name }}"
         
@@ -100,27 +94,10 @@ jobs:
       run: |
         echo "⚡ Running determinism performance benchmark on ${{ matrix.platform_name }}..."
         
-        # Time the deterministic operations
-        START_TIME=$(date +%s%N 2>/dev/null || date +%s000000000)
+        # Run performance-sensitive determinism tests with timing
+        dotnet test tests/Darklands.Core.Tests.csproj --configuration Release --no-build --logger "console;verbosity=minimal" --filter "Category=Phase1&FullyQualifiedName~DeterministicRandom" --verbosity minimal
         
-        # Run performance-sensitive tests  
-        dotnet test tests/Darklands.Core.Tests.csproj --configuration Release --no-build --logger "console;verbosity=minimal" --filter "TestCategory=Phase1&FullyQualifiedName~DeterministicRandom" --verbosity minimal
-          
-        END_TIME=$(date +%s%N 2>/dev/null || date +%s000000000)
-        
-        # Calculate duration (handling both nanosecond and second precision)
-        if [ ${#START_TIME} -gt 10 ]; then
-          # Nanosecond precision available
-          DURATION_NS=$((END_TIME - START_TIME))
-          DURATION_MS=$((DURATION_NS / 1000000))
-        else
-          # Second precision fallback  
-          DURATION_S=$((END_TIME - START_TIME))
-          DURATION_MS=$((DURATION_S * 1000))
-        fi
-        
-        echo "🎯 Determinism tests completed in ${DURATION_MS}ms on ${{ matrix.platform_name }}"
-        echo "performance_ms=${DURATION_MS}" >> $GITHUB_OUTPUT
+        echo "🎯 Determinism performance tests completed on ${{ matrix.platform_name }}"
         
     - name: 📊 Upload Test Results
       uses: actions/upload-artifact@v4
