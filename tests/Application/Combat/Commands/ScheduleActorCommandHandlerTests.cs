@@ -9,6 +9,7 @@ using Darklands.Core.Application.Combat.Commands;
 using Darklands.Core.Application.Combat.Services;
 using Darklands.Core.Domain.Combat;
 using Darklands.Core.Domain.Grid;
+using Darklands.Core.Tests.TestUtilities;
 using static LanguageExt.Prelude;
 
 namespace Darklands.Core.Tests.Application.Combat.Commands
@@ -103,9 +104,9 @@ namespace Darklands.Core.Tests.Application.Combat.Commands
 
             var commands = new[]
             {
-                ScheduleActorCommand.Create(ActorId.NewId(), new Position(1, 1), TimeUnit.CreateUnsafe(1000)),
-                ScheduleActorCommand.Create(ActorId.NewId(), new Position(2, 2), TimeUnit.CreateUnsafe(1500)),
-                ScheduleActorCommand.Create(ActorId.NewId(), new Position(3, 3), TimeUnit.CreateUnsafe(2000))
+                ScheduleActorCommand.Create(ActorId.NewId(TestIdGenerator.Instance), new Position(1, 1), TimeUnit.CreateUnsafe(1000)),
+                ScheduleActorCommand.Create(ActorId.NewId(TestIdGenerator.Instance), new Position(2, 2), TimeUnit.CreateUnsafe(1500)),
+                ScheduleActorCommand.Create(ActorId.NewId(TestIdGenerator.Instance), new Position(3, 3), TimeUnit.CreateUnsafe(2000))
             };
 
             // Act & Assert
@@ -154,11 +155,11 @@ namespace Darklands.Core.Tests.Application.Combat.Commands
             var edgeCases = new[]
             {
                 // Minimum time
-                ScheduleActorCommand.Create(ActorId.NewId(), new Position(0, 0), TimeUnit.Minimum),
+                ScheduleActorCommand.Create(ActorId.NewId(TestIdGenerator.Instance), new Position(0, 0), TimeUnit.Minimum),
                 // Maximum time
-                ScheduleActorCommand.Create(ActorId.NewId(), new Position(99, 99), TimeUnit.Maximum),
+                ScheduleActorCommand.Create(ActorId.NewId(TestIdGenerator.Instance), new Position(99, 99), TimeUnit.Maximum),
                 // Zero time
-                ScheduleActorCommand.Create(ActorId.NewId(), new Position(50, 50), TimeUnit.Zero)
+                ScheduleActorCommand.Create(ActorId.NewId(TestIdGenerator.Instance), new Position(50, 50), TimeUnit.Zero)
             };
 
             // Act & Assert

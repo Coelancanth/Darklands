@@ -4,6 +4,7 @@ using LanguageExt;
 using LanguageExt.Common;
 using Darklands.Core.Domain.Actor;
 using Darklands.Core.Domain.Grid;
+using Darklands.Core.Tests.TestUtilities;
 using static LanguageExt.Prelude;
 
 namespace Darklands.Core.Tests.Domain.Actor
@@ -11,7 +12,7 @@ namespace Darklands.Core.Tests.Domain.Actor
     [Trait("Category", "Phase1")]
     public class DummyActorTests
     {
-        private readonly ActorId _validActorId = ActorId.NewId();
+        private readonly ActorId _validActorId = ActorId.NewId(TestIdGenerator.Instance);
         private readonly Health _validHealth = Health.CreateAtFullHealth(50).Match(
             Succ: h => h,
             Fail: _ => throw new InvalidOperationException("Test setup failed")

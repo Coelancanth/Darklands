@@ -4,6 +4,7 @@ using MediatR;
 using Darklands.Core.Domain.Combat;
 using Darklands.Core.Domain.Grid;
 using Darklands.Core.Domain.Actor;
+using Darklands.Core.Tests.TestUtilities;
 
 namespace Darklands.Core.Tests.Domain.Combat;
 
@@ -17,7 +18,7 @@ public class ActorEventsTests
     public void ActorDiedEvent_Create_ProducesValidEvent()
     {
         // Arrange
-        var actorId = ActorId.NewId();
+        var actorId = ActorId.NewId(TestIdGenerator.Instance);
         var position = new Position(5, 7);
 
         // Act
@@ -33,7 +34,7 @@ public class ActorEventsTests
     public void ActorDiedEvent_ToString_ReturnsFormattedString()
     {
         // Arrange
-        var actorId = ActorId.NewId();
+        var actorId = ActorId.NewId(TestIdGenerator.Instance);
         var position = new Position(3, 4);
         var eventObj = ActorDiedEvent.Create(actorId, position);
 
@@ -51,7 +52,7 @@ public class ActorEventsTests
     public void ActorDamagedEvent_Create_ProducesValidEvent()
     {
         // Arrange
-        var actorId = ActorId.NewId();
+        var actorId = ActorId.NewId(TestIdGenerator.Instance);
         var oldHealth = Health.Create(100, 100).Match(h => h, _ => throw new Exception("Should not fail"));
         var newHealth = Health.Create(75, 100).Match(h => h, _ => throw new Exception("Should not fail"));
 
@@ -69,7 +70,7 @@ public class ActorEventsTests
     public void ActorDamagedEvent_DamageAmount_CalculatesCorrectly()
     {
         // Arrange
-        var actorId = ActorId.NewId();
+        var actorId = ActorId.NewId(TestIdGenerator.Instance);
         var oldHealth = Health.Create(80, 100).Match(h => h, _ => throw new Exception("Should not fail"));
         var newHealth = Health.Create(55, 100).Match(h => h, _ => throw new Exception("Should not fail"));
 
@@ -84,7 +85,7 @@ public class ActorEventsTests
     public void ActorDamagedEvent_ToString_ReturnsFormattedString()
     {
         // Arrange
-        var actorId = ActorId.NewId();
+        var actorId = ActorId.NewId(TestIdGenerator.Instance);
         var oldHealth = Health.Create(60, 100).Match(h => h, _ => throw new Exception("Should not fail"));
         var newHealth = Health.Create(45, 100).Match(h => h, _ => throw new Exception("Should not fail"));
         var eventObj = ActorDamagedEvent.Create(actorId, oldHealth, newHealth);
@@ -104,7 +105,7 @@ public class ActorEventsTests
     public void ActorEvents_RecordEquality_WorksCorrectly()
     {
         // Arrange
-        var actorId = ActorId.NewId();
+        var actorId = ActorId.NewId(TestIdGenerator.Instance);
         var position = new Position(2, 3);
         var health = Health.Create(50, 100).Match(h => h, _ => throw new Exception("Should not fail"));
 

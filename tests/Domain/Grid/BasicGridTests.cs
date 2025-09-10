@@ -1,6 +1,7 @@
 using Xunit;
 using FluentAssertions;
 using Darklands.Core.Domain.Grid;
+using Darklands.Core.Tests.TestUtilities;
 
 namespace Darklands.Core.Tests.Domain.Grid;
 
@@ -40,7 +41,7 @@ public class BasicGridTests
     public void ActorId_Creation_Works()
     {
         // Act
-        var actorId = ActorId.NewId();
+        var actorId = ActorId.NewId(TestIdGenerator.Instance);
 
         // Assert
         actorId.IsEmpty.Should().BeFalse();
@@ -69,7 +70,7 @@ public class BasicGridTests
     {
         // Arrange
         var position = new Position(1, 1);
-        var actorId = ActorId.NewId();
+        var actorId = ActorId.NewId(TestIdGenerator.Instance);
         var tile = Tile.CreateEmpty(position, TerrainType.Open);
 
         // Act

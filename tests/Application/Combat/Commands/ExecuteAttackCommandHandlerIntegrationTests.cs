@@ -11,6 +11,7 @@ using Darklands.Core.Application.Grid.Services;
 using Darklands.Core.Domain.Combat;
 using Darklands.Core.Domain.Grid;
 using Darklands.Core.Infrastructure.DependencyInjection;
+using Darklands.Core.Tests.TestUtilities;
 using LanguageExt;
 using System.Threading;
 using System.Threading.Tasks;
@@ -58,8 +59,8 @@ public class ExecuteAttackCommandHandlerIntegrationTests : IDisposable
     public async Task Handle_CompleteAttackFlow_ProcessesEndToEnd()
     {
         // Arrange: Set up actors and grid positions
-        var attackerId = ActorId.NewId();
-        var targetId = ActorId.NewId();
+        var attackerId = ActorId.NewId(TestIdGenerator.Instance);
+        var targetId = ActorId.NewId(TestIdGenerator.Instance);
         var attackerPosition = new Position(2, 2);
         var targetPosition = new Position(2, 3); // Adjacent
 
@@ -107,8 +108,8 @@ public class ExecuteAttackCommandHandlerIntegrationTests : IDisposable
     public async Task Handle_LethalAttack_KillsTargetAndCleansUp()
     {
         // Arrange: Set up attacker and weak target
-        var attackerId = ActorId.NewId();
-        var targetId = ActorId.NewId();
+        var attackerId = ActorId.NewId(TestIdGenerator.Instance);
+        var targetId = ActorId.NewId(TestIdGenerator.Instance);
         var attackerPosition = new Position(1, 1);
         var targetPosition = new Position(1, 2); // Adjacent
 
@@ -151,8 +152,8 @@ public class ExecuteAttackCommandHandlerIntegrationTests : IDisposable
     public async Task Handle_AttackNonAdjacentTarget_FailsValidation()
     {
         // Arrange: Set up actors at non-adjacent positions
-        var attackerId = ActorId.NewId();
-        var targetId = ActorId.NewId();
+        var attackerId = ActorId.NewId(TestIdGenerator.Instance);
+        var targetId = ActorId.NewId(TestIdGenerator.Instance);
         var attackerPosition = new Position(1, 1);
         var targetPosition = new Position(3, 3); // Not adjacent (distance 2,2)
 
@@ -192,8 +193,8 @@ public class ExecuteAttackCommandHandlerIntegrationTests : IDisposable
     public async Task Handle_AttackDeadTarget_FailsValidation()
     {
         // Arrange: Set up attacker and dead target
-        var attackerId = ActorId.NewId();
-        var targetId = ActorId.NewId();
+        var attackerId = ActorId.NewId(TestIdGenerator.Instance);
+        var targetId = ActorId.NewId(TestIdGenerator.Instance);
         var attackerPosition = new Position(2, 2);
         var targetPosition = new Position(2, 3); // Adjacent
 
@@ -230,8 +231,8 @@ public class ExecuteAttackCommandHandlerIntegrationTests : IDisposable
     public async Task Handle_MultipleSequentialAttacks_MaintainsStateConsistency()
     {
         // Arrange: Set up one attacker and one target for multiple attacks
-        var attackerId = ActorId.NewId();
-        var targetId = ActorId.NewId();
+        var attackerId = ActorId.NewId(TestIdGenerator.Instance);
+        var targetId = ActorId.NewId(TestIdGenerator.Instance);
         var attackerPosition = new Position(3, 3);
         var targetPosition = new Position(3, 4); // Adjacent
 
@@ -274,8 +275,8 @@ public class ExecuteAttackCommandHandlerIntegrationTests : IDisposable
     public void Handle_ServiceIntegration_VerifiesDependencyInjection()
     {
         // Arrange: Verify all required services are properly resolved from DI
-        var attackerId = ActorId.NewId();
-        var targetId = ActorId.NewId();
+        var attackerId = ActorId.NewId(TestIdGenerator.Instance);
+        var targetId = ActorId.NewId(TestIdGenerator.Instance);
 
         // Act & Assert: Verify service resolution
         _gridStateService.Should().NotBeNull("IGridStateService should be resolved from DI");

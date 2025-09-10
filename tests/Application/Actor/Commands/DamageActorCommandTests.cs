@@ -2,13 +2,14 @@ using Xunit;
 using FluentAssertions;
 using Darklands.Core.Application.Actor.Commands;
 using Darklands.Core.Domain.Grid;
+using Darklands.Core.Tests.TestUtilities;
 
 namespace Darklands.Core.Tests.Application.Actor.Commands
 {
     [Trait("Category", "Phase1")]
     public class DamageActorCommandTests
     {
-        private readonly ActorId _validActorId = ActorId.NewId();
+        private readonly ActorId _validActorId = ActorId.NewId(TestIdGenerator.Instance);
 
         [Fact]
         public void Create_ValidParameters_CreatesCommand()

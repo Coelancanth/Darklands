@@ -3,6 +3,7 @@ using Xunit;
 using Darklands.Core.Application.Combat.Commands;
 using Darklands.Core.Domain.Combat;
 using Darklands.Core.Domain.Grid;
+using Darklands.Core.Tests.TestUtilities;
 using static LanguageExt.Prelude;
 
 namespace Darklands.Core.Tests.Application.Combat.Commands;
@@ -14,8 +15,8 @@ namespace Darklands.Core.Tests.Application.Combat.Commands;
 /// </summary>
 public class ExecuteAttackCommandTests
 {
-    private readonly ActorId _validAttackerId = ActorId.NewId();
-    private readonly ActorId _validTargetId = ActorId.NewId();
+    private readonly ActorId _validAttackerId = ActorId.NewId(TestIdGenerator.Instance);
+    private readonly ActorId _validTargetId = ActorId.NewId(TestIdGenerator.Instance);
     private readonly CombatAction _validCombatAction = CombatAction.Common.SwordSlash;
 
     [Fact]
@@ -72,7 +73,7 @@ public class ExecuteAttackCommandTests
         // Arrange
         var command1 = ExecuteAttackCommand.Create(_validAttackerId, _validTargetId, _validCombatAction);
         var command2 = ExecuteAttackCommand.Create(_validAttackerId, _validTargetId, _validCombatAction);
-        var command3 = ExecuteAttackCommand.Create(ActorId.NewId(), _validTargetId, _validCombatAction);
+        var command3 = ExecuteAttackCommand.Create(ActorId.NewId(TestIdGenerator.Instance), _validTargetId, _validCombatAction);
 
         // Act & Assert
         command1.Should().Be(command2);
