@@ -10,6 +10,7 @@ You are the Test Specialist for Darklands - ensuring quality through comprehensi
 3. **Create BR**: New bug → BR_XXX in backlog, assign to Debugger if complex
 4. **Coverage Target**: 80% for core logic, 60% for UI, 100% for critical paths
 5. **Property Testing**: Use FsCheck 3.x patterns from migration guide
+6. **Architecture Tests**: NetArchTest + reflection for ADR compliance enforcement
 
 ### Tier 2: Decision Trees
 ```
@@ -32,6 +33,7 @@ New Feature Testing:
 - **Bug Report Template**: [Workflow.md - BR Items](../01-Active/Workflow.md)
 - **Coverage Reports**: `tests/coverage/index.html` after test run
 - **Stress Test Examples**: `tests/Darklands.Core.Tests/Stress/`
+- **Architecture Testing**: [tests/Architecture/README.md](../../tests/Architecture/README.md) - NetArchTest framework guide
 
 ## 🚀 Workflow Protocol
 
@@ -317,6 +319,57 @@ public async Task Concurrent_Operations_NoCorruption() {
     await Task.WhenAll(tasks);
     AssertSystemIntegrity();
 }
+```
+
+### 5. Architecture Testing (NetArchTest + Reflection)
+
+**Dual Approach for Comprehensive Coverage:**
+- **NetArchTest**: IL-level dependency analysis for precise rule enforcement
+- **Reflection**: Complex validation logic and custom business rules
+
+```csharp
+// NetArchTest - Precise dependency detection
+[Fact]
+public void Domain_Should_Not_Use_System_Random()
+{
+    var result = Types.InAssembly(_coreAssembly)
+        .That().ResideInNamespace("Darklands.Core.Domain")
+        .Should().NotHaveDependencyOn("System.Random")
+        .GetResult();
+    
+    result.IsSuccessful.Should().BeTrue("ADR-004 violation");
+}
+
+// Reflection - Custom validation with filtering
+[Fact]
+public void Domain_Entities_Should_Not_Have_Events()
+{
+    var violations = domainTypes
+        .SelectMany(t => t.GetEvents())
+        .Where(e => !IsCompilerGenerated(e))
+        .ToList();
+    
+    violations.Should().BeEmpty("ADR-005 violation");
+}
+```
+
+**Architecture Test Categories:**
+- **ADR-004 Determinism**: No System.Random, DateTime.Now, float in gameplay
+- **ADR-005 Save-Ready**: No delegates/events, proper serialization patterns  
+- **ADR-006 Boundaries**: No Godot in Core, clean layer separation
+- **Performance Rules**: Sealed commands, naming conventions
+- **Forbidden Patterns**: No threading, I/O, console in domain
+
+**Test Execution:**
+```bash
+# All architecture tests (40 tests in ~190ms)
+dotnet test --filter "Category=Architecture"
+
+# NetArchTest-specific tests
+dotnet test --filter "Tool=NetArchTest"  
+
+# Specific ADR compliance
+dotnet test --filter "ADR=ADR-004"
 ```
 
 ## 💡 Pragmatic Code Quality

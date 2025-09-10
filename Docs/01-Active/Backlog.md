@@ -91,52 +91,7 @@
 
 <!-- TD_023 completed and moved to archive (2025-09-09 17:50) -->
 
-### TD_024: Architecture Tests for ADR Compliance [TESTING] [Score: 85/100]
-**Status**: Completed ✅
-**Owner**: Test Specialist
-**Size**: M (6-8h)
-**Priority**: Critical (Foundation - prevents regression)
-**Markers**: [TESTING] [ARCHITECTURE] [ADR-COMPLIANCE] [FOUNDATION]
-**Created**: 2025-09-09 17:44
-**Completed**: 2025-09-10 13:15
-
-**What**: Implement architecture tests to enforce ADR compliance at compile/test time
-**Why**: Prevent architectural drift and regression; enforce boundaries automatically
-
-**✅ Delivered**:
-- Created comprehensive AdrComplianceTests.cs with 14 new architecture tests
-- ADR-004 enforcement: No System.Random, DateTime.Now, or float in gameplay
-- ADR-005 enforcement: Save-ready entities, no circular refs, no delegates
-- ADR-006 enforcement: Clean architecture boundaries, no Godot in Core
-- Forbidden pattern detection: No threading, I/O, or console in domain
-- All 28 architecture tests passing (14 existing + 14 new)
-- False positives filtered (compiler-generated, utility classes)
-
-**Problem Statement**:
-- No automated enforcement of architectural boundaries
-- Developers could accidentally violate ADR decisions
-- Manual code reviews miss subtle violations
-- Regression risk increases as team grows
-
-**Implementation Tasks**:
-1. **NetArchTest setup** for assembly dependency rules
-2. **Prohibit Godot types** in Core assemblies (ADR-006)
-3. **Enforce deterministic patterns** - flag System.Random usage (ADR-004)
-4. **Validate save-ready entities** - no events/delegates in domain (ADR-005)
-5. **Check abstraction boundaries** - Core can't reference Presentation
-6. **Stable sorting enforcement** - flag unstable OrderBy usage
-7. **Fixed-point validation** - flag float usage in gameplay logic
-
-**Done When**:
-- Architecture test project created and integrated
-- All ADR rules have corresponding tests
-- Tests run in CI pipeline
-- Violations fail the build
-- Clear error messages guide developers
-
-**Depends On**: Understanding of ADR-004, ADR-005, ADR-006
-
----
+<!-- TD_024 completed and moved to archive (2025-09-10 13:38) -->
 
 ### TD_025: Cross-Platform Determinism CI Pipeline [DEVOPS] [Score: 75/100]
 **Status**: Proposed 📋
