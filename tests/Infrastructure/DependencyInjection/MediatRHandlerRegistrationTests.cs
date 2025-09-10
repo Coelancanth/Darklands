@@ -21,6 +21,7 @@ namespace Darklands.Core.Tests.Infrastructure.DependencyInjection;
 ///
 /// Prevents runtime MediatR resolution failures by catching registration issues at test time.
 /// </summary>
+[Collection("GameStrapper")]
 public class MediatRHandlerRegistrationTests
 {
     private readonly IServiceProvider _serviceProvider;

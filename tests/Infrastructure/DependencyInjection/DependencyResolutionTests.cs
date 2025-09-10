@@ -19,6 +19,7 @@ namespace Darklands.Core.Tests.Infrastructure.DependencyInjection;
 /// This test acts as an architectural fitness function to ensure all services
 /// remain resolvable.
 /// </summary>
+[Collection("GameStrapper")]
 public class DependencyResolutionTests
 {
     [Fact]

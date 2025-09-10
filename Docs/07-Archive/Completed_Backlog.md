@@ -1720,3 +1720,115 @@ Core implementation complete with all hardening features integrated. Ready for T
 - [ ] DevOps pattern: Local/remote environment consistency strategies
 - [ ] Developer experience: Formatting friction elimination approaches
 
+### TD_021: Implement Save-Ready Entity Patterns [ARCHITECTURE] 
+**Extraction Status**: NOT EXTRACTED ⚠️
+**Completed**: 2025-09-10 09:35 (Phase 3/4 Complete - Infrastructure Layer)
+**Archive Note**: Save-ready entity patterns foundation complete with production-ready infrastructure layer - all 525 tests passing
+---
+**Status**: In Progress (Phase 3/4 Complete) ✅  
+**Owner**: Dev Engineer  
+**Size**: M (6-8h total)
+**Priority**: Critical (Every entity going forward needs this)
+**Markers**: [ARCHITECTURE] [ADR-005] [SAVE-SYSTEM] [FOUNDATION]
+**Created**: 2025-09-08 21:31
+**Approved**: 2025-09-08 21:31
+**Phase 1 Completed**: 2025-09-10 08:49
+**Phase 2 Completed**: 2025-09-10 09:02
+**Phase 3 Completed**: 2025-09-10 09:35
+
+**What**: Refactor ALL domain entities to be save-ready per ADR-005
+**Why**: Retrofitting save system later means rewriting entire domain layer
+
+## ✅ **Phase 1 COMPLETED** (2025-09-10 08:49)
+**Domain Layer Foundation** - All quality gates passed ✅
+
+**Implemented**:
+- ✅ IPersistentEntity & IEntityId interfaces for save system integration
+- ✅ IStableIdGenerator interface for deterministic/non-deterministic ID creation  
+- ✅ GridId value type following ActorId patterns
+- ✅ Actor entity: Now implements IPersistentEntity with ModData & TransientState
+- ✅ Grid entity: Converted to record with ImmutableArray<Tile> (true immutability)
+- ✅ ActorId: Enhanced with IStableIdGenerator support (backwards compatible)
+- ✅ GuidIdGenerator: Temporary production ID generator implementation
+
+**Quality Validation**:
+- ✅ 494/494 tests passing (100% success rate)
+- ✅ Zero compilation warnings/errors in main codebase
+- ✅ Backwards compatibility maintained via deprecated methods
+- ✅ All entities now records or record structs (immutable by design)
+- ✅ ID references replace object references (no circular dependencies)
+- ✅ Clean persistent/transient state separation
+
+**Commit**: `a54b089` - feat(domain): implement save-ready entity patterns [TD_021] [Phase 1/4]
+
+## ✅ **Phase 2 COMPLETED** (2025-09-10 09:02)
+**Test Migration & Application Compatibility** - All quality gates passed ✅
+
+**Implemented**:
+- ✅ TestIdGenerator: Dedicated test ID generator for consistent testing scenarios
+- ✅ 15 test files migrated: Domain layer (5 files) + Application layer (9 files) + Infrastructure (1 file)
+- ✅ All `ActorId.NewId()` calls → `ActorId.NewId(TestIdGenerator.Instance)` 
+- ✅ Added `using Darklands.Core.Tests.TestUtilities;` to all affected test files
+- ✅ Zero behavioral changes to existing test logic and assertions
+
+**Quality Validation**:
+- ✅ 494/494 tests passing (100% success rate)
+- ✅ Zero compilation errors or warnings eliminated
+- ✅ All deprecated method calls removed from test suite
+- ✅ Consistent ID generation patterns across all tests
+- ✅ Complete backwards compatibility maintained
+
+**Commit**: `3fc6451` - test: migrate all tests to use new save-ready entity patterns [TD_021] [Phase 2/4]
+
+## ✅ **Phase 3 COMPLETED** (2025-09-10 09:35)
+**Infrastructure Implementation** - All quality gates passed ✅
+
+**Implemented**:
+1. **DeterministicIdGenerator** - Uses IDeterministicRandom for consistent, testable ID generation
+2. **Enhanced GuidIdGenerator** - Production-ready with cryptographically strong randomness and proper base62 encoding  
+3. **SaveReadyValidator** - Comprehensive ADR-005 compliance checking for entities
+4. **DI Container Integration** - Full registration in GameStrapper with proper service lifetimes
+5. **Architecture Tests** - Added ADR-005 compliance verification and entity validation
+6. **Comprehensive Testing** - 27 infrastructure tests and integration tests, all passing
+
+**Quality Results**:
+- ✅ All 525 tests now pass (fixed test isolation issues)
+- ✅ Zero compilation warnings
+- ✅ Complete ADR-005 compliance validation
+- ✅ Production-ready save/load infrastructure foundation
+
+## 🔄 **Remaining Phase**
+
+### **Phase 4: Presentation Layer Adaptation** [1h remaining]
+**Status**: Ready to start
+**Focus**: Update UI code to use save-ready patterns
+
+**Tasks**:
+- Update presenters that create entities to inject IStableIdGenerator
+- Ensure UI code handles new entity interfaces correctly
+- Manual testing of entity creation flows in UI
+- Verify no regressions in visual presentation
+
+**Quality Gate**: Full system works end-to-end with save-ready entities
+
+## 📊 **Implementation Progress**
+- **Phase 1**: ✅ **COMPLETE** (Domain foundation)
+- **Phase 2**: ✅ **COMPLETE** (Test migration & application compatibility)
+- **Phase 3**: ✅ **COMPLETE** (Infrastructure implementation)
+- **Phase 4**: 🟡 Ready (Presentation layer)
+
+**Total Progress**: ~7-8h complete / 8h total (~95% done)
+
+**Tech Lead Decision** (2025-09-08 21:31):
+- **AUTO-APPROVED** - Critical per ADR-005
+- Every day we delay makes this harder
+- Do this NOW while codebase is small
+- Run serialization tests on every entity
+---
+**Extraction Targets**:
+- [ ] ADR needed for: Save-ready entity patterns with infrastructure validation
+- [ ] HANDBOOK update: DeterministicIdGenerator implementation patterns  
+- [ ] HANDBOOK update: SaveReadyValidator for compile-time entity validation
+- [ ] Test pattern: Infrastructure testing with DI container integration
+- [ ] Architecture pattern: Phase-based implementation with quality gates
+
