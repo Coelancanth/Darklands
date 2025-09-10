@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-09 18:58 (Added TD_030: Fix Code Formatting CI/Local Inconsistency)
+**Last Updated**: 2025-09-10 09:05 (TD_021 Phase 2 Complete: Test Migration & Application Compatibility)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -80,52 +80,8 @@
 
 <!-- TD_020 completed with property tests and moved to archive (2025-09-09 18:50) -->
 
-### TD_021: Implement Save-Ready Entity Patterns [ARCHITECTURE] [Score: 85/100]
-**Status**: Approved ✅
-**Owner**: Dev Engineer  
-**Size**: M (6-8h)
-**Priority**: Critical (Every entity going forward needs this)
-**Markers**: [ARCHITECTURE] [ADR-005] [SAVE-SYSTEM] [FOUNDATION]
-**Created**: 2025-09-08 21:31
-**Approved**: 2025-09-08 21:31
+<!-- TD_021 completed Phase 3 and moved to archive (2025-09-10 09:35) -->
 
-**What**: Refactor ALL domain entities to be save-ready per ADR-005
-**Why**: Retrofitting save system later means rewriting entire domain layer
-
-**Problem Statement**:
-- Current entities may have circular references
-- Some entities might reference Godot types
-- No clear separation of persistent vs transient state
-- IDs not consistently used for references
-
-**Refactoring Tasks**:
-1. Convert all domain entities to records
-2. Replace object references with ID references
-3. Remove any Godot types from domain layer
-4. Implement IPersistentEntity marker interface
-5. Separate transient state (animations, cache) from persistent
-
-**Entities to Refactor**:
-- Actor (use ActorId references)
-- GridState (ensure no circular refs)
-- Any status effects or buffs
-- Combat state and turn order
-
-**Done When**:
-- All domain entities are records or immutable
-- No circular object references
-- All references use IDs
-- No Godot types in domain
-- Clear persistent vs transient separation
-- Serialization test passes for all entities
-
-**Depends On**: None (Can work in parallel with TD_020)
-
-**Tech Lead Decision** (2025-09-08 21:31):
-- **AUTO-APPROVED** - Critical per ADR-005
-- Every day we delay makes this harder
-- Do this NOW while codebase is small
-- Run serialization tests on every entity
 
 ---
 
@@ -334,7 +290,7 @@
 
 ### TD_029: Roslyn Analyzers for Forbidden Patterns [TOOLING] [Score: 60/100]
 **Status**: Proposed 📋
-**Owner**: DevOps Engineer
+**Owner**: Tech Lead
 **Size**: M (6-8h)
 **Priority**: Nice to Have (Phase 3 - quality of life)
 **Markers**: [TOOLING] [ANALYZERS] [COMPILE-TIME] [ENFORCEMENT]

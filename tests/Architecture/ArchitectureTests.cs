@@ -2,11 +2,15 @@ using System.Reflection;
 using FluentAssertions;
 using Xunit;
 using Darklands.Core.Infrastructure.DependencyInjection;
+using Darklands.Core.Infrastructure.Validation;
+using Darklands.Core.Domain.Common;
+using Microsoft.Extensions.DependencyInjection;
 using System.Collections.Generic;
 using System.Linq;
 
 namespace Darklands.Core.Tests.Architecture;
 
+[Collection("GameStrapper")]
 public class ArchitectureTests
 {
     private readonly Assembly _coreAssembly = typeof(GameStrapper).Assembly;
@@ -238,5 +242,152 @@ public class ArchitectureTests
         // Note: We can't easily inspect method bodies for Task.Run usage in compiled assemblies
         // This test serves as documentation of the architectural constraint
         // The actual fix will be verified by manual code review and integration testing
+    }
+
+    [Fact]
+    [Trait("Category", "Architecture")]
+    [Trait("Category", "Phase3")]
+    public void All_Persistent_Entities_Should_Implement_IPersistentEntity()
+    {
+        // ADR-005: All entities intended for save/load must implement IPersistentEntity
+        var entityTypes = _coreAssembly.GetTypes()
+            .Where(t => t.Namespace?.Contains("Domain") == true)
+            .Where(t => IsEntityType(t))
+            .ToList();
+
+        var violations = new List<string>();
+
+        foreach (var entityType in entityTypes)
+        {
+            if (!typeof(IPersistentEntity).IsAssignableFrom(entityType))
+            {
+                violations.Add(entityType.Name);
+            }
+        }
+
+        violations.Should().BeEmpty(
+            $"ADR-005 violation: All entity types must implement IPersistentEntity for save-ready compliance. " +
+            $"Non-compliant entities: {string.Join(", ", violations)}");
+    }
+
+    [Fact]
+    [Trait("Category", "Architecture")]
+    [Trait("Category", "Phase3")]
+    public void All_Persistent_Entities_Should_Pass_SaveReady_Validation()
+    {
+        // ADR-005: All persistent entities must pass save-ready validation
+        var entityTypes = _coreAssembly.GetTypes()
+            .Where(t => typeof(IPersistentEntity).IsAssignableFrom(t))
+            .Where(t => !t.IsInterface && !t.IsAbstract)
+            .ToList();
+
+        var violations = new List<string>();
+
+        foreach (var entityType in entityTypes)
+        {
+            var validationResult = SaveReadyValidator.ValidateType(entityType);
+
+            validationResult.Match(
+                Succ: _ => { }, // Entity passes validation
+                Fail: error => violations.Add($"{entityType.Name}: {error.Message}")
+            );
+        }
+
+        violations.Should().BeEmpty(
+            $"ADR-005 save-ready validation failures: {string.Join("; ", violations)}");
+    }
+
+    [Fact]
+    [Trait("Category", "Architecture")]
+    [Trait("Category", "Phase3")]
+    public void Entity_Records_Should_Be_Immutable()
+    {
+        // ADR-005: Entity records should be immutable for safe serialization
+        var entityTypes = _coreAssembly.GetTypes()
+            .Where(t => typeof(IPersistentEntity).IsAssignableFrom(t))
+            .Where(t => !t.IsInterface && !t.IsAbstract)
+            .ToList();
+
+        var violations = new List<string>();
+
+        foreach (var entityType in entityTypes)
+        {
+            // Check for mutable properties (setters that aren't init-only)
+            var mutableProperties = entityType.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                .Where(p => p.CanWrite && p.SetMethod?.IsPublic == true)
+                .Where(p => !IsInitOnlyProperty(p))
+                .ToList();
+
+            if (mutableProperties.Any())
+            {
+                var propertyNames = string.Join(", ", mutableProperties.Select(p => p.Name));
+                violations.Add($"{entityType.Name}: mutable properties [{propertyNames}]");
+            }
+
+            // Check for mutable fields
+            var mutableFields = entityType.GetFields(BindingFlags.Public | BindingFlags.Instance)
+                .Where(f => !f.IsInitOnly)
+                .ToList();
+
+            if (mutableFields.Any())
+            {
+                var fieldNames = string.Join(", ", mutableFields.Select(f => f.Name));
+                violations.Add($"{entityType.Name}: mutable fields [{fieldNames}]");
+            }
+        }
+
+        violations.Should().BeEmpty(
+            $"ADR-005 immutability violations: {string.Join("; ", violations)}");
+    }
+
+    [Fact]
+    [Trait("Category", "Architecture")]
+    [Trait("Category", "Phase3")]
+    public void IStableIdGenerator_Should_Be_Registered_In_DI()
+    {
+        // TD_021 Phase 3: ID generators must be properly registered for dependency injection
+        var result = GameStrapper.Initialize();
+
+        result.Match(
+            Succ: provider =>
+            {
+                // Should be able to resolve IStableIdGenerator
+                var idGenerator = provider.GetService(typeof(IStableIdGenerator));
+                idGenerator.Should().NotBeNull("IStableIdGenerator should be registered in DI container");
+
+                // Should be able to resolve both concrete implementations
+                var guidGenerator = provider.GetService(typeof(Darklands.Core.Infrastructure.Identity.GuidIdGenerator));
+                guidGenerator.Should().NotBeNull("GuidIdGenerator should be registered in DI container");
+
+                var deterministicGenerator = provider.GetService(typeof(Darklands.Core.Infrastructure.Identity.DeterministicIdGenerator));
+                deterministicGenerator.Should().NotBeNull("DeterministicIdGenerator should be registered in DI container");
+
+                provider.Dispose();
+            },
+            Fail: error => throw new InvalidOperationException($"GameStrapper initialization failed: {error.Message}")
+        );
+    }
+
+    private static bool IsEntityType(Type type)
+    {
+        // Heuristic to identify entity types in the domain layer
+        // Excludes value objects (record structs) and components that are part of larger entities
+        return !type.IsInterface &&
+               !type.IsAbstract &&
+               !type.IsEnum &&
+               !type.IsValueType && // Exclude value types like Health (record struct)
+               (type.Name.EndsWith("Entity") ||
+                type.Name == "Actor" ||
+                type.Name == "Grid" ||
+                typeof(IPersistentEntity).IsAssignableFrom(type));
+    }
+
+    private static bool IsInitOnlyProperty(PropertyInfo property)
+    {
+        // Check if property has init-only setter
+        if (property.SetMethod == null) return false;
+
+        return property.SetMethod.ReturnParameter.GetRequiredCustomModifiers()
+            .Any(t => t.Name.Contains("IsExternalInit"));
     }
 }

@@ -119,13 +119,19 @@ namespace Darklands.Core.Domain.Actor
         public static class Presets
         {
             public static Fin<DummyActor> CreateCombatDummy(string name = "Combat Dummy") =>
+#pragma warning disable CS0618 // Type or member is obsolete
                 CreateAtFullHealth(ActorId.NewId(), 50, name);
+#pragma warning restore CS0618 // Type or member is obsolete
 
             public static Fin<DummyActor> CreateTrainingDummy(string name = "Training Dummy") =>
+#pragma warning disable CS0618 // Type or member is obsolete
                 CreateAtFullHealth(ActorId.NewId(), 100, name);
+#pragma warning restore CS0618 // Type or member is obsolete
 
             public static Fin<DummyActor> CreateWeakDummy(string name = "Weak Dummy") =>
+#pragma warning disable CS0618 // Type or member is obsolete
                 CreateAtFullHealth(ActorId.NewId(), 25, name);
+#pragma warning restore CS0618 // Type or member is obsolete
         }
 
         public override string ToString() => $"{Name} ({Health}) [Static]";

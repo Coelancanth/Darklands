@@ -4,6 +4,7 @@ using LanguageExt;
 using LanguageExt.Common;
 using Darklands.Core.Application.Grid.Services;
 using Darklands.Core.Domain.Grid;
+using Darklands.Core.Infrastructure.Identity;
 using static LanguageExt.Prelude;
 
 namespace Darklands.Core.Application.Grid.Services
@@ -126,7 +127,7 @@ namespace Darklands.Core.Application.Grid.Services
             {
                 // Create a simple 10x10 grid with grass terrain for Phase 2
                 // TODO: Replace with proper grid creation in Phase 3
-                _currentGrid = Domain.Grid.Grid.Create(10, 10, TerrainType.Open).Match(
+                _currentGrid = Domain.Grid.Grid.Create(GuidIdGenerator.Instance, 10, 10, TerrainType.Open).Match(
                     Succ: grid => grid,
                     Fail: error => throw new InvalidOperationException($"Failed to create default grid: {error}")
                 );

@@ -19,6 +19,7 @@ namespace Darklands.Core.Presentation.Presenters
         private readonly ILogger _logger;
         private readonly Application.Grid.Services.IGridStateService _gridStateService;
         private readonly Application.Actor.Services.IActorStateService _actorStateService;
+        private readonly Domain.Common.IStableIdGenerator _idGenerator;
         private HealthPresenter? _healthPresenter;
 
         // For Phase 4 MVP - shared test player state
@@ -32,15 +33,18 @@ namespace Darklands.Core.Presentation.Presenters
         /// <param name="logger">Logger for tracking actor operations</param>
         /// <param name="gridStateService">Grid state service for actor positioning</param>
         /// <param name="actorStateService">Actor state service for health and combat data</param>
+        /// <param name="idGenerator">ID generator for creating stable entity IDs</param>
         public ActorPresenter(IActorView view, IMediator mediator, ILogger logger,
             Application.Grid.Services.IGridStateService gridStateService,
-            Application.Actor.Services.IActorStateService actorStateService)
+            Application.Actor.Services.IActorStateService actorStateService,
+            Domain.Common.IStableIdGenerator idGenerator)
             : base(view)
         {
             _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _gridStateService = gridStateService ?? throw new ArgumentNullException(nameof(gridStateService));
             _actorStateService = actorStateService ?? throw new ArgumentNullException(nameof(actorStateService));
+            _idGenerator = idGenerator ?? throw new ArgumentNullException(nameof(idGenerator));
         }
 
         /// <summary>
@@ -90,8 +94,8 @@ namespace Darklands.Core.Presentation.Presenters
         {
             try
             {
-                // Create a test player at the grid origin
-                TestPlayerId = Domain.Grid.ActorId.NewId();
+                // Create a test player at the grid origin using injected ID generator
+                TestPlayerId = Domain.Grid.ActorId.NewId(_idGenerator);
                 var startPosition = new Domain.Grid.Position(0, 0);
 
                 // Create a full Actor with health data using domain factory (position handled separately)

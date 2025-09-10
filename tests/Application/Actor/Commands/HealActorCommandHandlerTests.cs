@@ -5,6 +5,7 @@ using LanguageExt.Common;
 using Darklands.Core.Application.Actor.Commands;
 using Darklands.Core.Application.Actor.Services;
 using Darklands.Core.Domain.Grid;
+using Darklands.Core.Tests.TestUtilities;
 using Serilog;
 using System;
 using System.Threading;
@@ -58,7 +59,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
             public Fin<LanguageExt.Unit> RemoveDeadActor(ActorId actorId) => FinSucc(LanguageExt.Unit.Default);
         }
 
-        private readonly ActorId _validActorId = ActorId.NewId();
+        private readonly ActorId _validActorId = ActorId.NewId(TestIdGenerator.Instance);
 
         [Fact]
         public async Task Handle_ValidHealing_ReturnsSuccess()

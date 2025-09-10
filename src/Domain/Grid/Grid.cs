@@ -1,7 +1,10 @@
 using System;
 using System.Linq;
+using System.Collections.Immutable;
 using LanguageExt;
 using LanguageExt.Common;
+using Darklands.Core.Domain.Common;
+using System.Text.Json.Serialization;
 using static LanguageExt.Prelude;
 
 namespace Darklands.Core.Domain.Grid
@@ -9,18 +12,25 @@ namespace Darklands.Core.Domain.Grid
     /// <summary>
     /// Represents the tactical combat grid containing all tiles and their states.
     /// Immutable domain model that provides safe access to grid positions and tile information.
+    /// 
+    /// Save-ready entity per ADR-005:
+    /// - Implements IPersistentEntity for save/load compatibility
+    /// - Uses ImmutableArray for true immutability
+    /// - Contains ModData for future modding support
+    /// - Unique GridId for stable references
     /// </summary>
-    public sealed record Grid
+    public sealed record Grid(
+        GridId Id,
+        int Width,
+        int Height,
+        ImmutableArray<Tile> Tiles,
+        ImmutableDictionary<string, string> ModData
+    ) : IPersistentEntity
     {
         /// <summary>
-        /// Width of the grid (number of columns).
+        /// IPersistentEntity implementation - exposes ID for save system.
         /// </summary>
-        public int Width { get; }
-
-        /// <summary>
-        /// Height of the grid (number of rows).
-        /// </summary>
-        public int Height { get; }
+        IEntityId IPersistentEntity.Id => Id;
 
         /// <summary>
         /// Total number of tiles in the grid.
@@ -28,30 +38,23 @@ namespace Darklands.Core.Domain.Grid
         public int TileCount => Width * Height;
 
         /// <summary>
-        /// Internal tile storage as 1D array for performance.
-        /// Access via ToIndex conversion from 2D coordinates.
+        /// Transient state that doesn't save (cached pathfinding, visual effects, etc.).
+        /// Kept separate from persistent state and reconstructed after loading.
         /// </summary>
-        private readonly Tile[] _tiles;
-
-        /// <summary>
-        /// Creates a new grid with the specified dimensions.
-        /// Private constructor - use factory methods for creation.
-        /// </summary>
-        private Grid(int width, int height, Tile[] tiles)
-        {
-            Width = width;
-            Height = height;
-            _tiles = tiles;
-        }
+        [JsonIgnore]
+        public ITransientState? TransientState { get; init; }
 
         /// <summary>
         /// Creates a new empty grid with the specified dimensions and default terrain.
+        /// Uses IStableIdGenerator for save-ready grid creation.
         /// </summary>
+        /// <param name="ids">ID generator for creating stable grid identifier</param>
         /// <param name="width">Width of the grid (must be > 0)</param>
         /// <param name="height">Height of the grid (must be > 0)</param>
         /// <param name="defaultTerrain">Default terrain for all tiles</param>
+        /// <param name="modData">Optional mod data</param>
         /// <returns>Success with new Grid or failure with validation error</returns>
-        public static Fin<Grid> Create(int width, int height, TerrainType defaultTerrain = TerrainType.Open)
+        public static Fin<Grid> Create(IStableIdGenerator ids, int width, int height, TerrainType defaultTerrain = TerrainType.Open, ImmutableDictionary<string, string>? modData = null)
         {
             if (width <= 0)
                 return FinFail<Grid>(Error.New($"Grid width must be positive: {width}"));
@@ -62,29 +65,36 @@ namespace Darklands.Core.Domain.Grid
             if (width > 1000 || height > 1000)
                 return FinFail<Grid>(Error.New($"Grid dimensions too large: {width}x{height} (max 1000x1000)"));
 
-            var tiles = new Tile[width * height];
+            var tilesBuilder = ImmutableArray.CreateBuilder<Tile>(width * height);
 
             for (var y = 0; y < height; y++)
             {
                 for (var x = 0; x < width; x++)
                 {
                     var position = new Position(x, y);
-                    tiles[ToIndex(position, width)] = Tile.CreateEmpty(position, defaultTerrain);
+                    tilesBuilder.Add(Tile.CreateEmpty(position, defaultTerrain));
                 }
             }
 
-            return FinSucc(new Grid(width, height, tiles));
+            return FinSucc(new Grid(
+                GridId.NewId(ids),
+                width,
+                height,
+                tilesBuilder.ToImmutable(),
+                modData ?? ImmutableDictionary<string, string>.Empty));
         }
 
         /// <summary>
-        /// Creates a grid from an existing array of tiles.
-        /// Used for deserialization and testing.
+        /// Creates a grid from an existing collection of tiles.
+        /// Used for deserialization, testing, and migration scenarios.
         /// </summary>
+        /// <param name="ids">ID generator for creating stable grid identifier</param>
         /// <param name="width">Width of the grid</param>
         /// <param name="height">Height of the grid</param>
         /// <param name="tiles">Pre-configured tiles (must match dimensions)</param>
+        /// <param name="modData">Optional mod data</param>
         /// <returns>Success with new Grid or failure with validation error</returns>
-        public static Fin<Grid> FromTiles(int width, int height, Tile[] tiles)
+        public static Fin<Grid> FromTiles(IStableIdGenerator ids, int width, int height, ImmutableArray<Tile> tiles, ImmutableDictionary<string, string>? modData = null)
         {
             if (width <= 0 || height <= 0)
                 return FinFail<Grid>(Error.New($"Invalid dimensions: {width}x{height}"));
@@ -92,7 +102,12 @@ namespace Darklands.Core.Domain.Grid
             if (tiles.Length != width * height)
                 return FinFail<Grid>(Error.New($"Tile count {tiles.Length} doesn't match dimensions {width}x{height} = {width * height}"));
 
-            return FinSucc(new Grid(width, height, tiles));
+            return FinSucc(new Grid(
+                GridId.NewId(ids),
+                width,
+                height,
+                tiles,
+                modData ?? ImmutableDictionary<string, string>.Empty));
         }
 
         /// <summary>
@@ -112,7 +127,7 @@ namespace Darklands.Core.Domain.Grid
             if (!IsValidPosition(position))
                 return FinFail<Tile>(Error.New($"Position {position} is out of bounds for {Width}x{Height} grid"));
 
-            return FinSucc(_tiles[ToIndex(position, Width)]);
+            return FinSucc(Tiles[ToIndex(position, Width)]);
         }
 
         /// <summary>
@@ -129,11 +144,9 @@ namespace Darklands.Core.Domain.Grid
             if (tile.Position != position)
                 return FinFail<Grid>(Error.New($"Tile position {tile.Position} doesn't match target position {position}"));
 
-            var newTiles = new Tile[_tiles.Length];
-            System.Array.Copy(_tiles, newTiles, _tiles.Length);
-            newTiles[ToIndex(position, Width)] = tile;
+            var newTiles = Tiles.SetItem(ToIndex(position, Width), tile);
 
-            return FinSucc(new Grid(Width, Height, newTiles));
+            return FinSucc(this with { Tiles = newTiles });
         }
 
         /// <summary>
@@ -208,14 +221,14 @@ namespace Darklands.Core.Domain.Grid
         /// </summary>
         /// <returns>Sequence of occupied tiles</returns>
         public Seq<Tile> GetOccupiedTiles() =>
-            Seq(_tiles.Where(tile => tile.IsOccupied));
+            Seq(Tiles.Where(tile => tile.IsOccupied));
 
         /// <summary>
         /// Gets all empty tiles that can be moved to.
         /// </summary>
         /// <returns>Sequence of passable empty tiles</returns>
         public Seq<Tile> GetPassableTiles() =>
-            Seq(_tiles.Where(tile => tile.IsPassable));
+            Seq(Tiles.Where(tile => tile.IsPassable));
 
         /// <summary>
         /// Finds the position of an actor on the grid.
@@ -224,7 +237,7 @@ namespace Darklands.Core.Domain.Grid
         /// <returns>Position of the actor, or None if not found</returns>
         public Option<Position> FindActor(ActorId actorId)
         {
-            var tile = _tiles.FirstOrDefault(t =>
+            var tile = Tiles.FirstOrDefault(t =>
                 t.Occupant.Match(
                     Some: occupant => occupant.Value == actorId.Value,
                     None: () => false));

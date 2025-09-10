@@ -2,6 +2,7 @@ using FluentAssertions;
 using Xunit;
 using Darklands.Core.Domain.Combat;
 using Darklands.Core.Domain.Grid;
+using Darklands.Core.Tests.TestUtilities;
 using static LanguageExt.Prelude;
 
 namespace Darklands.Core.Tests.Domain.Combat;
@@ -13,8 +14,8 @@ namespace Darklands.Core.Tests.Domain.Combat;
 /// </summary>
 public class AttackValidationTests
 {
-    private readonly ActorId _attackerId = ActorId.NewId();
-    private readonly ActorId _targetId = ActorId.NewId();
+    private readonly ActorId _attackerId = ActorId.NewId(TestIdGenerator.Instance);
+    private readonly ActorId _targetId = ActorId.NewId(TestIdGenerator.Instance);
     private readonly Position _attackerPosition = new(2, 2);
     private readonly Position _adjacentPosition = new(2, 3); // Adjacent vertically
     private readonly Position _diagonalPosition = new(3, 3); // Adjacent diagonally  

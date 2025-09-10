@@ -247,6 +247,23 @@ public static class GameStrapper
                 return new Domain.Determinism.DeterministicRandom(developmentSeed, logger: logger);
             });
 
+            // ID Generation Services (TD_021 Phase 3)
+            // Production ID generator for non-deterministic scenarios (saves, user entities)
+            services.AddSingleton<Infrastructure.Identity.GuidIdGenerator>();
+
+            // Deterministic ID generator for testing and replay scenarios
+            services.AddSingleton<Infrastructure.Identity.DeterministicIdGenerator>(provider =>
+            {
+                var deterministicRandom = provider.GetRequiredService<Domain.Determinism.IDeterministicRandom>();
+                return new Infrastructure.Identity.DeterministicIdGenerator(deterministicRandom);
+            });
+
+            // Register the appropriate IStableIdGenerator based on context
+            // For production: use GuidIdGenerator for globally unique, non-deterministic IDs
+            // For testing: DeterministicIdGenerator is registered separately for test injection
+            services.AddSingleton<Domain.Common.IStableIdGenerator>(provider =>
+                provider.GetRequiredService<Infrastructure.Identity.GuidIdGenerator>());
+
             // UI Event Bus (Singleton - bridges MediatR events to Godot UI components)
             // Replaces the old static GameManagerEventRouter with modern publish/subscribe architecture
             services.AddSingleton<Application.Events.IUIEventBus, Infrastructure.Events.UIEventBus>();
