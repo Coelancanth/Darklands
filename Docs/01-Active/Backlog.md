@@ -78,74 +78,214 @@
 ## 🔥 Critical (Do First)
 *Blockers preventing other work, production bugs, dependencies for other features*
 
-### VS_011: Modal Combat Movement System (Stoneshard-style)
+### VS_011: Vision/FOV System with Shadowcasting
 **Status**: Approved  
 **Owner**: Dev Engineer
-**Size**: M (6h total - simpler than original)
+**Size**: M (4h - increased for shadowcasting)
 **Priority**: Critical
 **Created**: 2025-09-10 19:03
-**Updated**: 2025-09-10 20:08
-**Tech Breakdown**: Revised for modal combat
+**Updated**: 2025-09-11 00:30
+**Tech Breakdown**: FOV system using recursive shadowcasting
 
-**What**: Two-mode movement system - adjacent-only in combat, pathfinding in exploration
-**Why**: Creates tactical depth where movement vs action is a meaningful choice
+**What**: Field-of-view system with asymmetric vision ranges and proper occlusion
+**Why**: Foundation for ALL combat, AI, and stealth features
 
-**Design Decision**: Modal combat like Stoneshard
-- **Combat Mode**: Move to adjacent tile OR use skill (costs full turn)
-- **Exploration Mode**: Click anywhere for A* pathfinding
-- **Kiting Enabled**: Intentional design - trade damage for positioning
+**Design** (per ADR-014):
+- **Non-reciprocal vision**: Each actor checks independently
+- **Asymmetric ranges**: Different actors see different distances
+- **Recursive shadowcasting**: Proper FOV with no exploits
+- **Enables future stealth**: Can see without being seen
+
+**Vision Ranges**:
+- Player: 8 tiles
+- Goblin: 5 tiles  
+- Orc: 6 tiles
+- Eagle: 12 tiles
 
 **Implementation Plan**:
-- **Phase 1**: Domain model (1h)
-  - GameMode enum (Combat/Exploration)
-  - Fixed action costs (Move=100 TU, Attack=100 TU, Wait=100 TU)
-  - Adjacent position validation only
+- **Phase 1**: Domain model (0.5h)
+  - VisionRange value object
+  - FOV result structures
+  - Vision query interfaces
   
-- **Phase 2**: Application handlers (1.5h)
-  - CombatMoveCommand (adjacent only, full turn cost)
-  - ExploreMoveCommand (pathfinding, no combat)
-  - Mode switching logic
+- **Phase 2**: Shadowcasting algorithm (2h)
+  - Recursive shadowcasting implementation
+  - Octant calculation
+  - Shadow queue management
+  - Wall occlusion logic
   
-- **Phase 3**: Infrastructure (1.5h)
-  - Simple adjacent checker for combat
-  - A* pathfinding for exploration only
-  - State management for mode transitions
+- **Phase 3**: Application layer (0.5h)
+  - VisionQuery handler
+  - GetVisibleActors query
+  - Console commands for testing
   
-- **Phase 4**: UI differentiation (2h)
-  - Combat Mode: Highlight 8 adjacent tiles only
-  - Exploration Mode: Full pathfinding preview
-  - Clear mode indicator in UI
-  - Action feedback: "Move: 100 TU" (not distance-based)
+- **Phase 4**: Testing & validation (1h)
+  - Unit tests for shadowcasting
+  - Corner case validation
+  - Performance testing
+  - Console test scenarios
 
-**Key Simplifications**:
-- NO complex movement cost calculations
-- NO movement range based on stats
-- Every combat action = 100 TU base (modified by speed)
-- Adjacent movement only in combat (8 tiles max)
+**Core Algorithm** (Shadowcasting):
+```csharp
+public class ShadowcastingFOV {
+    public HashSet<Position> CalculateFOV(Position origin, int range) {
+        var visible = new HashSet<Position> { origin };
+        
+        // Cast shadows in 8 octants
+        for (int octant = 0; octant < 8; octant++) {
+            CastShadows(origin, range, 1, 1.0, 0.0, octant, visible);
+        }
+        return visible;
+    }
+    
+    void CastShadows(Position origin, int range, int row, 
+                     double startSlope, double endSlope, 
+                     int octant, HashSet<Position> visible) {
+        // Recursive shadowcasting implementation
+        // Handles partial shadows and wall edges correctly
+    }
+}
+```
 
-**Tactical Implications**:
-- Kiting costs 50% damage output (move turns vs attack turns)
-- Positioning matters more (can't reposition freely)
-- Terrain becomes critical (dead ends are dangerous)
-- Speed affects turn frequency, not movement range
+**Console Test Commands**:
+```
+> fov show player
+Player FOV (range 8):
+# # # . . . # # #
+# . . . . . . . #
+# . . @ . . . . #
+# . . . . . . . #
+# # # . # # # # #
+
+> vision check player goblin
+Player (8 range) CAN see Goblin at distance 6
+Goblin (5 range) CANNOT see Player at distance 6
+
+> vision list player
+Player can see: Goblin (5,3), Orc (7,2)
+Goblin can see: Orc (7,2)
+Player not visible to: Goblin
+```
 
 **Done When**:
-- [Combat Mode] Click adjacent tile → move there (100 TU cost)
-- [Combat Mode] Can't click non-adjacent tiles
-- [Exploration Mode] Click anywhere → pathfind there
-- Mode indicator clearly shows current mode
-- Combat auto-triggers when enemies nearby
-- Message log: "Player moved north (100 TU)"
+- Shadowcasting FOV works correctly
+- No diagonal vision exploits
+- Asymmetric ranges verified
+- Can hide behind corners
+- Performance acceptable (<10ms for full FOV)
+- Console commands demonstrate all scenarios
 
-**Architectural Constraints** (MANDATORY):
-☑ Deterministic: Fixed 100 TU cost for all combat moves
-☑ Save-Ready: Position stored as grid coordinates (x,y)
-☑ Time-Independent: Turn-based, not real-time
-☑ Integer Math: No float calculations needed
-☑ Testable: Modal logic easy to unit test
+**Architectural Constraints**:
+☑ Deterministic: No randomness in FOV calculation
+☑ Save-Ready: FOV is pure calculation, no state
+☑ Integer Math: Grid-based calculations
+☑ Testable: Pure algorithm, extensive unit tests
 
-**Depends On**: TD_031 (TimeUnit fix to use TU not milliseconds)
-**Next Step**: Fix TimeUnit first, then implement Phase 1
+**Next Step**: Research shadowcasting algorithm details
+
+### VS_012: Vision-Based Movement System
+**Status**: Approved  
+**Owner**: Dev Engineer
+**Size**: S (2h)
+**Priority**: Critical
+**Created**: 2025-09-11 00:10
+**Updated**: 2025-09-11 00:10
+**Tech Breakdown**: Movement using vision for scheduler activation
+
+**What**: Movement system where scheduler activates based on vision connections
+**Why**: Creates natural tactical combat without explicit modes
+
+**Design** (per ADR-014):
+- **Scheduler activation**: When anyone sees anyone hostile
+- **Movement rules**: Adjacent-only when scheduled, pathfinding otherwise
+- **Interruption**: Stop movement when enemy becomes visible
+- **Fixed cost**: 100 TU per action when scheduled
+
+**Implementation Plan**:
+- **Phase 1**: Domain rules (0.5h)
+  - Movement validation (adjacent when scheduled)
+  - Fixed TU costs (100)
+  
+- **Phase 2**: Application layer (0.5h)
+  - MoveCommand handler with vision check
+  - Route to scheduler vs instant movement
+  - Console output for states
+  
+- **Phase 3**: Infrastructure (0.5h)
+  - SchedulerActivationService
+  - PathfindingService integration
+  - Movement interruption handler
+  
+- **Phase 4**: Integration (0.5h)
+  - Wire to existing scheduler
+  - Console messages and turn counter
+  - Test with multiple scenarios
+
+**Scheduler Activation**:
+```csharp
+bool ShouldUseScheduler() {
+    return actors.Any(a => 
+        actors.Any(b => a.IsHostileTo(b) && visionService.CanSee(a, b))
+    );
+}
+```
+
+**Movement Flow**:
+```csharp
+if (ShouldUseScheduler()) {
+    // Tactical movement
+    if (!Position.IsAdjacent(from, to)) {
+        return "Only adjacent moves when enemies visible";
+    }
+    scheduler.Schedule(new MoveAction(actor, to, 100));
+} else {
+    // Instant travel with interruption check
+    foreach (var step in path) {
+        actor.Position = step;
+        if (ShouldUseScheduler()) {
+            return "Movement interrupted - enemy spotted!";
+        }
+    }
+}
+```
+
+**Console Examples**:
+```
+// No vision - instant
+> move to (30, 30)
+[Traveling...]
+You arrive at (30, 30)
+
+// Vision exists - tactical
+> move to (10, 10)
+[Enemies visible - tactical movement]
+> move north
+[Turn 1] You move north (100 TU)
+[Turn 2] Goblin moves west (100 TU)
+
+// Interruption
+> move to (50, 50)
+[Traveling...]
+Movement interrupted at (25, 25) - Orc spotted!
+```
+
+**Done When**:
+- Scheduler activates on vision connections
+- Adjacent-only when scheduled
+- Pathfinding when not scheduled
+- Movement interrupts on new vision
+- Turn counter during tactical movement
+- Clear console messages
+
+**Architectural Constraints**:
+☑ Deterministic: Fixed TU costs
+☑ Save-Ready: Position state only
+☑ Time-Independent: Turn-based
+☑ Integer Math: Tile movement
+☑ Testable: Clear state transitions
+
+**Depends On**: VS_011 (Vision System)
+**Next Step**: Wait for VS_011 completion
 
 ---
 

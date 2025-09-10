@@ -207,7 +207,8 @@
       "Bash(./scripts/core/build.ps1 test --filter \"Category=Integration\")",
       "Bash(./scripts/core/build.ps1 test --filter \"Category=ThreadSafety\")",
       "Bash(./scripts/core/build.ps1 test --filter \"*TimeUnit*\")",
-      "Bash(./scripts/core/build.ps1 test --filter \"Category=Domain&Feature=Combat\")"
+      "Bash(./scripts/core/build.ps1 test --filter \"Category=Domain&Feature=Combat\")",
+      "WebFetch(domain:crawl.chaosforge.org)"
     ],
     "deny": [],
     "ask": [],
