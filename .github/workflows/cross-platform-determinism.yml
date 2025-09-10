@@ -66,8 +66,8 @@ jobs:
       
     - name: 🏗️ Build Core projects
       run: |
-        dotnet build src/Darklands.Core.csproj --configuration Release --no-restore
-        dotnet build tests/Darklands.Core.Tests.csproj --configuration Release --no-restore
+        dotnet build src/Darklands.Core.csproj --configuration Release
+        dotnet build tests/Darklands.Core.Tests.csproj --configuration Release
         
     - name: 🎯 Run Determinism Property Tests
       id: property_tests
