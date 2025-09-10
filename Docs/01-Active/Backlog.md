@@ -334,7 +334,7 @@
 
 ### TD_029: Roslyn Analyzers for Forbidden Patterns [TOOLING] [Score: 60/100]
 **Status**: Proposed 📋
-**Owner**: DevOps Engineer
+**Owner**: Tech Lead
 **Size**: M (6-8h)
 **Priority**: Nice to Have (Phase 3 - quality of life)
 **Markers**: [TOOLING] [ANALYZERS] [COMPILE-TIME] [ENFORCEMENT]

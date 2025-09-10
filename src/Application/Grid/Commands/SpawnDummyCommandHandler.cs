@@ -47,7 +47,9 @@ namespace Darklands.Core.Application.Grid.Commands
             }
 
             // Step 2: Create DummyActor domain entity
+#pragma warning disable CS0618 // Type or member is obsolete
             var dummyResult = DummyActor.CreateAtFullHealth(ActorId.NewId(), request.MaxHealth, request.Name);
+#pragma warning restore CS0618 // Type or member is obsolete
             if (dummyResult.IsFail)
             {
                 var error = dummyResult.Match<Error>(Succ: _ => Error.New("UNKNOWN: Unknown error"), Fail: e => e);

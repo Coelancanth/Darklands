@@ -91,7 +91,9 @@ namespace Darklands.Core.Presentation.Presenters
             try
             {
                 // Create a test player at the grid origin
+#pragma warning disable CS0618 // Type or member is obsolete
                 TestPlayerId = Domain.Grid.ActorId.NewId();
+#pragma warning restore CS0618 // Type or member is obsolete
                 var startPosition = new Domain.Grid.Position(0, 0);
 
                 // Create a full Actor with health data using domain factory (position handled separately)
