@@ -182,6 +182,59 @@ pr status   # Check PR and sync status
 
 **Essential**: Check branch status before starting work: `./scripts/git/branch-status-check.ps1`
 
+## 📝 PR Creation Protocol
+
+### CRITICAL: Include ALL Changes in PR Description
+**PR descriptions must be comprehensive** - include ALL commits in the branch, not just the latest change or current session.
+
+### Recommended Approach: Use --fill-verbose
+```bash
+# Automatically includes ALL commit messages and bodies
+gh pr create --fill-verbose
+
+# Or with custom title
+gh pr create --fill-verbose --title "feat: comprehensive feature description"
+```
+
+### Alternative: Manual Comprehensive Summary
+When custom formatting is needed:
+```bash
+# First, review ALL commits in the branch
+git log main..HEAD --oneline
+
+# Then create PR with complete description
+gh pr create --title "feat: feature name" --body "$(cat <<'EOF'
+## Summary
+[Comprehensive summary of ALL changes in this PR]
+
+## Changes Included
+- Commit 1: [description from git log]
+- Commit 2: [description from git log]
+- Commit 3: [description from git log]
+[List ALL commits in the branch]
+
+## Impact
+- [What these changes affect]
+- [Why they were made]
+
+## Testing
+- [x] All tests pass
+- [x] Manual testing completed
+- [ ] Additional validation needed
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+EOF
+)"
+```
+
+### PR Description Checklist
+Before creating any PR, ensure:
+- [ ] Reviewed entire branch history (`git log main..HEAD`)
+- [ ] Description includes ALL commits, not just latest
+- [ ] Impact and context are clear
+- [ ] Test status is documented
+- [ ] Breaking changes are highlighted (if any)
+
 ## 📦 PR Merge Strategy
 
 ### Default: Squash and Merge
