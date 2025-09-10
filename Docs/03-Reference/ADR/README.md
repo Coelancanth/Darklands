@@ -25,6 +25,12 @@ This directory contains Architecture Decision Records (ADRs) - documents that ca
 - [ADR-011: Godot Resource Bridge Pattern](ADR-011-godot-resource-bridge-pattern.md) - **Proposed**
   - Infrastructure layer bridges Godot Resources to Domain models while preserving Clean Architecture
 
+- [ADR-012: Localization Bridge Pattern](ADR-012-localization-bridge-pattern.md) - **Approved**
+  - Infrastructure bridge to Godot's TranslationServer for i18n support
+  
+- [ADR-013: Time-Based Action Scheduling](ADR-013-time-based-action-scheduling.md) - **Proposed**
+  - Use time-based scheduling instead of energy accumulation for action timing
+
 ## Missing ADRs (Need Creation)
 
 The following concepts are referenced in persona documents but lack formal ADRs:

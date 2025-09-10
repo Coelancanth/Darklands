@@ -226,10 +226,10 @@ Additional attacks (kicks, bites) from mutations/forms:
    - Early termination on miss/block
    - Extensible for special abilities
 
-2. **Energy-Based Action System**
-   - More flexible than simple turns
-   - Natural speed differences
-   - Supports variable action costs
+2. **Time-Based Scheduling (Instead of Energy)**
+   - More elegant and realistic than energy accumulation
+   - Natural continuous time flow
+   - Simpler conceptual model without magic constants
 
 3. **Unified Actor Interface**
    - Consistent combat for all entities
@@ -336,17 +336,45 @@ public void ProcessPlayerAction(ICommand action)
 }
 ```
 
+## Energy vs Scheduler: A Critical Comparison
+
+### Energy Accumulation (DCSS Approach)
+- **Batched Resolution**: Player acts → All monsters accumulate energy → Monsters act in sequence
+- **Artificial "Turns"**: Time freezes while monsters respond to player actions
+- **Magic Constants**: Threshold = 80 (arbitrary), energy gain = speed * time / 10 (why?)
+- **Historical Artifact**: Inherited from 1990s roguelikes when processing each time slice was expensive
+
+### Time-Based Scheduling (Modern Approach)
+- **Continuous Time Flow**: Actions interleave naturally based on actual time
+- **Realistic Model**: Speed 1.7 means exactly 1.7x as many actions, not chunky energy accumulation
+- **Clean Mathematics**: NextActionTime = CurrentTime + ActionCost / Speed
+- **Elegant Simplicity**: No arbitrary thresholds or scaling factors
+
+### Why Scheduler is More Elegant (2024 Perspective)
+1. **Models Reality Better**: Combat doesn't "batch" - faster actors act more frequently throughout
+2. **Simpler Implementation**: ~5 lines of core logic vs complex energy tracking
+3. **Natural Interruptions**: Can dodge/parry between enemy attacks (realistic)
+4. **No Magic Numbers**: No need to explain why threshold is 80 or why we divide by 10
+5. **Continuous Speed**: Speed differences are smooth, not chunky at threshold boundaries
+
 ## Conclusion
 
-DCSS's combat system demonstrates a mature, feature-rich implementation of turn-based tactical combat. After verification, the system is fundamentally **player-centric and sequential**, aligning well with ADR-009's requirements. The phase-based resolution and energy accumulation systems are particularly elegant solutions that Darklands should consider adopting in modified form.
+DCSS's combat system demonstrates a mature, feature-rich implementation of turn-based tactical combat. The system is fundamentally **player-centric and sequential**, aligning well with ADR-009's requirements. However, the energy accumulation system is a historical artifact from computational constraints that no longer exist.
 
-The key insights are:
+The key insights for Darklands are:
 1. **Combat resolution benefits from discrete, testable phases** with clear contracts
-2. **Atomic time units (aut) with weighted rounding** maintain fairness while adding micro-variation
-3. **Energy accumulation** creates natural speed differences without complex timing
-4. **Player-priority processing** ensures deterministic, sequential execution
+2. **Atomic time units (aut)** provide precision, but should use scheduler not energy
+3. **Time-based scheduling** is more elegant and realistic than energy accumulation
+4. **Functional programming style** for phases provides better testability than OO virtual methods
+5. **Player-priority processing** ensures deterministic, sequential execution
 
-For Darklands, we should adopt DCSS's mathematical precision (aut units, weighted rounding, energy thresholds) while maintaining ADR-009's sequential processing model. This gives us sophisticated time mechanics with simple, deterministic execution.
+For Darklands, we should:
+- Adopt DCSS's phase-based combat resolution concept
+- Use modern time-based scheduling instead of energy accumulation
+- Implement with functional programming patterns for immutability
+- Maintain ADR-009's sequential processing model with natural time flow
+
+This gives us sophisticated combat mechanics with clean, elegant, deterministic execution.
 
 ## Appendix: Key Files for Reference
 
