@@ -202,7 +202,8 @@
       "Bash(git restore:*)",
       "Bash(./scripts/core/build.ps1 test --filter \"Category=Architecture\")",
       "Bash(dotnet restore:*)",
-      "Bash(./scripts/core/build.ps1 help)"
+      "Bash(./scripts/core/build.ps1 help)",
+      "Bash(del \"C:\\Users\\Coel\\Documents\\Godot\\darklands\\src\\Domain\\SaveSystem\\ISaveStorage.cs\")"
     ],
     "deny": [],
     "ask": [],
