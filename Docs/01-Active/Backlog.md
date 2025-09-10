@@ -78,20 +78,7 @@
 ## 🔥 Critical (Do First)
 *Blockers preventing other work, production bugs, dependencies for other features*
 
-<!-- TD_020 completed with property tests and moved to archive (2025-09-09 18:50) -->
 
-<!-- TD_021 completed Phase 3 and moved to archive (2025-09-10 09:35) -->
-
-
----
-
-<!-- TD_022 completed and moved to archive (2025-09-10 10:33) -->
-
----
-
-<!-- TD_023 completed and moved to archive (2025-09-09 17:50) -->
-
-<!-- TD_024 completed and moved to archive (2025-09-10 13:38) -->
 
 ### TD_025: Cross-Platform Determinism CI Pipeline [DEVOPS] [Score: 75/100]
 **Status**: Proposed 📋
@@ -205,41 +192,7 @@
 
 ---
 
-### TD_029: Roslyn Analyzers for Forbidden Patterns [TOOLING] [Score: 60/100]
-**Status**: Proposed 📋
-**Owner**: DevOps
-**Size**: M (6-8h)
-**Priority**: Nice to Have (Phase 3 - quality of life)
-**Markers**: [TOOLING] [ANALYZERS] [COMPILE-TIME] [ENFORCEMENT]
-**Created**: 2025-09-09 17:44
 
-**What**: Custom Roslyn analyzers to catch forbidden patterns at compile time
-**Why**: Catch violations immediately, not in tests or code review
-
-**Problem Statement**:
-- Architecture tests only run during test phase
-- Developers get late feedback on violations
-- Some patterns hard to catch in tests
-- Want immediate IDE feedback
-
-**Analyzer Tasks**:
-1. **System.Random detector** - flag any usage in gameplay code
-2. **Godot type detector** - flag in Core/Application layers
-3. **Float arithmetic detector** - flag in combat/gameplay logic
-4. **Unstable sort detector** - flag OrderBy without ThenBy
-5. **Event/delegate detector** - flag in domain entities
-6. **IDE integration** - warnings/errors in Visual Studio/Rider
-
-**Done When**:
-- Analyzer project created
-- All forbidden patterns detected
-- IDE shows warnings immediately
-- Build integration complete
-- Documentation for developers
-
-**Depends On**: TD_024 (Architecture tests define the rules)
-
----
 
 
 
