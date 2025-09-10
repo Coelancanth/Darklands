@@ -117,7 +117,7 @@ public readonly struct Fixed : IEquatable<Fixed>, IComparable<Fixed>
     public string ToString(string format) => ToDouble().ToString(format, CultureInfo.InvariantCulture);
 
     // Useful mathematical functions
-    public Fixed Abs() => _raw < 0 ? new(-_raw) : this;
+    public Fixed Abs() => _raw < 0 ? (_raw == int.MinValue ? MaxValue : new(-_raw)) : this;
 
     public Fixed Clamp(Fixed min, Fixed max)
     {

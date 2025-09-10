@@ -48,15 +48,15 @@ public abstract partial class EventAwareNode : Node2D
         {
             // Get the service provider from the GameStrapper
             var serviceProviderResult = GameStrapper.GetServices();
-            
+
             serviceProviderResult.Match(
                 Succ: serviceProvider =>
                 {
                     EventBus = serviceProvider.GetRequiredService<IUIEventBus>();
-                    
+
                     // Allow subclass to subscribe to specific events
                     SubscribeToEvents();
-                    
+
                     GD.Print($"[{GetType().Name}] Successfully subscribed to domain events");
                 },
                 Fail: error =>

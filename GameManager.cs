@@ -45,11 +45,11 @@ namespace Darklands
             {
                 // Initialize the DI container FIRST (synchronously for initial setup)
                 InitializeDIContainer();
-                
+
                 // NOW call base implementation to initialize EventBus from EventAwareNode
                 // This will work because GameStrapper is now initialized
                 base._Ready();
-                
+
                 // Continue with async initialization for the rest
                 _ = Task.Run(async () =>
                 {
@@ -300,7 +300,7 @@ namespace Darklands
                 // Subscribe to combat events for UI updates
                 EventBus.Subscribe<ActorDiedEvent>(this, HandleActorDiedEvent);
                 EventBus.Subscribe<ActorDamagedEvent>(this, HandleActorDamagedEvent);
-                
+
                 _logger?.Information("[GameManager] Successfully subscribed to domain events via UI Event Bus");
                 _logger?.Information("Modern event architecture active - static router fully replaced");
             }
@@ -320,15 +320,15 @@ namespace Darklands
         {
             try
             {
-                _logger?.Information("[GameManager] UpdateHealthBarDeferred called for {ActorIdStr}: {OldCurrent}/{OldMax} → {NewCurrent}/{NewMax}", 
+                _logger?.Information("[GameManager] UpdateHealthBarDeferred called for {ActorIdStr}: {OldCurrent}/{OldMax} → {NewCurrent}/{NewMax}",
                     actorIdStr, oldCurrent, oldMaximum, newCurrent, newMaximum);
-                
+
                 var actorId = Darklands.Core.Domain.Grid.ActorId.FromGuid(Guid.Parse(actorIdStr));
-                
+
                 // Recreate Health objects from the data
                 var oldHealthResult = Darklands.Core.Domain.Actor.Health.Create(oldCurrent, oldMaximum);
                 var newHealthResult = Darklands.Core.Domain.Actor.Health.Create(newCurrent, newMaximum);
-                
+
                 await oldHealthResult.Match(
                     Succ: async oldHealth => await newHealthResult.Match(
                         Succ: async newHealth =>
@@ -371,7 +371,7 @@ namespace Darklands
             try
             {
                 _logger?.Information("[GameManager] RemoveActorDeferred called for {ActorIdStr} at ({X},{Y})", actorIdStr, x, y);
-                
+
                 var actorId = Darklands.Core.Domain.Grid.ActorId.FromGuid(Guid.Parse(actorIdStr));
                 var position = new Darklands.Core.Domain.Grid.Position(x, y);
 
