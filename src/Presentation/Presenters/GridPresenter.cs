@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Darklands.Core.Application.Combat.Commands;
 using Darklands.Core.Application.Combat.Services;
+using Darklands.Core.Application.Common;
 using Darklands.Core.Application.Grid.Queries;
 using Darklands.Core.Domain.Combat;
 using Darklands.Core.Presentation.Views;
@@ -23,6 +24,7 @@ namespace Darklands.Core.Presentation.Presenters
         private readonly ILogger _logger;
         private readonly Application.Grid.Services.IGridStateService _gridStateService;
         private readonly ICombatQueryService _combatQueryService;
+        private readonly IActorFactory _actorFactory;
         private ActorPresenter? _actorPresenter;
 
         /// <summary>
@@ -33,13 +35,15 @@ namespace Darklands.Core.Presentation.Presenters
         /// <param name="logger">Logger for tracking grid operations</param>
         /// <param name="gridStateService">Service for accessing grid state directly</param>
         /// <param name="combatQueryService">Service for querying actor positions and combat data</param>
-        public GridPresenter(IGridView view, IMediator mediator, ILogger logger, Application.Grid.Services.IGridStateService gridStateService, ICombatQueryService combatQueryService)
+        /// <param name="actorFactory">Factory for accessing actor information</param>
+        public GridPresenter(IGridView view, IMediator mediator, ILogger logger, Application.Grid.Services.IGridStateService gridStateService, ICombatQueryService combatQueryService, IActorFactory actorFactory)
             : base(view)
         {
             _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _gridStateService = gridStateService ?? throw new ArgumentNullException(nameof(gridStateService));
             _combatQueryService = combatQueryService ?? throw new ArgumentNullException(nameof(combatQueryService));
+            _actorFactory = actorFactory ?? throw new ArgumentNullException(nameof(actorFactory));
         }
 
         /// <summary>
@@ -84,15 +88,15 @@ namespace Darklands.Core.Presentation.Presenters
 
             try
             {
-                // Get the test player ID from ActorPresenter
-                if (ActorPresenter.TestPlayerId == null)
+                // Get the player ID from the actor factory
+                if (_actorFactory.PlayerId == null)
                 {
-                    _logger.Warning("No test player available for action");
+                    _logger.Warning("No player available for action");
                     await View.ShowErrorFeedbackAsync(position, "No player available");
                     return;
                 }
 
-                var playerId = ActorPresenter.TestPlayerId.Value;
+                var playerId = _actorFactory.PlayerId.Value;
 
                 // Check if there's a living enemy at the clicked position
                 var targetActors = _combatQueryService.GetActorsInRadius(position, 0); // Exact position only
