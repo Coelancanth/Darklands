@@ -4,7 +4,7 @@
 
 **Purpose**: Completed and rejected work items for historical reference and lessons learned.
 
-**Last Updated**: 2025-09-10 16:45 (Added TD_018 Integration Tests for C# Event Infrastructure) 
+**Last Updated**: 2025-09-10 18:28 (Added TD_013 Extract Test Data from Production Presenters) 
 
 ## Archive Protocol
 
@@ -2161,4 +2161,46 @@ Core implementation complete with all hardening features integrated. Ready for T
 - [ ] HANDBOOK update: Thread safety validation patterns and concurrent testing approaches
 - [ ] Test pattern: MediatR pipeline integration testing and event bus verification strategies
 - [ ] Pattern: WeakReference memory management testing with GC awareness
+
+### TD_013: Extract Test Data from Production Presenters [SEPARATION] 
+**Extraction Status**: NOT EXTRACTED ⚠️
+**Completed**: 2025-09-10 18:20
+**Archive Note**: Successfully separated test initialization logic from production presenters using clean IActorFactory abstraction
+---
+**Status**: Done ✅ (2025-09-10 18:20)
+**Owner**: Dev Engineer
+**Size**: S (2-3h actual: ~2h)
+**Priority**: Critical (Test code in production)
+**Markers**: [SEPARATION-OF-CONCERNS] [SIMPLIFICATION]
+**Created**: 2025-09-08 14:42
+**Completed**: 2025-09-10 18:20
+
+**What**: Extract test actor creation to simple IActorFactory
+**Why**: ActorPresenter contains 90+ lines of hardcoded test setup, violating SRP
+
+**✅ IMPLEMENTATION COMPLETE**:
+- **IActorFactory interface**: Clean abstraction with CreatePlayer/CreateDummy methods
+- **ActorFactory implementation**: Direct service injection (simpler than MediatR commands)
+- **ActorPresenter refactored**: All test initialization code removed (-133 lines)
+- **GridPresenter updated**: Uses factory.PlayerId instead of static reference
+- **Static TestPlayerId eliminated**: No global state dependencies
+- **DI integration**: Registered as singleton in GameStrapper
+
+**✅ RESULTS ACHIEVED**:
+- **Clean separation**: Zero test code in production presenters
+- **Architecture compliance**: Proper dependency injection and interface abstractions
+- **Quality maintained**: 632/632 tests passing, zero warnings
+- **Complexity reduced**: From 85/100 to 40/100 as planned
+- **Code reduction**: Net -54 lines total (134 removed, 80 added)
+
+**Dev Engineer Decision** (2025-09-10 18:20):
+- **SIMPLER APPROACH SUCCESSFUL** - Direct service injection over MediatR commands
+- **Clean Architecture achieved** - Test logic completely extracted from presenters
+- **Production ready** - Comprehensive error handling with Fin<T> patterns
+- **Maintainable** - Simple factory pattern easy to extend and test
+---
+**Extraction Targets**:
+- [ ] ADR needed for: Separation of concerns between production and test code using factory abstraction patterns
+- [ ] HANDBOOK update: IActorFactory pattern for clean test data initialization in presenters
+- [ ] Test pattern: Service injection vs command patterns for test setup simplification
 

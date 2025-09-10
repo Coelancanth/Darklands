@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-10 16:45 (TD_018 Integration Tests completed and archived)
+**Last Updated**: 2025-09-10 18:28 (TD_013 Extract Test Data from Production Presenters archived)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -83,40 +83,6 @@
 ---
 
 
-### TD_013: Extract Test Data from Production Presenters [SEPARATION] [Score: 40/100] ✅ COMPLETED
-**Status**: Done ✅ (2025-09-10 18:20)
-**Owner**: Dev Engineer
-**Size**: S (2-3h actual: ~2h)
-**Priority**: Critical (Test code in production)
-**Markers**: [SEPARATION-OF-CONCERNS] [SIMPLIFICATION]
-**Created**: 2025-09-08 14:42
-**Completed**: 2025-09-10 18:20
-
-**What**: Extract test actor creation to simple IActorFactory
-**Why**: ActorPresenter contains 90+ lines of hardcoded test setup, violating SRP
-
-**✅ IMPLEMENTATION COMPLETE**:
-- **IActorFactory interface**: Clean abstraction with CreatePlayer/CreateDummy methods
-- **ActorFactory implementation**: Direct service injection (simpler than MediatR commands)
-- **ActorPresenter refactored**: All test initialization code removed (-133 lines)
-- **GridPresenter updated**: Uses factory.PlayerId instead of static reference
-- **Static TestPlayerId eliminated**: No global state dependencies
-- **DI integration**: Registered as singleton in GameStrapper
-
-**✅ RESULTS ACHIEVED**:
-- **Clean separation**: Zero test code in production presenters
-- **Architecture compliance**: Proper dependency injection and interface abstractions
-- **Quality maintained**: 632/632 tests passing, zero warnings
-- **Complexity reduced**: From 85/100 to 40/100 as planned
-- **Code reduction**: Net -54 lines total (134 removed, 80 added)
-
-**Dev Engineer Decision** (2025-09-10 18:20):
-- **SIMPLER APPROACH SUCCESSFUL** - Direct service injection over MediatR commands
-- **Clean Architecture achieved** - Test logic completely extracted from presenters
-- **Production ready** - Comprehensive error handling with Fin<T> patterns
-- **Maintainable** - Simple factory pattern easy to extend and test
-
----
 
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*
