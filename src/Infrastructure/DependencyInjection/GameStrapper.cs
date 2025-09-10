@@ -236,6 +236,19 @@ public static class GameStrapper
 
             // Domain services (Singleton - stateless business logic)
 
+            // TD_022: Core Abstraction Services (ADR-006 Selective Abstraction)
+            // These services are abstracted for testing, platform differences, and architectural boundaries
+            // NOTE: Using Mock implementations in Core project - Godot implementations are registered in main project
+
+            // Audio Service - Singleton for consistent audio state management
+            services.AddSingleton<Domain.Services.IAudioService, Infrastructure.Services.MockAudioService>();
+
+            // Input Service - Singleton for consistent input state and event streaming
+            services.AddSingleton<Domain.Services.IInputService, Infrastructure.Services.MockInputService>();
+
+            // Settings Service - Singleton for consistent configuration management across the application
+            services.AddSingleton<Domain.Services.ISettingsService, Infrastructure.Services.MockSettingsService>();
+
             // Deterministic simulation foundation (ADR-004 + TD_026)
             services.AddSingleton<Domain.Determinism.IDeterministicRandom>(provider =>
             {
