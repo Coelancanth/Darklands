@@ -23,11 +23,11 @@ public class TimeUnitCalculatorDeterminismTests
     public bool CalculateActionTime_IdenticalInputs_ProduceIdenticalResults(ushort baseTimeSeed, byte agilitySeed, byte encumbranceSeed)
     {
         // Arrange: Generate valid inputs from seeds
-        var baseTime = baseTimeSeed % 5000 + 100; // 100-5099ms range
+        var baseTime = (baseTimeSeed % 500 + 10); // 10-509 TU range (direct TU values)
         var agility = agilitySeed % TimeUnitCalculator.MaximumAgility + TimeUnitCalculator.MinimumAgility;
         var encumbrance = encumbranceSeed % (TimeUnitCalculator.MaximumEncumbrance + 1);
 
-        var action = CombatAction.CreateUnsafe("TestAction", TimeUnit.FromMilliseconds(baseTime).Match(t => t, _ => TimeUnit.Zero), 10);
+        var action = CombatAction.CreateUnsafe("TestAction", TimeUnit.FromTU(baseTime).Match(t => t, _ => TimeUnit.Zero), 10);
 
         // Act: Calculate the same result multiple times
         var results = new List<int>();
@@ -47,7 +47,7 @@ public class TimeUnitCalculatorDeterminismTests
     public void CalculateActionTime_RepeatedCalls_ProducesIdenticalResults()
     {
         // Arrange: Use the exact problematic values from original BR_001 report
-        var action = CombatAction.Common.SwordSlash; // 800ms base
+        var action = CombatAction.Common.SwordSlash; // 80 TU base
         var agility = 33; // Creates 100/33 division (was problematic in floating-point)
         var encumbrance = 7; // Creates 1 + 7*0.1 = 1.7 multiplier
 
@@ -65,10 +65,10 @@ public class TimeUnitCalculatorDeterminismTests
         uniqueResults.Count.Should().Be(1, "All calculations must return identical results");
 
         // Verify the specific expected result using integer arithmetic
-        // Original formula: 800 * (100/33) * (1 + 7*0.1)
-        // Integer formula: (800 * 100 * (10 + 7)) / (33 * 10)
-        // = (800 * 100 * 17) / 330 = 1,360,000 / 330 = 4121.212... → 4121 (with proper rounding)
-        var expectedResult = (800 * 100 * (10 + 7) + 33 * 10 / 2) / (33 * 10);
+        // Original formula: 80 * (100/33) * (1 + 7*0.1) (80 TU instead of 800ms)
+        // Integer formula: (80 * 100 * (10 + 7)) / (33 * 10)
+        // = (80 * 100 * 17) / 330 = 136,000 / 330 = 412.121... → 412 (with proper rounding)
+        var expectedResult = (80 * 100 * (10 + 7) + 33 * 10 / 2) / (33 * 10);
         results.First().Should().Be(expectedResult, "Result should match integer arithmetic calculation");
     }
 
@@ -78,7 +78,7 @@ public class TimeUnitCalculatorDeterminismTests
         // Test that the order of operations doesn't affect results
         var agility = agilitySeed % 100 + 1; // 1-100
         var encumbrance = encumbranceSeed % 51; // 0-50
-        var baseTime = 1000;
+        var baseTime = 100; // 100 TU instead of 1000ms
 
         // Calculate using the implemented formula: (baseTime * 100 * (10 + encumbrance)) / (agility * 10)
         var numerator = baseTime * 100 * (10 + encumbrance);
@@ -144,8 +144,8 @@ public class TimeUnitCalculatorDeterminismTests
         result.IsSucc.Should().BeTrue();
 
         // The result should be calculable using ONLY integer arithmetic
-        // Formula: (500 * 100 * (10 + 13) + 210) / 420 = (500 * 100 * 23 + 210) / 420
-        var expected = (500 * 100 * 23 + 420 / 2) / 420;
+        // Formula: (50 * 100 * (10 + 13) + 210) / 420 = (50 * 100 * 23 + 210) / 420 (50 TU instead of 500ms)
+        var expected = (50 * 100 * 23 + 420 / 2) / 420;
 
         result.IfSucc(time => time.Value.Should().Be(expected));
 

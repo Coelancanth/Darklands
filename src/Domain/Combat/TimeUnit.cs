@@ -5,16 +5,16 @@ using static LanguageExt.Prelude;
 namespace Darklands.Core.Domain.Combat;
 
 /// <summary>
-/// Represents a unit of time in combat, measured in milliseconds.
+/// Represents a unit of time in combat, measured in abstract Time Units (TU).
 /// Time units are the fundamental currency of combat actions in Darklands.
 /// All combat actions consume time units based on weapon speed, character agility, and encumbrance.
 /// 
-/// SAFETY: Constructor is private to prevent invalid instances. Use Create() or FromMilliseconds().
+/// SAFETY: Constructor is private to prevent invalid instances. Use Create() or FromTU().
 /// </summary>
 public readonly record struct TimeUnit
 {
     /// <summary>
-    /// The time value in milliseconds. Always valid due to private constructor.
+    /// The time value in Time Units (TU). Always valid due to private constructor.
     /// </summary>
     public int Value { get; }
 
@@ -32,12 +32,12 @@ public readonly record struct TimeUnit
     public static readonly TimeUnit Zero = new(0);
 
     /// <summary>
-    /// Minimum valid time unit (1ms) - no action can be faster
+    /// Minimum valid time unit (1 TU) - no action can be faster
     /// </summary>
     public static readonly TimeUnit Minimum = new(1);
 
     /// <summary>
-    /// Maximum reasonable time unit for game balance (10 seconds)
+    /// Maximum reasonable time unit for game balance (10,000 TU)
     /// </summary>
     public static readonly TimeUnit Maximum = new(10_000);
 
@@ -50,33 +50,33 @@ public readonly record struct TimeUnit
     /// <summary>
     /// Creates a TimeUnit with validation. Primary factory method.
     /// </summary>
-    /// <param name="milliseconds">Time in milliseconds (0 to 10,000)</param>
+    /// <param name="timeUnits">Time in Time Units (0 to 10,000)</param>
     /// <returns>Success with TimeUnit or failure with validation error</returns>
-    public static Fin<TimeUnit> Create(int milliseconds)
+    public static Fin<TimeUnit> Create(int timeUnits)
     {
-        if (milliseconds < 0)
-            return FinFail<TimeUnit>(Error.New($"Time units cannot be negative: {milliseconds}"));
+        if (timeUnits < 0)
+            return FinFail<TimeUnit>(Error.New($"Time units cannot be negative: {timeUnits}"));
 
-        if (milliseconds > Maximum.Value)
-            return FinFail<TimeUnit>(Error.New($"Time units cannot exceed maximum ({Maximum.Value}ms): {milliseconds}"));
+        if (timeUnits > Maximum.Value)
+            return FinFail<TimeUnit>(Error.New($"Time units cannot exceed maximum ({Maximum.Value} TU): {timeUnits}"));
 
-        return FinSucc(new TimeUnit(milliseconds));
+        return FinSucc(new TimeUnit(timeUnits));
     }
 
     /// <summary>
-    /// Creates a time unit from milliseconds with validation (alias for Create)
+    /// Creates a time unit from Time Units with validation (alias for Create)
     /// </summary>
-    public static Fin<TimeUnit> FromMilliseconds(int milliseconds)
-        => Create(milliseconds);
+    public static Fin<TimeUnit> FromTU(int timeUnits)
+        => Create(timeUnits);
 
     /// <summary>
     /// Factory for creating TimeUnits with known-valid values.
     /// Used by tests and Common combat actions.
     /// THROWS on invalid values - only use with compile-time known valid values.
     /// </summary>
-    public static TimeUnit CreateUnsafe(int milliseconds)
+    public static TimeUnit CreateUnsafe(int timeUnits)
     {
-        var result = Create(milliseconds);
+        var result = Create(timeUnits);
         return result.Match(
             Succ: timeUnit => timeUnit,
             Fail: error => throw new InvalidOperationException($"CreateUnsafe called with invalid value: {error}"));
@@ -163,15 +163,10 @@ public readonly record struct TimeUnit
         => left.Value >= right.Value;
 
     /// <summary>
-    /// Converts to a human-readable string with appropriate units
+    /// Converts to a human-readable string with Time Units
     /// </summary>
     public override string ToString()
     {
-        return Value switch
-        {
-            < 1000 => $"{Value}ms",
-            < 60000 => $"{Value / 1000.0:F1}s",
-            _ => $"{Value / 60000.0:F1}min"
-        };
+        return $"{Value} TU";
     }
 }

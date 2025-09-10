@@ -205,7 +205,9 @@
       "Bash(./scripts/core/build.ps1 help)",
       "Bash(./scripts/core/build.ps1 test --filter \"*Infrastructure*Events*Integration*\")",
       "Bash(./scripts/core/build.ps1 test --filter \"Category=Integration\")",
-      "Bash(./scripts/core/build.ps1 test --filter \"Category=ThreadSafety\")"
+      "Bash(./scripts/core/build.ps1 test --filter \"Category=ThreadSafety\")",
+      "Bash(./scripts/core/build.ps1 test --filter \"*TimeUnit*\")",
+      "Bash(./scripts/core/build.ps1 test --filter \"Category=Domain&Feature=Combat\")"
     ],
     "deny": [],
     "ask": [],
