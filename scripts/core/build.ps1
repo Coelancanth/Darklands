@@ -1,11 +1,22 @@
 #!/usr/bin/env pwsh
-# Generic Build Script
-# Customize the commands below for your project
+# Darklands Build Script - Enhanced for Developer Experience
+# Zero-friction automation for build, test, and development workflows
 
 param(
     [Parameter(Position=0)]
-    [ValidateSet('build', 'test', 'test-only', 'clean', 'run', 'all')]
-    [string]$Command = 'build'
+    [ValidateSet('build', 'test', 'test-only', 'clean', 'run', 'all', 'help')]
+    [string]$Command = 'help',
+    
+    # Test filtering support
+    [Parameter(Position=1)]
+    [string]$Filter,
+    
+    # Common flags
+    [switch]$Release,
+    [switch]$Detailed,
+    [switch]$NoBuild,
+    [switch]$Coverage,
+    [switch]$Watch
 )
 
 $ErrorActionPreference = "Stop"
@@ -26,7 +37,9 @@ function Write-Step {
 
 function Execute-Command {
     param([string]$Cmd)
-    Write-Host "  $Cmd" -ForegroundColor Gray
+    if ($Detailed) {
+        Write-Host "  $Cmd" -ForegroundColor Gray
+    }
     Invoke-Expression $Cmd
     if ($LASTEXITCODE -ne 0) {
         Write-Host "✗ Command failed" -ForegroundColor Red
@@ -34,7 +47,63 @@ function Execute-Command {
     }
 }
 
+function Show-Help {
+    Write-Host "`n🎯 Darklands Build Script" -ForegroundColor Cyan
+    Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor DarkGray
+    Write-Host ""
+    Write-Host "USAGE:" -ForegroundColor Yellow
+    Write-Host "  ./build.ps1 <command> [filter] [flags]" -ForegroundColor White
+    Write-Host ""
+    Write-Host "COMMANDS:" -ForegroundColor Yellow
+    Write-Host "  build          Build all projects (Core + Tests + Godot)" -ForegroundColor White
+    Write-Host "  test           Build + run all tests (recommended before commit)" -ForegroundColor White
+    Write-Host "  test-only      Run tests without building (fast iteration)" -ForegroundColor White
+    Write-Host "  clean          Clean all build artifacts" -ForegroundColor White
+    Write-Host "  run            Launch Godot editor" -ForegroundColor White
+    Write-Host "  all            Clean + Build + Test (full validation)" -ForegroundColor White
+    Write-Host "  help           Show this help" -ForegroundColor White
+    Write-Host ""
+    Write-Host "TEST FILTERS:" -ForegroundColor Yellow
+    Write-Host "  Category=Architecture    Run architecture tests only" -ForegroundColor Cyan
+    Write-Host "  Category=CrossPlatform   Run cross-platform determinism tests" -ForegroundColor Cyan
+    Write-Host "  Category=PropertyBased   Run property-based tests" -ForegroundColor Cyan
+    Write-Host "  Category=Phase1          Run Phase 1 tests (Domain)" -ForegroundColor Cyan
+    Write-Host "  *DeterministicRandom*    Run all deterministic random tests" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "FLAGS:" -ForegroundColor Yellow
+    Write-Host "  -Release       Use Release configuration" -ForegroundColor White
+    Write-Host "  -Detailed      Show detailed output" -ForegroundColor White
+    Write-Host "  -NoBuild       Skip build step (test commands only)" -ForegroundColor White
+    Write-Host "  -Coverage      Collect code coverage" -ForegroundColor White
+    Write-Host ""
+    Write-Host "EXAMPLES:" -ForegroundColor Yellow
+    Write-Host "  ./build.ps1 test" -ForegroundColor Cyan
+    Write-Host "    Build and run all tests" -ForegroundColor DarkGray
+    Write-Host ""
+    Write-Host "  ./build.ps1 test ""Category=Architecture""" -ForegroundColor Cyan
+    Write-Host "    Run only architecture tests" -ForegroundColor DarkGray
+    Write-Host ""
+    Write-Host "  ./build.ps1 test-only ""*DeterministicRandom*"" -Detailed" -ForegroundColor Cyan
+    Write-Host "    Run deterministic random tests with detailed output" -ForegroundColor DarkGray
+    Write-Host ""
+    Write-Host "  ./build.ps1 test ""Category=CrossPlatform"" -Coverage" -ForegroundColor Cyan
+    Write-Host "    Run cross-platform tests with coverage collection" -ForegroundColor DarkGray
+    Write-Host ""
+    Write-Host "💡 TIP: For ultra-fast architecture validation, use:" -ForegroundColor Yellow
+    Write-Host "    ../test/quick.ps1" -ForegroundColor Cyan
+    Write-Host ""
+}
+
+# Build configuration
+$Configuration = if ($Release) { "Release" } else { "Debug" }
+$VerbosityLevel = if ($Detailed) { "normal" } else { "minimal" }
+
 switch ($Command) {
+    'help' {
+        Show-Help
+        return
+    }
+    
     'clean' {
         Write-Step "Cleaning build artifacts"
         Execute-Command "$CleanCommand $CoreProject"
@@ -46,41 +115,87 @@ switch ($Command) {
     }
 
     'build' {
-        Write-Step "Building $ProjectName"
-        Execute-Command "$BuildCommand $CoreProject --configuration Debug"
-        Execute-Command "$BuildCommand $TestProject --configuration Debug"
-        Execute-Command "$BuildCommand $GodotProject --configuration Debug"
+        Write-Step "Building $ProjectName ($Configuration)"
+        Execute-Command "$BuildCommand $CoreProject --configuration $Configuration"
+        Execute-Command "$BuildCommand $TestProject --configuration $Configuration"
+        Execute-Command "$BuildCommand $GodotProject --configuration $Configuration"
         Write-Host "✓ Build successful" -ForegroundColor Green
     }
 
     'test' {
-        Write-Step "Building and running tests"
-        Write-Host "  Building first..." -ForegroundColor Yellow
-        Execute-Command "$BuildCommand $CoreProject --configuration Debug"
-        Execute-Command "$BuildCommand $TestProject --configuration Debug"
-        Execute-Command "$BuildCommand $GodotProject --configuration Debug"
-        Write-Host "✓ Build successful" -ForegroundColor Green
+        $FilterText = if ($Filter) { " with filter: $Filter" } else { "" }
+        Write-Step "Building and running tests$FilterText"
+        
+        if (-not $NoBuild) {
+            if ($Detailed) { Write-Host "  Building projects..." -ForegroundColor Yellow }
+            Execute-Command "$BuildCommand $CoreProject --configuration $Configuration"
+            Execute-Command "$BuildCommand $TestProject --configuration $Configuration"
+            Execute-Command "$BuildCommand $GodotProject --configuration $Configuration"
+            Write-Host "✓ Build successful" -ForegroundColor Green
+        }
+        
         Write-Step "Running tests"
-        Execute-Command "$TestCommand $TestProject --configuration Debug --verbosity normal"
-        Write-Host "✓ Build and test complete - safe to commit" -ForegroundColor Green
-        Write-Host "  💡 Tip: For faster testing, use ../test/quick.ps1 (architecture tests only)" -ForegroundColor DarkGray
+        $TestArgs = "$TestProject --configuration $Configuration --verbosity $VerbosityLevel"
+        
+        if ($Filter) {
+            $TestArgs += " --filter ""$Filter"""
+        }
+        
+        if ($Coverage) {
+            $TestArgs += " --collect:""XPlat Code Coverage"" --results-directory ./TestResults"
+        }
+        
+        if ($NoBuild) {
+            $TestArgs += " --no-build"
+        }
+        
+        Execute-Command "$TestCommand $TestArgs"
+        Write-Host "✓ Test execution complete" -ForegroundColor Green
+        
+        if (-not $Filter) {
+            Write-Host "  💡 Safe to commit!" -ForegroundColor Green
+        } else {
+            Write-Host "  ⚠️  Filtered tests only - run full test suite before commit" -ForegroundColor Yellow
+        }
+        
+        if ($Coverage) {
+            Write-Host "  📊 Coverage reports in ./TestResults/" -ForegroundColor Cyan
+        }
     }
 
     'test-only' {
-        Write-Step "Running tests only (development iteration)"
+        $FilterText = if ($Filter) { " with filter: $Filter" } else { "" }
+        Write-Step "Running tests only$FilterText (fast iteration)"
         Write-Host "  ⚠️  Note: This doesn't validate Godot compilation" -ForegroundColor Yellow
-        Execute-Command "$TestCommand $TestProject --configuration Debug --verbosity normal --no-build"
-        Write-Host "✓ All tests passed" -ForegroundColor Green
-        Write-Host "  Remember to run 'test' (not 'test-only') before committing!" -ForegroundColor Yellow
-        Write-Host "  💡 Tip: Use ../test/quick.ps1 for architecture tests only (fast)" -ForegroundColor DarkGray
+        
+        $TestArgs = "$TestProject --configuration $Configuration --verbosity $VerbosityLevel --no-build"
+        
+        if ($Filter) {
+            $TestArgs += " --filter ""$Filter"""
+        }
+        
+        if ($Coverage) {
+            $TestArgs += " --collect:""XPlat Code Coverage"" --results-directory ./TestResults"
+        }
+        
+        Execute-Command "$TestCommand $TestArgs"
+        Write-Host "✓ Tests passed" -ForegroundColor Green
+        
+        if (-not $Filter) {
+            Write-Host "  Remember to run 'test' (not 'test-only') before committing!" -ForegroundColor Yellow
+        } else {
+            Write-Host "  ⚠️  Filtered tests only - run full test suite before commit" -ForegroundColor Yellow
+        }
+        
+        Write-Host "  💡 Tip: Use ../test/quick.ps1 for ultra-fast architecture validation" -ForegroundColor DarkGray
     }
 
     'run' {
-        Write-Step "Running $ProjectName"
+        Write-Step "Running $ProjectName ($Configuration)"
         Write-Host "  Note: This requires Godot to be installed" -ForegroundColor Yellow
         if (Get-Command godot -ErrorAction SilentlyContinue) {
             # Build Core library first
-            Execute-Command "$BuildCommand $CoreProject --configuration Debug"
+            Execute-Command "$BuildCommand $CoreProject --configuration $Configuration"
             # Launch Godot
             Execute-Command "godot project.godot"
         } else {

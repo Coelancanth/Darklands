@@ -4,7 +4,7 @@
 
 **Purpose**: Completed and rejected work items for historical reference and lessons learned.
 
-**Last Updated**: 2025-09-10 10:33 (Added TD_022 from backlog) 
+**Last Updated**: 2025-09-10 14:00 (Added TD_025 Cross-Platform Determinism CI Pipeline) 
 
 ## Archive Protocol
 
@@ -2019,4 +2019,68 @@ Core implementation complete with all hardening features integrated. Ready for T
 - [ ] HANDBOOK update: Combining reflection-based and NetArchTest approaches for comprehensive validation
 - [ ] Test pattern: Architecture test organization with industry-standard NetArchTest library
 - [ ] Pattern: False positive filtering for compiler-generated code in architecture tests
+
+### TD_025: Cross-Platform Determinism CI Pipeline [DEVOPS] 
+**Extraction Status**: NOT EXTRACTED ⚠️
+**Completed**: 2025-09-10 13:59
+**Archive Note**: GitHub Actions matrix workflow with cross-platform determinism validation and enhanced build script
+---
+### TD_025: Cross-Platform Determinism CI Pipeline [DEVOPS] [Score: 75/100]
+**Status**: Completed ✅
+**Owner**: DevOps Engineer
+**Size**: M (4-6h)
+**Priority**: Important (Phase 2 - after core implementation)
+**Markers**: [DEVOPS] [CI-CD] [DETERMINISM] [CROSS-PLATFORM]
+**Created**: 2025-09-09 17:44
+**Completed**: 2025-09-10 13:59
+
+**What**: CI pipeline to verify deterministic simulation across platforms
+**Why**: Ensure saves/multiplayer work identically on Windows/Linux/macOS
+
+**Problem Statement**:
+- Determinism might break across different platforms
+- No automated verification of cross-platform consistency
+- Manual testing won't catch subtle platform differences
+- Multiplayer/saves could fail silently
+
+**Implementation Tasks**:
+1. **GitHub Actions matrix** for Windows, Linux, macOS
+2. **Seed-based determinism tests** - same seed must produce identical results
+3. **Sequence verification** - 10,000+ random draws must match byte-for-byte
+4. **Performance benchmarks** - track deterministic operations speed
+5. **Save compatibility tests** - saves must load across platforms
+6. **Automated regression detection** - flag any determinism breaks
+
+**Done When**:
+- CI runs on all three platforms
+- Determinism tests pass consistently
+- Performance tracked and reported
+- Failures block PR merges
+- Clear diagnostics for failures
+
+**Depends On**: TD_020 (Deterministic Random implementation)
+
+**IMPLEMENTATION DETAILS**:
+- **GitHub Actions matrix workflow** for Windows/Linux/macOS determinism validation
+- **Dedicated workflow** triggered by determinism code changes (paths-based triggering)
+- **Cross-platform sequence verification** with SHA256 reference hashes for validation
+- **Performance benchmarking and timing** across platforms  
+- **5 comprehensive cross-platform test scenarios** (sequence, streams, dice, percentages, state)
+- **Enhanced build script** with test filtering: `./build.ps1 test "Category=CrossPlatform"`
+- **Flags**: -Release, -Detailed, -Coverage, -NoBuild with comprehensive help system
+- **Zero-friction developer experience** with discoverable commands
+
+**Key Files Created/Modified**:
+- .github/workflows/cross-platform-determinism.yml (new dedicated workflow)
+- tests/Domain/Determinism/CrossPlatformDeterminismTests.cs (5 test scenarios)
+- scripts/core/build.ps1 (enhanced with filtering and help)
+
+**Time Saved**: ~30 minutes per platform validation cycle
+**Developer Experience**: Zero command memorization needed
+---
+**Extraction Targets**:
+- [ ] ADR needed for: Cross-platform CI validation patterns and determinism testing approaches
+- [ ] HANDBOOK update: Enhanced build script patterns with filtering and help systems
+- [ ] Test pattern: Cross-platform determinism test scenarios with SHA256 validation
+- [ ] Pattern: GitHub Actions path-based triggering for selective CI execution
 

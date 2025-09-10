@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-10 09:05 (TD_021 Phase 2 Complete: Test Migration & Application Compatibility)
+**Last Updated**: 2025-09-10 14:00 (TD_025 Cross-Platform Determinism CI Pipeline completed and archived)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -78,54 +78,9 @@
 ## 🔥 Critical (Do First)
 *Blockers preventing other work, production bugs, dependencies for other features*
 
-<!-- TD_020 completed with property tests and moved to archive (2025-09-09 18:50) -->
-
-<!-- TD_021 completed Phase 3 and moved to archive (2025-09-10 09:35) -->
 
 
----
-
-<!-- TD_022 completed and moved to archive (2025-09-10 10:33) -->
-
----
-
-<!-- TD_023 completed and moved to archive (2025-09-09 17:50) -->
-
-<!-- TD_024 completed and moved to archive (2025-09-10 13:38) -->
-
-### TD_025: Cross-Platform Determinism CI Pipeline [DEVOPS] [Score: 75/100]
-**Status**: Proposed 📋
-**Owner**: DevOps Engineer
-**Size**: M (4-6h)
-**Priority**: Important (Phase 2 - after core implementation)
-**Markers**: [DEVOPS] [CI-CD] [DETERMINISM] [CROSS-PLATFORM]
-**Created**: 2025-09-09 17:44
-
-**What**: CI pipeline to verify deterministic simulation across platforms
-**Why**: Ensure saves/multiplayer work identically on Windows/Linux/macOS
-
-**Problem Statement**:
-- Determinism might break across different platforms
-- No automated verification of cross-platform consistency
-- Manual testing won't catch subtle platform differences
-- Multiplayer/saves could fail silently
-
-**Implementation Tasks**:
-1. **GitHub Actions matrix** for Windows, Linux, macOS
-2. **Seed-based determinism tests** - same seed must produce identical results
-3. **Sequence verification** - 10,000+ random draws must match byte-for-byte
-4. **Performance benchmarks** - track deterministic operations speed
-5. **Save compatibility tests** - saves must load across platforms
-6. **Automated regression detection** - flag any determinism breaks
-
-**Done When**:
-- CI runs on all three platforms
-- Determinism tests pass consistently
-- Performance tracked and reported
-- Failures block PR merges
-- Clear diagnostics for failures
-
-**Depends On**: TD_020 (Deterministic Random implementation)
+<!-- TD_025 completed with cross-platform determinism CI and moved to archive (2025-09-10 13:59) -->
 
 ---
 
@@ -205,41 +160,7 @@
 
 ---
 
-### TD_029: Roslyn Analyzers for Forbidden Patterns [TOOLING] [Score: 60/100]
-**Status**: Proposed 📋
-**Owner**: DevOps
-**Size**: M (6-8h)
-**Priority**: Nice to Have (Phase 3 - quality of life)
-**Markers**: [TOOLING] [ANALYZERS] [COMPILE-TIME] [ENFORCEMENT]
-**Created**: 2025-09-09 17:44
 
-**What**: Custom Roslyn analyzers to catch forbidden patterns at compile time
-**Why**: Catch violations immediately, not in tests or code review
-
-**Problem Statement**:
-- Architecture tests only run during test phase
-- Developers get late feedback on violations
-- Some patterns hard to catch in tests
-- Want immediate IDE feedback
-
-**Analyzer Tasks**:
-1. **System.Random detector** - flag any usage in gameplay code
-2. **Godot type detector** - flag in Core/Application layers
-3. **Float arithmetic detector** - flag in combat/gameplay logic
-4. **Unstable sort detector** - flag OrderBy without ThenBy
-5. **Event/delegate detector** - flag in domain entities
-6. **IDE integration** - warnings/errors in Visual Studio/Rider
-
-**Done When**:
-- Analyzer project created
-- All forbidden patterns detected
-- IDE shows warnings immediately
-- Build integration complete
-- Documentation for developers
-
-**Depends On**: TD_024 (Architecture tests define the rules)
-
----
 
 
 
