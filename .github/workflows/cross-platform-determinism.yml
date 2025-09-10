@@ -75,14 +75,7 @@ jobs:
         echo "🎯 Running property-based determinism tests on ${{ matrix.platform_name }}..."
         
         # Run all property-based determinism tests
-        dotnet test tests/Darklands.Core.Tests.csproj \
-          --configuration Release \
-          --no-build \
-          --logger "console;verbosity=normal" \
-          --logger "trx;LogFileName=determinism-${{ matrix.platform_name }}.trx" \
-          --results-directory ./TestResults \
-          --filter "Category=PropertyBased" \
-          --collect:"XPlat Code Coverage"
+        dotnet test tests/Darklands.Core.Tests.csproj --configuration Release --no-build --logger "console;verbosity=normal" --logger "trx;LogFileName=determinism-${{ matrix.platform_name }}.trx" --results-directory ./TestResults --filter "Category=PropertyBased" --collect:"XPlat Code Coverage"
           
         echo "✅ Property tests completed on ${{ matrix.platform_name }}"
         
@@ -98,12 +91,7 @@ jobs:
         echo "Using seed: $SEED, sequence length: $SEQUENCE_LENGTH"
         
         # Run specific sequence verification test
-        dotnet test tests/Darklands.Core.Tests.csproj \
-          --configuration Release \
-          --no-build \
-          --logger "console;verbosity=normal" \
-          --filter "FullyQualifiedName~DeterministicSequence_SameSeedProducesIdenticalResults" \
-          --verbosity normal
+        dotnet test tests/Darklands.Core.Tests.csproj --configuration Release --no-build --logger "console;verbosity=normal" --filter "FullyQualifiedName~DeterministicSequence_SameSeedProducesIdenticalResults" --verbosity normal
           
         echo "✅ Sequence verification completed on ${{ matrix.platform_name }}"
         
@@ -116,12 +104,7 @@ jobs:
         START_TIME=$(date +%s%N 2>/dev/null || date +%s000000000)
         
         # Run performance-sensitive tests  
-        dotnet test tests/Darklands.Core.Tests.csproj \
-          --configuration Release \
-          --no-build \
-          --logger "console;verbosity=minimal" \
-          --filter "TestCategory=Phase1&FullyQualifiedName~DeterministicRandom" \
-          --verbosity minimal
+        dotnet test tests/Darklands.Core.Tests.csproj --configuration Release --no-build --logger "console;verbosity=minimal" --filter "TestCategory=Phase1&FullyQualifiedName~DeterministicRandom" --verbosity minimal
           
         END_TIME=$(date +%s%N 2>/dev/null || date +%s000000000)
         
