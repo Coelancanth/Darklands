@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-10 20:08 (VS_011 revised for modal combat, TD_031 created for TimeUnit fix)
+**Last Updated**: 2025-09-10 21:02 (TD_031 TimeUnit TU refactor completed and archived)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -154,38 +154,7 @@
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*
 
-### TD_031: Refactor TimeUnit from Milliseconds to Abstract TU
-**Status**: Proposed  
-**Owner**: Tech Lead → Dev Engineer
-**Size**: S (2h)
-**Priority**: Critical (blocks VS_011)
-**Created**: 2025-09-10 20:05
-**Complexity**: 3/10
-
-**Problem**: TimeUnit currently represents milliseconds (real-time) instead of abstract Time Units (TU) as defined in Glossary.
-- Shows "1000ms" instead of "100 TU" in UI
-- Comments reference "milliseconds" throughout
-- Maximum is 10,000 (implying 10 seconds) instead of game-scale values
-
-**Impact**:
-- Confusing for players and developers
-- Inconsistent with Glossary and ADR-013
-- Wrong conceptual model (tied to real-time instead of game time)
-
-**Solution**:
-1. Change TimeUnit internal representation to TU (not milliseconds)
-2. Update ToString() to show "{Value} TU" not "{Value}ms"
-3. Update standard values: Move=100 TU, Attack=100 TU (not 1000ms)
-4. Fix all comments/documentation references
-5. Update tests to use TU scale
-
-**Technical Approach**:
-- Simple find/replace of "milliseconds" → "time units"
-- Change ToString() format
-- Scale all existing values by 0.1 (1000ms → 100 TU)
-- No logic changes, just unit representation
-
----
+<!-- TD_031 moved to permanent archive (2025-09-10 21:02) - TimeUnit TU refactor completed successfully -->
 
 ### VS_013: Basic Enemy AI
 **Status**: Proposed
