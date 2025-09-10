@@ -200,7 +200,8 @@
       "Bash(./scripts/core/build.ps1 test --filter \"*Roll*\")",
       "Bash(./scripts/core/build.ps1 test --filter \"Category=Phase3\")",
       "Bash(git restore:*)",
-      "Bash(./scripts/core/build.ps1 test --filter \"Category=Architecture\")"
+      "Bash(./scripts/core/build.ps1 test --filter \"Category=Architecture\")",
+      "Bash(dotnet restore:*)"
     ],
     "deny": [],
     "ask": [],

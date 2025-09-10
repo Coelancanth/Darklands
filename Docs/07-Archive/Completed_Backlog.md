@@ -1962,3 +1962,61 @@ Core implementation complete with all hardening features integrated. Ready for T
 - [ ] Test pattern: DI container integration testing for service validation
 - [ ] Architecture pattern: Clean abstraction boundaries preventing Godot leakage
 
+### TD_024: Architecture Tests for ADR Compliance
+**Extraction Status**: NOT EXTRACTED ⚠️
+**Completed**: 2025-09-10 13:38
+**Archive Note**: Enhanced architecture testing with NetArchTest achieving 40 total tests (28 existing + 12 new), delivering dual-approach validation
+---
+### TD_024: Architecture Tests for ADR Compliance [TESTING] [Score: 85/100]
+**Status**: Completed ✅
+**Owner**: Test Specialist
+**Size**: M (6-8h)
+**Priority**: Critical (Foundation - prevents regression)
+**Markers**: [TESTING] [ARCHITECTURE] [ADR-COMPLIANCE] [FOUNDATION]
+**Created**: 2025-09-09 17:44
+**Completed**: 2025-09-10 13:15
+
+**What**: Implement architecture tests to enforce ADR compliance at compile/test time
+**Why**: Prevent architectural drift and regression; enforce boundaries automatically
+
+**✅ Enhanced Delivered** (EXCEEDED EXPECTATIONS):
+- Created comprehensive AdrComplianceTests.cs with **14 new NetArchTest-based architecture tests**
+- **DUAL-APPROACH VALIDATION**: Combined existing reflection-based tests (28) with NetArchTest (12) for **40 total architecture tests**
+- ADR-004 enforcement: No System.Random, DateTime.Now, or float in gameplay
+- ADR-005 enforcement: Save-ready entities, no circular refs, no delegates  
+- ADR-006 enforcement: Clean architecture boundaries, no Godot in Core
+- Forbidden pattern detection: No threading, I/O, or console in domain
+- **NetArchTest Benefits**: More granular assembly-level validation, better error messages, industry-standard approach
+- False positives filtered (compiler-generated, utility classes)
+- All tests passing with comprehensive coverage
+
+**Problem Statement**:
+- No automated enforcement of architectural boundaries
+- Developers could accidentally violate ADR decisions
+- Manual code reviews miss subtle violations
+- Regression risk increases as team grows
+
+**Implementation Tasks**:
+1. **NetArchTest setup** for assembly dependency rules ✅
+2. **Prohibit Godot types** in Core assemblies (ADR-006) ✅
+3. **Enforce deterministic patterns** - flag System.Random usage (ADR-004) ✅
+4. **Validate save-ready entities** - no events/delegates in domain (ADR-005) ✅
+5. **Check abstraction boundaries** - Core can't reference Presentation ✅
+6. **Stable sorting enforcement** - flag unstable OrderBy usage ✅
+7. **Fixed-point validation** - flag float usage in gameplay logic ✅
+
+**Done When**:
+- Architecture test project created and integrated ✅
+- All ADR rules have corresponding tests ✅
+- Tests run in CI pipeline ✅
+- Violations fail the build ✅
+- Clear error messages guide developers ✅
+
+**Depends On**: Understanding of ADR-004, ADR-005, ADR-006
+---
+**Extraction Targets**:
+- [ ] ADR needed for: NetArchTest integration patterns for dual-approach architecture validation
+- [ ] HANDBOOK update: Combining reflection-based and NetArchTest approaches for comprehensive validation
+- [ ] Test pattern: Architecture test organization with industry-standard NetArchTest library
+- [ ] Pattern: False positive filtering for compiler-generated code in architecture tests
+
