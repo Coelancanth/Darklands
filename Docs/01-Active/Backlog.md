@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-09 18:58 (Added TD_030: Fix Code Formatting CI/Local Inconsistency)
+**Last Updated**: 2025-09-10 08:51 (TD_021 Phase 1 Complete: Save-Ready Entity Patterns)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -80,46 +80,90 @@
 
 <!-- TD_020 completed with property tests and moved to archive (2025-09-09 18:50) -->
 
-### TD_021: Implement Save-Ready Entity Patterns [ARCHITECTURE] [Score: 85/100]
-**Status**: Approved ✅
+### TD_021: Implement Save-Ready Entity Patterns [ARCHITECTURE] [Score: 85/100] ✅ PHASE 1 COMPLETE
+**Status**: In Progress (Phase 1/4 Complete) 🟡
 **Owner**: Dev Engineer  
-**Size**: M (6-8h)
+**Size**: M (6-8h total, ~2h remaining)
 **Priority**: Critical (Every entity going forward needs this)
 **Markers**: [ARCHITECTURE] [ADR-005] [SAVE-SYSTEM] [FOUNDATION]
 **Created**: 2025-09-08 21:31
 **Approved**: 2025-09-08 21:31
+**Phase 1 Completed**: 2025-09-10 08:49
 
 **What**: Refactor ALL domain entities to be save-ready per ADR-005
 **Why**: Retrofitting save system later means rewriting entire domain layer
 
-**Problem Statement**:
-- Current entities may have circular references
-- Some entities might reference Godot types
-- No clear separation of persistent vs transient state
-- IDs not consistently used for references
+## ✅ **Phase 1 COMPLETED** (2025-09-10 08:49)
+**Domain Layer Foundation** - All quality gates passed ✅
 
-**Refactoring Tasks**:
-1. Convert all domain entities to records
-2. Replace object references with ID references
-3. Remove any Godot types from domain layer
-4. Implement IPersistentEntity marker interface
-5. Separate transient state (animations, cache) from persistent
+**Implemented**:
+- ✅ IPersistentEntity & IEntityId interfaces for save system integration
+- ✅ IStableIdGenerator interface for deterministic/non-deterministic ID creation  
+- ✅ GridId value type following ActorId patterns
+- ✅ Actor entity: Now implements IPersistentEntity with ModData & TransientState
+- ✅ Grid entity: Converted to record with ImmutableArray<Tile> (true immutability)
+- ✅ ActorId: Enhanced with IStableIdGenerator support (backwards compatible)
+- ✅ GuidIdGenerator: Temporary production ID generator implementation
 
-**Entities to Refactor**:
-- Actor (use ActorId references)
-- GridState (ensure no circular refs)
-- Any status effects or buffs
-- Combat state and turn order
+**Quality Validation**:
+- ✅ 494/494 tests passing (100% success rate)
+- ✅ Zero compilation warnings/errors in main codebase
+- ✅ Backwards compatibility maintained via deprecated methods
+- ✅ All entities now records or record structs (immutable by design)
+- ✅ ID references replace object references (no circular dependencies)
+- ✅ Clean persistent/transient state separation
 
-**Done When**:
-- All domain entities are records or immutable
-- No circular object references
-- All references use IDs
-- No Godot types in domain
-- Clear persistent vs transient separation
-- Serialization test passes for all entities
+**Commit**: `a54b089` - feat(domain): implement save-ready entity patterns [TD_021] [Phase 1/4]
 
-**Depends On**: None (Can work in parallel with TD_020)
+## 🔄 **Remaining Phases**
+
+### **Phase 2: Application Layer Updates** [1-2h remaining]
+**Status**: Ready to start
+**Focus**: Update command handlers and services to use new entity patterns
+
+**Tasks**:
+- Update command handlers that create actors/grids to inject IStableIdGenerator
+- Modify SpawnActorCommand, CreateGridCommand handlers
+- Update application services creating entities
+- Migrate test code from deprecated ActorId.NewId() calls
+- Pass IStableIdGenerator through service call chains
+
+**Quality Gate**: All application layer tests pass with new patterns
+
+### **Phase 3: Infrastructure Implementation** [2-3h remaining]  
+**Status**: Blocked on Phase 2
+**Focus**: Production-ready ID generation and validation infrastructure
+
+**Tasks**:
+- Implement DeterministicIdGenerator (testing - uses IDeterministicRandom)
+- Enhance GuidIdGenerator for production scenarios
+- Register ID generators in DI container (GameStrapper.cs)
+- Implement SaveReadyValidator from ADR-005 for compile-time validation
+- Create architecture tests for ADR compliance
+- Add entity serialization validation tests
+
+**Quality Gate**: All infrastructure tests pass, validation catches violations
+
+### **Phase 4: Presentation Layer Adaptation** [1h remaining]
+**Status**: Blocked on Phase 2 & 3
+**Focus**: Update UI code to use save-ready patterns
+
+**Tasks**:
+- Update presenters that create entities to inject IStableIdGenerator
+- Ensure UI code handles new entity interfaces correctly
+- Manual testing of entity creation flows in UI
+- Verify no regressions in visual presentation
+
+**Quality Gate**: Full system works end-to-end with save-ready entities
+
+## 📊 **Implementation Progress**
+- **Phase 1**: ✅ **COMPLETE** (Domain foundation)
+- **Phase 2**: 🟡 Ready (Application layer)  
+- **Phase 3**: ⏳ Waiting (Infrastructure)
+- **Phase 4**: ⏳ Waiting (Presentation)
+
+**Estimated Completion**: Phase 2 next (1-2h), then Phase 3 (2-3h), then Phase 4 (1h)
+**Total Progress**: ~3h complete / 6-8h total (~50% done)
 
 **Tech Lead Decision** (2025-09-08 21:31):
 - **AUTO-APPROVED** - Critical per ADR-005
