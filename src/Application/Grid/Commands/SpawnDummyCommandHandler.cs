@@ -21,15 +21,18 @@ namespace Darklands.Core.Application.Grid.Commands
         private readonly IGridStateService _gridStateService;
         private readonly IActorStateService _actorStateService;
         private readonly ILogger _logger;
+        private readonly Domain.Common.IStableIdGenerator _idGenerator;
 
         public SpawnDummyCommandHandler(
             IGridStateService gridStateService,
             IActorStateService actorStateService,
-            ILogger logger)
+            ILogger logger,
+            Domain.Common.IStableIdGenerator idGenerator)
         {
             _gridStateService = gridStateService;
             _actorStateService = actorStateService;
             _logger = logger;
+            _idGenerator = idGenerator ?? throw new System.ArgumentNullException(nameof(idGenerator));
         }
 
         public Task<Fin<LanguageExt.Unit>> Handle(SpawnDummyCommand request, CancellationToken cancellationToken)
@@ -46,10 +49,8 @@ namespace Darklands.Core.Application.Grid.Commands
                 return Task.FromResult(FinFail<LanguageExt.Unit>(error));
             }
 
-            // Step 2: Create DummyActor domain entity
-#pragma warning disable CS0618 // Type or member is obsolete
-            var dummyResult = DummyActor.CreateAtFullHealth(ActorId.NewId(), request.MaxHealth, request.Name);
-#pragma warning restore CS0618 // Type or member is obsolete
+            // Step 2: Create DummyActor domain entity using injected ID generator
+            var dummyResult = DummyActor.CreateAtFullHealth(ActorId.NewId(_idGenerator), request.MaxHealth, request.Name);
             if (dummyResult.IsFail)
             {
                 var error = dummyResult.Match<Error>(Succ: _ => Error.New("UNKNOWN: Unknown error"), Fail: e => e);
