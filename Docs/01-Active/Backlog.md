@@ -85,55 +85,7 @@
 
 ---
 
-### TD_022: Implement Core Abstraction Services [ARCHITECTURE] [Score: 75/100]
-**Status**: Approved ✅
-**Owner**: Dev Engineer
-**Size**: L (1-2 days)
-**Priority**: Critical (Testing and modding depend on these)
-**Markers**: [ARCHITECTURE] [ADR-006] [ABSTRACTION] [SERVICES]
-**Created**: 2025-09-08 21:31
-**Approved**: 2025-09-08 21:31
-
-**What**: Implement abstraction services per ADR-006 Selective Abstraction
-**Why**: These specific services need abstraction for testing, platform differences, and modding
-
-**Services to Implement**:
-1. **IAudioService** (Priority 1)
-   - PlaySound(SoundId, position)
-   - SetMusicTrack(MusicId)
-   - SetBusVolume(bus, volume)
-
-2. **IInputService** (Priority 1)
-   - IsActionPressed(InputAction)
-   - GetMousePosition()
-   - Observable<InputEvent> stream
-
-3. **ISettingsService** (Priority 2)
-   - Get<T>(SettingKey<T>)
-   - Set<T>(SettingKey<T>, value)
-   - Save/Load settings
-
-**Implementation Notes**:
-- Start with interfaces and mock implementations
-- Then create Godot bridge implementations
-- Register all in GameStrapper.cs
-- DO NOT abstract UI controls, particles, tweens (per ADR-006)
-
-**Done When**:
-- All three services have interfaces defined
-- Godot implementations created
-- Mock implementations for testing
-- Registered in DI container
-- Basic unit tests using mocks
-- Presentation layer uses services
-
-**Depends On**: None (Can start immediately)
-
-**Tech Lead Decision** (2025-09-08 21:31):
-- **AUTO-APPROVED** - Core abstractions per ADR-006
-- These enable testing and future modding
-- Start with Audio and Input (highest value)
-- Settings can be slightly delayed if needed
+<!-- TD_022 completed and moved to archive (2025-09-10 10:33) -->
 
 ---
 

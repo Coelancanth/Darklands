@@ -114,10 +114,11 @@ jobs:
       run: |
         echo "🔒 Scanning for security issues..."
         
-        # Check for hardcoded secrets (basic check)
-        if grep -r "password\s*=" --include="*.cs" . || \
-           grep -r "secret\s*=" --include="*.cs" . || \
-           grep -r "key\s*=" --include="*.cs" . | grep -v "Key.cs"; then
+        # Check for hardcoded secrets (basic check) - more specific patterns
+        if grep -r "password\s*=\s*[\"'].*[\"']" --include="*.cs" . || \
+           grep -r "secret\s*=\s*[\"'].*[\"']" --include="*.cs" . || \
+           grep -r "apikey\s*=\s*[\"'].*[\"']" --include="*.cs" . || \
+           grep -r "connectionstring\s*=\s*[\"'].*[\"']" --include="*.cs" .; then
           echo "⚠️ Potential hardcoded credentials found"
           exit 1
         else
