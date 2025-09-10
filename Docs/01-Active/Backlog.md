@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-10 09:05 (TD_021 Phase 2 Complete: Test Migration & Application Compatibility)
+**Last Updated**: 2025-09-10 14:00 (TD_025 Cross-Platform Determinism CI Pipeline completed and archived)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -80,39 +80,7 @@
 
 
 
-### TD_025: Cross-Platform Determinism CI Pipeline [DEVOPS] [Score: 75/100]
-**Status**: Proposed 📋
-**Owner**: DevOps Engineer
-**Size**: M (4-6h)
-**Priority**: Important (Phase 2 - after core implementation)
-**Markers**: [DEVOPS] [CI-CD] [DETERMINISM] [CROSS-PLATFORM]
-**Created**: 2025-09-09 17:44
-
-**What**: CI pipeline to verify deterministic simulation across platforms
-**Why**: Ensure saves/multiplayer work identically on Windows/Linux/macOS
-
-**Problem Statement**:
-- Determinism might break across different platforms
-- No automated verification of cross-platform consistency
-- Manual testing won't catch subtle platform differences
-- Multiplayer/saves could fail silently
-
-**Implementation Tasks**:
-1. **GitHub Actions matrix** for Windows, Linux, macOS
-2. **Seed-based determinism tests** - same seed must produce identical results
-3. **Sequence verification** - 10,000+ random draws must match byte-for-byte
-4. **Performance benchmarks** - track deterministic operations speed
-5. **Save compatibility tests** - saves must load across platforms
-6. **Automated regression detection** - flag any determinism breaks
-
-**Done When**:
-- CI runs on all three platforms
-- Determinism tests pass consistently
-- Performance tracked and reported
-- Failures block PR merges
-- Clear diagnostics for failures
-
-**Depends On**: TD_020 (Deterministic Random implementation)
+<!-- TD_025 completed with cross-platform determinism CI and moved to archive (2025-09-10 13:59) -->
 
 ---
 
