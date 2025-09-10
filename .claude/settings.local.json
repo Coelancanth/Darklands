@@ -199,7 +199,8 @@
       "Bash(./scripts/core/build.ps1 test --filter \"*ExecuteAttackCommandHandlerIntegrationTests*Handle_MultipleSequentialAttacks*\")",
       "Bash(./scripts/core/build.ps1 test --filter \"*Roll*\")",
       "Bash(./scripts/core/build.ps1 test --filter \"Category=Phase3\")",
-      "Bash(git restore:*)"
+      "Bash(git restore:*)",
+      "Bash(./scripts/core/build.ps1 test --filter \"Category=Architecture\")"
     ],
     "deny": [],
     "ask": [],
