@@ -284,6 +284,10 @@ public static class GameStrapper
             // Note: UIEventForwarder<T> is auto-discovered by MediatR's RegisterServicesFromAssembly
             // No manual registration needed - MediatR finds all INotificationHandler<T> implementations
 
+            // Actor Factory (TD_013) - Clean separation of test data from presenters
+            // Singleton to maintain player ID state across the application
+            services.AddSingleton<Application.Common.IActorFactory, Application.Common.ActorFactory>();
+
             return FinSucc(LanguageExt.Unit.Default);
         }
         catch (Exception ex)

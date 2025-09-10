@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using Darklands.Core.Application.Common;
 using Darklands.Core.Application.Grid.Queries;
 using Darklands.Core.Presentation.Views;
 using MediatR;
@@ -17,13 +18,8 @@ namespace Darklands.Core.Presentation.Presenters
     {
         private readonly IMediator _mediator;
         private readonly ILogger _logger;
-        private readonly Application.Grid.Services.IGridStateService _gridStateService;
-        private readonly Application.Actor.Services.IActorStateService _actorStateService;
-        private readonly Domain.Common.IStableIdGenerator _idGenerator;
+        private readonly IActorFactory _actorFactory;
         private HealthPresenter? _healthPresenter;
-
-        // For Phase 4 MVP - shared test player state
-        public static Domain.Grid.ActorId? TestPlayerId { get; private set; }
 
         /// <summary>
         /// Creates a new ActorPresenter with the specified dependencies.
@@ -31,20 +27,13 @@ namespace Darklands.Core.Presentation.Presenters
         /// <param name="view">The actor view interface this presenter controls</param>
         /// <param name="mediator">MediatR instance for sending commands and queries</param>
         /// <param name="logger">Logger for tracking actor operations</param>
-        /// <param name="gridStateService">Grid state service for actor positioning</param>
-        /// <param name="actorStateService">Actor state service for health and combat data</param>
-        /// <param name="idGenerator">ID generator for creating stable entity IDs</param>
-        public ActorPresenter(IActorView view, IMediator mediator, ILogger logger,
-            Application.Grid.Services.IGridStateService gridStateService,
-            Application.Actor.Services.IActorStateService actorStateService,
-            Domain.Common.IStableIdGenerator idGenerator)
+        /// <param name="actorFactory">Factory for creating and managing actors</param>
+        public ActorPresenter(IActorView view, IMediator mediator, ILogger logger, IActorFactory actorFactory)
             : base(view)
         {
             _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            _gridStateService = gridStateService ?? throw new ArgumentNullException(nameof(gridStateService));
-            _actorStateService = actorStateService ?? throw new ArgumentNullException(nameof(actorStateService));
-            _idGenerator = idGenerator ?? throw new ArgumentNullException(nameof(idGenerator));
+            _actorFactory = actorFactory ?? throw new ArgumentNullException(nameof(actorFactory));
         }
 
         /// <summary>
@@ -60,7 +49,7 @@ namespace Darklands.Core.Presentation.Presenters
 
         /// <summary>
         /// Initializes the actor presenter and sets up the initial actor display.
-        /// Creates a test player actor for Phase 4 MVP demonstration.
+        /// Creates test actors using the actor factory for clean separation of concerns.
         /// </summary>
         public override void Initialize()
         {
@@ -70,15 +59,73 @@ namespace Darklands.Core.Presentation.Presenters
 
             try
             {
-                // For Phase 4, create a test player at position (0,0)
-                // In the future, this would load actors from the application state
-                // Note: This will execute and use deferred calls for UI operations
-                InitializeTestPlayer();
+                // Create initial actors using the factory (clean separation of concerns)
+                try
+                {
+                    // Create test player at position (0,0)
+                    var playerResult = _actorFactory.CreatePlayer(new Domain.Grid.Position(0, 0), "Test Player");
+                    playerResult.Match(
+                        Succ: playerId =>
+                        {
+                            // Display the actor visually
+                            View.DisplayActorAsync(playerId, new Domain.Grid.Position(0, 0), ActorType.Player);
 
-                // Create a dummy target for combat testing (VS_010c Phase 4)
-                InitializeDummyTarget();
+                            // Notify health presenter if connected
+                            if (_healthPresenter != null)
+                            {
+                                var healthResult = Domain.Actor.Health.CreateAtFullHealth(100);
+                                healthResult.Match(
+                                    Succ: health =>
+                                    {
+                                        _healthPresenter.HandleActorCreated(playerId, new Domain.Grid.Position(0, 0), health);
+                                        _logger.Debug("Test player created with health bar at position (0,0) with ID {ActorId}", playerId);
+                                    },
+                                    Fail: error => _logger.Warning("Failed to create health for test player: {Error}", error.Message)
+                                );
+                            }
+                            else
+                            {
+                                _logger.Warning("HealthPresenter not connected - health bar will not be displayed for test player");
+                            }
+                        },
+                        Fail: error => _logger.Warning("Failed to create test player: {Error}", error.Message)
+                    );
 
-                _logger.Debug("Initial actor display setup initiated - player and dummy target");
+                    // Create dummy target at position (5,5)
+                    var dummyResult = _actorFactory.CreateDummy(new Domain.Grid.Position(5, 5), 50);
+                    dummyResult.Match(
+                        Succ: dummyId =>
+                        {
+                            // Display the dummy visually
+                            View.DisplayActorAsync(dummyId, new Domain.Grid.Position(5, 5), ActorType.Enemy);
+
+                            // Notify health presenter if connected
+                            if (_healthPresenter != null)
+                            {
+                                var healthResult = Domain.Actor.Health.CreateAtFullHealth(50);
+                                healthResult.Match(
+                                    Succ: health =>
+                                    {
+                                        _healthPresenter.HandleActorCreated(dummyId, new Domain.Grid.Position(5, 5), health);
+                                        _logger.Debug("Dummy target created with health bar at position (5,5) with ID {ActorId}", dummyId);
+                                    },
+                                    Fail: error => _logger.Warning("Failed to create health for dummy target: {Error}", error.Message)
+                                );
+                            }
+                            else
+                            {
+                                _logger.Warning("HealthPresenter not connected - dummy health bar will not be displayed");
+                            }
+                        },
+                        Fail: error => _logger.Warning("Failed to create dummy target: {Error}", error.Message)
+                    );
+
+                    _logger.Debug("Initial actor display setup completed - player and dummy target");
+                }
+                catch (Exception ex)
+                {
+                    _logger.Error(ex, "Error during actor initialization");
+                }
             }
             catch (Exception ex)
             {
@@ -86,144 +133,6 @@ namespace Darklands.Core.Presentation.Presenters
             }
         }
 
-        /// <summary>
-        /// Creates and displays a test player actor for Phase 4 demonstration.
-        /// This is a temporary implementation - future versions would load from application state.
-        /// </summary>
-        private void InitializeTestPlayer()
-        {
-            try
-            {
-                // Create a test player at the grid origin using injected ID generator
-                TestPlayerId = Domain.Grid.ActorId.NewId(_idGenerator);
-                var startPosition = new Domain.Grid.Position(0, 0);
-
-                // Create a full Actor with health data using domain factory (position handled separately)
-                var actorResult = Domain.Actor.Actor.CreateAtFullHealth(TestPlayerId.Value, 100, "Test Player");
-
-                if (actorResult.IsSucc)
-                {
-                    var actor = actorResult.Match(succ => succ, fail => throw new InvalidOperationException());
-
-                    // First, add the actor to the actor state service (for health data)
-                    var addResult = _actorStateService.AddActor(actor);
-                    if (addResult.IsSucc)
-                    {
-                        // Then, place the actor on the grid at the start position
-                        var placeResult = _gridStateService.AddActorToGrid(actor.Id, startPosition);
-                        if (placeResult.IsSucc)
-                        {
-                            // Display the actor visually (sequential, not concurrent)
-                            View.DisplayActorAsync(actor.Id, startPosition, ActorType.Player);
-
-                            // CRITICAL: Notify the health presenter to create a health bar for this actor
-                            if (_healthPresenter != null)
-                            {
-                                _healthPresenter.HandleActorCreated(actor.Id, startPosition, actor.Health);
-                                _logger.Debug("Test player actor created with health bar at position {Position} with ID {ActorId} and health {Health}",
-                                    startPosition, actor.Id, actor.Health);
-                            }
-                            else
-                            {
-                                _logger.Warning("HealthPresenter not connected - health bar will not be displayed for test player");
-                                _logger.Debug("Test player actor created (no health bar) at position {Position} with ID {ActorId} and health {Health}",
-                                    startPosition, actor.Id, actor.Health);
-                            }
-                        }
-                        else
-                        {
-                            placeResult.IfFail(error => _logger.Warning("Failed to place test player on grid: {Error}", error.Message));
-                        }
-                    }
-                    else
-                    {
-                        addResult.IfFail(error => _logger.Warning("Failed to add test player to actor state service: {Error}", error.Message));
-                    }
-                }
-                else
-                {
-                    actorResult.IfFail(error => _logger.Warning("Failed to create test player actor: {Error}", error.Message));
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.Error(ex, "Failed to initialize test player actor");
-            }
-        }
-
-        /// <summary>
-        /// Creates and displays a dummy combat target for testing and combat mechanics.
-        /// This implements VS_010c Phase 4 by spawning a visual dummy using SpawnDummyCommand.
-        /// </summary>
-        private void InitializeDummyTarget()
-        {
-            try
-            {
-                // Create dummy at position (5,5) as specified in VS_010c requirements  
-                var dummyPosition = new Domain.Grid.Position(5, 5);
-
-                _logger.Information("Creating dummy combat target at position {Position}", dummyPosition);
-
-                // Create the dummy directly using the same pattern as InitializeTestPlayer
-                var dummyResult = Domain.Actor.DummyActor.Presets.CreateCombatDummy("Combat Dummy");
-                if (dummyResult.IsSucc)
-                {
-                    var dummyActor = dummyResult.Match(succ => succ, fail => throw new InvalidOperationException());
-
-                    // Convert DummyActor to Actor for service registration (same as handler does)
-                    var actorForRegistration = Domain.Actor.Actor.Create(dummyActor.Id, dummyActor.Health, dummyActor.Name);
-                    if (actorForRegistration.IsSucc)
-                    {
-                        var actor = actorForRegistration.Match(succ => succ, fail => throw new InvalidOperationException());
-
-                        // First, add the actor to the actor state service (for health data)
-                        var addResult = _actorStateService.AddActor(actor);
-                        if (addResult.IsSucc)
-                        {
-                            // Then, place the actor on the grid at the dummy position
-                            var placeResult = _gridStateService.AddActorToGrid(actor.Id, dummyPosition);
-                            if (placeResult.IsSucc)
-                            {
-                                // Display the dummy visually with brown/enemy coloring (sequential, not concurrent)
-                                View.DisplayActorAsync(actor.Id, dummyPosition, ActorType.Enemy);
-
-                                // CRITICAL: Notify the health presenter to create a health bar for the dummy
-                                if (_healthPresenter != null)
-                                {
-                                    _healthPresenter.HandleActorCreated(actor.Id, dummyPosition, actor.Health);
-                                    _logger.Debug("Dummy target created with health bar at {Position} - ID: {ActorId}, Health: {Health}",
-                                        dummyPosition, actor.Id, actor.Health);
-                                }
-                                else
-                                {
-                                    _logger.Warning("HealthPresenter not connected - dummy health bar will not be displayed");
-                                }
-                            }
-                            else
-                            {
-                                placeResult.IfFail(error => _logger.Warning("Failed to place dummy target on grid: {Error}", error.Message));
-                            }
-                        }
-                        else
-                        {
-                            addResult.IfFail(error => _logger.Warning("Failed to add dummy target to actor state service: {Error}", error.Message));
-                        }
-                    }
-                    else
-                    {
-                        actorForRegistration.IfFail(error => _logger.Warning("Failed to convert dummy to actor: {Error}", error.Message));
-                    }
-                }
-                else
-                {
-                    dummyResult.IfFail(error => _logger.Warning("Failed to create dummy actor: {Error}", error.Message));
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.Error(ex, "Failed to initialize dummy combat target");
-            }
-        }
 
         /// <summary>
         /// Handles actor movement notifications from the application layer.
