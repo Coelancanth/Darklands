@@ -51,13 +51,13 @@ This pattern must explicitly coordinate the time spent playing animations/effect
 
 ## Architecture Pattern
 
-### Game Loop Structure
+### Game Loop Structure with Time-Based Scheduler
 ```csharp
 public class GameLoopCoordinator
 {
-    private readonly CombatScheduler _scheduler;
-    private readonly ICommandBus _commands;  // Synchronous command bus
-    private bool _isProcessing;              // Reentrancy guard
+    private readonly TimeScheduler _scheduler;  // Time-based, not energy-based
+    private readonly ICommandBus _commands;     // Synchronous command bus
+    private bool _isProcessing;                 // Reentrancy guard
     
     public void ProcessTurn()
     {
@@ -65,8 +65,8 @@ public class GameLoopCoordinator
         _isProcessing = true;
         try
         {
-            // 1. Get next actor from scheduler
-            var actor = _scheduler.ProcessNextTurn();
+            // 1. Get next actor from time-based scheduler
+            var (actor, currentTime) = _scheduler.GetNextActor();
             
             // 2. Determine action (player input or AI)
             var action = GetAction(actor);
@@ -74,15 +74,39 @@ public class GameLoopCoordinator
             // 3. Execute action synchronously
             var result = _commands.Send(action);
             
-            // 4. Update UI synchronously
+            // 4. Reschedule actor based on action cost
+            _scheduler.RescheduleActor(actor, result.ActionCost);
+            
+            // 5. Update UI synchronously
             UpdatePresentation(result);
             
-            // 5. Let Godot handle rendering (automatic)
+            // 6. Let Godot handle rendering (automatic)
         }
         finally
         {
             _isProcessing = false;
         }
+    }
+}
+
+// Clean time-based scheduler (no energy accumulation)
+public class TimeScheduler
+{
+    private decimal _currentTime = 0;
+    private SortedSet<(decimal Time, ActorId Actor)> _timeline;
+    
+    public (ActorId Actor, decimal Time) GetNextActor()
+    {
+        var next = _timeline.First();
+        _timeline.Remove(next);
+        _currentTime = next.Time;
+        return (next.Actor, _currentTime);
+    }
+    
+    public void RescheduleActor(ActorId actor, decimal actionCost)
+    {
+        var nextTime = _currentTime + actionCost / GetActorSpeed(actor);
+        _timeline.Add((nextTime, actor));
     }
 }
 ```

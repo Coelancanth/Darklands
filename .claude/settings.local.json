@@ -198,14 +198,16 @@
       "Bash(./scripts/core/build.ps1 test --filter \"*ExecuteAttackCommandHandler*\")",
       "Bash(./scripts/core/build.ps1 test --filter \"*ExecuteAttackCommandHandlerIntegrationTests*Handle_MultipleSequentialAttacks*\")",
       "Bash(./scripts/core/build.ps1 test --filter \"*Roll*\")",
-      "Bash(./scripts/core/build.ps1 test --filter \"Category=Phase3\")"
+      "Bash(./scripts/core/build.ps1 test --filter \"Category=Phase3\")",
+      "Bash(git restore:*)"
     ],
     "deny": [],
     "ask": [],
     "additionalDirectories": [
       "C:\\Users\\Coel\\Documents\\Godot\\blocklife\\Docs",
       "C:\\Users\\Coel\\Documents\\Godot\\blocklife\\.claude",
-      "C:\\Users\\Coel\\Documents\\Godot\\blocklife"
+      "C:\\Users\\Coel\\Documents\\Godot\\blocklife",
+      "C:\\Users\\Coel\\Documents\\Godot"
     ]
   },
   "outputStyle": "Explanatory"
