@@ -24,7 +24,7 @@ public partial class GameManager
     {
         try
         {
-            _logger?.Information("[GameManager] Received death notification for actor {ActorId} at {Position}", 
+            _logger?.Information("[GameManager] Received death notification for actor {ActorId} at {Position}",
                 notification.ActorId, notification.Position);
 
             // Remove actor sprite using the same logic as the old callback
@@ -32,9 +32,9 @@ public partial class GameManager
             {
                 _logger?.Information("[GameManager] Calling deferred removal for {ActorId}", notification.ActorId);
                 // Use CallDeferred to ensure this runs on the main thread
-                CallDeferred(nameof(RemoveActorDeferred), 
-                    notification.ActorId.Value.ToString(), 
-                    notification.Position.X, 
+                CallDeferred(nameof(RemoveActorDeferred),
+                    notification.ActorId.Value.ToString(),
+                    notification.Position.X,
                     notification.Position.Y);
             }
             else
@@ -45,7 +45,7 @@ public partial class GameManager
         }
         catch (System.Exception ex)
         {
-            _logger?.Error(ex, "💥 [GameManager] Error processing actor death notification for {ActorId}", 
+            _logger?.Error(ex, "💥 [GameManager] Error processing actor death notification for {ActorId}",
                 notification.ActorId);
         }
     }
@@ -63,7 +63,7 @@ public partial class GameManager
     {
         try
         {
-            _logger?.Information("[GameManager] Received damage notification for actor {ActorId}: {OldHealth} → {NewHealth}", 
+            _logger?.Information("[GameManager] Received damage notification for actor {ActorId}: {OldHealth} → {NewHealth}",
                 notification.ActorId, notification.OldHealth, notification.NewHealth);
 
             // Update health bar via presenter using the same logic as the old callback
@@ -71,11 +71,11 @@ public partial class GameManager
             {
                 _logger?.Information("[GameManager] Updating health bar via HealthPresenter");
                 // Use CallDeferred to ensure this runs on the main thread
-                CallDeferred(nameof(UpdateHealthBarDeferred), 
-                    notification.ActorId.Value.ToString(), 
-                    notification.OldHealth.Current, 
-                    notification.OldHealth.Maximum, 
-                    notification.NewHealth.Current, 
+                CallDeferred(nameof(UpdateHealthBarDeferred),
+                    notification.ActorId.Value.ToString(),
+                    notification.OldHealth.Current,
+                    notification.OldHealth.Maximum,
+                    notification.NewHealth.Current,
                     notification.NewHealth.Maximum);
             }
             else
@@ -86,7 +86,7 @@ public partial class GameManager
         }
         catch (System.Exception ex)
         {
-            _logger?.Error(ex, "💥 [GameManager] Error processing actor damage notification for {ActorId}", 
+            _logger?.Error(ex, "💥 [GameManager] Error processing actor damage notification for {ActorId}",
                 notification.ActorId);
         }
     }
