@@ -107,35 +107,35 @@ public readonly record struct CombatAction
     {
         public static readonly CombatAction DaggerStab = CreateUnsafe(
             "Dagger Stab",
-            TimeUnit.CreateUnsafe(500),
+            TimeUnit.CreateUnsafe(50),
             8,
             CombatActionType.Attack,
             10);
 
         public static readonly CombatAction SwordSlash = CreateUnsafe(
             "Sword Slash",
-            TimeUnit.CreateUnsafe(800),
+            TimeUnit.CreateUnsafe(80),
             15,
             CombatActionType.Attack,
             0);
 
         public static readonly CombatAction AxeChop = CreateUnsafe(
             "Axe Chop",
-            TimeUnit.CreateUnsafe(1200),
+            TimeUnit.CreateUnsafe(120),
             22,
             CombatActionType.Attack,
             -5);
 
         public static readonly CombatAction Block = CreateUnsafe(
             "Block",
-            TimeUnit.CreateUnsafe(300),
+            TimeUnit.CreateUnsafe(30),
             0,
             CombatActionType.Defensive,
             0);
 
         public static readonly CombatAction Dodge = CreateUnsafe(
             "Dodge",
-            TimeUnit.CreateUnsafe(200),
+            TimeUnit.CreateUnsafe(20),
             0,
             CombatActionType.Defensive,
             0);

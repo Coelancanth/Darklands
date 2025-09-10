@@ -21,7 +21,7 @@ public class TimeUnitCalculatorTests
     public void CalculateActionTime_ValidInputs_ReturnsExpectedTime()
     {
         // Arrange
-        var daggerStab = CombatAction.Common.DaggerStab; // 500ms base
+        var daggerStab = CombatAction.Common.DaggerStab; // 50 TU base
         var agility = 20; // 100/20 = 5.0 modifier
         var encumbrance = 0; // 1.0 + (0 * 0.1) = 1.0 modifier
 
@@ -32,8 +32,8 @@ public class TimeUnitCalculatorTests
         result.IsSucc.Should().BeTrue();
         result.IfSucc(time =>
         {
-            // Expected: 500 * (100/20) * (1 + 0*0.1) = 500 * 5 * 1 = 2500
-            time.Value.Should().Be(2500);
+            // Expected: 50 * (100/20) * (1 + 0*0.1) = 50 * 5 * 1 = 250
+            time.Value.Should().Be(250);
         });
     }
 

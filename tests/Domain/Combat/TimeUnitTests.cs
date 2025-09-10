@@ -37,7 +37,7 @@ public class TimeUnitTests
     }
 
     [Fact]
-    public void Minimum_ReturnsOneMillisecond()
+    public void Minimum_ReturnsOneTU()
     {
         // Act & Assert
         TimeUnit.Minimum.Value.Should().Be(1);
@@ -45,7 +45,7 @@ public class TimeUnitTests
     }
 
     [Fact]
-    public void Maximum_ReturnsTenSeconds()
+    public void Maximum_ReturnsTenThousandTU()
     {
         // Act & Assert
         TimeUnit.Maximum.Value.Should().Be(10_000);
@@ -82,14 +82,14 @@ public class TimeUnitTests
     [InlineData(1)]
     [InlineData(1000)]
     [InlineData(10_000)]
-    public void FromMilliseconds_ValidValues_ReturnsSuccess(int milliseconds)
+    public void FromTU_ValidValues_ReturnsSuccess(int timeUnits)
     {
         // Act
-        var result = TimeUnit.FromMilliseconds(milliseconds);
+        var result = TimeUnit.FromTU(timeUnits);
 
         // Assert
         result.IsSucc.Should().BeTrue();
-        result.IfSucc(timeUnit => timeUnit.Value.Should().Be(milliseconds));
+        result.IfSucc(timeUnit => timeUnit.Value.Should().Be(timeUnits));
     }
 
     [Theory]
@@ -97,10 +97,10 @@ public class TimeUnitTests
     [InlineData(-1000)]
     [InlineData(10_001)]
     [InlineData(100_000)]
-    public void FromMilliseconds_InvalidValues_ReturnsFailure(int milliseconds)
+    public void FromTU_InvalidValues_ReturnsFailure(int timeUnits)
     {
         // Act
-        var result = TimeUnit.FromMilliseconds(milliseconds);
+        var result = TimeUnit.FromTU(timeUnits);
 
         // Assert
         result.IsFail.Should().BeTrue();
@@ -221,11 +221,11 @@ public class TimeUnitTests
     }
 
     [Theory]
-    [InlineData(500, "500ms")]
-    [InlineData(1000, "1.0s")]
-    [InlineData(1500, "1.5s")]
-    [InlineData(5000, "5.0s")]
-    [InlineData(10000, "10.0s")]
+    [InlineData(50, "50 TU")]
+    [InlineData(100, "100 TU")]
+    [InlineData(150, "150 TU")]
+    [InlineData(500, "500 TU")]
+    [InlineData(1000, "1000 TU")]
     public void ToString_VariousValues_ReturnsFormattedString(int value, string expected)
     {
         // Arrange

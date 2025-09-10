@@ -189,7 +189,7 @@ public class CombatActionTests
 
         // Assert
         dagger.Name.Should().Be("Dagger Stab");
-        dagger.BaseCost.Value.Should().Be(500);
+        dagger.BaseCost.Value.Should().Be(50);
         dagger.BaseDamage.Should().Be(8);
         dagger.Type.Should().Be(CombatActionType.Attack);
         dagger.AccuracyBonus.Should().Be(10);
@@ -204,7 +204,7 @@ public class CombatActionTests
 
         // Assert
         sword.Name.Should().Be("Sword Slash");
-        sword.BaseCost.Value.Should().Be(800);
+        sword.BaseCost.Value.Should().Be(80);
         sword.BaseDamage.Should().Be(15);
         sword.Type.Should().Be(CombatActionType.Attack);
         sword.AccuracyBonus.Should().Be(0);
@@ -219,7 +219,7 @@ public class CombatActionTests
 
         // Assert
         axe.Name.Should().Be("Axe Chop");
-        axe.BaseCost.Value.Should().Be(1200);
+        axe.BaseCost.Value.Should().Be(120);
         axe.BaseDamage.Should().Be(22);
         axe.Type.Should().Be(CombatActionType.Attack);
         axe.AccuracyBonus.Should().Be(-5);
@@ -234,7 +234,7 @@ public class CombatActionTests
 
         // Assert
         block.Name.Should().Be("Block");
-        block.BaseCost.Value.Should().Be(300);
+        block.BaseCost.Value.Should().Be(30);
         block.BaseDamage.Should().Be(0);
         block.Type.Should().Be(CombatActionType.Defensive);
         block.AccuracyBonus.Should().Be(0);
@@ -249,7 +249,7 @@ public class CombatActionTests
 
         // Assert
         dodge.Name.Should().Be("Dodge");
-        dodge.BaseCost.Value.Should().Be(200);
+        dodge.BaseCost.Value.Should().Be(20);
         dodge.BaseDamage.Should().Be(0);
         dodge.Type.Should().Be(CombatActionType.Defensive);
         dodge.AccuracyBonus.Should().Be(0);

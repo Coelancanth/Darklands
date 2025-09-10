@@ -70,7 +70,7 @@ public static class TimeUnitCalculator
             var finalTime = (numerator + denominator / 2) / denominator;
 
             // Ensure result is within valid bounds
-            return TimeUnit.FromMilliseconds(finalTime);
+            return TimeUnit.FromTU(finalTime);
         }
         catch (Exception ex)
         {
