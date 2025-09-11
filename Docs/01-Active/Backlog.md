@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-11 17:42 (Completed and archived TD_034 - HealthView consolidation)
+**Last Updated**: 2025-09-11 18:26 (Created TD_036 - Global debug system with F12 window)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -10,8 +10,8 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 005
-- **Next TD**: 036
-- **Next VS**: 014 
+- **Next TD**: 038
+- **Next VS**: 015 
 
 
 **Protocol**: Check your type's counter → Use that number → Increment the counter → Update timestamp
@@ -182,9 +182,95 @@ Movement interrupted at (25, 25) - Orc spotted!
 ☑ Integer Math: Tile movement
 ☑ Testable: Clear state transitions
 
-**Depends On**: VS_011 (Vision System) - ✅ Infrastructure foundation complete (Phase 3)
-**Next Step**: Ready to begin implementation (Enhanced infrastructure available)
+**Depends On**: 
+- VS_011 (Vision System) - ✅ Infrastructure foundation complete (Phase 3)
+- VS_014 (A* Pathfinding) - ⏳ Required for non-adjacent movement
+**Next Step**: Implement VS_014 first, then begin VS_012
 
+
+### VS_014: A* Pathfinding Foundation
+**Status**: Approved
+**Owner**: Dev Engineer  
+**Size**: S (3h)
+**Priority**: Critical
+**Created**: 2025-09-11 18:12
+**Tech Breakdown**: Complete by Tech Lead
+
+**What**: Implement A* pathfinding algorithm with visual path display
+**Why**: Foundation for VS_012 movement system and all future tactical movement
+
+**Implementation Plan**:
+
+**Phase 1: Domain Algorithm (1h)**
+- Create `Domain.Pathfinding.AStarPathfinder`
+- Pure functional implementation with no dependencies
+- Deterministic tie-breaking (use Position.X then Y for equal F-scores)
+- Support diagonal movement (8-way) with correct costs (100 ortho, 141 diagonal)
+- Handle blocked tiles from Grid.Tile.IsWalkable
+
+```csharp
+public static class AStarPathfinder
+{
+    public static Option<ImmutableList<Position>> FindPath(
+        Position start,
+        Position goal,
+        Grid grid,
+        bool allowDiagonal = true)
+    {
+        // A* with deterministic tie-breaking
+        // Returns None if no path exists
+    }
+}
+```
+
+**Phase 2: Application Service (0.5h)**
+- Create `IPathfindingService` interface in Core
+- `FindPathQuery` and handler for CQRS pattern
+- Cache recent paths for performance (LRU cache, 32 entries)
+
+**Phase 3: Infrastructure (0.5h)**
+- Implement `PathfindingService` with caching
+- Performance monitoring (target: <10ms for 50 tiles)
+- Path validation before returning
+
+**Phase 4: Presentation (1h)**
+- Path visualization in GridPresenter
+- Semi-transparent overlay tiles (blue for path, green for destination)
+- Update on mouse hover to show potential paths
+- Clear path display on movement/action
+
+**Visual Feedback Design**:
+```
+Path tile: Modulate(0.5, 0.5, 1.0, 0.5) - Semi-transparent blue
+Destination: Modulate(0.5, 1.0, 0.5, 0.7) - Semi-transparent green  
+Current hover: Updates in real-time as mouse moves
+Animation: Gentle pulse on destination tile
+```
+
+**Done When**:
+- A* finds optimal paths deterministically
+- Diagonal movement works correctly (1.41x cost)
+- Path visualizes on grid before movement
+- Performance <10ms for typical paths (50 tiles)
+- Handles no-path-exists gracefully (returns None)
+- All tests pass including edge cases
+
+**Test Scenarios**:
+1. Straight line path (no obstacles)
+2. Path around single wall
+3. Maze navigation
+4. No path exists (surrounded)
+5. Diagonal preference when optimal
+
+**Architectural Constraints**:
+☑ Deterministic: Consistent tie-breaking rules
+☑ Save-Ready: Paths are transient, not saved
+☑ Time-Independent: Pure algorithm
+☑ Integer Math: Use 100/141 for movement costs
+☑ Testable: Pure domain function
+
+**Dependencies**: None (foundation feature)
+**Blocks**: VS_012 (Movement System)
 
 
 ## 📈 Important (Do Next)
@@ -232,6 +318,279 @@ Movement interrupted at (25, 25) - Orc spotted!
 
 
 
+
+
+### TD_035: Standardize Error Handling in Infrastructure Services
+**Status**: Approved
+**Owner**: Dev Engineer
+**Size**: S (3h)
+**Priority**: Important
+**Created**: 2025-09-11 18:07
+**Complexity**: 3/10
+
+**What**: Replace remaining try-catch blocks with Fin<T> in infrastructure services
+**Why**: Inconsistent error handling breaks functional composition and makes debugging harder
+
+**Scope** (LIMITED TO):
+1. **PersistentVisionStateService** (7 try-catch blocks):
+   - GetVisionState, UpdateVisionState, ClearVisionState methods
+   - Convert to Try().Match() pattern with Fin<T>
+   
+2. **GridPresenter** (3 try-catch in event handlers):
+   - OnActorSpawned, OnActorMoved, OnActorRemoved
+   - Wrap in functional error handling
+   
+3. **ExecuteAttackCommandHandler** (mixed side effects):
+   - Extract logging to separate methods
+   - Isolate side effects from business logic
+
+**NOT IN SCOPE** (critical boundaries):
+- Performance-critical loops in ShadowcastingFOV (keep imperative)
+- ConcurrentDictionary in caching (proven pattern, don't change)
+- Working switch statements (already readable)
+- Domain layer (already fully functional)
+
+**Implementation Guidelines**:
+```csharp
+// Pattern to follow:
+public Fin<T> ServiceMethod() =>
+    Try(() => 
+    {
+        // existing logic
+    })
+    .Match(
+        Succ: result => FinSucc(result),
+        Fail: ex => FinFail<T>(Error.New("Context-specific message", ex))
+    );
+```
+
+**Done When**:
+- Zero try-catch blocks in listed services
+- All errors flow through Fin<T> consistently
+- Side effects isolated into dedicated methods
+- Performance unchanged (measure before/after)
+- All existing tests still pass
+
+**Tech Lead Notes**:
+- This is about consistency, not FP purity
+- Keep changes mechanical and predictable
+- Don't get creative - follow existing patterns
+- If performance degrades, revert that specific change
+
+
+### TD_036: Global Debug System with Runtime Controls
+**Status**: Approved
+**Owner**: Dev Engineer
+**Size**: S (3h)
+**Priority**: Important
+**Created**: 2025-09-11 18:25
+**Complexity**: 3/10
+
+**What**: Autoload debug system with Godot Resource config and F12-toggleable debug window
+**Why**: Need globally accessible debug settings with runtime UI for rapid testing iteration
+
+**Implementation Plan**:
+
+**1. Create Debug Config Resource with Categories (0.5h)**:
+```csharp
+[GlobalClass]
+public partial class DebugConfig : Resource
+{
+    [ExportGroup("🗺️ Pathfinding")]
+    [Export] public bool ShowPaths { get; set; } = false;
+    [Export] public bool ShowPathCosts { get; set; } = false;
+    [Export] public Color PathColor { get; set; } = new Color(0, 0, 1, 0.5f);
+    [Export] public float PathAlpha { get; set; } = 0.5f;
+    
+    [ExportGroup("👁️ Vision & FOV")]
+    [Export] public bool ShowVisionRanges { get; set; } = false;
+    [Export] public bool ShowFOVCalculations { get; set; } = false;
+    [Export] public bool ShowExploredOverlay { get; set; } = true;
+    [Export] public bool ShowLineOfSight { get; set; } = false;
+    
+    [ExportGroup("⚔️ Combat")]
+    [Export] public bool ShowDamageNumbers { get; set; } = true;
+    [Export] public bool ShowHitChances { get; set; } = false;
+    [Export] public bool ShowTurnOrder { get; set; } = true;
+    [Export] public bool ShowAttackRanges { get; set; } = false;
+    
+    [ExportGroup("🤖 AI & Behavior")]
+    [Export] public bool ShowAIStates { get; set; } = false;
+    [Export] public bool ShowAIDecisionScores { get; set; } = false;
+    [Export] public bool ShowAITargeting { get; set; } = false;
+    
+    [ExportGroup("📊 Performance")]
+    [Export] public bool ShowFPS { get; set; } = false;
+    [Export] public bool ShowFrameTime { get; set; } = false;
+    [Export] public bool ShowMemoryUsage { get; set; } = false;
+    [Export] public bool EnableProfiling { get; set; } = false;
+    
+    [ExportGroup("🎮 Gameplay")]
+    [Export] public bool GodMode { get; set; } = false;
+    [Export] public bool UnlimitedActions { get; set; } = false;
+    [Export] public bool InstantKills { get; set; } = false;
+    
+    [ExportGroup("📝 Logging & Console")]
+    [Export] public bool ShowThreadMessages { get; set; } = true;
+    [Export] public bool ShowCommandMessages { get; set; } = true;
+    [Export] public bool ShowEventMessages { get; set; } = true;
+    [Export] public bool ShowSystemMessages { get; set; } = true;
+    [Export] public bool ShowAIMessages { get; set; } = false;
+    [Export] public bool ShowPerformanceMessages { get; set; } = false;
+    [Export] public bool ShowNetworkMessages { get; set; } = false;
+    [Export] public bool ShowDebugMessages { get; set; } = false;
+    
+    [Signal]
+    public delegate void SettingChangedEventHandler(string category, string propertyName);
+    
+    // Helper to get all settings by category
+    public Dictionary<string, bool> GetCategorySettings(string category) { }
+    // Helper to toggle entire category
+    public void ToggleCategory(string category, bool enabled) { }
+}
+```
+
+**2. Create Autoload Singleton (0.5h)**:
+```csharp
+public partial class DebugSystem : Node
+{
+    public static DebugSystem Instance { get; private set; }
+    [Export] public DebugConfig Config { get; set; }
+    
+    public override void _Ready()
+    {
+        Instance = this;
+        Config = GD.Load<DebugConfig>("res://debug_config.tres");
+        ProcessMode = ProcessModeEnum.Always;
+    }
+}
+```
+
+**3. Create Debug Window UI with Collapsible Categories (1h)**:
+```csharp
+// Each category gets a collapsible section
+private void BuildCategorySection(string categoryName, string icon)
+{
+    var header = new Button { Text = $"{icon} {categoryName}", Flat = true };
+    var container = new VBoxContainer { Visible = true };
+    
+    header.Pressed += () => {
+        container.Visible = !container.Visible;
+        header.Text = $"{(container.Visible ? "▼" : "▶")} {icon} {categoryName}";
+    };
+    
+    // Add "Toggle All" button for category
+    var toggleAll = new CheckBox { Text = "Enable All" };
+    toggleAll.Toggled += (bool on) => Config.ToggleCategory(categoryName, on);
+    
+    // Auto-generate checkboxes for category properties
+    foreach (var prop in GetCategoryProperties(categoryName))
+    {
+        AddCheckBox(container, prop.Name, prop.Getter, prop.Setter);
+    }
+}
+```
+- Window with ScrollContainer for many options
+- Collapsible sections per category
+- "Toggle All" per category
+- Search/filter box at top
+- Position at (20, 20), size (350, 500)
+
+**4. Wire F12 Toggle (0.5h)**:
+```csharp
+public override void _Input(InputEvent @event)
+{
+    if (@event.IsActionPressed("toggle_debug_window")) // F12
+    {
+        _debugWindow.Visible = !_debugWindow.Visible;
+    }
+}
+```
+
+**5. Enhanced Logging with Category Filtering (1h)**:
+```csharp
+// Enhanced logger that respects category filters
+public class CategoryFilteredLogger : ILogger
+{
+    private readonly DebugConfig _config;
+    
+    public void Log(LogCategory category, string message)
+    {
+        // Check if category is enabled
+        bool shouldLog = category switch
+        {
+            LogCategory.Thread => _config.ShowThreadMessages,
+            LogCategory.Command => _config.ShowCommandMessages,
+            LogCategory.Event => _config.ShowEventMessages,
+            LogCategory.System => _config.ShowSystemMessages,
+            LogCategory.AI => _config.ShowAIMessages,
+            LogCategory.Performance => _config.ShowPerformanceMessages,
+            _ => true
+        };
+        
+        if (shouldLog)
+        {
+            // Color-code by category
+            var color = GetCategoryColor(category);
+            GD.PrintRich($"[color={color}][{category}] {message}[/color]");
+        }
+    }
+}
+
+// Usage in code:
+_logger.Log(LogCategory.Command, "ExecuteAttackCommand processed");
+_logger.Log(LogCategory.AI, "Enemy evaluating targets...");
+_logger.Log(LogCategory.Thread, "Background task completed");
+```
+
+**6. Bridge to Infrastructure (0.5h)**:
+- Create IDebugConfiguration interface  
+- GodotDebugBridge implements interface
+- CategoryFilteredLogger replaces default logger
+- Register in ServiceLocator for clean access
+
+**File Structure**:
+```
+res://
+├── debug_config.tres (the resource)
+├── src/
+│   ├── Configuration/
+│   │   ├── DebugConfig.cs
+│   │   ├── DebugSystem.cs
+│   │   └── DebugSystem.tscn
+│   └── UI/
+│       ├── DebugWindow.cs
+│       └── DebugWindow.tscn
+```
+
+**Project Settings Changes**:
+- Add to Autoload: DebugSystem → res://src/Configuration/DebugSystem.tscn
+- Add Input Map: "toggle_debug_window" → F12
+
+**Done When**:
+- F12 toggles debug window during play
+- Log messages filtered by category (Thread, Command, Event, etc.)
+- Console output color-coded by message type
+- Can toggle message categories on/off in debug window
+- Example filtering in action:
+  ```
+  [Command] ExecuteAttackCommand processed     ✓ Shown
+  [AI] Evaluating target priorities...         ✗ Hidden (disabled)
+  [Thread] Background pathfinding complete     ✓ Shown
+  [Performance] Frame time: 12.3ms            ✗ Hidden (disabled)
+  ```
+- Settings accessible via `DebugSystem.Instance.Config`
+- Visual debug overlays organized in groups
+- Window persists across scene changes
+- Dramatically reduces console noise during debugging
+
+**Tech Lead Notes**:
+- Keep it simple - just F12 for now, no other hotkeys
+- Log filtering is THE killer feature - reduces noise by 80%
+- Color-coding makes patterns visible instantly
+- This is dev-only, not player-facing
+- Easy to add new LogCategory values as needed
+- Consider: Save filter preferences per developer
 
 
 ### VS_013: Basic Enemy AI
