@@ -62,6 +62,7 @@ public partial class DebugConfig : Resource, IDebugConfiguration
     [Export] public bool ShowPerformanceMessages { get; set; } = false;
     [Export] public bool ShowNetworkMessages { get; set; } = false;
     [Export] public bool ShowDeveloperMessages { get; set; } = false;
+    [Export] public bool ShowGameplayMessages { get; set; } = true;
     [Export] public bool ShowVisionMessages { get; set; } = true;
     [Export] public bool ShowPathfindingMessages { get; set; } = false;
     [Export] public bool ShowCombatMessages { get; set; } = true;
@@ -106,6 +107,7 @@ public partial class DebugConfig : Resource, IDebugConfiguration
         LogCategory.Performance => ShowPerformanceMessages,
         LogCategory.Network => ShowNetworkMessages,
         LogCategory.Developer => ShowDeveloperMessages,
+        LogCategory.Gameplay => ShowGameplayMessages,
         LogCategory.Vision => ShowVisionMessages,
         LogCategory.Pathfinding => ShowPathfindingMessages,
         LogCategory.Combat => ShowCombatMessages,

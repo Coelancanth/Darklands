@@ -29,6 +29,7 @@ public sealed class CategoryFilteredLogger : ICategoryLogger
         [LogCategory.Performance] = "#00FFFF", // Cyan for performance
         [LogCategory.Network] = "#8080FF",     // Light blue for network
         [LogCategory.Developer] = "#808080",   // Gray for developer
+        [LogCategory.Gameplay] = "#4080FF",    // Medium blue for gameplay
         [LogCategory.Vision] = "#FF0080",      // Pink for vision
         [LogCategory.Pathfinding] = "#80FF80", // Light green for pathfinding
         [LogCategory.Combat] = "#FF4040"       // Red for combat

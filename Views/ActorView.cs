@@ -1,5 +1,6 @@
 using Darklands.Core.Presentation.Views;
 using Darklands.Core.Presentation.Presenters;
+using Darklands.Core.Domain.Debug;
 using Godot;
 using System;
 using System.Collections.Generic;
@@ -109,7 +110,12 @@ namespace Darklands.Views
                 }
                 CallDeferred("ProcessPendingActorCreations");
 
-                _logger?.Information("Actor {ActorId} created at ({X},{Y})", actorId, position.X, position.Y);
+                // Log using Gameplay category for fine-grained filtering
+                if (DebugSystem.Instance?.Logger != null)
+                {
+                    DebugSystem.Instance.Logger.Log(LogLevel.Information, LogCategory.Gameplay,
+                        "Actor {ActorId} created at ({X},{Y})", actorId, position.X, position.Y);
+                }
 
                 await Task.CompletedTask;
             }
@@ -190,10 +196,15 @@ namespace Darklands.Views
 
                         // Set position immediately
                         actualActorNode.Position = moveData.EndPosition;
-                        _logger?.Information("Actor {ActorId} moved to ({FromX},{FromY}) → ({ToX},{ToY})",
-                            moveData.ActorId,
-                            moveData.FromPosition.X, moveData.FromPosition.Y,
-                            moveData.ToPosition.X, moveData.ToPosition.Y);
+                        // Log using Gameplay category for fine-grained filtering
+                        if (DebugSystem.Instance?.Logger != null)
+                        {
+                            DebugSystem.Instance.Logger.Log(LogLevel.Information, LogCategory.Gameplay,
+                                "Actor {ActorId} moved to ({FromX},{FromY}) → ({ToX},{ToY})",
+                                moveData.ActorId,
+                                moveData.FromPosition.X, moveData.FromPosition.Y,
+                                moveData.ToPosition.X, moveData.ToPosition.Y);
+                        }
 
                         // TODO: Re-enable tween animation once basic movement is verified working
                     }
