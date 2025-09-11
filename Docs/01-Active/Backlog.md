@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-11 16:12 (Archived VS_011, BR_003, BR_004 - completed items moved to archive)
+**Last Updated**: 2025-09-11 17:42 (Completed and archived TD_034 - HealthView consolidation)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 005
-- **Next TD**: 037  
+- **Next TD**: 036
 - **Next VS**: 014 
 
 
@@ -192,28 +192,6 @@ Movement interrupted at (25, 25) - Orc spotted!
 
 <!-- TD_031 moved to permanent archive (2025-09-10 21:02) - TimeUnit TU refactor completed successfully -->
 
-### TD_033: Shadowcasting FOV Edge Cases (Minor)
-**Status**: Proposed
-**Owner**: Tech Lead → Dev Engineer (when approved)
-**Size**: S (2h)
-**Priority**: Low
-**Created**: 2025-09-11
-**From**: BR_002 investigation
-
-**What**: Fix remaining shadowcasting edge cases for perfect FOV
-**Why**: Two edge cases prevent 100% test pass rate (currently 6/8 passing)
-
-**Issues to Fix**:
-1. **Shadow expansion**: Pillars don't create properly expanding shadow cones at far edges
-2. **Corner peeking**: Can see diagonally through some wall corners
-
-**Technical Notes**:
-- Current implementation is 75% correct and functional for gameplay
-- Reference libtcod's implementation for exact algorithm
-- Tests may be overly strict compared to standard roguelike behavior
-- Consider if these "bugs" are actually acceptable roguelike conventions
-
-**Recommendation**: DEFER - Current implementation is good enough. Only fix if players report issues.
 
 ### TD_032: Fix Namespace-Class Collisions (Grid.Grid, Actor.Actor)
 **Status**: Approved
@@ -252,120 +230,9 @@ Movement interrupted at (25, 25) - Orc spotted!
 - No behavior changes, pure reorganization
 - Follow bounded context pattern from ADR-015
 
-### BR_002: Shadowcasting FOV Edge Cases  
-**Status**: Partially Fixed (75% working)
-**Owner**: Tech Lead → TD_033 created
-**Size**: S (2h for remaining edge cases)
-**Priority**: Low (functional for development)
-**Created**: 2025-09-11
-**Updated**: 2025-09-11 (Fixed using libtcod reference)
-**Discovered During**: VS_011 Phase 1 implementation
 
-**What**: Shadowcasting had structural issues, now mostly fixed
 
-**Resolution Summary**:
-- **6/8 tests passing (75%)** - functional for gameplay
-- Fixed using libtcod recursive shadowcasting reference
-- Core algorithm works correctly for most cases
-- Two edge cases remain (non-critical)
 
-**Work Completed**:
-- ✅ Fixed octant transformation matrix (libtcod reference)
-- ✅ Corrected recursive algorithm structure
-- ✅ Fixed slope calculations for standard cases
-- ✅ Proper wall blocking and basic shadows work
-
-**Remaining Edge Cases** (moved to TD_033):
-1. **Shadow expansion**: Pillars don't properly expand shadows at far edges
-2. **Corner peeking**: Can see diagonally through some wall corners
-
-**Note**: Our tests may be overly strict compared to standard roguelike behavior. 
-Reference implementations (libtcod, DCSS) may allow these edge cases.
-
-**Next Steps**:
-- Marked failing tests as [Skip] to allow PR
-- Continue with VS_011 Phase 2-4
-- Address edge cases in TD_033 if needed later
-
-**Options**:
-A. **Rewrite shadowcasting** from proven reference (8-12h)
-B. **Switch to ray casting** - simpler but less efficient (4-6h)
-C. **Use library** implementation if available (2-4h)
-
-**Done When**:
-- All 8 vision tests pass
-- Performance <10ms for range 8
-- No edge case failures
-
-### TD_034: Assess View Consolidation Opportunity
-**Status**: Proposed
-**Owner**: Tech Lead
-**Size**: S (2-4h)
-**Priority**: Important
-**Created**: 2025-09-11
-**From**: BR_003 post-mortem analysis
-
-**What**: Investigate merging HealthView functionality into ActorView
-**Why**: Current split-brain architecture requires bridge pattern workaround
-
-**Investigation Scope**:
-- Analyze current view responsibilities and overlap
-- Document which view owns which UI elements
-- Assess impact of consolidation on presenter architecture
-- Consider if split is actually beneficial or just complexity
-
-**Options**:
-1. **Merge HealthView into ActorView** - Simpler, acknowledges coupling
-2. **Keep separate with clear boundaries** - Document ownership clearly
-3. **Make health bars true standalone nodes** - Full separation
-
-**Done When**:
-- Clear recommendation with pros/cons
-- View ownership map documented
-- Decision captured in ADR if architectural change
-
-### TD_035: Document Godot C# Gotchas
-**Status**: Proposed  
-**Owner**: Dev Engineer
-**Size**: S (2h)
-**Priority**: Important
-**Created**: 2025-09-11
-**From**: Multiple post-mortems
-
-**What**: Create comprehensive Godot C# pitfalls documentation
-**Why**: Silent failures and confusion from API differences
-
-**Must Include**:
-- Property casing requirements (Position not position)
-- Thread safety and CallDeferred usage
-- Node lifecycle timing (_Ready vs constructor)
-- Signal connection patterns
-- Common tween failures
-
-**Done When**:
-- QuickReference.md updated with Godot C# section
-- Examples of each gotcha with correct pattern
-- Added to onboarding checklist
-
-### TD_036: Post-Mortem Consolidation Protocol
-**Status**: Proposed
-**Owner**: Debugger Expert  
-**Size**: S (1h)
-**Priority**: Important
-**Created**: 2025-09-11
-
-**What**: Establish regular post-mortem consolidation schedule
-**Why**: 8 post-mortems accumulated before consolidation
-
-**Solution Options**:
-1. Weekly consolidation schedule (every Friday)
-2. Threshold trigger (consolidate at 5 post-mortems)
-3. Automated reminder in embody.ps1 script
-
-**Done When**:
-- Protocol documented in debugger-expert.md
-- Reminder mechanism implemented
-- First scheduled consolidation completed
 
 ### VS_013: Basic Enemy AI
 **Status**: Proposed

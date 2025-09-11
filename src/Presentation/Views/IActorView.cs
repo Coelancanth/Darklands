@@ -1,5 +1,6 @@
 using System.Threading.Tasks;
 using Darklands.Core.Domain.Grid;
+using Darklands.Core.Domain.Actor;
 
 namespace Darklands.Core.Presentation.Views
 {
@@ -86,6 +87,38 @@ namespace Darklands.Core.Presentation.Views
         /// <param name="currentHealth">Current health value to display</param>
         /// <param name="maxHealth">Maximum health value for the health bar</param>
         void UpdateActorHealth(ActorId actorId, int currentHealth, int maxHealth);
+
+        // Health-specific methods consolidated from IHealthView
+        /// <summary>
+        /// Updates an actor's health bar with new health values.
+        /// Should provide smooth transitions for health changes.
+        /// </summary>
+        /// <param name="actorId">Unique identifier of the actor</param>
+        /// <param name="oldHealth">Previous health state (for animation reference)</param>
+        /// <param name="newHealth">New health state to display</param>
+        Task UpdateActorHealthAsync(ActorId actorId, Health oldHealth, Health newHealth);
+
+        /// <summary>
+        /// Shows visual feedback for health changes (damage numbers, healing effects).
+        /// </summary>
+        /// <param name="actorId">Unique identifier of the actor</param>
+        /// <param name="feedbackType">Type of health feedback to display</param>
+        /// <param name="amount">Amount of health change (damage/healing value)</param>
+        /// <param name="position">Position where feedback should appear</param>
+        Task ShowHealthFeedbackAsync(ActorId actorId, HealthFeedbackType feedbackType, int amount, Position position);
+
+        /// <summary>
+        /// Highlights an actor's health bar to indicate targeting or special state.
+        /// </summary>
+        /// <param name="actorId">Unique identifier of the actor</param>
+        /// <param name="highlightType">Type of highlight to apply</param>
+        Task HighlightActorHealthBarAsync(ActorId actorId, HealthHighlightType highlightType);
+
+        /// <summary>
+        /// Removes highlighting from an actor's health bar.
+        /// </summary>
+        /// <param name="actorId">Unique identifier of the actor</param>
+        Task UnhighlightActorHealthBarAsync(ActorId actorId);
     }
 
     /// <summary>
@@ -182,5 +215,64 @@ namespace Darklands.Core.Presentation.Views
         /// Actor's action failed or was blocked.
         /// </summary>
         ActionFailed
+    }
+
+    /// <summary>
+    /// Types of visual feedback that can be shown for health changes.
+    /// Used to communicate health state changes to the player.
+    /// </summary>
+    public enum HealthFeedbackType
+    {
+        /// <summary>
+        /// Actor took damage - show damage number.
+        /// </summary>
+        Damage,
+
+        /// <summary>
+        /// Actor was healed - show healing number.
+        /// </summary>
+        Healing,
+
+        /// <summary>
+        /// Actor died - show death effect.
+        /// </summary>
+        Death,
+
+        /// <summary>
+        /// Actor reached critical health - show warning.
+        /// </summary>
+        CriticalHealth,
+
+        /// <summary>
+        /// Actor fully recovered - show restoration effect.
+        /// </summary>
+        FullRestore
+    }
+
+    /// <summary>
+    /// Types of highlighting that can be applied to health bars.
+    /// Maps to different visual treatments without exposing rendering details.
+    /// </summary>
+    public enum HealthHighlightType
+    {
+        /// <summary>
+        /// Health bar is being targeted by a healing spell or ability.
+        /// </summary>
+        HealTarget,
+
+        /// <summary>
+        /// Health bar is being targeted by a damaging attack.
+        /// </summary>
+        DamageTarget,
+
+        /// <summary>
+        /// Health bar is in a critical state (low health warning).
+        /// </summary>
+        Critical,
+
+        /// <summary>
+        /// Health bar belongs to the currently selected actor.
+        /// </summary>
+        Selected
     }
 }

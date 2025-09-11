@@ -218,7 +218,9 @@
       "Bash(./scripts/core/build.ps1 test --filter \"Category=Phase2\")",
       "Bash(./scripts/core/build.ps1 test --filter \"*Vision*\")",
       "Bash(./scripts/core/build.ps1 test --filter \"*ExecuteAttackCommandHandlerIntegrationTests*\")",
-      "Bash(./scripts/core/build.ps1 test --filter \"ExecuteAttackCommandHandlerIntegrationTests\")"
+      "Bash(./scripts/core/build.ps1 test --filter \"ExecuteAttackCommandHandlerIntegrationTests\")",
+      "Bash(./scripts/core/build.ps1 test --filter \"FullyQualifiedName~ShadowcastingFOVTests.CalculateFOV_CornerPeeking|FullyQualifiedName~ShadowcastingFOVTests.CalculateFOV_PillarScenario\")",
+      "Bash(./scripts/core/build.ps1 test --filter \"FullyQualifiedName~ShadowcastingFOVTests\")"
     ],
     "deny": [],
     "ask": [],

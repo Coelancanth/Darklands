@@ -25,10 +25,8 @@ namespace Darklands
     {
         private GridView? _gridView;
         private ActorView? _actorView;
-        private HealthView? _healthView;
         private GridPresenter? _gridPresenter;
         private ActorPresenter? _actorPresenter;
-        private HealthPresenter? _healthPresenter;
         private ServiceProvider? _serviceProvider;
         private Serilog.ILogger? _logger;
 
@@ -87,7 +85,6 @@ namespace Darklands
                 // Dispose presenters
                 _gridPresenter?.Dispose();
                 _actorPresenter?.Dispose();
-                _healthPresenter?.Dispose();
 
                 _logger?.Information("Presenters disposed successfully");
 
@@ -194,7 +191,6 @@ namespace Darklands
                 // Find view nodes in the scene tree
                 _gridView = GetNode<GridView>("Grid");
                 _actorView = GetNode<ActorView>("Actors");
-                _healthView = GetNode<HealthView>("HealthBars");
 
                 if (_gridView == null)
                 {
@@ -206,20 +202,14 @@ namespace Darklands
                     throw new InvalidOperationException("ActorView node not found. Expected child node named 'Actors'");
                 }
 
-                if (_healthView == null)
-                {
-                    throw new InvalidOperationException("HealthView node not found. Expected child node named 'HealthBars'");
-                }
-
-                _logger?.Information("Views found successfully - Grid: {GridView}, Actor: {ActorView}, Health: {HealthView}",
-                    _gridView?.Name ?? "null", _actorView?.Name ?? "null", _healthView?.Name ?? "null");
+                _logger?.Information("Views found successfully - Grid: {GridView}, Actor: {ActorView} (health consolidated into ActorView)",
+                    _gridView?.Name ?? "null", _actorView?.Name ?? "null");
 
                 // Inject logger into views for proper architectural logging
                 if (_logger != null)
                 {
                     _gridView?.SetLogger(_logger);
                     _actorView?.SetLogger(_logger);
-                    _healthView?.SetLogger(_logger);
                 }
 
                 // Create presenters manually (they need view interfaces which are Godot-specific)
@@ -230,40 +220,29 @@ namespace Darklands
                 var actorFactory = _serviceProvider.GetRequiredService<Darklands.Core.Application.Common.IActorFactory>();
 
                 _gridPresenter = new GridPresenter(_gridView!, mediator, _logger!, gridStateService, combatQueryService, actorFactory);
-                _actorPresenter = new ActorPresenter(_actorView!, mediator, _logger!, actorFactory, actorStateService);
-                _healthPresenter = new HealthPresenter(_healthView!, mediator, _logger!, actorStateService, combatQueryService);
+                _actorPresenter = new ActorPresenter(_actorView!, mediator, _logger!, actorFactory, actorStateService, combatQueryService);
 
                 // Connect views to presenters
                 _gridView!.SetPresenter(_gridPresenter);
                 _actorView!.SetPresenter(_actorPresenter);
-                _healthView!.SetPresenter(_healthPresenter);
 
                 // CRITICAL: Connect presenters to each other for coordinated updates
                 // This was missing and caused the visual movement bug!
                 _gridPresenter.SetActorPresenter(_actorPresenter);
 
-                // CRITICAL: Connect ActorPresenter to HealthPresenter for health bar creation
-                // This connection ensures health bars are created when actors are spawned
-                _actorPresenter.SetHealthPresenter(_healthPresenter);
-
                 // CRITICAL: Connect ActorPresenter to GridPresenter for initial vision update
                 // This ensures player vision is applied after player creation
                 _actorPresenter.SetGridPresenter(_gridPresenter);
-
-                // CRITICAL: Connect HealthPresenter to ActorPresenter for health bar updates (BR_003 fix)
-                // This ensures health changes reach the health bars displayed in ActorView
-                _healthPresenter.SetActorPresenter(_actorPresenter);
 
                 // Event subscription is now handled automatically by EventAwareNode base class
                 // SubscribeToEvents() will be called after EventBus is initialized
                 _logger?.Information("GameManager will subscribe to domain events via UI Event Bus - modern architecture replaces static router");
 
-                _logger?.Information("Presenters created and connected - GridPresenter, ActorPresenter, and HealthPresenter initialized with cross-presenter coordination");
+                _logger?.Information("Presenters created and connected - GridPresenter and ActorPresenter (with consolidated health functionality) initialized with cross-presenter coordination");
 
                 // Initialize presenters (this will set up initial state)
                 _gridPresenter.Initialize();
                 _actorPresenter.Initialize();
-                _healthPresenter.Initialize();
 
                 _logger?.Information("MVP architecture setup completed - application ready for interaction");
             }
@@ -342,15 +321,15 @@ namespace Darklands
                     Succ: async oldHealth => await newHealthResult.Match(
                         Succ: async newHealth =>
                         {
-                            if (_healthPresenter != null)
+                            if (_actorPresenter != null)
                             {
-                                _logger?.Information("[GameManager] Calling HealthPresenter.HandleHealthChangedAsync");
-                                await _healthPresenter.HandleHealthChangedAsync(actorId, oldHealth, newHealth);
+                                _logger?.Information("[GameManager] Calling ActorPresenter.HandleHealthChangedAsync (consolidated functionality)");
+                                await _actorPresenter.HandleHealthChangedAsync(actorId, oldHealth, newHealth);
                                 _logger?.Information("Updated health bar for {ActorId}", actorId);
                             }
                             else
                             {
-                                _logger?.Error("[GameManager] HealthPresenter is NULL in deferred health update!");
+                                _logger?.Error("[GameManager] ActorPresenter is NULL in deferred health update!");
                             }
                         },
                         Fail: error =>
@@ -396,17 +375,8 @@ namespace Darklands
                     _logger?.Error("[GameManager] ActorPresenter is NULL in deferred removal!");
                 }
 
-                // Remove health bar
-                if (_healthPresenter != null)
-                {
-                    _logger?.Information("[GameManager] Removing health bar via presenter");
-                    await _healthPresenter.HandleActorRemovedAsync(actorId, position);
-                    _logger?.Information("Removed dead actor {ActorId} health bar", actorId);
-                }
-                else
-                {
-                    _logger?.Warning("[GameManager] HealthPresenter is NULL - no health bar to remove");
-                }
+                // Health bar removal is now handled automatically by ActorView when actor is removed
+                _logger?.Information("Health bar removal handled automatically via parent-child node relationship");
 
                 _logger?.Information("Visual cleanup complete for dead actor {ActorId} at {Position}", actorId, position);
             }

@@ -501,6 +501,129 @@ namespace Darklands.Views
         }
 
         /// <summary>
+        /// Updates an actor's health bar with new health values.
+        /// Provides smooth transitions for health changes using the existing child health bar.
+        /// </summary>
+        public async Task UpdateActorHealthAsync(Darklands.Core.Domain.Grid.ActorId actorId, Darklands.Core.Domain.Actor.Health oldHealth, Darklands.Core.Domain.Actor.Health newHealth)
+        {
+            await CallDeferredAsync(actorId, oldHealth, newHealth);
+
+            async Task CallDeferredAsync(Darklands.Core.Domain.Grid.ActorId id, Darklands.Core.Domain.Actor.Health old, Darklands.Core.Domain.Actor.Health current)
+            {
+                try
+                {
+                    // Use existing UpdateActorHealth method with integer values
+                    UpdateActorHealth(id, current.Current, current.Maximum);
+                    
+                    _logger?.Debug("Updated health for actor {ActorId} from {OldHealth} to {NewHealth}",
+                        id, old, current);
+                    
+                    await Task.CompletedTask;
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Error(ex, "Error updating actor health for {ActorId}", id);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Shows visual feedback for health changes (damage numbers, healing effects).
+        /// Creates floating text above the actor using their existing position.
+        /// </summary>
+        public async Task ShowHealthFeedbackAsync(Darklands.Core.Domain.Grid.ActorId actorId, HealthFeedbackType feedbackType, int amount, Darklands.Core.Domain.Grid.Position position)
+        {
+            await CallDeferredAsync(actorId, feedbackType, amount, position);
+
+            async Task CallDeferredAsync(Darklands.Core.Domain.Grid.ActorId id, HealthFeedbackType type, int amt, Darklands.Core.Domain.Grid.Position pos)
+            {
+                try
+                {
+                    var pixelPosition = new Vector2(pos.X * TileSize, pos.Y * TileSize);
+                    pixelPosition.X += TileSize / 2; // Center on tile
+                    pixelPosition.Y += TileSize / 2;
+
+                    var feedbackLabel = CreateHealthFeedbackLabel(type, amt);
+                    feedbackLabel.Position = pixelPosition + new Vector2(0, -30); // Above actor
+
+                    AddChild(feedbackLabel);
+                    AnimateHealthFeedbackText(feedbackLabel);
+
+                    _logger?.Debug("Showed {FeedbackType} feedback for actor {ActorId}: {Amount}",
+                        type, id, amt);
+                    
+                    await Task.CompletedTask;
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Error(ex, "Error showing health feedback for actor {ActorId}", id);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Highlights an actor's health bar to indicate targeting or special state.
+        /// Uses the existing health bar infrastructure.
+        /// </summary>
+        public async Task HighlightActorHealthBarAsync(Darklands.Core.Domain.Grid.ActorId actorId, HealthHighlightType highlightType)
+        {
+            await CallDeferredAsync(actorId, highlightType);
+
+            async Task CallDeferredAsync(Darklands.Core.Domain.Grid.ActorId id, HealthHighlightType type)
+            {
+                try
+                {
+                    if (_healthBars.TryGetValue(id, out var healthBar) && healthBar != null)
+                    {
+                        ApplyHealthBarHighlight(healthBar, type);
+                        _logger?.Debug("Applied {HighlightType} highlight to health bar for actor {ActorId}",
+                            type, id);
+                    }
+                    else
+                    {
+                        _logger?.Warning("Health bar not found for highlighting: actor {ActorId}", id);
+                    }
+                    
+                    await Task.CompletedTask;
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Error(ex, "Error highlighting health bar for actor {ActorId}", id);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Removes highlighting from an actor's health bar.
+        /// </summary>
+        public async Task UnhighlightActorHealthBarAsync(Darklands.Core.Domain.Grid.ActorId actorId)
+        {
+            await CallDeferredAsync(actorId);
+
+            async Task CallDeferredAsync(Darklands.Core.Domain.Grid.ActorId id)
+            {
+                try
+                {
+                    if (_healthBars.TryGetValue(id, out var healthBar) && healthBar != null)
+                    {
+                        ClearHealthBarHighlight(healthBar);
+                        _logger?.Debug("Cleared highlight from health bar for actor {ActorId}", id);
+                    }
+                    else
+                    {
+                        _logger?.Warning("Health bar not found for unhighlighting: actor {ActorId}", id);
+                    }
+                    
+                    await Task.CompletedTask;
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Error(ex, "Error unhighlighting health bar for actor {ActorId}", id);
+                }
+            }
+        }
+
+        /// <summary>
         /// Sets the visibility of an actor based on player vision.
         /// Used by the fog of war system to show/hide actors dynamically.
         /// </summary>
@@ -550,5 +673,104 @@ namespace Darklands.Views
             }
         }
 
+        /// <summary>
+        /// Creates a feedback label for health changes.
+        /// Extracted from HealthView for consistency.
+        /// </summary>
+        private Label CreateHealthFeedbackLabel(HealthFeedbackType feedbackType, int amount)
+        {
+            var label = new Label();
+
+            // Colors for feedback text
+            var DamageTextColor = new Color(1.0f, 0.3f, 0.3f, 1.0f);   // Bright red for damage
+            var HealingTextColor = new Color(0.3f, 1.0f, 0.3f, 1.0f);  // Bright green for healing
+            var CriticalTextColor = new Color(1.0f, 0.8f, 0.0f, 1.0f); // Orange for critical warnings
+
+            switch (feedbackType)
+            {
+                case HealthFeedbackType.Damage:
+                    label.Text = $"-{amount}";
+                    label.Modulate = DamageTextColor;
+                    break;
+                case HealthFeedbackType.Healing:
+                    label.Text = $"+{amount}";
+                    label.Modulate = HealingTextColor;
+                    break;
+                case HealthFeedbackType.Death:
+                    label.Text = "DEAD";
+                    label.Modulate = DamageTextColor;
+                    break;
+                case HealthFeedbackType.CriticalHealth:
+                    label.Text = "CRITICAL!";
+                    label.Modulate = CriticalTextColor;
+                    break;
+                case HealthFeedbackType.FullRestore:
+                    label.Text = "RESTORED";
+                    label.Modulate = HealingTextColor;
+                    break;
+            }
+
+            // Make text bold and visible
+            label.AddThemeStyleboxOverride("normal", new StyleBoxFlat());
+            return label;
+        }
+
+        /// <summary>
+        /// Animates health feedback text (fade up and out).
+        /// Extracted from HealthView for consistency.
+        /// </summary>
+        private void AnimateHealthFeedbackText(Label label)
+        {
+            var tween = CreateTween();
+            tween.SetParallel(true);
+
+            // Move up and fade out
+            var startPos = label.Position;
+            var endPos = startPos + new Vector2(0, -30);
+
+            tween.TweenProperty(label, "position", endPos, 1.0f);
+            tween.TweenProperty(label, "modulate:a", 0.0f, 1.0f);
+
+            // Remove after animation
+            tween.TweenCallback(Callable.From(() => label.QueueFree())).SetDelay(1.0f);
+        }
+
+        /// <summary>
+        /// Applies highlighting effects to a health bar.
+        /// Uses existing ProgressBar infrastructure for consistent look.
+        /// </summary>
+        private void ApplyHealthBarHighlight(ProgressBar healthBar, HealthHighlightType highlightType)
+        {
+            switch (highlightType)
+            {
+                case HealthHighlightType.Critical:
+                    // Pulsing red effect for critical health
+                    var criticalTween = CreateTween();
+                    criticalTween.SetLoops();
+                    criticalTween.TweenProperty(healthBar, "modulate", Colors.Red, 0.5f);
+                    criticalTween.TweenProperty(healthBar, "modulate", Colors.White, 0.5f);
+                    break;
+
+                case HealthHighlightType.HealTarget:
+                    healthBar.Modulate = Colors.LightGreen;
+                    break;
+
+                case HealthHighlightType.DamageTarget:
+                    healthBar.Modulate = Colors.LightCoral;
+                    break;
+
+                case HealthHighlightType.Selected:
+                    healthBar.Modulate = Colors.Yellow;
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// Clears highlighting effects from a health bar.
+        /// </summary>
+        private void ClearHealthBarHighlight(ProgressBar healthBar)
+        {
+            healthBar.Modulate = Colors.White;
+        }
     }
 }

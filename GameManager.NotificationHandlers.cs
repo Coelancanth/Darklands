@@ -66,10 +66,10 @@ public partial class GameManager
             _logger?.Information("[GameManager] Received damage notification for actor {ActorId}: {OldHealth} → {NewHealth}",
                 notification.ActorId, notification.OldHealth, notification.NewHealth);
 
-            // Update health bar via presenter using the same logic as the old callback
-            if (_healthPresenter != null)
+            // Update health bar via ActorPresenter (consolidated functionality)
+            if (_actorPresenter != null)
             {
-                _logger?.Information("[GameManager] Updating health bar via HealthPresenter");
+                _logger?.Information("[GameManager] Updating health bar via ActorPresenter (consolidated from HealthPresenter)");
                 // Use CallDeferred to ensure this runs on the main thread
                 CallDeferred(nameof(UpdateHealthBarDeferred),
                     notification.ActorId.Value.ToString(),
@@ -80,7 +80,7 @@ public partial class GameManager
             }
             else
             {
-                _logger?.Error("[GameManager] HealthPresenter is NULL - cannot update health bar!");
+                _logger?.Error("[GameManager] ActorPresenter is NULL - cannot update health bar!");
             }
 
         }
