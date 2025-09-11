@@ -19,19 +19,22 @@ namespace Darklands.Core.Domain.Vision
     public static class ShadowcastingFOV
     {
         /// <summary>
-        /// Multipliers for transforming coordinates into each octant.
-        /// Each row represents [xx, xy, yx, yy] multipliers for an octant.
+        /// Octant transformation matrices based on libtcod's proven implementation.
+        /// Each row represents [xx, xy, yx, yy] where:
+        /// x = col * xx + row * xy
+        /// y = col * yx + row * yy
+        /// This transforms from octant-space (row/col) to world-space (x/y).
         /// </summary>
         private static readonly int[,] Octants = new int[,]
         {
-            { 0, -1, -1,  0 },  // Octant 0: North-Northwest
-            { -1,  0,  0, -1 },  // Octant 1: West-Northwest
-            { -1,  0,  0,  1 },  // Octant 2: West-Southwest
-            { 0,  1, -1,  0 },  // Octant 3: South-Southwest
-            { 0,  1,  1,  0 },  // Octant 4: South-Southeast
-            { 1,  0,  0,  1 },  // Octant 5: East-Southeast
-            { 1,  0,  0, -1 },  // Octant 6: East-Northeast
-            { 0, -1,  1,  0 },  // Octant 7: North-Northeast
+            {  1,  0,  0,  1 },  // Octant 0: East-Northeast
+            {  0,  1,  1,  0 },  // Octant 1: North-Northeast  
+            {  0, -1,  1,  0 },  // Octant 2: North-Northwest
+            { -1,  0,  0,  1 },  // Octant 3: West-Northwest
+            { -1,  0,  0, -1 },  // Octant 4: West-Southwest
+            {  0, -1, -1,  0 },  // Octant 5: South-Southwest
+            {  0,  1, -1,  0 },  // Octant 6: South-Southeast
+            {  1,  0,  0, -1 },  // Octant 7: East-Southeast
         };
 
         /// <summary>
@@ -57,6 +60,7 @@ namespace Darklands.Core.Domain.Vision
             // Cast shadows in all 8 octants
             for (int octant = 0; octant < 8; octant++)
             {
+                // Start at distance 1 with full slope range (1.0 to 0.0)
                 CastShadow(origin, range, grid, octant, visible, 1, 1.0, 0.0);
             }
 
@@ -65,6 +69,7 @@ namespace Darklands.Core.Domain.Vision
 
         /// <summary>
         /// Recursively casts shadows in a single octant.
+        /// Based on libtcod's proven recursive shadowcasting implementation.
         /// </summary>
         private static void CastShadow(
             Position origin,
@@ -72,91 +77,98 @@ namespace Darklands.Core.Domain.Vision
             Darklands.Core.Domain.Grid.Grid grid,
             int octant,
             System.Collections.Generic.HashSet<Position> visible,
-            int row,
-            double startSlope,
-            double endSlope)
+            int distance,
+            double viewSlopeHigh,
+            double viewSlopeLow)
         {
-            if (startSlope < endSlope)
+            if (viewSlopeHigh < viewSlopeLow)
                 return;
 
-            double nextStartSlope = startSlope;
+            if (distance > range)
+                return;
 
-            for (int currentRow = row; currentRow <= range; currentRow++)
+            bool prevTileBlocked = false;
+
+            // Iterate from high angle to low angle (columns in this row)
+            // This matches libtcod's approach for proper shadow propagation
+            for (int angle = distance; angle >= 0; angle--)
             {
-                bool blocked = false;
+                // Calculate slopes for this tile
+                // Note: We need to be careful with division by zero when distance is 0 or 1
+                double tileSlopeHigh = distance == 0 ? 1.0 : (angle + 0.5) / (distance - 0.5);
+                double tileSlopeLow = (angle - 0.5) / (distance + 0.5);
+                double prevTileSlopeLow = (angle + 0.5) / (distance + 0.5);
 
-                // Calculate the range of columns to check in this row
-                int minCol = (int)Math.Floor(currentRow * endSlope + 0.5);
-                int maxCol = (int)Math.Floor(currentRow * startSlope + 0.5);
+                // Check if tile is within view slopes
+                if (tileSlopeLow > viewSlopeHigh)
+                    continue;  // Tile is not in view yet
+                if (tileSlopeHigh < viewSlopeLow)
+                    break;  // Tiles will no longer be in view
 
-                for (int currentCol = minCol; currentCol <= maxCol; currentCol++)
+                // Transform octant coordinates to world coordinates
+                int xx = Octants[octant, 0];
+                int xy = Octants[octant, 1];
+                int yx = Octants[octant, 2];
+                int yy = Octants[octant, 3];
+
+                int worldX = origin.X + angle * xx + distance * xy;
+                int worldY = origin.Y + angle * yx + distance * yy;
+                var worldPos = new Position(worldX, worldY);
+
+                // Check if position is within grid bounds
+                if (!grid.IsValidPosition(worldPos))
+                    continue;
+
+                // Check actual distance (squared for efficiency)
+                int dx = worldX - origin.X;
+                int dy = worldY - origin.Y;
+                if (dx * dx + dy * dy > range * range)
+                    continue;
+
+                // Add to visible set
+                visible.Add(worldPos);
+
+                // Check if this tile blocks vision
+                var tileResult = grid.GetTile(worldPos);
+                bool blocksVision = tileResult.Match(
+                    Succ: tile => tile.BlocksLineOfSight,
+                    Fail: _ => true
+                );
+
+                if (prevTileBlocked)
                 {
-                    // Transform to world coordinates
-                    int worldX = origin.X + currentCol * Octants[octant, 0] + currentRow * Octants[octant, 1];
-                    int worldY = origin.Y + currentCol * Octants[octant, 2] + currentRow * Octants[octant, 3];
-                    var worldPos = new Position(worldX, worldY);
-
-                    // Check if position is within range (using squared distance to avoid sqrt)
-                    int distX = worldX - origin.X;
-                    int distY = worldY - origin.Y;
-                    if (distX * distX + distY * distY > range * range)
-                        continue;
-
-                    // Check if position is within grid bounds
-                    if (!grid.IsValidPosition(worldPos))
-                        continue;
-
-                    // Calculate slopes for this cell
-                    double leftSlope = ((double)currentCol - 0.5) / ((double)currentRow + 0.5);
-                    double rightSlope = ((double)currentCol + 0.5) / ((double)currentRow - 0.5);
-
-                    // Check if we can see this tile
-                    if (rightSlope > startSlope)
-                        continue;
-                    if (leftSlope < endSlope)
-                        continue;
-
-                    // Add to visible set
-                    visible.Add(worldPos);
-
-                    // Check if this tile blocks vision
-                    var tileResult = grid.GetTile(worldPos);
-                    bool blocksVision = tileResult.Match(
-                        Succ: tile => tile.BlocksLineOfSight,
-                        Fail: _ => true // Out of bounds blocks vision
-                    );
-
-                    if (blocked)
+                    // Previous tile was blocking
+                    if (blocksVision)
                     {
-                        // We were blocked and still are
-                        if (blocksVision)
-                        {
-                            nextStartSlope = rightSlope;
-                        }
-                        else
-                        {
-                            // We were blocked but now we're not - the blocking has ended
-                            blocked = false;
-                            startSlope = nextStartSlope;
-                        }
+                        // Still blocked - no change needed
                     }
                     else
                     {
-                        // We weren't blocked
-                        if (blocksVision && currentRow < range)
-                        {
-                            // Now we are blocked - start a new shadow
-                            blocked = true;
-                            CastShadow(origin, range, grid, octant, visible,
-                                     currentRow + 1, startSlope, leftSlope);
-                            nextStartSlope = rightSlope;
-                        }
+                        // Wall -> floor transition: reduce view size and reset
+                        viewSlopeHigh = prevTileSlopeLow;
+                    }
+                }
+                else
+                {
+                    // Previous tile was not blocking
+                    if (blocksVision && distance < range)
+                    {
+                        // Floor -> wall transition: recurse for the visible portion
+                        // Use tileSlopeHigh as the new END slope for the recursion
+                        CastShadow(origin, range, grid, octant, visible,
+                                 distance + 1, viewSlopeHigh, tileSlopeHigh);
                     }
                 }
 
-                // If the row ended in a block, stop processing this octant
-                if (blocked)
-                    break;
+                // Update previous tile state for next iteration
+                prevTileBlocked = blocksVision;
+            }
+
+            // If row ended without blocking, continue to next distance
+            if (!prevTileBlocked)
+            {
+                CastShadow(origin, range, grid, octant, visible,
+                         distance + 1, viewSlopeHigh, viewSlopeLow);
             }
         }
 

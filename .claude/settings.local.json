@@ -208,7 +208,13 @@
       "Bash(./scripts/core/build.ps1 test --filter \"Category=ThreadSafety\")",
       "Bash(./scripts/core/build.ps1 test --filter \"*TimeUnit*\")",
       "Bash(./scripts/core/build.ps1 test --filter \"Category=Domain&Feature=Combat\")",
-      "WebFetch(domain:crawl.chaosforge.org)"
+      "WebFetch(domain:crawl.chaosforge.org)",
+      "Bash(./scripts/core/build.ps1 test --filter \"FullyQualifiedName~CalculateFOV_PillarScenario\")",
+      "Bash(./scripts/core/build.ps1 test --filter \"Category=Phase1&Feature=Vision\")",
+      "Bash(while read f)",
+      "Bash(do echo \"=== $f ===\")",
+      "WebFetch(domain:journal.stuffwithstuff.com)",
+      "Bash(./scripts/core/build.ps1 test --filter \"Debug_SimpleFOV_TwoTilesEast\")"
     ],
     "deny": [],
     "ask": [],

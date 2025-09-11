@@ -31,6 +31,12 @@ This directory contains Architecture Decision Records (ADRs) - documents that ca
 - [ADR-013: Time-Based Action Scheduling](ADR-013-time-based-action-scheduling.md) - **Proposed**
   - Use time-based scheduling instead of energy accumulation for action timing
 
+- [ADR-014: Vision-Based Tactical System](ADR-014-vision-based-tactical-system.md) - **Approved**
+  - Establishes vision/FOV as the core mechanism for tactical mode activation
+  
+- [ADR-015: Namespace Organization Strategy](ADR-015-namespace-organization-strategy.md) - **Proposed**
+  - Resolves namespace-class collisions using Bounded Context organization
+
 ## Missing ADRs (Need Creation)
 
 The following concepts are referenced in persona documents but lack formal ADRs:
