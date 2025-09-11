@@ -146,8 +146,7 @@ public static class GameStrapper
             var loggerConfiguration = new LoggerConfiguration()
                 .MinimumLevel.ControlledBy(GlobalLevelSwitch)
                 .Enrich.FromLogContext()
-                .WriteTo.Console(
-                    outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {SourceContext}: {Message:lj}{NewLine}{Exception}")
+                // Console output disabled - using GodotCategoryLogger and GodotConsoleSink for consistent formatting
                 .WriteTo.File(
                     path: config.LogFilePath,
                     rollingInterval: RollingInterval.Day,

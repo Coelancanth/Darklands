@@ -17,9 +17,35 @@ public sealed class GodotCategoryLogger : ICategoryLogger
     private readonly CategoryFilteredLogger _coreLogger;
 
     /// <summary>
-    /// Note: Color mapping removed as we now use consistent Serilog formatting
-    /// instead of separate GD.PrintRich output for visual consistency.
+    /// Maps log categories to console colors for visual distinction.
+    /// Uses Godot's rich text color codes for enhanced readability.
     /// </summary>
+    private static readonly Dictionary<LogCategory, string> CategoryColors = new()
+    {
+        [LogCategory.System] = "#FFFFFF",      // White for system messages
+        [LogCategory.Command] = "#00FF00",     // Green for commands
+        [LogCategory.Event] = "#FFFF00",       // Yellow for events
+        [LogCategory.Thread] = "#FF00FF",      // Magenta for threading
+        [LogCategory.AI] = "#FF8000",          // Orange for AI
+        [LogCategory.Performance] = "#00FFFF", // Cyan for performance
+        [LogCategory.Network] = "#8080FF",     // Light blue for network
+        [LogCategory.Developer] = "#808080",   // Gray for developer
+        [LogCategory.Gameplay] = "#4080FF",    // Medium blue for gameplay
+        [LogCategory.Vision] = "#FF0080",      // Pink for vision
+        [LogCategory.Pathfinding] = "#80FF80", // Light green for pathfinding
+        [LogCategory.Combat] = "#FF4040"       // Red for combat
+    };
+
+    /// <summary>
+    /// Maps log levels to console colors for visual distinction.
+    /// </summary>
+    private static readonly Dictionary<LogLevel, string> LevelColors = new()
+    {
+        [LogLevel.Debug] = "#C0C0C0",      // Light gray for debug
+        [LogLevel.Information] = "#FFFFFF", // White for information
+        [LogLevel.Warning] = "#FFA500",     // Orange for warnings
+        [LogLevel.Error] = "#FF0000"        // Red for errors
+    };
 
     public GodotCategoryLogger(ILogger serilogLogger, IDebugConfiguration config)
     {
@@ -64,10 +90,13 @@ public sealed class GodotCategoryLogger : ICategoryLogger
         // Use core logger for Serilog output with level handling
         _coreLogger.Log(level, category, message);
 
-        // Add Godot console output with consistent Serilog formatting
+        // Add Godot console output with rich text formatting
         var timestamp = DateTime.Now.ToString("HH:mm:ss");
         var levelName = GetLevelName(level);
-        GD.PrintRich($"[{timestamp}] [{levelName}] [{category}] {message}");
+        var categoryColor = CategoryColors.GetValueOrDefault(category, "#FFFFFF");
+        var levelColor = LevelColors.GetValueOrDefault(level, "#FFFFFF");
+        
+        GD.PrintRich($"[color=#888888][{timestamp}][/color] [color={levelColor}][{levelName}][/color] [color={categoryColor}][{category}][/color] {message}");
     }
 
     /// <summary>
@@ -89,10 +118,13 @@ public sealed class GodotCategoryLogger : ICategoryLogger
             // Use the core logger for file/console output
             _coreLogger.Log(level, category, formattedMessage);
             
-            // Add Godot console output with consistent formatting
+            // Add Godot console output with rich text formatting
             var timestamp = DateTime.Now.ToString("HH:mm:ss");
             var levelName = GetLevelName(level);
-            GD.PrintRich($"[{timestamp}] [{levelName}] [{category}] {formattedMessage}");
+            var categoryColor = CategoryColors.GetValueOrDefault(category, "#FFFFFF");
+            var levelColor = LevelColors.GetValueOrDefault(level, "#FFFFFF");
+            
+            GD.PrintRich($"[color=#888888][{timestamp}][/color] [color={levelColor}][{levelName}][/color] [color={categoryColor}][{category}][/color] {formattedMessage}");
         }
         catch (System.FormatException)
         {
@@ -100,24 +132,27 @@ public sealed class GodotCategoryLogger : ICategoryLogger
             var errorMsg = $"[FORMAT ERROR] {template}";
             _coreLogger.Log(LogLevel.Warning, category, errorMsg);
             
-            // Also show error in Godot console
+            // Also show error in Godot console with rich formatting
             var timestamp = DateTime.Now.ToString("HH:mm:ss");
-            GD.PrintRich($"[{timestamp}] [Warning] [{category}] {errorMsg}");
+            var categoryColor = CategoryColors.GetValueOrDefault(category, "#FFFFFF");
+            var warningColor = LevelColors.GetValueOrDefault(LogLevel.Warning, "#FFA500");
+            
+            GD.PrintRich($"[color=#888888][{timestamp}][/color] [color={warningColor}][WRN][/color] [color={categoryColor}][{category}][/color] {errorMsg}");
         }
     }
 
     /// <summary>
-    /// Gets the full level name to match Serilog output format.
+    /// Gets abbreviated level name for compact, scannable output.
     /// </summary>
     /// <param name="level">The log level</param>
-    /// <returns>Full level name for consistent formatting</returns>
+    /// <returns>Abbreviated level name for compact formatting</returns>
     private static string GetLevelName(LogLevel level) => level switch
     {
-        LogLevel.Debug => "Debug",
-        LogLevel.Information => "Information",
-        LogLevel.Warning => "Warning",
-        LogLevel.Error => "Error",
-        _ => "Information"
+        LogLevel.Debug => "DBG",
+        LogLevel.Information => "INF",
+        LogLevel.Warning => "WRN",
+        LogLevel.Error => "ERR",
+        _ => "INF"
     };
 
     /// <summary>
