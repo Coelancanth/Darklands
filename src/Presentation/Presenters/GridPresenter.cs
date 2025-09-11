@@ -5,7 +5,9 @@ using Darklands.Core.Application.Combat.Commands;
 using Darklands.Core.Application.Combat.Services;
 using Darklands.Core.Application.Common;
 using Darklands.Core.Application.Grid.Queries;
+using Darklands.Core.Application.Vision.Queries;
 using Darklands.Core.Domain.Combat;
+using Darklands.Core.Domain.Vision;
 using Darklands.Core.Presentation.Views;
 using LanguageExt;
 using MediatR;
@@ -171,6 +173,9 @@ namespace Darklands.Core.Presentation.Presenters
                         _logger.Warning("ActorPresenter not available or from position unknown - visual update skipped");
                     }
 
+                    // Update player vision after movement (fog of war)
+                    await UpdatePlayerVisionAsync();
+
                     await View.ShowSuccessFeedbackAsync(targetPosition, "Moved");
                 },
                 Fail: async error =>
@@ -217,6 +222,64 @@ namespace Darklands.Core.Presentation.Presenters
         }
 
         /// <summary>
+        /// Updates the fog of war display for the current player.
+        /// Calculates new FOV from player's current position and applies to the view.
+        /// </summary>
+        /// <param name="currentTurn">Current game turn for vision state tracking</param>
+        public async Task UpdatePlayerVisionAsync(int currentTurn = 1)
+        {
+            try
+            {
+                // Get the player actor
+                if (_actorFactory.PlayerId == null)
+                {
+                    _logger.Debug("No player available for vision update");
+                    return;
+                }
+
+                var playerId = _actorFactory.PlayerId.Value;
+
+                // Get player's current position
+                var playerPositionOption = _gridStateService.GetActorPosition(playerId);
+                if (playerPositionOption.IsNone)
+                {
+                    _logger.Warning("Could not get player position for vision update");
+                    return;
+                }
+
+                var playerPosition = playerPositionOption.Match(p => p, () => new Domain.Grid.Position(0, 0));
+
+                // Create FOV calculation query
+                var playerVisionRange = VisionRange.Create(8).IfFail(VisionRange.Blind); // Player vision range from backlog
+                var fovQuery = CalculateFOVQuery.Create(playerId, playerPosition, playerVisionRange, currentTurn);
+
+                // Calculate new vision state
+                var visionResult = await _mediator.Send(fovQuery);
+
+                await visionResult.Match(
+                    Succ: async visionState =>
+                    {
+                        _logger.Debug("Calculated vision for player at {Position}: {Visible} visible, {Explored} explored",
+                            playerPosition, visionState.CurrentlyVisible.Count, visionState.PreviouslyExplored.Count);
+
+                        // Update the view with new fog of war
+                        await View.UpdateFogOfWarAsync(visionState);
+                    },
+                    Fail: error =>
+                    {
+                        _logger.Warning("Failed to calculate player vision: {Error}", error.Message);
+                        // Continue without fog of war update
+                        return Task.CompletedTask;
+                    }
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Unexpected error updating player vision");
+            }
+        }
+
+        /// <summary>
         /// Refreshes the entire grid display with the current state from the application layer.
         /// Used for initialization and when the grid state has changed significantly.
         /// </summary>
@@ -237,7 +300,10 @@ namespace Darklands.Core.Presentation.Presenters
                         // Refresh the complete grid state
                         await View.RefreshGridAsync(grid);
 
-                        _logger.Debug("Grid display refreshed successfully with {Width}x{Height} grid",
+                        // Initialize player vision (fog of war)
+                        await UpdatePlayerVisionAsync();
+
+                        _logger.Debug("Grid display refreshed successfully with {Width}x{Height} grid and initial fog of war",
                             grid.Width, grid.Height);
 
                     },

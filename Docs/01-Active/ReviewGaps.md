@@ -1,73 +1,62 @@
 # Review Gaps Report
-Generated: Wed, Sep 10, 2025  9:35:45 AM
+Generated: Thu, Sep 11, 2025  1:29:16 PM
 
 ## 🚨 Critical Gaps
-None found. All critical items have proper ownership and progression.
+**3 new critical bugs discovered during VS_011 Phase 4 testing requiring immediate debugging attention:**
+
+- **BR_003**: Multiple Player Creation Causing Movement Tracking Conflicts
+  - Age: <1 hour (just discovered)
+  - Owner: Debugger Expert ✅
+  - Impact: Prevents proper player position updates, core gameplay broken
+  - Next: Trace player entity creation flow
+
+- **BR_004**: Fog of War Color Rendering Not Showing Proper Terrain Modulation  
+  - Age: <1 hour (just discovered)
+  - Owner: Debugger Expert ✅
+  - Impact: Visual fog states unclear, affects gameplay readability
+  - Next: Check GridView fog modulation implementation
+
+- **BR_005**: Player Position Not Updating Correctly During Movement
+  - Age: <1 hour (just discovered) 
+  - Owner: Debugger Expert ✅
+  - Impact: Position desync between vision and movement systems
+  - Next: Investigate position tracking flow
 
 ## ⏰ Stale Reviews (>3 days)
-**TD_024: Architecture Tests for ADR Compliance**
-- Status: Proposed 📋 (since 2025-09-09 17:44)
-- Age: 1 day (not yet stale)
-- Owner: Test Specialist
-- Action: Monitor - within acceptable timeframe
-
-**TD_025: Cross-Platform Determinism CI Pipeline**
-- Status: Proposed 📋 (since 2025-09-09 17:44) 
-- Age: 1 day (not yet stale)
-- Owner: DevOps Engineer
-- Action: Monitor - within acceptable timeframe
+**No stale items found** - all active items are recent or have appropriate owners
 
 ## 👤 Missing Owners
-None found. All items have assigned owners.
+**No missing owners found** - all items have assigned owners per protocol
 
-## 🔄 Ownership Mismatches  
-None found. All items have appropriate owners for their type and status.
+## 🔄 Ownership Mismatches
+**No ownership mismatches found** - all BR items correctly assigned to Debugger Expert
 
 ## 🚧 Blocked Dependencies
-
-**TD_025: Cross-Platform Determinism CI Pipeline**
-- Depends On: TD_020 (Deterministic Random implementation)
-- Status: ✅ UNBLOCKED (TD_020 completed 2025-09-09)
-- Action: Can proceed to implementation
-
-**TD_027: Advanced Save Infrastructure**
-- Depends On: TD_021 (Save-Ready entities)
-- Status: ✅ UNBLOCKED (TD_021 Phase 3 completed 2025-09-10)
-- Action: Can proceed to implementation
-
-**TD_024: Architecture Tests for ADR Compliance**
-- Depends On: Understanding of ADR-004, ADR-005, ADR-006
-- Status: ✅ UNBLOCKED (All ADRs available)
-- Action: Can proceed to implementation
-
-**TD_029: Roslyn Analyzers for Forbidden Patterns**
-- Depends On: TD_024 (Architecture tests define the rules)
-- Status: ⚠️ BLOCKED (TD_024 not yet started)
-- Action: Cannot start until TD_024 completes
+**No blocked dependencies found** - VS_012 dependency on VS_011 is satisfied (infrastructure complete)
 
 ## 📊 Summary
-- **Total Active Items**: 9 (TD_021 moved to archive)
-- **Critical Gaps**: 0
+- **Total Active Items**: 10 (added BR_003, BR_004, BR_005)
+- **Critical Gaps**: 3 (all new BR items requiring immediate debugging)
 - **Stale Reviews**: 0 (all recent items)
 - **Missing Owners**: 0
 - **Ownership Mismatches**: 0
-- **Blocked Items**: 1 (TD_029)
-- **Ready to Start**: 8
+- **Blocked Items**: 0
+- **Ready to Start**: 7 (3 BR items need debugging attention)
 
 ## 🎯 Next Actions Needed
-1. **Test Specialist**: Can begin TD_024 (Architecture Tests) - all dependencies satisfied
-2. **DevOps Engineer**: Can begin TD_025 (CI Pipeline) - TD_020 dependency completed
-3. **Dev Engineer**: Can begin TD_027 (Advanced Save Infrastructure) - TD_021 Phase 3 completed
-4. **Dev Engineer**: Continue with approved TD_022 as next priority
-5. **Monitor**: TD_029 remains blocked until TD_024 completes
+1. **URGENT - Debugger Expert**: Address BR_003-005 systematically
+   - **Priority order**: BR_003 (player tracking) → BR_005 (position sync) → BR_004 (rendering)
+   - **Root cause hypothesis**: BR_003 and BR_005 may be related (multiple player instances)
+2. **Dev Engineer**: VS_012 ready to begin (VS_011 infrastructure complete)
+3. **Continue planned work**: Other items remain on track
 
 ## ✅ Recent Completions
-- **TD_021 Phase 3**: Save-Ready Entity Infrastructure (completed 2025-09-10)
-  - All 525 tests passing, production-ready infrastructure layer
-  - DeterministicIdGenerator, SaveReadyValidator, architecture tests
-- **TD_020**: Deterministic Random Service (completed with property tests)
-- **TD_026**: Determinism Hardening (completed with property tests)
-- Foundation now ready for advanced save system features
+- **VS_011 Phase 4**: Core fog of war system implemented
+  - Three-state visibility working (unseen/explored/visible)
+  - Strategic 30x20 test grid functional
+  - Vision calculations and shadowcasting operational
+  - Basic fog rendering implemented
+  - **Issues discovered**: Tracked as BR_003-005 for focused debugging
 
 ## 📈 Backlog Health Status
-**Status**: **EXCELLENT** - Major save-ready infrastructure milestone achieved. TD_021 Phase 3 completion unblocks TD_027 Advanced Save Infrastructure. No critical gaps or stale items. Clear progression path for remaining work.
+**Status**: **GOOD WITH CRITICAL DEBUGGING NEEDED** - VS_011 core functionality achieved major milestone with fog of war system operational. Three critical bugs discovered during testing require immediate Debugger Expert attention. Once resolved, system will be fully functional for VS_012 implementation.

@@ -22,6 +22,9 @@ namespace Darklands.Views
         private int _gridHeight;
         private Dictionary<Vector2I, ColorRect> _tiles = new();
         private readonly List<Line2D> _gridLines = new();
+        
+        // Fog of war state management
+        private Darklands.Core.Domain.Vision.VisionState? _currentVisionState;
 
         // Colors for different terrain types
         private readonly Color GrassColor = new Color(0.3f, 0.7f, 0.2f); // Green
@@ -30,6 +33,11 @@ namespace Darklands.Views
         private readonly Color HighlightColor = new Color(1.0f, 1.0f, 0.0f, 0.7f); // Yellow with transparency
         private readonly Color GridLineColor = new Color(0.1f, 0.1f, 0.1f, 0.8f); // Dark gray with transparency
         private const float GridLineWidth = 1.0f;
+
+        // Fog of war colors (applied as modulation to preserve terrain colors)
+        private readonly Color FogUnseen = new Color(0.05f, 0.05f, 0.05f);    // Nearly black (unseen areas)
+        private readonly Color FogExplored = new Color(0.35f, 0.35f, 0.4f);   // Gray (previously explored)
+        private readonly Color FogVisible = new Color(1.0f, 1.0f, 1.0f);      // White (no modulation - fully visible)
 
         /// <summary>
         /// Called when the node is added to the scene tree.
@@ -239,6 +247,52 @@ namespace Darklands.Views
         }
 
         /// <summary>
+        /// Updates the fog of war display based on a vision state.
+        /// Applies modulation to all tiles to show visibility levels while preserving terrain colors.
+        /// </summary>
+        /// <param name="visionState">The vision state containing visibility information</param>
+        public async Task UpdateFogOfWarAsync(Darklands.Core.Domain.Vision.VisionState visionState)
+        {
+            _logger?.Debug("Updating fog of war for Actor {ActorId}: {Visible} visible, {Explored} explored",
+                visionState.ViewerId.Value.ToString()[..8], 
+                visionState.CurrentlyVisible.Count, 
+                visionState.PreviouslyExplored.Count);
+
+            _currentVisionState = visionState;
+            CallDeferred(nameof(UpdateFogOfWarDeferred));
+
+            await Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// Updates the fog state for a single tile.
+        /// Useful for incremental updates when vision changes.
+        /// </summary>
+        /// <param name="position">Grid position of the tile</param>
+        /// <param name="visibilityLevel">New visibility level for the tile</param>
+        public async Task UpdateTileFogAsync(Darklands.Core.Domain.Grid.Position position, Darklands.Core.Domain.Vision.VisibilityLevel visibilityLevel)
+        {
+            var fogColor = GetFogColorFromVisibility(visibilityLevel);
+            var tilePosition = new Vector2I(position.X, position.Y);
+            
+            CallDeferred(nameof(UpdateTileFogDeferred), tilePosition, fogColor);
+
+            await Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// Clears all fog of war effects, making all tiles fully visible.
+        /// </summary>
+        public async Task ClearFogOfWarAsync()
+        {
+            _logger?.Debug("Clearing all fog of war effects");
+            _currentVisionState = null;
+            CallDeferred(nameof(ClearFogOfWarDeferred));
+
+            await Task.CompletedTask;
+        }
+
+        /// <summary>
         /// Handles mouse clicks on the grid by converting screen coordinates to grid positions.
         /// </summary>
         private void HandleMouseClick(Vector2 globalPosition)
@@ -437,6 +491,233 @@ namespace Darklands.Views
                 line?.QueueFree();
             }
             _gridLines.Clear();
+        }
+
+        /// <summary>
+        /// Creates a strategic 30x20 test grid layout for fog of war and vision testing.
+        /// Designed for 4K displays (1920x1280 pixels at 64px/tile) with comprehensive tactical scenarios.
+        /// Features: Long walls, pillar formations, corridors, and room structures for shadowcasting validation.
+        /// </summary>
+        /// <returns>Strategic test grid with player at center (15,10) and complex terrain</returns>
+        public static Darklands.Core.Domain.Grid.Grid CreateStrategicTestGrid(Core.Domain.Common.IStableIdGenerator idGenerator)
+        {
+            const int width = 30;
+            const int height = 20;
+            
+            // Create base empty grid (Open terrain)
+            var grid = Darklands.Core.Domain.Grid.Grid.Create(idGenerator, width, height, Darklands.Core.Domain.Grid.TerrainType.Open)
+                .IfFail(_ => throw new System.InvalidOperationException("Failed to create strategic test grid"));
+
+            // Strategic Layout Design:
+            // - Player at (15, 10) - center position with vision range 8
+            // - Complex wall patterns for comprehensive shadowcasting testing
+            // - Pillar formations for corner occlusion validation
+            // - Room structures with corridors for tactical movement
+
+            // === PERIMETER WALLS (Frame) ===
+            // Top and bottom borders
+            for (int x = 0; x < width; x++)
+            {
+                grid = PlaceWall(grid, x, 0);      // Top border
+                grid = PlaceWall(grid, x, height - 1); // Bottom border
+            }
+            // Left and right borders  
+            for (int y = 0; y < height; y++)
+            {
+                grid = PlaceWall(grid, 0, y);         // Left border
+                grid = PlaceWall(grid, width - 1, y); // Right border
+            }
+
+            // === MAJOR STRUCTURAL WALLS ===
+            // Long horizontal wall for shadowcasting validation (with gaps)
+            for (int x = 3; x <= 12; x++)
+            {
+                grid = PlaceWall(grid, x, 6);
+            }
+            // Gap at (13, 6) for corridor access
+            for (int x = 14; x <= 26; x++)
+            {
+                grid = PlaceWall(grid, x, 6);
+            }
+
+            // Vertical dividing wall with strategic gaps
+            for (int y = 2; y <= 5; y++)
+            {
+                grid = PlaceWall(grid, 8, y);
+            }
+            // Gap at (8, 6) already created by horizontal wall intersection
+            for (int y = 7; y <= 10; y++)
+            {
+                grid = PlaceWall(grid, 8, y);
+            }
+            // Gap at (8, 11) for access
+            for (int y = 12; y <= 17; y++)
+            {
+                grid = PlaceWall(grid, 8, y);
+            }
+
+            // === ROOM STRUCTURES ===
+            // Northwest room (closed with single entrance)
+            for (int x = 2; x <= 6; x++)
+            {
+                grid = PlaceWall(grid, x, 2);
+                grid = PlaceWall(grid, x, 4);
+            }
+            for (int y = 2; y <= 4; y++)
+            {
+                grid = PlaceWall(grid, 2, y);
+                grid = PlaceWall(grid, 6, y);
+            }
+            // Entrance at (4, 4) - remove wall
+            grid = PlaceOpen(grid, 4, 4);
+
+            // Northeast room (L-shaped)
+            for (int x = 18; x <= 22; x++)
+            {
+                grid = PlaceWall(grid, x, 2);
+            }
+            for (int y = 2; y <= 4; y++)
+            {
+                grid = PlaceWall(grid, 18, y);
+                grid = PlaceWall(grid, 22, y);
+            }
+            grid = PlaceWall(grid, 22, 4);
+
+            // === PILLAR FORMATIONS (Corner occlusion testing) ===
+            // Cross formation near player
+            grid = PlaceWall(grid, 13, 8);
+            grid = PlaceWall(grid, 17, 8);
+            grid = PlaceWall(grid, 15, 6);
+            grid = PlaceWall(grid, 15, 12);
+
+            // Diagonal pillar line for complex shadows
+            grid = PlaceWall(grid, 10, 14);
+            grid = PlaceWall(grid, 12, 15);
+            grid = PlaceWall(grid, 14, 16);
+            grid = PlaceWall(grid, 16, 15);
+            grid = PlaceWall(grid, 18, 14);
+
+            // Isolated pillars for corner peeking tests
+            grid = PlaceWall(grid, 5, 8);
+            grid = PlaceWall(grid, 25, 12);
+            grid = PlaceWall(grid, 11, 3);
+            grid = PlaceWall(grid, 20, 17);
+
+            // === CORRIDOR SYSTEM ===
+            // Main east-west corridor (already created by horizontal wall gap)
+            // North-south corridor through center
+            for (int y = 8; y <= 12; y++)
+            {
+                grid = PlaceOpen(grid, 15, y); // Ensure center corridor is open
+            }
+
+            // === FOREST AREAS (Additional vision blocking) ===
+            // Small forest cluster for varied terrain
+            grid = PlaceForest(grid, 24, 8);
+            grid = PlaceForest(grid, 25, 8);
+            grid = PlaceForest(grid, 24, 9);
+            grid = PlaceForest(grid, 25, 9);
+
+            // === SPECIAL TEST POSITIONS ===
+            // Ensure player position is open
+            grid = PlaceOpen(grid, 15, 10);
+
+            // Monster positions (different vision ranges for testing)
+            grid = PlaceOpen(grid, 5, 10);  // Goblin position (range 5)
+            grid = PlaceOpen(grid, 20, 15); // Orc position (range 6) 
+            grid = PlaceOpen(grid, 25, 5);  // Eagle position (range 12)
+
+            return grid;
+        }
+
+        /// <summary>
+        /// Helper method to update fog of war on main thread.
+        /// Applies fog modulation to all tiles based on stored vision state.
+        /// </summary>
+        private void UpdateFogOfWarDeferred()
+        {
+            if (_currentVisionState == null)
+                return;
+
+            for (int x = 0; x < _gridWidth; x++)
+            {
+                for (int y = 0; y < _gridHeight; y++)
+                {
+                    var position = new Darklands.Core.Domain.Grid.Position(x, y);
+                    var visibilityLevel = _currentVisionState.GetVisibilityLevel(position);
+                    var fogColor = GetFogColorFromVisibility(visibilityLevel);
+                    var tilePosition = new Vector2I(x, y);
+                    
+                    if (_tiles.TryGetValue(tilePosition, out var tile))
+                    {
+                        tile.Modulate = fogColor;
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Helper method to update single tile fog on main thread.
+        /// Applies fog modulation to preserve terrain color while showing visibility.
+        /// </summary>
+        private void UpdateTileFogDeferred(Vector2I position, Color fogColor)
+        {
+            if (_tiles.TryGetValue(position, out var tile))
+            {
+                tile.Modulate = fogColor;
+            }
+        }
+
+        /// <summary>
+        /// Helper method to clear all fog of war on main thread.
+        /// Resets all tile modulation to fully visible.
+        /// </summary>
+        private void ClearFogOfWarDeferred()
+        {
+            foreach (var tile in _tiles.Values)
+            {
+                if (tile != null)
+                {
+                    tile.Modulate = FogVisible; // White (no modulation)
+                }
+            }
+        }
+
+        /// <summary>
+        /// Converts visibility level to appropriate fog color.
+        /// Uses modulation colors that preserve terrain appearance while indicating visibility.
+        /// </summary>
+        private Color GetFogColorFromVisibility(Darklands.Core.Domain.Vision.VisibilityLevel visibilityLevel)
+        {
+            return visibilityLevel switch
+            {
+                Darklands.Core.Domain.Vision.VisibilityLevel.Unseen => FogUnseen,       // Nearly black
+                Darklands.Core.Domain.Vision.VisibilityLevel.Explored => FogExplored,   // Gray
+                Darklands.Core.Domain.Vision.VisibilityLevel.Visible => FogVisible,     // No modulation
+                _ => FogUnseen // Default to unseen for safety
+            };
+        }
+
+        // Helper methods for strategic grid creation
+        private static Darklands.Core.Domain.Grid.Grid PlaceWall(Darklands.Core.Domain.Grid.Grid grid, int x, int y)
+        {
+            var position = new Darklands.Core.Domain.Grid.Position(x, y);
+            return grid.SetTerrain(position, Darklands.Core.Domain.Grid.TerrainType.Wall)
+                .IfFail(grid);
+        }
+
+        private static Darklands.Core.Domain.Grid.Grid PlaceOpen(Darklands.Core.Domain.Grid.Grid grid, int x, int y)
+        {
+            var position = new Darklands.Core.Domain.Grid.Position(x, y);
+            return grid.SetTerrain(position, Darklands.Core.Domain.Grid.TerrainType.Open)
+                .IfFail(grid);
+        }
+
+        private static Darklands.Core.Domain.Grid.Grid PlaceForest(Darklands.Core.Domain.Grid.Grid grid, int x, int y)
+        {
+            var position = new Darklands.Core.Domain.Grid.Position(x, y);
+            return grid.SetTerrain(position, Darklands.Core.Domain.Grid.TerrainType.Forest)
+                .IfFail(grid);
         }
     }
 }

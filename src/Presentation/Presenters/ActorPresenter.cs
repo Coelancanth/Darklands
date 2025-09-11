@@ -62,13 +62,13 @@ namespace Darklands.Core.Presentation.Presenters
                 // Create initial actors using the factory (clean separation of concerns)
                 try
                 {
-                    // Create test player at position (0,0)
-                    var playerResult = _actorFactory.CreatePlayer(new Domain.Grid.Position(0, 0), "Test Player");
+                    // Create test player at strategic center position (15,10)
+                    var playerResult = _actorFactory.CreatePlayer(new Domain.Grid.Position(15, 10), "Player");
                     playerResult.Match(
                         Succ: playerId =>
                         {
                             // Display the actor visually
-                            View.DisplayActorAsync(playerId, new Domain.Grid.Position(0, 0), ActorType.Player);
+                            View.DisplayActorAsync(playerId, new Domain.Grid.Position(15, 10), ActorType.Player);
 
                             // Notify health presenter if connected
                             if (_healthPresenter != null)
@@ -77,8 +77,8 @@ namespace Darklands.Core.Presentation.Presenters
                                 healthResult.Match(
                                     Succ: health =>
                                     {
-                                        _healthPresenter.HandleActorCreated(playerId, new Domain.Grid.Position(0, 0), health);
-                                        _logger.Debug("Test player created with health bar at position (0,0) with ID {ActorId}", playerId);
+                                        _healthPresenter.HandleActorCreated(playerId, new Domain.Grid.Position(15, 10), health);
+                                        _logger.Debug("Player created with health bar at strategic center (15,10) with ID {ActorId}", playerId);
                                     },
                                     Fail: error => _logger.Warning("Failed to create health for test player: {Error}", error.Message)
                                 );

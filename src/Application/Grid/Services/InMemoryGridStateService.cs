@@ -42,9 +42,9 @@ namespace Darklands.Core.Application.Grid.Services
             {
                 if (_currentGrid == null) return false;
 
-                // Simple bounds checking for Phase 2
+                // Use actual grid dimensions for bounds checking
                 return position.X >= 0 && position.Y >= 0 &&
-                       position.X < 10 && position.Y < 10;  // Default 10x10 grid
+                       position.X < _currentGrid.Width && position.Y < _currentGrid.Height;
             }
         }
 
@@ -125,13 +125,169 @@ namespace Darklands.Core.Application.Grid.Services
         {
             lock (_stateLock)
             {
-                // Create a simple 10x10 grid with grass terrain for Phase 2
-                // TODO: Replace with proper grid creation in Phase 3
-                _currentGrid = Domain.Grid.Grid.Create(GuidIdGenerator.Instance, 10, 10, TerrainType.Open).Match(
-                    Succ: grid => grid,
-                    Fail: error => throw new InvalidOperationException($"Failed to create default grid: {error}")
-                );
+                // Create strategic 30x20 test grid for Phase 4 fog of war testing
+                // Strategic layout with walls, pillars, and corridors for comprehensive vision testing
+                _currentGrid = CreateStrategicTestGrid(GuidIdGenerator.Instance);
             }
+        }
+
+        /// <summary>
+        /// Creates a strategic 30x20 test grid layout for fog of war and vision testing.
+        /// Designed for 4K displays (1920x1280 pixels at 64px/tile) with comprehensive tactical scenarios.
+        /// Features: Long walls, pillar formations, corridors, and room structures for shadowcasting validation.
+        /// </summary>
+        /// <returns>Strategic test grid with player at center (15,10) and complex terrain</returns>
+        private static Domain.Grid.Grid CreateStrategicTestGrid(Core.Domain.Common.IStableIdGenerator idGenerator)
+        {
+            const int width = 30;
+            const int height = 20;
+
+            // Create base empty grid (Open terrain)
+            var grid = Domain.Grid.Grid.Create(idGenerator, width, height, TerrainType.Open)
+                .IfFail(_ => throw new System.InvalidOperationException("Failed to create strategic test grid"));
+
+            // Strategic Layout Design:
+            // - Player at (15, 10) - center position with vision range 8
+            // - Complex wall patterns for comprehensive shadowcasting testing
+            // - Pillar formations for corner occlusion validation
+            // - Room structures with corridors for tactical movement
+
+            // === PERIMETER WALLS (Frame) ===
+            // Top and bottom borders
+            for (int x = 0; x < width; x++)
+            {
+                grid = PlaceWall(grid, x, 0);      // Top border
+                grid = PlaceWall(grid, x, height - 1); // Bottom border
+            }
+            // Left and right borders  
+            for (int y = 0; y < height; y++)
+            {
+                grid = PlaceWall(grid, 0, y);         // Left border
+                grid = PlaceWall(grid, width - 1, y); // Right border
+            }
+
+            // === MAJOR STRUCTURAL WALLS ===
+            // Long horizontal wall for shadowcasting validation (with gaps)
+            for (int x = 3; x <= 12; x++)
+            {
+                grid = PlaceWall(grid, x, 6);
+            }
+            // Gap at (13, 6) for corridor access
+            for (int x = 14; x <= 26; x++)
+            {
+                grid = PlaceWall(grid, x, 6);
+            }
+
+            // Vertical dividing wall with strategic gaps
+            for (int y = 2; y <= 5; y++)
+            {
+                grid = PlaceWall(grid, 8, y);
+            }
+            // Gap at (8, 6) already created by horizontal wall intersection
+            for (int y = 7; y <= 10; y++)
+            {
+                grid = PlaceWall(grid, 8, y);
+            }
+            // Gap at (8, 11) for access
+            for (int y = 12; y <= 17; y++)
+            {
+                grid = PlaceWall(grid, 8, y);
+            }
+
+            // === ROOM STRUCTURES ===
+            // Northwest room (closed with single entrance)
+            for (int x = 2; x <= 6; x++)
+            {
+                grid = PlaceWall(grid, x, 2);
+                grid = PlaceWall(grid, x, 4);
+            }
+            for (int y = 2; y <= 4; y++)
+            {
+                grid = PlaceWall(grid, 2, y);
+                grid = PlaceWall(grid, 6, y);
+            }
+            // Entrance at (4, 4) - remove wall
+            grid = PlaceOpen(grid, 4, 4);
+
+            // Northeast room (L-shaped)
+            for (int x = 18; x <= 22; x++)
+            {
+                grid = PlaceWall(grid, x, 2);
+            }
+            for (int y = 2; y <= 4; y++)
+            {
+                grid = PlaceWall(grid, 18, y);
+                grid = PlaceWall(grid, 22, y);
+            }
+            grid = PlaceWall(grid, 22, 4);
+
+            // === PILLAR FORMATIONS (Corner occlusion testing) ===
+            // Cross formation near player
+            grid = PlaceWall(grid, 13, 8);
+            grid = PlaceWall(grid, 17, 8);
+            grid = PlaceWall(grid, 15, 6);
+            grid = PlaceWall(grid, 15, 12);
+
+            // Diagonal pillar line for complex shadows
+            grid = PlaceWall(grid, 10, 14);
+            grid = PlaceWall(grid, 12, 15);
+            grid = PlaceWall(grid, 14, 16);
+            grid = PlaceWall(grid, 16, 15);
+            grid = PlaceWall(grid, 18, 14);
+
+            // Isolated pillars for corner peeking tests
+            grid = PlaceWall(grid, 5, 8);
+            grid = PlaceWall(grid, 25, 12);
+            grid = PlaceWall(grid, 11, 3);
+            grid = PlaceWall(grid, 20, 17);
+
+            // === CORRIDOR SYSTEM ===
+            // Main east-west corridor (already created by horizontal wall gap)
+            // North-south corridor through center
+            for (int y = 8; y <= 12; y++)
+            {
+                grid = PlaceOpen(grid, 15, y); // Ensure center corridor is open
+            }
+
+            // === FOREST AREAS (Additional vision blocking) ===
+            // Small forest cluster for varied terrain
+            grid = PlaceForest(grid, 24, 8);
+            grid = PlaceForest(grid, 25, 8);
+            grid = PlaceForest(grid, 24, 9);
+            grid = PlaceForest(grid, 25, 9);
+
+            // === SPECIAL TEST POSITIONS ===
+            // Ensure player position is open
+            grid = PlaceOpen(grid, 15, 10);
+
+            // Monster positions (different vision ranges for testing)
+            grid = PlaceOpen(grid, 5, 10);  // Goblin position (range 5)
+            grid = PlaceOpen(grid, 20, 15); // Orc position (range 6) 
+            grid = PlaceOpen(grid, 25, 5);  // Eagle position (range 12)
+
+            return grid;
+        }
+
+        // Helper methods for strategic grid creation
+        private static Domain.Grid.Grid PlaceWall(Domain.Grid.Grid grid, int x, int y)
+        {
+            var position = new Position(x, y);
+            return grid.SetTerrain(position, TerrainType.Wall)
+                .IfFail(grid);
+        }
+
+        private static Domain.Grid.Grid PlaceOpen(Domain.Grid.Grid grid, int x, int y)
+        {
+            var position = new Position(x, y);
+            return grid.SetTerrain(position, TerrainType.Open)
+                .IfFail(grid);
+        }
+
+        private static Domain.Grid.Grid PlaceForest(Domain.Grid.Grid grid, int x, int y)
+        {
+            var position = new Position(x, y);
+            return grid.SetTerrain(position, TerrainType.Forest)
+                .IfFail(grid);
         }
     }
 }
