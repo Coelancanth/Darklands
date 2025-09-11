@@ -70,6 +70,24 @@ namespace Darklands.Core.Application.Grid.Services
             if (!IsPositionEmpty(toPosition))
                 return FinFail<Unit>(Error.New($"POSITION_OCCUPIED: Position {toPosition} is already occupied"));
 
+            // Check if target tile is passable (prevents moving to walls, water, etc.)
+            lock (_stateLock)
+            {
+                if (_currentGrid == null)
+                    return FinFail<Unit>(Error.New("GRID_NOT_INITIALIZED: Grid has not been initialized"));
+
+                var tileResult = _currentGrid.GetTile(toPosition);
+                var passabilityCheck = tileResult.Match(
+                    Succ: tile => tile.IsPassable
+                        ? FinSucc(Unit.Default)
+                        : FinFail<Unit>(Error.New($"IMPASSABLE_TERRAIN: Cannot move to {toPosition} - {tile.TerrainType} blocks movement")),
+                    Fail: error => FinFail<Unit>(error)
+                );
+
+                if (passabilityCheck.IsFail)
+                    return passabilityCheck;
+            }
+
             // Update actor position atomically
             _actorPositions.AddOrUpdate(actorId, toPosition, (key, oldPosition) => toPosition);
 
@@ -90,7 +108,20 @@ namespace Darklands.Core.Application.Grid.Services
             if (!IsPositionEmpty(toPosition))
                 return FinFail<Unit>(Error.New($"POSITION_OCCUPIED: Position {toPosition} is already occupied"));
 
-            return FinSucc(Unit.Default);
+            // Check if target tile is passable (blocks movement through walls, water, etc.)
+            lock (_stateLock)
+            {
+                if (_currentGrid == null)
+                    return FinFail<Unit>(Error.New("GRID_NOT_INITIALIZED: Grid has not been initialized"));
+
+                var tileResult = _currentGrid.GetTile(toPosition);
+                return tileResult.Match(
+                    Succ: tile => tile.IsPassable
+                        ? FinSucc(Unit.Default)
+                        : FinFail<Unit>(Error.New($"IMPASSABLE_TERRAIN: Cannot move to {toPosition} - {tile.TerrainType} blocks movement")),
+                    Fail: error => FinFail<Unit>(error)
+                );
+            }
         }
 
         public Fin<Unit> AddActorToGrid(ActorId actorId, Position position)
@@ -100,6 +131,24 @@ namespace Darklands.Core.Application.Grid.Services
 
             if (!IsPositionEmpty(position))
                 return FinFail<Unit>(Error.New($"POSITION_OCCUPIED: Position {position} is already occupied"));
+
+            // Check if target tile is passable (prevents spawning on walls, water, etc.)
+            lock (_stateLock)
+            {
+                if (_currentGrid == null)
+                    return FinFail<Unit>(Error.New("GRID_NOT_INITIALIZED: Grid has not been initialized"));
+
+                var tileResult = _currentGrid.GetTile(position);
+                var passabilityCheck = tileResult.Match(
+                    Succ: tile => tile.IsPassable
+                        ? FinSucc(Unit.Default)
+                        : FinFail<Unit>(Error.New($"IMPASSABLE_TERRAIN: Cannot place actor at {position} - {tile.TerrainType} blocks placement")),
+                    Fail: error => FinFail<Unit>(error)
+                );
+
+                if (passabilityCheck.IsFail)
+                    return passabilityCheck;
+            }
 
             // Add actor to grid atomically
             _actorPositions.AddOrUpdate(actorId, position, (key, oldPosition) => position);

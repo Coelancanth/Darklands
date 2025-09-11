@@ -383,19 +383,26 @@ Movement interrupted at (25, 25) - Orc spotted!
 **Done When**: HP bars update correctly when health changes ✅
 
 ### BR_004: Walls Are Walkable - Movement Validation Missing
-**Status**: New
-**Owner**: Test Specialist → Dev Engineer
+**Status**: Done
+**Owner**: Dev Engineer
 **Size**: S (2h)
 **Priority**: Important
 **Created**: 2025-09-11
+**Resolved**: 2025-09-11
 
 **What**: Player can walk through walls (tiles with BlocksMovement = true)
 **Why**: Breaks game logic and allows sequence breaking
 
-**Symptoms**: Movement commands succeed even for wall tiles
-**Investigation**: Check MoveActorCommand validation logic
+**Root Cause**: ValidateMove and MoveActor methods in InMemoryGridStateService only checked bounds and occupancy but never consulted the tile's IsPassable property
 
-**Done When**: Movement to walls is properly blocked
+**Solution**:
+- Updated ValidateMove() to check tile.IsPassable after bounds/occupancy validation
+- Updated MoveActor() to include the same passability check for consistency
+- Updated AddActorToGrid() to prevent spawning on impassable terrain
+- Fixed integration tests to use open positions from strategic grid instead of wall positions
+
+**Done When**: Movement to walls is properly blocked ✅
+**Technical Impact**: Walls (TerrainType.Wall) and water (TerrainType.Water) now properly block movement
 
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*

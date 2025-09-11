@@ -68,11 +68,11 @@ public class ExecuteAttackCommandHandlerIntegrationTests : IDisposable
     [Fact]
     public async Task Handle_CompleteAttackFlow_ProcessesEndToEnd()
     {
-        // Arrange: Set up actors and grid positions
+        // Arrange: Set up actors and grid positions (using open positions from strategic grid)
         var attackerId = ActorId.NewId(TestIdGenerator.Instance);
         var targetId = ActorId.NewId(TestIdGenerator.Instance);
-        var attackerPosition = new Position(2, 2);
-        var targetPosition = new Position(2, 3); // Adjacent
+        var attackerPosition = new Position(15, 10); // Player position (guaranteed open)
+        var targetPosition = new Position(15, 11); // Adjacent to player position
 
         // Create actors with full health
         var attackerResult = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(attackerId, 100, "Warrior");
@@ -120,8 +120,8 @@ public class ExecuteAttackCommandHandlerIntegrationTests : IDisposable
         // Arrange: Set up attacker and weak target
         var attackerId = ActorId.NewId(TestIdGenerator.Instance);
         var targetId = ActorId.NewId(TestIdGenerator.Instance);
-        var attackerPosition = new Position(1, 1);
-        var targetPosition = new Position(1, 2); // Adjacent
+        var attackerPosition = new Position(5, 10); // Goblin position (guaranteed open)
+        var targetPosition = new Position(5, 11); // Adjacent
 
         var attackerResult = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(attackerId, 100, "Warrior");
         var targetResult = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(targetId, 5, "WeakOrc"); // Very low health
@@ -164,8 +164,8 @@ public class ExecuteAttackCommandHandlerIntegrationTests : IDisposable
         // Arrange: Set up actors at non-adjacent positions
         var attackerId = ActorId.NewId(TestIdGenerator.Instance);
         var targetId = ActorId.NewId(TestIdGenerator.Instance);
-        var attackerPosition = new Position(1, 1);
-        var targetPosition = new Position(3, 3); // Not adjacent (distance 2,2)
+        var attackerPosition = new Position(20, 15); // Orc position (guaranteed open)
+        var targetPosition = new Position(23, 18); // Not adjacent (distance 3,3), using open area
 
         var attackerResult = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(attackerId, 100, "Warrior");
         var targetResult = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(targetId, 50, "Orc");
@@ -205,8 +205,8 @@ public class ExecuteAttackCommandHandlerIntegrationTests : IDisposable
         // Arrange: Set up attacker and dead target
         var attackerId = ActorId.NewId(TestIdGenerator.Instance);
         var targetId = ActorId.NewId(TestIdGenerator.Instance);
-        var attackerPosition = new Position(2, 2);
-        var targetPosition = new Position(2, 3); // Adjacent
+        var attackerPosition = new Position(25, 5); // Eagle position (guaranteed open)
+        var targetPosition = new Position(24, 5); // Adjacent (horizontal, moving away from border)
 
         var attackerResult = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(attackerId, 100, "Warrior");
         var targetResult = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(targetId, 50, "Orc");
@@ -243,8 +243,8 @@ public class ExecuteAttackCommandHandlerIntegrationTests : IDisposable
         // Arrange: Set up one attacker and one target for multiple attacks
         var attackerId = ActorId.NewId(TestIdGenerator.Instance);
         var targetId = ActorId.NewId(TestIdGenerator.Instance);
-        var attackerPosition = new Position(3, 3);
-        var targetPosition = new Position(3, 4); // Adjacent
+        var attackerPosition = new Position(14, 10); // Near player position (guaranteed open)
+        var targetPosition = new Position(14, 11); // Adjacent
 
         var attackerResult = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(attackerId, 100, "Warrior");
         var targetResult = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(targetId, 100, "ToughOrc");
