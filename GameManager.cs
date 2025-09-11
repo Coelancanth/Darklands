@@ -117,16 +117,17 @@ namespace Darklands
             {
                 GD.Print("Initializing DI container...");
 
-                // Create Godot console sink for rich Editor output
-                var godotConsoleSink = new GodotConsoleSink(
-                    GodotSinkExtensions.DefaultGodotOutputTemplate,
-                    null);
+                // Godot console sink disabled - using GodotCategoryLogger for all Godot output
+                // This prevents duplicate messages and ensures consistent formatting
+                // var godotConsoleSink = new GodotConsoleSink(
+                //     GodotSinkExtensions.DefaultGodotOutputTemplate,
+                //     null);
 
-                // Initialize the dependency injection container with Godot console support
+                // Initialize the dependency injection container
                 // Load initial log level from debug configuration to respect user preferences
                 var initialLogLevel = DebugConfig.LoadInitialLogLevel();
                 var config = new GameStrapperConfiguration(LogLevel: initialLogLevel);
-                var initResult = GameStrapper.Initialize(config, godotConsoleSink);
+                var initResult = GameStrapper.Initialize(config, null); // No GodotConsoleSink to avoid duplicates
                 if (initResult.IsFail)
                 {
                     var error = initResult.Match(
