@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 005
-- **Next TD**: 034  
+- **Next TD**: 037  
 - **Next VS**: 014 
 
 
@@ -296,6 +296,76 @@ C. **Use library** implementation if available (2-4h)
 - All 8 vision tests pass
 - Performance <10ms for range 8
 - No edge case failures
+
+### TD_034: Assess View Consolidation Opportunity
+**Status**: Proposed
+**Owner**: Tech Lead
+**Size**: S (2-4h)
+**Priority**: Important
+**Created**: 2025-09-11
+**From**: BR_003 post-mortem analysis
+
+**What**: Investigate merging HealthView functionality into ActorView
+**Why**: Current split-brain architecture requires bridge pattern workaround
+
+**Investigation Scope**:
+- Analyze current view responsibilities and overlap
+- Document which view owns which UI elements
+- Assess impact of consolidation on presenter architecture
+- Consider if split is actually beneficial or just complexity
+
+**Options**:
+1. **Merge HealthView into ActorView** - Simpler, acknowledges coupling
+2. **Keep separate with clear boundaries** - Document ownership clearly
+3. **Make health bars true standalone nodes** - Full separation
+
+**Done When**:
+- Clear recommendation with pros/cons
+- View ownership map documented
+- Decision captured in ADR if architectural change
+
+### TD_035: Document Godot C# Gotchas
+**Status**: Proposed  
+**Owner**: Dev Engineer
+**Size**: S (2h)
+**Priority**: Important
+**Created**: 2025-09-11
+**From**: Multiple post-mortems
+
+**What**: Create comprehensive Godot C# pitfalls documentation
+**Why**: Silent failures and confusion from API differences
+
+**Must Include**:
+- Property casing requirements (Position not position)
+- Thread safety and CallDeferred usage
+- Node lifecycle timing (_Ready vs constructor)
+- Signal connection patterns
+- Common tween failures
+
+**Done When**:
+- QuickReference.md updated with Godot C# section
+- Examples of each gotcha with correct pattern
+- Added to onboarding checklist
+
+### TD_036: Post-Mortem Consolidation Protocol
+**Status**: Proposed
+**Owner**: Debugger Expert  
+**Size**: S (1h)
+**Priority**: Important
+**Created**: 2025-09-11
+
+**What**: Establish regular post-mortem consolidation schedule
+**Why**: 8 post-mortems accumulated before consolidation
+
+**Solution Options**:
+1. Weekly consolidation schedule (every Friday)
+2. Threshold trigger (consolidate at 5 post-mortems)
+3. Automated reminder in embody.ps1 script
+
+**Done When**:
+- Protocol documented in debugger-expert.md
+- Reminder mechanism implemented
+- First scheduled consolidation completed
 
 ### VS_013: Basic Enemy AI
 **Status**: Proposed

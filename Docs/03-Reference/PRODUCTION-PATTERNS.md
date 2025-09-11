@@ -1,11 +1,12 @@
 # Production Patterns Catalog
 
-**Last Updated**: 2025-09-08  
+**Last Updated**: 2025-09-11  
 **Purpose**: Battle-tested patterns extracted from completed features  
-**Source**: Extracted from HANDBOOK.md for focused reference
+**Source**: Extracted from HANDBOOK.md and post-mortems for focused reference
 
 ## 🎯 Pattern Index
 
+### ✅ Recommended Patterns
 1. [Value Object Factory with Validation](#pattern-value-object-factory-with-validation-vs_001)
 2. [Thread-Safe DI Container](#pattern-thread-safe-di-container-vs_001)
 3. [Cross-Presenter Coordination](#pattern-cross-presenter-coordination-vs_010a)
@@ -13,6 +14,13 @@
 5. [Death Cascade Coordination](#pattern-death-cascade-coordination-vs_010b)
 6. [Godot Node Lifecycle](#pattern-godot-node-lifecycle-vs_010a)
 7. [Queue-Based CallDeferred](#pattern-queue-based-calldeferred-td_011)
+8. [Godot Parent-Child UI Pattern](#pattern-godot-parent-child-ui-pattern-vs_011) ⭐⭐⭐
+9. [Godot API Casing Requirements](#pattern-godot-api-casing-requirements)
+10. [CallDeferred for Thread Safety](#pattern-calldeferred-for-thread-safety)
+
+### ⚠️ Anti-Patterns (DO NOT USE)
+- ❌ [Bridge Pattern for Split Views](#anti-pattern-bridge-pattern-for-split-views) - Symptom of poor architecture
+- ❌ [Static Event Router](#anti-pattern-static-event-router) - Replaced by ADR-010 UIEventBus
 
 ---
 
@@ -340,6 +348,175 @@ public class GameLoopCoordinator {
 ```
 **Key**: Complete one actor fully before starting next
 
+### Pattern: Godot Parent-Child UI Pattern (VS_011) ⭐
+**Problem**: Manual synchronization between related UI elements (actors and health bars)
+**Why This Failed**: 100+ lines of complex synchronization code, race conditions, orphaned elements
+**Solution**: Use Godot's parent-child node relationships
+```csharp
+// ❌ WRONG - Manual synchronization (100+ lines, race conditions)
+public class ActorView {
+    private Dictionary<ActorId, Node2D> _actors;
+    private Dictionary<ActorId, HealthBar> _healthBars;
+    
+    public void MoveActor(ActorId id, Position pos) {
+        _actors[id].Position = pos;
+        _healthBars[id].Position = pos + offset; // Manual sync
+        // Race conditions, orphaned health bars, complex cleanup
+    }
+}
+
+// ✅ CORRECT - Parent-child relationship (automatic)
+public class ActorView {
+    public void CreateActor(ActorId id, Position pos) {
+        var actor = _actorScene.Instantiate<Node2D>();
+        var healthBar = _healthBarScene.Instantiate<Control>();
+        
+        actor.AddChild(healthBar); // CRITICAL: Make it a child!
+        healthBar.Position = new Vector2(0, -20); // Relative to parent
+        
+        AddChild(actor);
+        // Movement, visibility, cleanup ALL automatic through scene tree
+    }
+}
+```
+**Key Insight**: When UI elements move together, make them parent-child nodes. Godot handles position, visibility, and cleanup automatically. This eliminated 60+ lines of synchronization code.
+
+
+### Pattern: Godot API Casing Requirements
+**Problem**: Tween animations not working despite correct logic
+**Context**: Godot C# API requires exact property name casing
+**Solution**: Use PascalCase for C# properties
+```csharp
+// ❌ WRONG - GDScript style (works in GDScript, not C#)
+tween.TweenProperty(actor, "position", targetPos, 0.2f);
+
+// ✅ CORRECT - C# PascalCase
+tween.TweenProperty(actor, "Position", targetPos, 0.2f);
+
+// Also affects other properties:
+"rotation" → "Rotation"
+"scale" → "Scale"  
+"modulate" → "Modulate"
+```
+**Key**: Godot C# bindings use PascalCase, not snake_case or camelCase.
+
+### Pattern: CallDeferred for Thread Safety
+**Problem**: UI updates from async contexts crash or don't execute
+**Context**: Godot requires all UI updates on main thread
+**Solution**: Always use CallDeferred for UI updates from handlers
+```csharp
+// ❌ WRONG - Direct UI update from async context
+public async Task HandleActorMoved(ActorMovedNotification notification) {
+    _actors[notification.ActorId].Visible = false; // CRASH or ignored!
+}
+
+// ✅ CORRECT - Deferred execution on main thread
+public async Task HandleActorMoved(ActorMovedNotification notification) {
+    CallDeferred(() => {
+        _actors[notification.ActorId].Visible = false; // Safe!
+    });
+}
+```
+**Key**: Any UI update from MediatR handlers MUST use CallDeferred.
+
 ---
 
-*These patterns represent hard-won knowledge from production implementation. Each solves a specific problem encountered during development.*
+## ⚠️ Anti-Patterns (DO NOT USE)
+
+These patterns were discovered during development but represent WRONG approaches. They're documented here as warnings of what NOT to do.
+
+### Anti-Pattern: Bridge Pattern for Split Views
+**⛔ STATUS: DO NOT USE - Symptom of poor architecture**
+**Problem**: Two view systems think they own the same UI elements
+**What Happened**: ActorView created health bars but HealthView received updates (with no UI!)
+**Wrong Solution**: Bridge pattern to route updates between views
+
+```csharp
+// ❌ DON'T DO THIS - This is a band-aid on bad architecture
+public class HealthPresenter {
+    private readonly IHealthView _healthView;
+    private readonly IActorPresenter _actorPresenter; // Bridge hack
+    
+    public async Task HandleHealthChanged(ActorId id, int newHealth) {
+        await _healthView.UpdateHealthAsync(id, newHealth); // Empty view!
+        await _actorPresenter.UpdateActorHealthAsync(id, newHealth); // Actual UI
+    }
+}
+```
+
+**Why This Is Wrong**:
+- Creates hidden dependencies between presenters
+- Indicates split-brain architecture
+- Makes code flow confusing
+- Symptom of not understanding view ownership
+
+**✅ CORRECT APPROACH**:
+1. Consolidate views - if UI elements are related, they belong in same view
+2. Use parent-child pattern for related UI elements
+3. Clear ownership - one view owns specific UI elements
+4. See TD_034 for consolidation assessment
+
+### Anti-Pattern: Static Event Router
+**⛔ STATUS: OBSOLETE - Replaced by ADR-010 UIEventBus**
+**Problem**: MediatR handlers couldn't reach Godot nodes
+**What Happened**: Emergency fix used static handlers to bypass DI lifecycle issues
+**Wrong Solution**: Static event registration
+
+```csharp
+// ❌ DON'T DO THIS - Violates SOLID, doesn't scale, hard to test
+public static class GameManagerEventRouter {
+    private static Action<ActorDamagedEvent>? _damageHandler; // Static = bad
+    
+    public static void RegisterHandlers(Action<ActorDamagedEvent> handler) {
+        _damageHandler = handler; // Global state!
+    }
+}
+```
+
+**Why This Is Wrong**:
+- Global mutable state
+- Violates dependency injection principles
+- Can't be mocked for testing
+- Memory leaks from static references
+- Race conditions in multi-threaded scenarios
+
+**✅ CORRECT APPROACH**: 
+Use ADR-010's UIEventBus pattern:
+- Proper DI lifecycle management
+- WeakReferences prevent memory leaks
+- Type-safe subscriptions
+- Testable and scalable
+
+```csharp
+// ✅ CORRECT - Use UIEventBus from ADR-010
+public partial class GameManager : EventAwareNode {
+    protected override void SubscribeToEvents() {
+        EventBus.Subscribe<ActorDamagedEvent>(this, OnActorDamaged);
+    }
+}
+```
+
+### Anti-Pattern: Manual UI Synchronization
+**⛔ STATUS: DO NOT USE - Fight complexity, not the engine**
+**Problem**: Keeping related UI elements synchronized (position, visibility, lifecycle)
+**Wrong Solution**: Manual tracking and synchronization
+
+```csharp
+// ❌ DON'T DO THIS - 100+ lines of unnecessary complexity
+public class ActorView {
+    private Dictionary<ActorId, Node2D> _actors;
+    private Dictionary<ActorId, HealthBar> _healthBars;
+    
+    public void MoveActor(ActorId id, Position pos) {
+        _actors[id].Position = pos;
+        _healthBars[id].Position = pos + offset; // Manual sync
+        // Race conditions, orphaned elements, complex cleanup...
+    }
+}
+```
+
+**✅ CORRECT APPROACH**: Use parent-child pattern (see above)
+
+---
+
+*These patterns represent hard-won knowledge from production implementation. Each solves a specific problem encountered during development. The anti-patterns show what we learned NOT to do.*
