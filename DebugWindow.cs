@@ -85,7 +85,7 @@ public partial class DebugWindow : Window
             // Notify debug system that window was closed via close button
             if (DebugSystem.Instance != null)
             {
-                DebugSystem.Instance.Logger.Log(LogCategory.Developer, "Debug window closed via close button");
+                DebugSystem.Instance.Logger.Log(LogLevel.Information, LogCategory.Developer, "Debug window closed via close button");
             }
         };
         

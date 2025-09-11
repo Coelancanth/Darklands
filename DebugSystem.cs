@@ -64,7 +64,7 @@ public partial class DebugSystem : Node
 
         IsInitialized = true;
 
-        Logger.Log(LogCategory.System, "DebugSystem initialized successfully");
+        Logger.Log(LogLevel.Information, LogCategory.System, "DebugSystem initialized successfully");
 
         // Test log level filtering during initialization
         Logger.Log(LogLevel.Debug, LogCategory.Developer, "Debug level message - should only show if level is Debug");
@@ -151,11 +151,11 @@ public partial class DebugSystem : Node
 
         if (_debugWindow.Visible)
         {
-            Logger.Log(LogCategory.Developer, "Debug window opened");
+            Logger.Log(LogLevel.Information, LogCategory.Developer, "Debug window opened");
         }
         else
         {
-            Logger.Log(LogCategory.Developer, "Debug window closed");
+            Logger.Log(LogLevel.Information, LogCategory.Developer, "Debug window closed");
         }
     }
 
@@ -194,7 +194,7 @@ public partial class DebugSystem : Node
             if (Core.Infrastructure.DependencyInjection.GameStrapper.GlobalLevelSwitch != null)
             {
                 Core.Infrastructure.DependencyInjection.GameStrapper.GlobalLevelSwitch.MinimumLevel = serilogLevel;
-                Logger.Log(LogCategory.Developer, 
+                Logger.Log(LogLevel.Information, LogCategory.Developer, 
                     $"Updated global log level to {Config.CurrentLogLevel} (Serilog: {serilogLevel})");
             }
         }
@@ -214,11 +214,11 @@ public partial class DebugSystem : Node
         var result = ResourceSaver.Save(Config, configPath);
         if (result == Error.Ok)
         {
-            Logger.Log(LogCategory.Developer, "Debug configuration saved successfully");
+            Logger.Log(LogLevel.Information, LogCategory.Developer, "Debug configuration saved successfully");
         }
         else
         {
-            Logger.Log(LogCategory.Developer, $"Failed to save debug configuration: {result}");
+            Logger.Log(LogLevel.Warning, LogCategory.Developer, $"Failed to save debug configuration: {result}");
         }
     }
 }
