@@ -383,5 +383,33 @@ namespace Darklands.Views
                 _ => PlayerColor // Default to player color
             };
         }
+
+        /// <summary>
+        /// Sets the visibility of an actor based on player vision.
+        /// Used by the fog of war system to show/hide actors dynamically.
+        /// </summary>
+        public async Task SetActorVisibilityAsync(Darklands.Core.Domain.Grid.ActorId actorId, bool isVisible)
+        {
+            try
+            {
+                if (_actorNodes.TryGetValue(actorId, out var actorNode) && actorNode != null)
+                {
+                    // Set visibility immediately - we're already handling thread safety in the caller
+                    actorNode.Visible = isVisible;
+                    _logger?.Debug("Set actor {ActorId} visibility to {Visible}", actorId, isVisible ? "VISIBLE" : "HIDDEN");
+                }
+                else
+                {
+                    _logger?.Warning("Actor {ActorId} not found for visibility update", actorId);
+                }
+
+                await Task.CompletedTask;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "Error setting actor visibility for {ActorId}", actorId);
+            }
+        }
+
     }
 }

@@ -65,6 +65,14 @@ namespace Darklands.Core.Presentation.Views
         Task ShowActorFeedbackAsync(ActorId actorId, ActorFeedbackType feedbackType, string? message = null);
 
         /// <summary>
+        /// Sets the visibility of an actor based on player vision.
+        /// Used by the fog of war system to show/hide actors dynamically.
+        /// </summary>
+        /// <param name="actorId">Unique identifier of the actor</param>
+        /// <param name="isVisible">True to show the actor, false to hide</param>
+        Task SetActorVisibilityAsync(ActorId actorId, bool isVisible);
+
+        /// <summary>
         /// Refreshes the display of all actors with their current states.
         /// Used for initialization or full refresh scenarios.
         /// </summary>

@@ -20,6 +20,7 @@ namespace Darklands.Core.Presentation.Presenters
         private readonly ILogger _logger;
         private readonly IActorFactory _actorFactory;
         private HealthPresenter? _healthPresenter;
+        private GridPresenter? _gridPresenter;
 
         /// <summary>
         /// Creates a new ActorPresenter with the specified dependencies.
@@ -45,6 +46,17 @@ namespace Darklands.Core.Presentation.Presenters
         {
             _healthPresenter = healthPresenter ?? throw new ArgumentNullException(nameof(healthPresenter));
             _logger.Debug("ActorPresenter connected to HealthPresenter for coordinated updates");
+        }
+
+        /// <summary>
+        /// Sets the grid presenter for coordinated vision updates.
+        /// Called by GameManager during MVP setup.
+        /// </summary>
+        /// <param name="gridPresenter">The grid presenter to coordinate with</param>
+        public void SetGridPresenter(GridPresenter gridPresenter)
+        {
+            _gridPresenter = gridPresenter ?? throw new ArgumentNullException(nameof(gridPresenter));
+            _logger.Debug("ActorPresenter connected to GridPresenter for vision updates");
         }
 
         /// <summary>
@@ -86,6 +98,17 @@ namespace Darklands.Core.Presentation.Presenters
                             else
                             {
                                 _logger.Warning("HealthPresenter not connected - health bar will not be displayed for test player");
+                            }
+
+                            // Trigger initial vision update after player creation
+                            if (_gridPresenter != null)
+                            {
+                                _ = Task.Run(async () => await _gridPresenter.UpdatePlayerVisionAsync());
+                                _logger.Debug("Triggered initial vision update after player creation");
+                            }
+                            else
+                            {
+                                _logger.Warning("GridPresenter not connected - initial vision update skipped");
                             }
                         },
                         Fail: error => _logger.Warning("Failed to create test player: {Error}", error.Message)
@@ -263,6 +286,35 @@ namespace Darklands.Core.Presentation.Presenters
             catch (Exception ex)
             {
                 _logger.Error(ex, "Error removing actor {ActorId} from position {Position}", actorId, position);
+            }
+        }
+
+        /// <summary>
+        /// Sets the visibility of an actor and its health bar based on player vision.
+        /// Used by the fog of war system to show/hide actors dynamically.
+        /// </summary>
+        /// <param name="actorId">ID of the actor to show/hide</param>
+        /// <param name="isVisible">True to show the actor, false to hide</param>
+        public async Task SetActorVisibilityAsync(Domain.Grid.ActorId actorId, bool isVisible)
+        {
+            try
+            {
+                // Update actor visibility in the view
+                await View.SetActorVisibilityAsync(actorId, isVisible);
+
+                // Update health bar visibility through HealthPresenter
+                // TODO: Implement SetActorVisibilityAsync in HealthPresenter
+                // if (_healthPresenter != null)
+                // {
+                //     await _healthPresenter.SetActorVisibilityAsync(actorId, isVisible);
+                // }
+
+                _logger.Debug("Set actor {ActorId} visibility to {Visible}",
+                    actorId.Value.ToString()[..8], isVisible ? "VISIBLE" : "HIDDEN");
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Error setting actor visibility for {ActorId}", actorId);
             }
         }
 

@@ -162,6 +162,11 @@ namespace Darklands.Core.Presentation.Presenters
                 {
                     _logger.Debug("Successfully processed move to position {Position}", targetPosition);
 
+                    // Verify the move was actually applied by checking the new position
+                    var newPositionOption = _gridStateService.GetActorPosition(playerId);
+                    _logger.Debug("After move command - Player position in GridStateService: {Position}",
+                        newPositionOption.Match(p => p.ToString(), () => "NOT_FOUND"));
+
                     // Notify ActorPresenter about the successful move
                     if (_actorPresenter != null && fromPositionOption.IsSome)
                     {
@@ -174,6 +179,7 @@ namespace Darklands.Core.Presentation.Presenters
                     }
 
                     // Update player vision after movement (fog of war)
+                    _logger.Debug("Updating player vision after move to {Position}", targetPosition);
                     await UpdatePlayerVisionAsync();
 
                     await View.ShowSuccessFeedbackAsync(targetPosition, "Moved");
@@ -248,6 +254,7 @@ namespace Darklands.Core.Presentation.Presenters
                 }
 
                 var playerPosition = playerPositionOption.Match(p => p, () => new Domain.Grid.Position(0, 0));
+                _logger.Debug("Vision update - Using player position: {Position}", playerPosition);
 
                 // Create FOV calculation query
                 var playerVisionRange = VisionRange.Create(8).IfFail(VisionRange.Blind); // Player vision range from backlog
@@ -264,6 +271,9 @@ namespace Darklands.Core.Presentation.Presenters
 
                         // Update the view with new fog of war
                         await View.UpdateFogOfWarAsync(visionState);
+
+                        // Update actor visibility based on vision
+                        await UpdateActorVisibilityAsync(visionState);
                     },
                     Fail: error =>
                     {
@@ -335,6 +345,47 @@ namespace Darklands.Core.Presentation.Presenters
             catch (Exception ex)
             {
                 _logger.Warning(ex, "Error updating tile at position {Position}", position);
+            }
+        }
+
+        /// <summary>
+        /// Updates the visibility of actors and health bars based on the current vision state.
+        /// Actors are only visible when they're within the player's current vision range.
+        /// </summary>
+        /// <param name="visionState">Current vision state with visible tiles</param>
+        private async Task UpdateActorVisibilityAsync(Domain.Vision.VisionState visionState)
+        {
+            try
+            {
+                // Get all actors in the game (except the player)
+                var playerId = _actorFactory.PlayerId;
+                if (playerId == null) return;
+
+                // Get all actor positions from combat query service
+                var allActors = _combatQueryService.GetActorsInRadius(new Domain.Grid.Position(0, 0), 1000); // Large radius to get all
+
+                foreach (var actorData in allActors)
+                {
+                    // Skip the player - player is always visible
+                    if (actorData.Id.Equals(playerId.Value)) continue;
+
+                    var actorPosition = actorData.Position;
+                    var isVisible = visionState.GetVisibilityLevel(actorPosition) == Domain.Vision.VisibilityLevel.Visible;
+
+                    _logger.Debug("Actor {ActorId} at {Position}: {Visibility}",
+                        actorData.Id.Value.ToString()[..8], actorPosition,
+                        isVisible ? "VISIBLE" : "HIDDEN");
+
+                    // Update actor visibility through ActorPresenter
+                    if (_actorPresenter != null)
+                    {
+                        await _actorPresenter.SetActorVisibilityAsync(actorData.Id, isVisible);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Error updating actor visibility based on vision");
             }
         }
 

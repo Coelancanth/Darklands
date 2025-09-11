@@ -126,7 +126,8 @@ namespace Darklands
                     null);
 
                 // Initialize the dependency injection container with Godot console support
-                var initResult = GameStrapper.Initialize(null, godotConsoleSink);
+                // Use Development configuration to enable Debug level logging
+                var initResult = GameStrapper.Initialize(GameStrapperConfiguration.Development, godotConsoleSink);
                 if (initResult.IsFail)
                 {
                     var error = initResult.Match(
@@ -244,6 +245,10 @@ namespace Darklands
                 // CRITICAL: Connect ActorPresenter to HealthPresenter for health bar creation
                 // This connection ensures health bars are created when actors are spawned
                 _actorPresenter.SetHealthPresenter(_healthPresenter);
+
+                // CRITICAL: Connect ActorPresenter to GridPresenter for initial vision update
+                // This ensures player vision is applied after player creation
+                _actorPresenter.SetGridPresenter(_gridPresenter);
 
                 // Event subscription is now handled automatically by EventAwareNode base class
                 // SubscribeToEvents() will be called after EventBus is initialized
