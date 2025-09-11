@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-11 18:26 (Created TD_036 - Global debug system with F12 window)
+**Last Updated**: 2025-09-11 19:05 (Completed TD_036, Created BR_005 - Debug log level filtering issue)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -9,7 +9,7 @@
 ## 🔢 Next Item Numbers by Type
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
-- **Next BR**: 005
+- **Next BR**: 006
 - **Next TD**: 038
 - **Next VS**: 015 
 
@@ -78,6 +78,32 @@
 ## 🔥 Critical (Do First)
 *Blockers preventing other work, production bugs, dependencies for other features*
 
+### BR_005: Debug Window Log Level Filtering Not Working
+**Status**: New
+**Owner**: Debugger Expert  
+**Size**: XS (<1h)
+**Priority**: Critical
+**Created**: 2025-09-11 19:05
+
+**What**: Debug window log level dropdown shows "Information" but Debug level messages still appear in console
+**Why**: User experience issue - log filtering not working as expected, undermining debug system usability
+**How**: Investigate and fix log level filtering logic in GodotCategoryLogger and DebugConfig integration
+
+**Reproduction Steps**:
+1. Open debug window (F12)
+2. Set log level dropdown to "Information"  
+3. Observe Debug level messages still showing in console output
+4. Expected: Debug messages should be filtered out
+
+**Context**: 
+- TD_036 debug system implementation complete except for this filtering issue
+- All architecture and tests passing
+- Core filtering logic implemented but not working in practice
+
+**Done When**:
+- Debug level messages are properly filtered when log level set to Information or higher
+- Console only shows messages at or above the selected log level
+- Manual verification confirms filtering works correctly
 
 ### VS_012: Vision-Based Movement System
 **Status**: Approved  
@@ -377,220 +403,6 @@ public Fin<T> ServiceMethod() =>
 - Don't get creative - follow existing patterns
 - If performance degrades, revert that specific change
 
-
-### TD_036: Global Debug System with Runtime Controls
-**Status**: Approved
-**Owner**: Dev Engineer
-**Size**: S (3h)
-**Priority**: Important
-**Created**: 2025-09-11 18:25
-**Complexity**: 3/10
-
-**What**: Autoload debug system with Godot Resource config and F12-toggleable debug window
-**Why**: Need globally accessible debug settings with runtime UI for rapid testing iteration
-
-**Implementation Plan**:
-
-**1. Create Debug Config Resource with Categories (0.5h)**:
-```csharp
-[GlobalClass]
-public partial class DebugConfig : Resource
-{
-    [ExportGroup("🗺️ Pathfinding")]
-    [Export] public bool ShowPaths { get; set; } = false;
-    [Export] public bool ShowPathCosts { get; set; } = false;
-    [Export] public Color PathColor { get; set; } = new Color(0, 0, 1, 0.5f);
-    [Export] public float PathAlpha { get; set; } = 0.5f;
-    
-    [ExportGroup("👁️ Vision & FOV")]
-    [Export] public bool ShowVisionRanges { get; set; } = false;
-    [Export] public bool ShowFOVCalculations { get; set; } = false;
-    [Export] public bool ShowExploredOverlay { get; set; } = true;
-    [Export] public bool ShowLineOfSight { get; set; } = false;
-    
-    [ExportGroup("⚔️ Combat")]
-    [Export] public bool ShowDamageNumbers { get; set; } = true;
-    [Export] public bool ShowHitChances { get; set; } = false;
-    [Export] public bool ShowTurnOrder { get; set; } = true;
-    [Export] public bool ShowAttackRanges { get; set; } = false;
-    
-    [ExportGroup("🤖 AI & Behavior")]
-    [Export] public bool ShowAIStates { get; set; } = false;
-    [Export] public bool ShowAIDecisionScores { get; set; } = false;
-    [Export] public bool ShowAITargeting { get; set; } = false;
-    
-    [ExportGroup("📊 Performance")]
-    [Export] public bool ShowFPS { get; set; } = false;
-    [Export] public bool ShowFrameTime { get; set; } = false;
-    [Export] public bool ShowMemoryUsage { get; set; } = false;
-    [Export] public bool EnableProfiling { get; set; } = false;
-    
-    [ExportGroup("🎮 Gameplay")]
-    [Export] public bool GodMode { get; set; } = false;
-    [Export] public bool UnlimitedActions { get; set; } = false;
-    [Export] public bool InstantKills { get; set; } = false;
-    
-    [ExportGroup("📝 Logging & Console")]
-    [Export] public bool ShowThreadMessages { get; set; } = true;
-    [Export] public bool ShowCommandMessages { get; set; } = true;
-    [Export] public bool ShowEventMessages { get; set; } = true;
-    [Export] public bool ShowSystemMessages { get; set; } = true;
-    [Export] public bool ShowAIMessages { get; set; } = false;
-    [Export] public bool ShowPerformanceMessages { get; set; } = false;
-    [Export] public bool ShowNetworkMessages { get; set; } = false;
-    [Export] public bool ShowDebugMessages { get; set; } = false;
-    
-    [Signal]
-    public delegate void SettingChangedEventHandler(string category, string propertyName);
-    
-    // Helper to get all settings by category
-    public Dictionary<string, bool> GetCategorySettings(string category) { }
-    // Helper to toggle entire category
-    public void ToggleCategory(string category, bool enabled) { }
-}
-```
-
-**2. Create Autoload Singleton (0.5h)**:
-```csharp
-public partial class DebugSystem : Node
-{
-    public static DebugSystem Instance { get; private set; }
-    [Export] public DebugConfig Config { get; set; }
-    
-    public override void _Ready()
-    {
-        Instance = this;
-        Config = GD.Load<DebugConfig>("res://debug_config.tres");
-        ProcessMode = ProcessModeEnum.Always;
-    }
-}
-```
-
-**3. Create Debug Window UI with Collapsible Categories (1h)**:
-```csharp
-// Each category gets a collapsible section
-private void BuildCategorySection(string categoryName, string icon)
-{
-    var header = new Button { Text = $"{icon} {categoryName}", Flat = true };
-    var container = new VBoxContainer { Visible = true };
-    
-    header.Pressed += () => {
-        container.Visible = !container.Visible;
-        header.Text = $"{(container.Visible ? "▼" : "▶")} {icon} {categoryName}";
-    };
-    
-    // Add "Toggle All" button for category
-    var toggleAll = new CheckBox { Text = "Enable All" };
-    toggleAll.Toggled += (bool on) => Config.ToggleCategory(categoryName, on);
-    
-    // Auto-generate checkboxes for category properties
-    foreach (var prop in GetCategoryProperties(categoryName))
-    {
-        AddCheckBox(container, prop.Name, prop.Getter, prop.Setter);
-    }
-}
-```
-- Window with ScrollContainer for many options
-- Collapsible sections per category
-- "Toggle All" per category
-- Search/filter box at top
-- Position at (20, 20), size (350, 500)
-
-**4. Wire F12 Toggle (0.5h)**:
-```csharp
-public override void _Input(InputEvent @event)
-{
-    if (@event.IsActionPressed("toggle_debug_window")) // F12
-    {
-        _debugWindow.Visible = !_debugWindow.Visible;
-    }
-}
-```
-
-**5. Enhanced Logging with Category Filtering (1h)**:
-```csharp
-// Enhanced logger that respects category filters
-public class CategoryFilteredLogger : ILogger
-{
-    private readonly DebugConfig _config;
-    
-    public void Log(LogCategory category, string message)
-    {
-        // Check if category is enabled
-        bool shouldLog = category switch
-        {
-            LogCategory.Thread => _config.ShowThreadMessages,
-            LogCategory.Command => _config.ShowCommandMessages,
-            LogCategory.Event => _config.ShowEventMessages,
-            LogCategory.System => _config.ShowSystemMessages,
-            LogCategory.AI => _config.ShowAIMessages,
-            LogCategory.Performance => _config.ShowPerformanceMessages,
-            _ => true
-        };
-        
-        if (shouldLog)
-        {
-            // Color-code by category
-            var color = GetCategoryColor(category);
-            GD.PrintRich($"[color={color}][{category}] {message}[/color]");
-        }
-    }
-}
-
-// Usage in code:
-_logger.Log(LogCategory.Command, "ExecuteAttackCommand processed");
-_logger.Log(LogCategory.AI, "Enemy evaluating targets...");
-_logger.Log(LogCategory.Thread, "Background task completed");
-```
-
-**6. Bridge to Infrastructure (0.5h)**:
-- Create IDebugConfiguration interface  
-- GodotDebugBridge implements interface
-- CategoryFilteredLogger replaces default logger
-- Register in ServiceLocator for clean access
-
-**File Structure**:
-```
-res://
-├── debug_config.tres (the resource)
-├── src/
-│   ├── Configuration/
-│   │   ├── DebugConfig.cs
-│   │   ├── DebugSystem.cs
-│   │   └── DebugSystem.tscn
-│   └── UI/
-│       ├── DebugWindow.cs
-│       └── DebugWindow.tscn
-```
-
-**Project Settings Changes**:
-- Add to Autoload: DebugSystem → res://src/Configuration/DebugSystem.tscn
-- Add Input Map: "toggle_debug_window" → F12
-
-**Done When**:
-- F12 toggles debug window during play
-- Log messages filtered by category (Thread, Command, Event, etc.)
-- Console output color-coded by message type
-- Can toggle message categories on/off in debug window
-- Example filtering in action:
-  ```
-  [Command] ExecuteAttackCommand processed     ✓ Shown
-  [AI] Evaluating target priorities...         ✗ Hidden (disabled)
-  [Thread] Background pathfinding complete     ✓ Shown
-  [Performance] Frame time: 12.3ms            ✗ Hidden (disabled)
-  ```
-- Settings accessible via `DebugSystem.Instance.Config`
-- Visual debug overlays organized in groups
-- Window persists across scene changes
-- Dramatically reduces console noise during debugging
-
-**Tech Lead Notes**:
-- Keep it simple - just F12 for now, no other hotkeys
-- Log filtering is THE killer feature - reduces noise by 80%
-- Color-coding makes patterns visible instantly
-- This is dev-only, not player-facing
-- Easy to add new LogCategory values as needed
-- Consider: Save filter preferences per developer
 
 
 ### VS_013: Basic Enemy AI
