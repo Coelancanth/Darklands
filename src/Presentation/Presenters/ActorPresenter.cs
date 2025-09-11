@@ -303,13 +303,12 @@ namespace Darklands.Core.Presentation.Presenters
                 await View.SetActorVisibilityAsync(actorId, isVisible);
 
                 // Update health bar visibility through HealthPresenter
-                // TODO: Implement SetActorVisibilityAsync in HealthPresenter
-                // if (_healthPresenter != null)
-                // {
-                //     await _healthPresenter.SetActorVisibilityAsync(actorId, isVisible);
-                // }
+                if (_healthPresenter != null)
+                {
+                    await _healthPresenter.SetActorVisibilityAsync(actorId, isVisible);
+                }
 
-                _logger.Debug("Set actor {ActorId} visibility to {Visible}",
+                _logger.Debug("Set actor {ActorId} and health bar visibility to {Visible}",
                     actorId.Value.ToString()[..8], isVisible ? "VISIBLE" : "HIDDEN");
             }
             catch (Exception ex)

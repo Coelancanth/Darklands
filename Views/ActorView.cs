@@ -30,11 +30,13 @@ namespace Darklands.Views
         // Queue-based storage for deferred operations - fixes race condition (TD_011)
         private readonly Queue<ActorCreationData> _pendingActorCreations = new();
         private readonly Queue<ActorMoveData> _pendingActorMoves = new();
+        private readonly Queue<ActorVisibilityData> _pendingVisibilityUpdates = new();
 
         // Data structures to hold operation parameters
         private record ActorCreationData(ColorRect ActorNode, Darklands.Core.Domain.Grid.ActorId ActorId);
         private record ActorMoveData(ColorRect ActorNode, Vector2 EndPosition, Darklands.Core.Domain.Grid.ActorId ActorId,
             Darklands.Core.Domain.Grid.Position FromPosition, Darklands.Core.Domain.Grid.Position ToPosition);
+        private record ActorVisibilityData(Darklands.Core.Domain.Grid.ActorId ActorId, bool IsVisible);
 
         /// <summary>
         /// Called when the node is added to the scene tree.
@@ -392,22 +394,45 @@ namespace Darklands.Views
         {
             try
             {
-                if (_actorNodes.TryGetValue(actorId, out var actorNode) && actorNode != null)
+                // Queue for deferred call - ensures thread safety with Godot nodes
+                lock (_pendingVisibilityUpdates)
                 {
-                    // Set visibility immediately - we're already handling thread safety in the caller
-                    actorNode.Visible = isVisible;
-                    _logger?.Debug("Set actor {ActorId} visibility to {Visible}", actorId, isVisible ? "VISIBLE" : "HIDDEN");
+                    _pendingVisibilityUpdates.Enqueue(new ActorVisibilityData(actorId, isVisible));
                 }
-                else
-                {
-                    _logger?.Warning("Actor {ActorId} not found for visibility update", actorId);
-                }
+                CallDeferred("ProcessPendingVisibilityUpdates");
 
                 await Task.CompletedTask;
             }
             catch (Exception ex)
             {
-                _logger?.Error(ex, "Error setting actor visibility for {ActorId}", actorId);
+                _logger?.Error(ex, "Error queueing actor visibility update for {ActorId}", actorId);
+            }
+        }
+
+        /// <summary>
+        /// Helper method to process queued visibility updates on the main thread.
+        /// Ensures thread-safe updates to Godot node visibility properties.
+        /// </summary>
+        private void ProcessPendingVisibilityUpdates()
+        {
+            lock (_pendingVisibilityUpdates)
+            {
+                while (_pendingVisibilityUpdates.Count > 0)
+                {
+                    var visibilityData = _pendingVisibilityUpdates.Dequeue();
+                    
+                    if (_actorNodes.TryGetValue(visibilityData.ActorId, out var actorNode) && actorNode != null)
+                    {
+                        actorNode.Visible = visibilityData.IsVisible;
+                        _logger?.Debug("Set actor {ActorId} visibility to {Visible}", 
+                            visibilityData.ActorId.Value.ToString()[..8], 
+                            visibilityData.IsVisible ? "VISIBLE" : "HIDDEN");
+                    }
+                    else
+                    {
+                        _logger?.Warning("Actor {ActorId} not found for visibility update", visibilityData.ActorId);
+                    }
+                }
             }
         }
 
