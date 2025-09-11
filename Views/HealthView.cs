@@ -47,6 +47,7 @@ namespace Darklands.Views
         private ActorId _pendingActorId;
         private Position _pendingPosition;
         private Health _pendingHealth;
+        private bool _pendingVisibility;
         private Position _pendingFromPosition;
         private Position _pendingToPosition;
         private Health _pendingOldHealth;
@@ -249,20 +250,33 @@ namespace Darklands.Views
         {
             try
             {
+                _logger?.Information("MoveHealthBarDeferred called for actor {ActorId}", _pendingActorId.Value.ToString()[..8]);
+                _logger?.Information("Health bars count: {Count}, Looking for ID: {ActorId}", 
+                    _healthBars.Count, _pendingActorId.Value.ToString());
+                
+                // Log all health bar IDs for debugging
+                foreach (var kvp in _healthBars)
+                {
+                    _logger?.Information("Existing health bar ID: {ActorId}", kvp.Key.Value.ToString());
+                }
+                
                 if (!_healthBars.TryGetValue(_pendingActorId, out var healthBarNode))
                 {
-                    _logger?.Warning("Health bar not found for actor {ActorId} during move", _pendingActorId);
+                    _logger?.Warning("Health bar not found for actor {ActorId} during move - ID mismatch?", 
+                        _pendingActorId.Value.ToString());
                     return;
                 }
 
+                var oldPosition = healthBarNode.Position;
                 var newPixelPosition = GridPositionToPixel(_pendingToPosition);
                 // Center the health bar on the tile (add half tile size to X and Y)
                 newPixelPosition.X += TileSize / 2;
                 newPixelPosition.Y += TileSize / 2;
                 healthBarNode.Position = newPixelPosition;
 
-                _logger?.Debug("Moved health bar for actor {ActorId} from {FromPosition} to {ToPosition}",
-                    _pendingActorId, _pendingFromPosition, _pendingToPosition);
+                _logger?.Information("Moved health bar for actor {ActorId} from pixel ({OldX},{OldY}) to ({NewX},{NewY})",
+                    _pendingActorId.Value.ToString()[..8], oldPosition.X, oldPosition.Y, 
+                    newPixelPosition.X, newPixelPosition.Y);
             }
             catch (Exception ex)
             {
@@ -455,6 +469,42 @@ namespace Darklands.Views
             catch (Exception ex)
             {
                 _logger?.Error(ex, "Error refreshing all health bars");
+            }
+        }
+
+        /// <summary>
+        /// Sets the visibility of a health bar based on player vision.
+        /// Used by the fog of war system to show/hide health bars dynamically.
+        /// </summary>
+        public async Task SetHealthBarVisibilityAsync(ActorId actorId, bool isVisible)
+        {
+            _pendingActorId = actorId;
+            _pendingVisibility = isVisible;
+            CallDeferred("SetHealthBarVisibilityDeferred");
+            await Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// Deferred method to set health bar visibility on main thread.
+        /// </summary>
+        private void SetHealthBarVisibilityDeferred()
+        {
+            try
+            {
+                if (_healthBars.TryGetValue(_pendingActorId, out var healthBarNode))
+                {
+                    healthBarNode.Visible = _pendingVisibility;
+                    _logger?.Debug("Set health bar visibility for {ActorId} to {Visible}",
+                        _pendingActorId.Value.ToString()[..8], _pendingVisibility ? "VISIBLE" : "HIDDEN");
+                }
+                else
+                {
+                    _logger?.Warning("Health bar not found for actor {ActorId} when setting visibility", _pendingActorId);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "Error setting health bar visibility for actor {ActorId}", _pendingActorId);
             }
         }
 

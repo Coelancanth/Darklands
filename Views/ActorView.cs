@@ -18,6 +18,7 @@ namespace Darklands.Views
         private ActorPresenter? _presenter;
         private ILogger? _logger;
         private readonly Dictionary<Darklands.Core.Domain.Grid.ActorId, ColorRect> _actorNodes = new();
+        private readonly Dictionary<Darklands.Core.Domain.Grid.ActorId, ProgressBar> _healthBars = new();
         private const int TileSize = 64;
         private const float MoveDuration = 0.3f; // Seconds for movement animation
 
@@ -30,11 +31,13 @@ namespace Darklands.Views
         // Queue-based storage for deferred operations - fixes race condition (TD_011)
         private readonly Queue<ActorCreationData> _pendingActorCreations = new();
         private readonly Queue<ActorMoveData> _pendingActorMoves = new();
+        private readonly Queue<ActorVisibilityData> _pendingVisibilityUpdates = new();
 
         // Data structures to hold operation parameters
         private record ActorCreationData(ColorRect ActorNode, Darklands.Core.Domain.Grid.ActorId ActorId);
         private record ActorMoveData(ColorRect ActorNode, Vector2 EndPosition, Darklands.Core.Domain.Grid.ActorId ActorId,
             Darklands.Core.Domain.Grid.Position FromPosition, Darklands.Core.Domain.Grid.Position ToPosition);
+        private record ActorVisibilityData(Darklands.Core.Domain.Grid.ActorId ActorId, bool IsVisible);
 
         /// <summary>
         /// Called when the node is added to the scene tree.
@@ -91,6 +94,13 @@ namespace Darklands.Views
                     Color = GetActorColor(actorType),
                     Position = new Vector2(position.X * TileSize, position.Y * TileSize)
                 };
+
+                // Create health bar as child of actor node
+                if (actorType != ActorType.Neutral) // Only add health bars to actors that need them
+                {
+                    var healthBar = CreateHealthBar(actorId);
+                    actorNode.AddChild(healthBar);
+                }
 
                 // Queue for deferred call - prevents race condition
                 lock (_pendingActorCreations)
@@ -243,6 +253,7 @@ namespace Darklands.Views
                     {
                         actorNode?.QueueFree();
                         _actorNodes.Remove(id);
+                        _healthBars.Remove(id); // Also remove health bar reference
                     }
                     else
                     {
@@ -383,5 +394,161 @@ namespace Darklands.Views
                 _ => PlayerColor // Default to player color
             };
         }
+
+        /// <summary>
+        /// Creates a health bar as a child node of an actor.
+        /// The health bar will automatically move with its parent actor.
+        /// </summary>
+        private ProgressBar CreateHealthBar(Darklands.Core.Domain.Grid.ActorId actorId)
+        {
+            var healthBar = new ProgressBar
+            {
+                Size = new Vector2(TileSize - 8, 4), // Thinner health bar
+                Position = new Vector2(4, -12), // Positioned above the actor
+                MinValue = 0,
+                MaxValue = 100,
+                Value = 100, // Default to full health
+                ShowPercentage = false // We'll use a label instead
+            };
+            
+            // Add a label to show HP numbers
+            var hpLabel = new Label
+            {
+                Text = "100/100",
+                Position = new Vector2(0, -4), // Above the health bar
+                Size = new Vector2(TileSize - 8, 12),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            
+            // Set font size using method
+            hpLabel.AddThemeFontSizeOverride("font_size", 10);
+            
+            // Style the label for visibility
+            hpLabel.AddThemeColorOverride("font_color", Colors.White);
+            hpLabel.AddThemeColorOverride("font_shadow_color", Colors.Black);
+            hpLabel.AddThemeConstantOverride("shadow_offset_x", 1);
+            hpLabel.AddThemeConstantOverride("shadow_offset_y", 1);
+            
+            healthBar.AddChild(hpLabel);
+            healthBar.SetMeta("hp_label", hpLabel); // Store reference for updates
+
+            // Style the health bar
+            var styleBoxFilled = new StyleBoxFlat();
+            styleBoxFilled.BgColor = new Color(0.0f, 0.8f, 0.0f); // Green for health
+            styleBoxFilled.BorderWidthTop = 1;
+            styleBoxFilled.BorderWidthBottom = 1;
+            styleBoxFilled.BorderWidthLeft = 1;
+            styleBoxFilled.BorderWidthRight = 1;
+            styleBoxFilled.BorderColor = new Color(0.2f, 0.2f, 0.2f);
+            
+            var styleBoxBackground = new StyleBoxFlat();
+            styleBoxBackground.BgColor = new Color(0.3f, 0.1f, 0.1f); // Dark red background
+            styleBoxBackground.BorderWidthTop = 1;
+            styleBoxBackground.BorderWidthBottom = 1;
+            styleBoxBackground.BorderWidthLeft = 1;
+            styleBoxBackground.BorderWidthRight = 1;
+            styleBoxBackground.BorderColor = new Color(0.2f, 0.2f, 0.2f);
+
+            healthBar.AddThemeStyleboxOverride("fill", styleBoxFilled);
+            healthBar.AddThemeStyleboxOverride("background", styleBoxBackground);
+
+            // Store reference for later updates
+            _healthBars[actorId] = healthBar;
+
+            return healthBar;
+        }
+
+        /// <summary>
+        /// Updates the health value of an actor's health bar.
+        /// </summary>
+        public void UpdateActorHealth(Darklands.Core.Domain.Grid.ActorId actorId, int currentHealth, int maxHealth)
+        {
+            if (_healthBars.TryGetValue(actorId, out var healthBar))
+            {
+                healthBar.MaxValue = maxHealth;
+                healthBar.Value = currentHealth;
+                
+                // Update the HP label
+                if (healthBar.HasMeta("hp_label"))
+                {
+                    var labelVariant = healthBar.GetMeta("hp_label");
+                    if (labelVariant.AsGodotObject() is Label label)
+                    {
+                        label.Text = $"{currentHealth}/{maxHealth}";
+                    }
+                }
+                
+                // Change color based on health percentage
+                var healthPercent = (float)currentHealth / maxHealth;
+                var styleBoxFilled = new StyleBoxFlat();
+                
+                if (healthPercent > 0.5f)
+                    styleBoxFilled.BgColor = new Color(0.0f, 0.8f, 0.0f); // Green
+                else if (healthPercent > 0.25f)
+                    styleBoxFilled.BgColor = new Color(0.8f, 0.8f, 0.0f); // Yellow
+                else
+                    styleBoxFilled.BgColor = new Color(0.8f, 0.0f, 0.0f); // Red
+                    
+                styleBoxFilled.BorderWidthTop = 1;
+                styleBoxFilled.BorderWidthBottom = 1;
+                styleBoxFilled.BorderWidthLeft = 1;
+                styleBoxFilled.BorderWidthRight = 1;
+                styleBoxFilled.BorderColor = new Color(0.2f, 0.2f, 0.2f);
+                
+                healthBar.AddThemeStyleboxOverride("fill", styleBoxFilled);
+            }
+        }
+
+        /// <summary>
+        /// Sets the visibility of an actor based on player vision.
+        /// Used by the fog of war system to show/hide actors dynamically.
+        /// </summary>
+        public async Task SetActorVisibilityAsync(Darklands.Core.Domain.Grid.ActorId actorId, bool isVisible)
+        {
+            try
+            {
+                // Queue for deferred call - ensures thread safety with Godot nodes
+                lock (_pendingVisibilityUpdates)
+                {
+                    _pendingVisibilityUpdates.Enqueue(new ActorVisibilityData(actorId, isVisible));
+                }
+                CallDeferred("ProcessPendingVisibilityUpdates");
+
+                await Task.CompletedTask;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "Error queueing actor visibility update for {ActorId}", actorId);
+            }
+        }
+
+        /// <summary>
+        /// Helper method to process queued visibility updates on the main thread.
+        /// Ensures thread-safe updates to Godot node visibility properties.
+        /// </summary>
+        private void ProcessPendingVisibilityUpdates()
+        {
+            lock (_pendingVisibilityUpdates)
+            {
+                while (_pendingVisibilityUpdates.Count > 0)
+                {
+                    var visibilityData = _pendingVisibilityUpdates.Dequeue();
+                    
+                    if (_actorNodes.TryGetValue(visibilityData.ActorId, out var actorNode) && actorNode != null)
+                    {
+                        actorNode.Visible = visibilityData.IsVisible;
+                        _logger?.Debug("Set actor {ActorId} visibility to {Visible}", 
+                            visibilityData.ActorId.Value.ToString()[..8], 
+                            visibilityData.IsVisible ? "VISIBLE" : "HIDDEN");
+                    }
+                    else
+                    {
+                        _logger?.Warning("Actor {ActorId} not found for visibility update", visibilityData.ActorId);
+                    }
+                }
+            }
+        }
+
     }
 }

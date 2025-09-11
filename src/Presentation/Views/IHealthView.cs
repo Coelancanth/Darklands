@@ -80,6 +80,14 @@ namespace Darklands.Core.Presentation.Views
         /// Used for initialization or full refresh scenarios.
         /// </summary>
         Task RefreshAllHealthBarsAsync();
+
+        /// <summary>
+        /// Sets the visibility of a health bar based on player vision.
+        /// Used by the fog of war system to show/hide health bars dynamically.
+        /// </summary>
+        /// <param name="actorId">Unique identifier of the actor</param>
+        /// <param name="isVisible">True to show the health bar, false to hide</param>
+        Task SetHealthBarVisibilityAsync(ActorId actorId, bool isVisible);
     }
 
     /// <summary>

@@ -22,6 +22,7 @@ namespace Darklands.Core.Presentation.Presenters
         private readonly ILogger _logger;
         private readonly IActorStateService _actorStateService;
         private readonly ICombatQueryService _combatQueryService;
+        private ActorPresenter? _actorPresenter;
 
         /// <summary>
         /// Creates a new HealthPresenter with the specified dependencies.
@@ -85,6 +86,17 @@ namespace Darklands.Core.Presentation.Presenters
         }
 
         /// <summary>
+        /// Sets the actor presenter for coordinated health bar updates.
+        /// Called by GameManager during MVP setup.
+        /// </summary>
+        /// <param name="actorPresenter">The actor presenter to coordinate with</param>
+        public void SetActorPresenter(ActorPresenter actorPresenter)
+        {
+            _actorPresenter = actorPresenter ?? throw new ArgumentNullException(nameof(actorPresenter));
+            _logger.Debug("HealthPresenter connected to ActorPresenter for health bar updates");
+        }
+
+        /// <summary>
         /// Handles health change notifications from the application layer.
         /// Updates the visual representation when actor health changes.
         /// </summary>
@@ -98,7 +110,17 @@ namespace Darklands.Core.Presentation.Presenters
 
             try
             {
-                // Update the health bar display
+                // Update the health bar display via ActorPresenter (coordinates with ActorView)
+                if (_actorPresenter != null)
+                {
+                    await _actorPresenter.UpdateActorHealthAsync(actorId, newHealth.Current, newHealth.Maximum);
+                }
+                else
+                {
+                    _logger.Warning("ActorPresenter not connected - health bar update skipped for {ActorId}", actorId);
+                }
+
+                // Also update the dedicated health view if available
                 await View.UpdateHealthAsync(actorId, oldHealth, newHealth);
 
                 // Show appropriate feedback based on the change
@@ -322,6 +344,26 @@ namespace Darklands.Core.Presentation.Presenters
             catch (Exception ex)
             {
                 _logger.Error(ex, "Error refreshing all health bar displays");
+            }
+        }
+
+        /// <summary>
+        /// Sets the visibility of an actor's health bar based on player vision.
+        /// Used by the fog of war system to show/hide health bars dynamically.
+        /// </summary>
+        /// <param name="actorId">ID of the actor whose health bar to show/hide</param>
+        /// <param name="isVisible">True to show the health bar, false to hide</param>
+        public async Task SetActorVisibilityAsync(ActorId actorId, bool isVisible)
+        {
+            try
+            {
+                await View.SetHealthBarVisibilityAsync(actorId, isVisible);
+                _logger.Debug("Set health bar visibility for {ActorId} to {Visible}",
+                    actorId.Value.ToString()[..8], isVisible ? "VISIBLE" : "HIDDEN");
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Error setting health bar visibility for {ActorId}", actorId);
             }
         }
 

@@ -65,10 +65,27 @@ namespace Darklands.Core.Presentation.Views
         Task ShowActorFeedbackAsync(ActorId actorId, ActorFeedbackType feedbackType, string? message = null);
 
         /// <summary>
+        /// Sets the visibility of an actor based on player vision.
+        /// Used by the fog of war system to show/hide actors dynamically.
+        /// </summary>
+        /// <param name="actorId">Unique identifier of the actor</param>
+        /// <param name="isVisible">True to show the actor, false to hide</param>
+        Task SetActorVisibilityAsync(ActorId actorId, bool isVisible);
+
+        /// <summary>
         /// Refreshes the display of all actors with their current states.
         /// Used for initialization or full refresh scenarios.
         /// </summary>
         Task RefreshAllActorsAsync();
+
+        /// <summary>
+        /// Updates the health bar display for an actor.
+        /// Called when actor health changes to reflect new health values.
+        /// </summary>
+        /// <param name="actorId">Unique identifier of the actor</param>
+        /// <param name="currentHealth">Current health value to display</param>
+        /// <param name="maxHealth">Maximum health value for the health bar</param>
+        void UpdateActorHealth(ActorId actorId, int currentHealth, int maxHealth);
     }
 
     /// <summary>

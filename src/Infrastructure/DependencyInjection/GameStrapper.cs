@@ -221,6 +221,13 @@ public static class GameStrapper
             // Phase 3: Actor state management (including health)
             services.AddSingleton<Application.Actor.Services.IActorStateService, Application.Actor.Services.InMemoryActorStateService>();
 
+            // Phase 2: Vision state management with fog of war
+            // Phase 3: Enhanced persistence and performance monitoring
+            services.AddSingleton<Infrastructure.Vision.VisionPerformanceMonitor>();
+            services.AddSingleton<Application.Vision.Services.IVisionPerformanceMonitor>(provider =>
+                provider.GetRequiredService<Infrastructure.Vision.VisionPerformanceMonitor>());
+            services.AddSingleton<Application.Vision.Services.IVisionStateService, Infrastructure.Vision.PersistentVisionStateService>();
+
             // TD_009: Composite query service (coordinates ActorState + Grid services)
             services.AddSingleton<Application.Combat.Services.ICombatQueryService, Application.Combat.Services.CombatQueryService>();
 

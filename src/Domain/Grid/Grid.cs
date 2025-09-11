@@ -185,6 +185,18 @@ namespace Darklands.Core.Domain.Grid
         }
 
         /// <summary>
+        /// Sets the terrain type at the specified position, returning a new Grid.
+        /// </summary>
+        /// <param name="position">Position to update</param>
+        /// <param name="terrainType">New terrain type</param>
+        /// <returns>Success with new Grid or failure if position is invalid</returns>
+        public Fin<Grid> SetTerrain(Position position, TerrainType terrainType)
+        {
+            return GetTile(position)
+                .Bind(tile => SetTile(position, tile.WithTerrain(terrainType)));
+        }
+
+        /// <summary>
         /// Gets all orthogonal neighbors of a position that are within bounds.
         /// </summary>
         /// <param name="position">Center position</param>

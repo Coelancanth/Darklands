@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Darklands.Core.Domain.Grid;
+using Darklands.Core.Domain.Vision;
 
 namespace Darklands.Core.Presentation.Views
 {
@@ -64,6 +65,26 @@ namespace Darklands.Core.Presentation.Views
         /// Clears all visual overlays and resets the grid to clean state.
         /// </summary>
         Task ClearOverlaysAsync();
+
+        /// <summary>
+        /// Updates the fog of war display based on a vision state.
+        /// Applies modulation to all tiles to show visibility levels while preserving terrain colors.
+        /// </summary>
+        /// <param name="visionState">The vision state containing visibility information</param>
+        Task UpdateFogOfWarAsync(VisionState visionState);
+
+        /// <summary>
+        /// Updates the fog state for a single tile.
+        /// Useful for incremental updates when vision changes.
+        /// </summary>
+        /// <param name="position">Grid position of the tile</param>
+        /// <param name="visibilityLevel">New visibility level for the tile</param>
+        Task UpdateTileFogAsync(Position position, VisibilityLevel visibilityLevel);
+
+        /// <summary>
+        /// Clears all fog of war effects, making all tiles fully visible.
+        /// </summary>
+        Task ClearFogOfWarAsync();
     }
 
     /// <summary>
