@@ -421,6 +421,8 @@ dotnet test --filter "Category=Integration"
 - **Death Cascade** - Ordered cleanup (VS_010b)
 - **Godot Node Lifecycle** - _Ready() not constructor (VS_010a)
 - **Queue-Based CallDeferred** - Thread-safe UI (TD_011)
+- **Parent-Child UI Pattern** ⭐ - Godot scene tree synchronization (VS_011)
+- **Godot API Casing** - PascalCase for C# properties
 
 ## 🧪 Testing Patterns
 
