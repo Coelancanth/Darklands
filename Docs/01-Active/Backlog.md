@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-11 17:42 (Completed and archived TD_034 - HealthView consolidation)
+**Last Updated**: 2025-09-11 19:05 (Completed TD_036, Created BR_005 - Debug log level filtering issue)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -9,9 +9,9 @@
 ## 🔢 Next Item Numbers by Type
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
-- **Next BR**: 005
-- **Next TD**: 036
-- **Next VS**: 014 
+- **Next BR**: 006
+- **Next TD**: 038
+- **Next VS**: 015 
 
 
 **Protocol**: Check your type's counter → Use that number → Increment the counter → Update timestamp
@@ -78,6 +78,32 @@
 ## 🔥 Critical (Do First)
 *Blockers preventing other work, production bugs, dependencies for other features*
 
+### BR_005: Debug Window Log Level Filtering Not Working
+**Status**: New
+**Owner**: Debugger Expert  
+**Size**: XS (<1h)
+**Priority**: Critical
+**Created**: 2025-09-11 19:05
+
+**What**: Debug window log level dropdown shows "Information" but Debug level messages still appear in console
+**Why**: User experience issue - log filtering not working as expected, undermining debug system usability
+**How**: Investigate and fix log level filtering logic in GodotCategoryLogger and DebugConfig integration
+
+**Reproduction Steps**:
+1. Open debug window (F12)
+2. Set log level dropdown to "Information"  
+3. Observe Debug level messages still showing in console output
+4. Expected: Debug messages should be filtered out
+
+**Context**: 
+- TD_036 debug system implementation complete except for this filtering issue
+- All architecture and tests passing
+- Core filtering logic implemented but not working in practice
+
+**Done When**:
+- Debug level messages are properly filtered when log level set to Information or higher
+- Console only shows messages at or above the selected log level
+- Manual verification confirms filtering works correctly
 
 ### VS_012: Vision-Based Movement System
 **Status**: Approved  
@@ -182,9 +208,95 @@ Movement interrupted at (25, 25) - Orc spotted!
 ☑ Integer Math: Tile movement
 ☑ Testable: Clear state transitions
 
-**Depends On**: VS_011 (Vision System) - ✅ Infrastructure foundation complete (Phase 3)
-**Next Step**: Ready to begin implementation (Enhanced infrastructure available)
+**Depends On**: 
+- VS_011 (Vision System) - ✅ Infrastructure foundation complete (Phase 3)
+- VS_014 (A* Pathfinding) - ⏳ Required for non-adjacent movement
+**Next Step**: Implement VS_014 first, then begin VS_012
 
+
+### VS_014: A* Pathfinding Foundation
+**Status**: Approved
+**Owner**: Dev Engineer  
+**Size**: S (3h)
+**Priority**: Critical
+**Created**: 2025-09-11 18:12
+**Tech Breakdown**: Complete by Tech Lead
+
+**What**: Implement A* pathfinding algorithm with visual path display
+**Why**: Foundation for VS_012 movement system and all future tactical movement
+
+**Implementation Plan**:
+
+**Phase 1: Domain Algorithm (1h)**
+- Create `Domain.Pathfinding.AStarPathfinder`
+- Pure functional implementation with no dependencies
+- Deterministic tie-breaking (use Position.X then Y for equal F-scores)
+- Support diagonal movement (8-way) with correct costs (100 ortho, 141 diagonal)
+- Handle blocked tiles from Grid.Tile.IsWalkable
+
+```csharp
+public static class AStarPathfinder
+{
+    public static Option<ImmutableList<Position>> FindPath(
+        Position start,
+        Position goal,
+        Grid grid,
+        bool allowDiagonal = true)
+    {
+        // A* with deterministic tie-breaking
+        // Returns None if no path exists
+    }
+}
+```
+
+**Phase 2: Application Service (0.5h)**
+- Create `IPathfindingService` interface in Core
+- `FindPathQuery` and handler for CQRS pattern
+- Cache recent paths for performance (LRU cache, 32 entries)
+
+**Phase 3: Infrastructure (0.5h)**
+- Implement `PathfindingService` with caching
+- Performance monitoring (target: <10ms for 50 tiles)
+- Path validation before returning
+
+**Phase 4: Presentation (1h)**
+- Path visualization in GridPresenter
+- Semi-transparent overlay tiles (blue for path, green for destination)
+- Update on mouse hover to show potential paths
+- Clear path display on movement/action
+
+**Visual Feedback Design**:
+```
+Path tile: Modulate(0.5, 0.5, 1.0, 0.5) - Semi-transparent blue
+Destination: Modulate(0.5, 1.0, 0.5, 0.7) - Semi-transparent green  
+Current hover: Updates in real-time as mouse moves
+Animation: Gentle pulse on destination tile
+```
+
+**Done When**:
+- A* finds optimal paths deterministically
+- Diagonal movement works correctly (1.41x cost)
+- Path visualizes on grid before movement
+- Performance <10ms for typical paths (50 tiles)
+- Handles no-path-exists gracefully (returns None)
+- All tests pass including edge cases
+
+**Test Scenarios**:
+1. Straight line path (no obstacles)
+2. Path around single wall
+3. Maze navigation
+4. No path exists (surrounded)
+5. Diagonal preference when optimal
+
+**Architectural Constraints**:
+☑ Deterministic: Consistent tie-breaking rules
+☑ Save-Ready: Paths are transient, not saved
+☑ Time-Independent: Pure algorithm
+☑ Integer Math: Use 100/141 for movement costs
+☑ Testable: Pure domain function
+
+**Dependencies**: None (foundation feature)
+**Blocks**: VS_012 (Movement System)
 
 
 ## 📈 Important (Do Next)
@@ -231,6 +343,65 @@ Movement interrupted at (25, 25) - Orc spotted!
 - Follow bounded context pattern from ADR-015
 
 
+
+
+
+### TD_035: Standardize Error Handling in Infrastructure Services
+**Status**: Approved
+**Owner**: Dev Engineer
+**Size**: S (3h)
+**Priority**: Important
+**Created**: 2025-09-11 18:07
+**Complexity**: 3/10
+
+**What**: Replace remaining try-catch blocks with Fin<T> in infrastructure services
+**Why**: Inconsistent error handling breaks functional composition and makes debugging harder
+
+**Scope** (LIMITED TO):
+1. **PersistentVisionStateService** (7 try-catch blocks):
+   - GetVisionState, UpdateVisionState, ClearVisionState methods
+   - Convert to Try().Match() pattern with Fin<T>
+   
+2. **GridPresenter** (3 try-catch in event handlers):
+   - OnActorSpawned, OnActorMoved, OnActorRemoved
+   - Wrap in functional error handling
+   
+3. **ExecuteAttackCommandHandler** (mixed side effects):
+   - Extract logging to separate methods
+   - Isolate side effects from business logic
+
+**NOT IN SCOPE** (critical boundaries):
+- Performance-critical loops in ShadowcastingFOV (keep imperative)
+- ConcurrentDictionary in caching (proven pattern, don't change)
+- Working switch statements (already readable)
+- Domain layer (already fully functional)
+
+**Implementation Guidelines**:
+```csharp
+// Pattern to follow:
+public Fin<T> ServiceMethod() =>
+    Try(() => 
+    {
+        // existing logic
+    })
+    .Match(
+        Succ: result => FinSucc(result),
+        Fail: ex => FinFail<T>(Error.New("Context-specific message", ex))
+    );
+```
+
+**Done When**:
+- Zero try-catch blocks in listed services
+- All errors flow through Fin<T> consistently
+- Side effects isolated into dedicated methods
+- Performance unchanged (measure before/after)
+- All existing tests still pass
+
+**Tech Lead Notes**:
+- This is about consistency, not FP purity
+- Keep changes mechanical and predictable
+- Don't get creative - follow existing patterns
+- If performance degrades, revert that specific change
 
 
 

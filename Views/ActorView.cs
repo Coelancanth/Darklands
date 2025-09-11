@@ -410,7 +410,7 @@ namespace Darklands.Views
                 Value = 100, // Default to full health
                 ShowPercentage = false // We'll use a label instead
             };
-            
+
             // Add a label to show HP numbers
             var hpLabel = new Label
             {
@@ -420,16 +420,16 @@ namespace Darklands.Views
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
             };
-            
+
             // Set font size using method
             hpLabel.AddThemeFontSizeOverride("font_size", 10);
-            
+
             // Style the label for visibility
             hpLabel.AddThemeColorOverride("font_color", Colors.White);
             hpLabel.AddThemeColorOverride("font_shadow_color", Colors.Black);
             hpLabel.AddThemeConstantOverride("shadow_offset_x", 1);
             hpLabel.AddThemeConstantOverride("shadow_offset_y", 1);
-            
+
             healthBar.AddChild(hpLabel);
             healthBar.SetMeta("hp_label", hpLabel); // Store reference for updates
 
@@ -441,7 +441,7 @@ namespace Darklands.Views
             styleBoxFilled.BorderWidthLeft = 1;
             styleBoxFilled.BorderWidthRight = 1;
             styleBoxFilled.BorderColor = new Color(0.2f, 0.2f, 0.2f);
-            
+
             var styleBoxBackground = new StyleBoxFlat();
             styleBoxBackground.BgColor = new Color(0.3f, 0.1f, 0.1f); // Dark red background
             styleBoxBackground.BorderWidthTop = 1;
@@ -468,7 +468,7 @@ namespace Darklands.Views
             {
                 healthBar.MaxValue = maxHealth;
                 healthBar.Value = currentHealth;
-                
+
                 // Update the HP label
                 if (healthBar.HasMeta("hp_label"))
                 {
@@ -478,24 +478,24 @@ namespace Darklands.Views
                         label.Text = $"{currentHealth}/{maxHealth}";
                     }
                 }
-                
+
                 // Change color based on health percentage
                 var healthPercent = (float)currentHealth / maxHealth;
                 var styleBoxFilled = new StyleBoxFlat();
-                
+
                 if (healthPercent > 0.5f)
                     styleBoxFilled.BgColor = new Color(0.0f, 0.8f, 0.0f); // Green
                 else if (healthPercent > 0.25f)
                     styleBoxFilled.BgColor = new Color(0.8f, 0.8f, 0.0f); // Yellow
                 else
                     styleBoxFilled.BgColor = new Color(0.8f, 0.0f, 0.0f); // Red
-                    
+
                 styleBoxFilled.BorderWidthTop = 1;
                 styleBoxFilled.BorderWidthBottom = 1;
                 styleBoxFilled.BorderWidthLeft = 1;
                 styleBoxFilled.BorderWidthRight = 1;
                 styleBoxFilled.BorderColor = new Color(0.2f, 0.2f, 0.2f);
-                
+
                 healthBar.AddThemeStyleboxOverride("fill", styleBoxFilled);
             }
         }
@@ -514,10 +514,10 @@ namespace Darklands.Views
                 {
                     // Use existing UpdateActorHealth method with integer values
                     UpdateActorHealth(id, current.Current, current.Maximum);
-                    
+
                     _logger?.Debug("Updated health for actor {ActorId} from {OldHealth} to {NewHealth}",
                         id, old, current);
-                    
+
                     await Task.CompletedTask;
                 }
                 catch (Exception ex)
@@ -551,7 +551,7 @@ namespace Darklands.Views
 
                     _logger?.Debug("Showed {FeedbackType} feedback for actor {ActorId}: {Amount}",
                         type, id, amt);
-                    
+
                     await Task.CompletedTask;
                 }
                 catch (Exception ex)
@@ -583,7 +583,7 @@ namespace Darklands.Views
                     {
                         _logger?.Warning("Health bar not found for highlighting: actor {ActorId}", id);
                     }
-                    
+
                     await Task.CompletedTask;
                 }
                 catch (Exception ex)
@@ -613,7 +613,7 @@ namespace Darklands.Views
                     {
                         _logger?.Warning("Health bar not found for unhighlighting: actor {ActorId}", id);
                     }
-                    
+
                     await Task.CompletedTask;
                 }
                 catch (Exception ex)
@@ -657,12 +657,12 @@ namespace Darklands.Views
                 while (_pendingVisibilityUpdates.Count > 0)
                 {
                     var visibilityData = _pendingVisibilityUpdates.Dequeue();
-                    
+
                     if (_actorNodes.TryGetValue(visibilityData.ActorId, out var actorNode) && actorNode != null)
                     {
                         actorNode.Visible = visibilityData.IsVisible;
-                        _logger?.Debug("Set actor {ActorId} visibility to {Visible}", 
-                            visibilityData.ActorId.Value.ToString()[..8], 
+                        _logger?.Debug("Set actor {ActorId} visibility to {Visible}",
+                            visibilityData.ActorId.Value.ToString()[..8],
                             visibilityData.IsVisible ? "VISIBLE" : "HIDDEN");
                     }
                     else

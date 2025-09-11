@@ -1,0 +1,40 @@
+[gd_resource type="Resource" script_class="DebugConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://DebugConfig.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+ShowPaths = false
+ShowPathCosts = false
+PathColor = Color(0, 0, 1, 0.5)
+PathAlpha = 0.5
+ShowVisionRanges = false
+ShowFOVCalculations = false
+ShowExploredOverlay = true
+ShowLineOfSight = false
+ShowDamageNumbers = true
+ShowHitChances = false
+ShowTurnOrder = true
+ShowAttackRanges = false
+ShowAIStates = false
+ShowAIDecisionScores = false
+ShowAITargeting = false
+ShowFPS = false
+ShowFrameTime = false
+ShowMemoryUsage = false
+EnableProfiling = false
+GodMode = false
+UnlimitedActions = false
+InstantKills = false
+ShowThreadMessages = true
+ShowCommandMessages = true
+ShowEventMessages = true
+ShowSystemMessages = true
+ShowAIMessages = false
+ShowPerformanceMessages = false
+ShowNetworkMessages = false
+ShowDeveloperMessages = true
+ShowVisionMessages = true
+ShowPathfindingMessages = false
+ShowCombatMessages = true
+CurrentLogLevel = 1

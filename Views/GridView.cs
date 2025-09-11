@@ -22,7 +22,7 @@ namespace Darklands.Views
         private int _gridHeight;
         private Dictionary<Vector2I, ColorRect> _tiles = new();
         private readonly List<Line2D> _gridLines = new();
-        
+
         // Fog of war state management
         private Darklands.Core.Domain.Vision.VisionState? _currentVisionState;
 
@@ -254,8 +254,8 @@ namespace Darklands.Views
         public async Task UpdateFogOfWarAsync(Darklands.Core.Domain.Vision.VisionState visionState)
         {
             _logger?.Debug("GridView.UpdateFogOfWarAsync called for Actor {ActorId}: {Visible} visible, {Explored} explored",
-                visionState.ViewerId.Value.ToString()[..8], 
-                visionState.CurrentlyVisible.Count, 
+                visionState.ViewerId.Value.ToString()[..8],
+                visionState.CurrentlyVisible.Count,
                 visionState.PreviouslyExplored.Count);
 
             _currentVisionState = visionState;
@@ -275,7 +275,7 @@ namespace Darklands.Views
         {
             var fogColor = GetFogColorFromVisibility(visibilityLevel);
             var tilePosition = new Vector2I(position.X, position.Y);
-            
+
             CallDeferred(nameof(UpdateTileFogDeferred), tilePosition, fogColor);
 
             await Task.CompletedTask;
@@ -367,11 +367,11 @@ namespace Darklands.Views
             };
 
             CallDeferred(MethodName.AddTileToScene, tile, position);
-            
+
             // Debug log for first few tiles to confirm initial fog application
             if (position.X < 3 && position.Y < 3)
             {
-                _logger?.Debug("GridView: Created tile ({X},{Y}) with initial fog - Color: {TerrainColor}, Fog: {FogColor}", 
+                _logger?.Debug("GridView: Created tile ({X},{Y}) with initial fog - Color: {TerrainColor}, Fog: {FogColor}",
                     position.X, position.Y, color, FogUnseen);
             }
         }
@@ -527,7 +527,7 @@ namespace Darklands.Views
         {
             const int width = 30;
             const int height = 20;
-            
+
             // Create base empty grid (Open terrain)
             var grid = Darklands.Core.Domain.Grid.Grid.Create(idGenerator, width, height, Darklands.Core.Domain.Grid.TerrainType.Open)
                 .IfFail(_ => throw new System.InvalidOperationException("Failed to create strategic test grid"));
@@ -666,9 +666,9 @@ namespace Darklands.Views
                 return;
             }
 
-            _logger?.Debug("GridView.UpdateFogOfWarDeferred: Processing fog update for {GridWidth}x{GridHeight} grid with {TileCount} tiles", 
+            _logger?.Debug("GridView.UpdateFogOfWarDeferred: Processing fog update for {GridWidth}x{GridHeight} grid with {TileCount} tiles",
                 _gridWidth, _gridHeight, _tiles.Count);
-            _logger?.Debug("Vision state details - Currently Visible: {Visible}, Previously Explored: {Explored}", 
+            _logger?.Debug("Vision state details - Currently Visible: {Visible}, Previously Explored: {Explored}",
                 _currentVisionState.CurrentlyVisible.Count, _currentVisionState.PreviouslyExplored.Count);
 
             int visibleCount = 0, exploredCount = 0, unseenCount = 0;
@@ -681,7 +681,7 @@ namespace Darklands.Views
                     var visibilityLevel = _currentVisionState.GetVisibilityLevel(position);
                     var fogColor = GetFogColorFromVisibility(visibilityLevel);
                     var tilePosition = new Vector2I(x, y);
-                    
+
                     // Count visibility levels for debugging
                     switch (visibilityLevel)
                     {
@@ -689,15 +689,15 @@ namespace Darklands.Views
                         case Darklands.Core.Domain.Vision.VisibilityLevel.Explored: exploredCount++; break;
                         case Darklands.Core.Domain.Vision.VisibilityLevel.Unseen: unseenCount++; break;
                     }
-                    
+
                     if (_tiles.TryGetValue(tilePosition, out var tile))
                     {
                         tile.Modulate = fogColor;
-                        
+
                         // Debug a few sample tiles to verify modulation is being applied
                         if (x == 15 && y == 10) // Center position
                         {
-                            _logger?.Debug("GridView: Applied fog to tile (15,10) - Visibility: {Visibility}, Color: {Color}", 
+                            _logger?.Debug("GridView: Applied fog to tile (15,10) - Visibility: {Visibility}, Color: {Color}",
                                 visibilityLevel, fogColor);
                         }
                     }
@@ -708,7 +708,7 @@ namespace Darklands.Views
                 }
             }
 
-            _logger?.Debug("GridView: Fog update complete - {Visible} visible, {Explored} explored, {Unseen} unseen tiles", 
+            _logger?.Debug("GridView: Fog update complete - {Visible} visible, {Explored} explored, {Unseen} unseen tiles",
                 visibleCount, exploredCount, unseenCount);
         }
 
