@@ -78,29 +78,6 @@
 ## 🔥 Critical (Do First)
 *Blockers preventing other work, production bugs, dependencies for other features*
 
-### BR_005: Debug Window Log Level Filtering Not Working
-**Status**: Fixed
-**Owner**: Debugger Expert  
-**Size**: XS (<1h)
-**Priority**: Critical
-**Created**: 2025-09-11 19:05
-**Fixed**: 2025-09-11 20:15
-
-**What**: Debug window log level dropdown shows "Information" but Debug level messages still appear in console
-**Why**: User experience issue - log filtering not working as expected, undermining debug system usability
-**How**: Investigate and fix log level filtering logic in GodotCategoryLogger and DebugConfig integration
-
-**Root Cause**: Two separate logging systems (DebugSystem.Logger and Microsoft.Extensions.Logging/Serilog) weren't synchronized
-**Solution**: Implemented elegant SSOT - Added LoggingLevelSwitch to GameStrapper that dynamically updates when DebugConfig changes
-
-**Fix Applied**:
-- Added `GlobalLevelSwitch` to GameStrapper for runtime log level control
-- Updated DebugSystem to sync Serilog minimum level when config changes
-- All logging now respects the single debug configuration source
-- Core filtering logic implemented but not working in practice
-
-**Done When**:
-- Debug level messages are properly filtered when log level set to Information or higher
 - Console only shows messages at or above the selected log level
 - Manual verification confirms filtering works correctly
 
