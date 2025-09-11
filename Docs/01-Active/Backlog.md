@@ -81,32 +81,32 @@
 ### VS_011: Vision/FOV System with Shadowcasting
 **Status**: Approved  
 **Owner**: Dev Engineer
-**Size**: M (4h - increased for shadowcasting)
+**Size**: M (4h)
 **Priority**: Critical
 **Created**: 2025-09-10 19:03
-**Updated**: 2025-09-11 00:30
+**Updated**: 2025-09-11
 **Tech Breakdown**: FOV system using recursive shadowcasting
 
 **What**: Field-of-view system with asymmetric vision ranges and proper occlusion
 **Why**: Foundation for ALL combat, AI, and stealth features
 
 **Design** (per ADR-014):
-- **Non-reciprocal vision**: Each actor checks independently
+- **Uniform algorithm**: All actors use shadowcasting FOV
 - **Asymmetric ranges**: Different actors see different distances
-- **Recursive shadowcasting**: Proper FOV with no exploits
-- **Enables future stealth**: Can see without being seen
+- **Wake states**: Dormant monsters skip FOV calculation
+- **Caching**: FOV cached per turn for performance
 
 **Vision Ranges**:
 - Player: 8 tiles
-- Goblin: 5 tiles  
+- Goblin: 5 tiles
 - Orc: 6 tiles
 - Eagle: 12 tiles
 
 **Implementation Plan**:
 - **Phase 1**: Domain model (0.5h)
   - VisionRange value object
+  - Monster activation states
   - FOV result structures
-  - Vision query interfaces
   
 - **Phase 2**: Shadowcasting algorithm (2h)
   - Recursive shadowcasting implementation
@@ -117,32 +117,35 @@
 - **Phase 3**: Application layer (0.5h)
   - VisionQuery handler
   - GetVisibleActors query
+  - FOV caching system
   - Console commands for testing
   
 - **Phase 4**: Testing & validation (1h)
   - Unit tests for shadowcasting
-  - Corner case validation
-  - Performance testing
+  - Wake state transition tests
+  - Performance benchmarking
   - Console test scenarios
 
-**Core Algorithm** (Shadowcasting):
+**Core Algorithm** (Uniform Shadowcasting):
 ```csharp
-public class ShadowcastingFOV {
-    public HashSet<Position> CalculateFOV(Position origin, int range) {
-        var visible = new HashSet<Position> { origin };
-        
-        // Cast shadows in 8 octants
-        for (int octant = 0; octant < 8; octant++) {
-            CastShadows(origin, range, 1, 1.0, 0.0, octant, visible);
-        }
-        return visible;
-    }
+public class VisionSystem {
+    private Dictionary<Actor, HashSet<Position>> fovCache = new();
     
-    void CastShadows(Position origin, int range, int row, 
-                     double startSlope, double endSlope, 
-                     int octant, HashSet<Position> visible) {
-        // Recursive shadowcasting implementation
-        // Handles partial shadows and wall edges correctly
+    public HashSet<Position> CalculateFOV(Actor actor) {
+        // Skip dormant monsters
+        if (actor is Monster m && m.State == Dormant) {
+            return new HashSet<Position>();
+        }
+        
+        // Check cache
+        if (fovCache.ContainsKey(actor) && !actor.HasMoved) {
+            return fovCache[actor];
+        }
+        
+        // All actors use same shadowcasting
+        var fov = RecursiveShadowcast(actor.Position, actor.VisionRange);
+        fovCache[actor] = fov;
+        return fov;
     }
 }
 ```
@@ -189,14 +192,14 @@ Player not visible to: Goblin
 **Size**: S (2h)
 **Priority**: Critical
 **Created**: 2025-09-11 00:10
-**Updated**: 2025-09-11 00:10
+**Updated**: 2025-09-11
 **Tech Breakdown**: Movement using vision for scheduler activation
 
 **What**: Movement system where scheduler activates based on vision connections
 **Why**: Creates natural tactical combat without explicit modes
 
 **Design** (per ADR-014):
-- **Scheduler activation**: When anyone sees anyone hostile
+- **Scheduler activation**: When player and hostiles have vision
 - **Movement rules**: Adjacent-only when scheduled, pathfinding otherwise
 - **Interruption**: Stop movement when enemy becomes visible
 - **Fixed cost**: 100 TU per action when scheduled
@@ -221,11 +224,13 @@ Player not visible to: Goblin
   - Console messages and turn counter
   - Test with multiple scenarios
 
-**Scheduler Activation**:
+**Scheduler Activation (Solo)**:
 ```csharp
 bool ShouldUseScheduler() {
-    return actors.Any(a => 
-        actors.Any(b => a.IsHostileTo(b) && visionService.CanSee(a, b))
+    // Solo player - only check player vs monsters
+    return monsters.Any(m => 
+        m.State != Dormant && 
+        (visionService.CanSee(player, m) || visionService.CanSee(m, player))
     );
 }
 ```
