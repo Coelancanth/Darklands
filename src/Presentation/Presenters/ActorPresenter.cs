@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using Darklands.Core.Application.Common;
 using Darklands.Core.Application.Grid.Queries;
+using Darklands.Core.Application.Actor.Services;
 using Darklands.Core.Presentation.Views;
 using MediatR;
 using Serilog;
@@ -19,6 +20,7 @@ namespace Darklands.Core.Presentation.Presenters
         private readonly IMediator _mediator;
         private readonly ILogger _logger;
         private readonly IActorFactory _actorFactory;
+        private readonly IActorStateService _actorStateService;
         private HealthPresenter? _healthPresenter;
         private GridPresenter? _gridPresenter;
 
@@ -29,12 +31,14 @@ namespace Darklands.Core.Presentation.Presenters
         /// <param name="mediator">MediatR instance for sending commands and queries</param>
         /// <param name="logger">Logger for tracking actor operations</param>
         /// <param name="actorFactory">Factory for creating and managing actors</param>
-        public ActorPresenter(IActorView view, IMediator mediator, ILogger logger, IActorFactory actorFactory)
+        /// <param name="actorStateService">Service for querying actor state including health</param>
+        public ActorPresenter(IActorView view, IMediator mediator, ILogger logger, IActorFactory actorFactory, IActorStateService actorStateService)
             : base(view)
         {
             _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _actorFactory = actorFactory ?? throw new ArgumentNullException(nameof(actorFactory));
+            _actorStateService = actorStateService ?? throw new ArgumentNullException(nameof(actorStateService));
         }
 
         /// <summary>
@@ -80,7 +84,14 @@ namespace Darklands.Core.Presentation.Presenters
                         Succ: playerId =>
                         {
                             // Display the actor visually (health bar is created as child)
-                            View.DisplayActorAsync(playerId, new Domain.Grid.Position(15, 10), ActorType.Player);
+                            _ = Task.Run(async () =>
+                            {
+                                await View.DisplayActorAsync(playerId, new Domain.Grid.Position(15, 10), ActorType.Player);
+
+                                // Initialize health bar with correct values immediately after display
+                                await InitializeActorHealthBar(playerId);
+                            });
+
                             _logger.Debug("Player created at strategic center (15,10) with ID {ActorId}", playerId);
 
                             // Trigger initial vision update after player creation
@@ -103,7 +114,14 @@ namespace Darklands.Core.Presentation.Presenters
                         Succ: dummyId =>
                         {
                             // Display the dummy visually (health bar is created as child)
-                            View.DisplayActorAsync(dummyId, new Domain.Grid.Position(5, 5), ActorType.Enemy);
+                            _ = Task.Run(async () =>
+                            {
+                                await View.DisplayActorAsync(dummyId, new Domain.Grid.Position(5, 5), ActorType.Enemy);
+
+                                // Initialize health bar with correct values immediately after display
+                                await InitializeActorHealthBar(dummyId);
+                            });
+
                             _logger.Debug("Dummy target created at position (5,5) with ID {ActorId}", dummyId);
                         },
                         Fail: error => _logger.Warning("Failed to create dummy target: {Error}", error.Message)
@@ -293,6 +311,36 @@ namespace Darklands.Core.Presentation.Presenters
             catch (Exception ex)
             {
                 _logger.Error(ex, "Error updating health bar for actor {ActorId}", actorId);
+            }
+        }
+
+        /// <summary>
+        /// Initializes an actor's health bar with correct health values after display.
+        /// Called after DisplayActorAsync to set the correct initial health display.
+        /// </summary>
+        /// <param name="actorId">ID of the actor whose health bar needs initialization</param>
+        private async Task InitializeActorHealthBar(Domain.Grid.ActorId actorId)
+        {
+            try
+            {
+                // Query for the actor's current health
+                var actorOption = _actorStateService.GetActor(actorId);
+                actorOption.Match(
+                    Some: actor =>
+                    {
+                        // Update health bar with actual values
+                        View.UpdateActorHealth(actorId, actor.Health.Current, actor.Health.Maximum);
+                        _logger.Debug("Initialized health bar for actor {ActorId} with {Current}/{Max} HP",
+                            actorId, actor.Health.Current, actor.Health.Maximum);
+                    },
+                    None: () => _logger.Warning("Could not initialize health bar - actor {ActorId} not found in state service", actorId)
+                );
+
+                await Task.CompletedTask;
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Error initializing health bar for actor {ActorId}", actorId);
             }
         }
 

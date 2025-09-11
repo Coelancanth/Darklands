@@ -230,7 +230,7 @@ namespace Darklands
                 var actorFactory = _serviceProvider.GetRequiredService<Darklands.Core.Application.Common.IActorFactory>();
 
                 _gridPresenter = new GridPresenter(_gridView!, mediator, _logger!, gridStateService, combatQueryService, actorFactory);
-                _actorPresenter = new ActorPresenter(_actorView!, mediator, _logger!, actorFactory);
+                _actorPresenter = new ActorPresenter(_actorView!, mediator, _logger!, actorFactory, actorStateService);
                 _healthPresenter = new HealthPresenter(_healthView!, mediator, _logger!, actorStateService, combatQueryService);
 
                 // Connect views to presenters

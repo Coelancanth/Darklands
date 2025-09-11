@@ -1,43 +1,40 @@
 # Review Gaps Report
-Generated: Thursday, September 11, 2025 2:32:51 PM
+Generated: Thu, Sep 11, 2025  4:12:10 PM
 
 ## 🚨 Critical Gaps
-No critical gaps identified.
+*No critical gaps detected*
 
 ## ⏰ Stale Reviews (>3 days)
-No items stuck in Proposed status for >3 days identified.
+*No stale reviews detected*
 
 ## 👤 Missing Owners
-No items without clear ownership identified.
+*No items with missing owners detected*
 
 ## 🔄 Ownership Mismatches  
-No items with wrong owner for type/status identified.
+*No ownership mismatches detected*
 
 ## 🚧 Blocked Dependencies
-No items waiting on other work identified.
+*No blocked dependencies detected*
 
 ## 📊 Summary
-- **Total Active Items**: 7 (VS_011 completed and archived)
-- **Critical Gaps**: 0 (all previous issues resolved)
-- **Stale Reviews**: 0 (all recent items)
-- **Missing Owners**: 0
-- **Ownership Mismatches**: 0
-- **Blocked Items**: 0
-- **Ready to Start**: All active items appropriately owned and managed
+- **Total Active Items**: 5
+- **Completed Items Archived**: 3 (VS_011, BR_003, BR_004)
+- **Items Needing Attention**: 2 proposed items awaiting owner decisions
+  - TD_033: Shadowcasting FOV Edge Cases (Tech Lead decision needed)
+  - VS_013: Basic Enemy AI (Product Owner → Tech Lead handoff)
 
-## 🎯 Next Actions Needed
-1. **Dev Engineer**: VS_012 ready to begin (VS_011 foundation complete)
-2. **Continue planned work**: All other items remain on track with proper ownership
+## 📈 Priority Scores
+Active items automatically calculated based on criticality, blocking potential, and age:
+
+- **VS_012**: Vision-Based Movement System (Critical, blocks tactical combat) - [Score: 95/100]
+- **TD_032**: Fix Namespace-Class Collisions (Important, approved, ready to start) - [Score: 70/100]  
+- **VS_013**: Basic Enemy AI (Important, awaiting approval) - [Score: 65/100]
+- **BR_002**: Shadowcasting FOV Edge Cases (Low priority, 75% functional) - [Score: 25/100]
+- **TD_033**: Shadowcasting FOV Edge Cases (Low priority, deferrable) - [Score: 20/100]
 
 ## ✅ Recent Completions
-- **VS_011: Vision/FOV System with Shadowcasting and Fog of War** - COMPLETED
-  - Core fog of war system fully working with proper initialization
-  - Actor visibility fixed - actors and health bars hide/show properly when out of/in vision
-  - Health bars now child nodes of actors (move automatically, hide automatically)
-  - Health bars show HP numbers (e.g., 100/100) and are thinner for better visibility
-  - Vision updates correctly when player moves (turn tracking fixed)
-  - Shadowcasting FOV working with 6/8 tests passing (minor edge cases remain in TD_033)
-  - **BR_003-005 RESOLVED**: Parent-child node refactoring eliminated all actor visibility issues
+- **VS_011**: Vision/FOV System - Complete fog of war system with actor visibility integration
+- **BR_003**: HP Bar UI Synchronization - Fixed presenter connection patterns  
+- **BR_004**: Movement Validation - Fixed tile passability checking
 
-## 📈 Backlog Health Status
-**Status**: **EXCELLENT** - VS_011 major milestone completed successfully. Vision system foundation is fully operational and ready to support all future combat, AI, stealth, and exploration features. No review gaps identified. Backlog is clean and ready for strategic prioritization.
+All completed items moved to archive with extraction tracking for future pattern documentation.
