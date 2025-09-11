@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-11 (BR_002 partially fixed, TD_033 created)
+**Last Updated**: 2025-09-11 (VS_011 Phase 2 complete, VS_012 unblocked)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -79,12 +79,12 @@
 *Blockers preventing other work, production bugs, dependencies for other features*
 
 ### VS_011: Vision/FOV System with Shadowcasting and Fog of War
-**Status**: In Progress (Phase 1 Complete)
+**Status**: In Progress (Phase 2 Complete)
 **Owner**: Dev Engineer
 **Size**: M (6h)
 **Priority**: Critical
 **Created**: 2025-09-10 19:03
-**Updated**: 2025-09-11 (Phase 1 domain complete with 6/8 tests passing)
+**Updated**: 2025-09-11 (Phase 2 Application Layer complete - 638/640 tests passing)
 **Tech Breakdown**: FOV system using recursive shadowcasting with three-state fog of war
 
 **What**: Field-of-view system with asymmetric vision ranges, proper occlusion, and fog of war visualization
@@ -198,12 +198,16 @@ Goblin at (5,3):
 - ✅ Phase 1 Complete: Domain model (VisionRange, VisionState, ShadowcastingFOV)
 - ✅ Core shadowcasting algorithm implemented with 8 octants
 - ✅ Phase 1 Complete: 6/8 tests passing (functional for development)
+- ✅ Phase 2 Complete: Application layer with CQRS and vision state management
+  - CalculateFOVQuery/Handler with MediatR integration
+  - IVisionStateService + InMemoryVisionStateService implementation
+  - Vision caching, fog of war persistence, console testing
+  - GameStrapper DI registration, 638/640 tests passing
 - ⚠️ Minor edge cases remain - see TD_033 (low priority)
-- ⏳ Phase 2: Application layer (Query/Handler) - Next
-- ⏳ Phase 3: Infrastructure (VisionStateService)
-- ⏳ Phase 4: Presentation (FogOfWarPresenter)
+- ⏳ Phase 3: Infrastructure (Enhanced persistence, performance monitoring)
+- ⏳ Phase 4: Presentation (FogOfWarPresenter, UI integration)
 
-**Next Step**: Implement Phase 2 Application layer
+**Next Step**: Choose Phase 3 Infrastructure OR Phase 4 Presentation (Application layer foundation complete)
 
 ### VS_012: Vision-Based Movement System
 **Status**: Approved  
@@ -308,8 +312,8 @@ Movement interrupted at (25, 25) - Orc spotted!
 ☑ Integer Math: Tile movement
 ☑ Testable: Clear state transitions
 
-**Depends On**: VS_011 (Vision System)
-**Next Step**: Wait for VS_011 completion
+**Depends On**: VS_011 (Vision System) - ✅ Application layer complete
+**Next Step**: Ready to begin implementation (Phase 2 foundation available)
 
 ---
 
