@@ -214,7 +214,8 @@
       "Bash(while read f)",
       "Bash(do echo \"=== $f ===\")",
       "WebFetch(domain:journal.stuffwithstuff.com)",
-      "Bash(./scripts/core/build.ps1 test --filter \"Debug_SimpleFOV_TwoTilesEast\")"
+      "Bash(./scripts/core/build.ps1 test --filter \"Debug_SimpleFOV_TwoTilesEast\")",
+      "Bash(./scripts/core/build.ps1 test --filter \"Category=Phase2\")"
     ],
     "deny": [],
     "ask": [],

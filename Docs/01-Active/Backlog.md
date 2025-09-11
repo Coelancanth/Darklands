@@ -79,12 +79,12 @@
 *Blockers preventing other work, production bugs, dependencies for other features*
 
 ### VS_011: Vision/FOV System with Shadowcasting and Fog of War
-**Status**: In Progress (Phase 2 Complete)
+**Status**: In Progress (Phase 3 Complete)
 **Owner**: Dev Engineer
 **Size**: M (6h)
 **Priority**: Critical
 **Created**: 2025-09-10 19:03
-**Updated**: 2025-09-11 (Phase 2 Application Layer complete - 638/640 tests passing)
+**Updated**: 2025-09-11 (Phase 3 Infrastructure complete - 658/658 tests passing)
 **Tech Breakdown**: FOV system using recursive shadowcasting with three-state fog of war
 
 **What**: Field-of-view system with asymmetric vision ranges, proper occlusion, and fog of war visualization
@@ -203,11 +203,16 @@ Goblin at (5,3):
   - IVisionStateService + InMemoryVisionStateService implementation
   - Vision caching, fog of war persistence, console testing
   - GameStrapper DI registration, 638/640 tests passing
+- ✅ Phase 3 Complete: Enhanced infrastructure with performance monitoring
+  - VisionPerformanceMonitor with comprehensive metrics collection
+  - PersistentVisionStateService with enhanced caching and persistence
+  - IVisionPerformanceMonitor interface for clean architecture compliance
+  - Performance console commands and detailed reporting
+  - 15 new Phase 3 tests, 658/658 tests passing
 - ⚠️ Minor edge cases remain - see TD_033 (low priority)
-- ⏳ Phase 3: Infrastructure (Enhanced persistence, performance monitoring)
 - ⏳ Phase 4: Presentation (FogOfWarPresenter, UI integration)
 
-**Next Step**: Choose Phase 3 Infrastructure OR Phase 4 Presentation (Application layer foundation complete)
+**Next Step**: Ready for Phase 4 Presentation (Infrastructure foundation complete)
 
 ### VS_012: Vision-Based Movement System
 **Status**: Approved  
@@ -312,8 +317,8 @@ Movement interrupted at (25, 25) - Orc spotted!
 ☑ Integer Math: Tile movement
 ☑ Testable: Clear state transitions
 
-**Depends On**: VS_011 (Vision System) - ✅ Application layer complete
-**Next Step**: Ready to begin implementation (Phase 2 foundation available)
+**Depends On**: VS_011 (Vision System) - ✅ Infrastructure foundation complete (Phase 3)
+**Next Step**: Ready to begin implementation (Enhanced infrastructure available)
 
 ---
 

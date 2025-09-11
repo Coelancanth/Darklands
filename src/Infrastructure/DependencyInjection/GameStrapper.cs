@@ -222,7 +222,11 @@ public static class GameStrapper
             services.AddSingleton<Application.Actor.Services.IActorStateService, Application.Actor.Services.InMemoryActorStateService>();
 
             // Phase 2: Vision state management with fog of war
-            services.AddSingleton<Application.Vision.Services.IVisionStateService, Application.Vision.Services.InMemoryVisionStateService>();
+            // Phase 3: Enhanced persistence and performance monitoring
+            services.AddSingleton<Infrastructure.Vision.VisionPerformanceMonitor>();
+            services.AddSingleton<Application.Vision.Services.IVisionPerformanceMonitor>(provider =>
+                provider.GetRequiredService<Infrastructure.Vision.VisionPerformanceMonitor>());
+            services.AddSingleton<Application.Vision.Services.IVisionStateService, Infrastructure.Vision.PersistentVisionStateService>();
 
             // TD_009: Composite query service (coordinates ActorState + Grid services)
             services.AddSingleton<Application.Combat.Services.ICombatQueryService, Application.Combat.Services.CombatQueryService>();
