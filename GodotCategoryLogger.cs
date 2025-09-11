@@ -2,6 +2,7 @@ using Darklands.Core.Domain.Debug;
 using Darklands.Core.Infrastructure.Debug;
 using Godot;
 using Serilog;
+using System;
 using System.Collections.Generic;
 
 namespace Darklands;
@@ -16,24 +17,9 @@ public sealed class GodotCategoryLogger : ICategoryLogger
     private readonly CategoryFilteredLogger _coreLogger;
 
     /// <summary>
-    /// Maps log categories to console colors for visual distinction.
-    /// Uses Godot's rich text color codes for enhanced readability.
+    /// Note: Color mapping removed as we now use consistent Serilog formatting
+    /// instead of separate GD.PrintRich output for visual consistency.
     /// </summary>
-    private static readonly Dictionary<LogCategory, string> CategoryColors = new()
-    {
-        [LogCategory.System] = "#FFFFFF",      // White for system messages
-        [LogCategory.Command] = "#00FF00",     // Green for commands
-        [LogCategory.Event] = "#FFFF00",       // Yellow for events
-        [LogCategory.Thread] = "#FF00FF",      // Magenta for threading
-        [LogCategory.AI] = "#FF8000",          // Orange for AI
-        [LogCategory.Performance] = "#00FFFF", // Cyan for performance
-        [LogCategory.Network] = "#8080FF",     // Light blue for network
-        [LogCategory.Developer] = "#808080",   // Gray for developer
-        [LogCategory.Gameplay] = "#4080FF",    // Medium blue for gameplay
-        [LogCategory.Vision] = "#FF0080",      // Pink for vision
-        [LogCategory.Pathfinding] = "#80FF80", // Light green for pathfinding
-        [LogCategory.Combat] = "#FF4040"       // Red for combat
-    };
 
     public GodotCategoryLogger(ILogger serilogLogger, IDebugConfiguration config)
     {
@@ -78,11 +64,10 @@ public sealed class GodotCategoryLogger : ICategoryLogger
         // Use core logger for Serilog output with level handling
         _coreLogger.Log(level, category, message);
 
-        // Add Godot console output with color coding and level prefix
-        // Only output to console if the core logger would log it
-        var color = CategoryColors.GetValueOrDefault(category, "#FFFFFF");
-        var levelPrefix = GetLevelPrefix(level);
-        GD.PrintRich($"[color={color}]{levelPrefix}[{category}][/color] {message}");
+        // Add Godot console output with consistent Serilog formatting
+        var timestamp = DateTime.Now.ToString("HH:mm:ss");
+        var levelName = GetLevelName(level);
+        GD.PrintRich($"[{timestamp}] [{levelName}] [{category}] {message}");
     }
 
     /// <summary>
@@ -101,28 +86,38 @@ public sealed class GodotCategoryLogger : ICategoryLogger
         try
         {
             var formattedMessage = string.Format(template, args);
-            Log(level, category, formattedMessage);
+            // Use the core logger for file/console output
+            _coreLogger.Log(level, category, formattedMessage);
+            
+            // Add Godot console output with consistent formatting
+            var timestamp = DateTime.Now.ToString("HH:mm:ss");
+            var levelName = GetLevelName(level);
+            GD.PrintRich($"[{timestamp}] [{levelName}] [{category}] {formattedMessage}");
         }
         catch (System.FormatException)
         {
             // Fallback if string formatting fails
-            Log(LogLevel.Warning, category, $"[FORMAT ERROR] {template}");
+            var errorMsg = $"[FORMAT ERROR] {template}";
+            _coreLogger.Log(LogLevel.Warning, category, errorMsg);
+            
+            // Also show error in Godot console
+            var timestamp = DateTime.Now.ToString("HH:mm:ss");
+            GD.PrintRich($"[{timestamp}] [Warning] [{category}] {errorMsg}");
         }
     }
 
     /// <summary>
-    /// Gets a prefix string for the log level to show in console output.
-    /// Provides visual indication of message importance.
+    /// Gets the full level name to match Serilog output format.
     /// </summary>
     /// <param name="level">The log level</param>
-    /// <returns>Prefix string for console display</returns>
-    private static string GetLevelPrefix(LogLevel level) => level switch
+    /// <returns>Full level name for consistent formatting</returns>
+    private static string GetLevelName(LogLevel level) => level switch
     {
-        LogLevel.Debug => "[DBG]",
-        LogLevel.Information => "[INF]",
-        LogLevel.Warning => "[WRN]",
-        LogLevel.Error => "[ERR]",
-        _ => "[INF]"
+        LogLevel.Debug => "Debug",
+        LogLevel.Information => "Information",
+        LogLevel.Warning => "Warning",
+        LogLevel.Error => "Error",
+        _ => "Information"
     };
 
     /// <summary>

@@ -34,6 +34,7 @@ ShowAIMessages = false
 ShowPerformanceMessages = false
 ShowNetworkMessages = false
 ShowDeveloperMessages = true
+ShowGameplayMessages = true
 ShowVisionMessages = true
 ShowPathfindingMessages = false
 ShowCombatMessages = true
