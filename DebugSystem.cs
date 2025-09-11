@@ -17,58 +17,58 @@ public partial class DebugSystem : Node
     /// Set during _Ready() to ensure availability after scene tree initialization.
     /// </summary>
     public static DebugSystem Instance { get; private set; } = null!;
-    
+
     /// <summary>
     /// Debug configuration resource loaded from debug_config.tres.
     /// Provides runtime-editable debug settings with category-based controls.
     /// </summary>
     [Export] public DebugConfig Config { get; set; } = null!;
-    
+
     /// <summary>
     /// Category-aware logger that respects debug configuration filtering.
     /// Used throughout the game for filtered debug output.
     /// </summary>
     public ICategoryLogger Logger { get; private set; } = null!;
-    
+
     /// <summary>
     /// Debug window UI for runtime configuration changes.
     /// Toggled with F12 key for easy access during development and testing.
     /// </summary>
     private DebugWindow? _debugWindow;
-    
+
     /// <summary>
     /// Indicates whether the debug system has been properly initialized.
     /// Used to prevent usage before configuration is loaded.
     /// </summary>
     public bool IsInitialized { get; private set; }
-    
+
     public override void _Ready()
     {
         // Set global singleton reference
         Instance = this;
-        
+
         // Ensure this system processes even when the game is paused
         ProcessMode = ProcessModeEnum.Always;
-        
+
         // Load debug configuration resource
         InitializeConfiguration();
-        
+
         // Initialize category-filtered logger
         InitializeLogger();
-        
+
         // Create debug window UI
         InitializeDebugWindow();
-        
+
         IsInitialized = true;
-        
+
         Logger.Log(LogCategory.System, "DebugSystem initialized successfully");
-        
+
         // Test log level filtering during initialization
         Logger.Log(LogLevel.Debug, LogCategory.Developer, "Debug level message - should only show if level is Debug");
         Logger.Log(LogLevel.Information, LogCategory.Developer, "Information level message - should show if level is Information or lower");
         Logger.Log(LogLevel.Warning, LogCategory.Developer, "Warning level message - should always show");
     }
-    
+
     /// <summary>
     /// Loads debug configuration from resource file.
     /// Creates default configuration if file doesn't exist.
@@ -76,7 +76,7 @@ public partial class DebugSystem : Node
     private void InitializeConfiguration()
     {
         const string configPath = "res://debug_config.tres";
-        
+
         if (ResourceLoader.Exists(configPath))
         {
             Config = GD.Load<DebugConfig>(configPath);
@@ -90,7 +90,7 @@ public partial class DebugSystem : Node
             GD.Print("Created default debug configuration at: ", configPath);
         }
     }
-    
+
     /// <summary>
     /// Creates category-filtered logger using Serilog and debug configuration.
     /// Uses default Serilog logger if none is configured.
@@ -102,10 +102,10 @@ public partial class DebugSystem : Node
         var serilogLogger = Log.Logger ?? new LoggerConfiguration()
             .WriteTo.Console()
             .CreateLogger();
-            
+
         Logger = new GodotCategoryLogger(serilogLogger, Config);
     }
-    
+
     /// <summary>
     /// Creates and initializes the debug window UI.
     /// Window is initially hidden and toggled with F12 key.
@@ -116,7 +116,7 @@ public partial class DebugSystem : Node
         AddChild(_debugWindow);
         _debugWindow.Visible = false;
     }
-    
+
     /// <summary>
     /// Handles input events, specifically F12 key for debug window toggle.
     /// Processes input even when game is paused for debugging accessibility.
@@ -135,7 +135,7 @@ public partial class DebugSystem : Node
             }
         }
     }
-    
+
     /// <summary>
     /// Toggles the visibility of the debug window.
     /// Provides runtime access to debug configuration settings.
@@ -143,9 +143,9 @@ public partial class DebugSystem : Node
     public void ToggleDebugWindow()
     {
         if (_debugWindow == null) return;
-        
+
         _debugWindow.Visible = !_debugWindow.Visible;
-        
+
         if (_debugWindow.Visible)
         {
             Logger.Log(LogCategory.Developer, "Debug window opened");
@@ -155,7 +155,7 @@ public partial class DebugSystem : Node
             Logger.Log(LogCategory.Developer, "Debug window closed");
         }
     }
-    
+
     /// <summary>
     /// Convenience method to check if a specific debug category is enabled.
     /// Provides easy access for systems that need to check debug settings.

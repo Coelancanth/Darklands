@@ -14,7 +14,7 @@ namespace Darklands;
 public sealed class GodotCategoryLogger : ICategoryLogger
 {
     private readonly CategoryFilteredLogger _coreLogger;
-    
+
     /// <summary>
     /// Maps log categories to console colors for visual distinction.
     /// Uses Godot's rich text color codes for enhanced readability.
@@ -33,12 +33,12 @@ public sealed class GodotCategoryLogger : ICategoryLogger
         [LogCategory.Pathfinding] = "#80FF80", // Light green for pathfinding
         [LogCategory.Combat] = "#FF4040"       // Red for combat
     };
-    
+
     public GodotCategoryLogger(ILogger serilogLogger, IDebugConfiguration config)
     {
         _coreLogger = new CategoryFilteredLogger(serilogLogger, config);
     }
-    
+
     /// <summary>
     /// Logs a message under the specified category with both Serilog and Godot console output.
     /// Uses Information level by default for backward compatibility.
@@ -49,7 +49,7 @@ public sealed class GodotCategoryLogger : ICategoryLogger
     {
         Log(LogLevel.Information, category, message);
     }
-    
+
     /// <summary>
     /// Logs a formatted message under the specified category with arguments.
     /// Uses Information level by default for backward compatibility.
@@ -61,7 +61,7 @@ public sealed class GodotCategoryLogger : ICategoryLogger
     {
         Log(LogLevel.Information, category, template, args);
     }
-    
+
     /// <summary>
     /// Logs a message with specified level and category, with colored Godot console output.
     /// Provides both Serilog structured logging and visual console feedback.
@@ -73,16 +73,16 @@ public sealed class GodotCategoryLogger : ICategoryLogger
     {
         if (!_coreLogger.IsEnabled(level, category))
             return;
-            
+
         // Use core logger for Serilog output with level handling
         _coreLogger.Log(level, category, message);
-        
+
         // Add Godot console output with color coding and level prefix
         var color = CategoryColors.GetValueOrDefault(category, "#FFFFFF");
         var levelPrefix = GetLevelPrefix(level);
         GD.PrintRich($"[color={color}]{levelPrefix}[{category}][/color] {message}");
     }
-    
+
     /// <summary>
     /// Logs a formatted message with specified level and category.
     /// Combines structured logging with visual console feedback.
@@ -95,7 +95,7 @@ public sealed class GodotCategoryLogger : ICategoryLogger
     {
         if (!_coreLogger.IsEnabled(level, category))
             return;
-            
+
         try
         {
             var formattedMessage = string.Format(template, args);
@@ -107,7 +107,7 @@ public sealed class GodotCategoryLogger : ICategoryLogger
             Log(LogLevel.Warning, category, $"[FORMAT ERROR] {template}");
         }
     }
-    
+
     /// <summary>
     /// Gets a prefix string for the log level to show in console output.
     /// Provides visual indication of message importance.
@@ -117,12 +117,12 @@ public sealed class GodotCategoryLogger : ICategoryLogger
     private static string GetLevelPrefix(LogLevel level) => level switch
     {
         LogLevel.Debug => "[DBG]",
-        LogLevel.Information => "[INF]", 
+        LogLevel.Information => "[INF]",
         LogLevel.Warning => "[WRN]",
         LogLevel.Error => "[ERR]",
         _ => "[INF]"
     };
-    
+
     /// <summary>
     /// Checks if logging is enabled for the specified category.
     /// Delegates to core logger for consistency.
@@ -130,7 +130,7 @@ public sealed class GodotCategoryLogger : ICategoryLogger
     /// <param name="category">The category to check</param>
     /// <returns>True if logging is enabled for this category</returns>
     public bool IsEnabled(LogCategory category) => _coreLogger.IsEnabled(category);
-    
+
     /// <summary>
     /// Checks if logging is enabled for the specified level and category.
     /// Delegates to core logger for consistency.

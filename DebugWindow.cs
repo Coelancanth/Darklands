@@ -21,38 +21,38 @@ public partial class DebugWindow : Window
     private ScrollContainer _scrollContainer = null!;
     private VBoxContainer _categoriesContainer = null!;
     private Label _titleLabel = null!;
-    
+
     /// <summary>
     /// Base font sizes for scaling calculations.
     /// </summary>
     private const int BaseTitleFontSize = 14;
     private const int BaseRegularFontSize = 12;
     private const int BaseWindowWidth = 350;
-    
+
     /// <summary>
     /// Maps category names to their expanded/collapsed state.
     /// Persists category visibility across debug window toggles.
     /// </summary>
     private readonly Dictionary<string, bool> _categoryExpanded = new();
-    
+
     /// <summary>
     /// Maps category names to their container nodes for dynamic show/hide.
     /// Used for search filtering and category management.
     /// </summary>
     private readonly Dictionary<string, Control> _categoryContainers = new();
-    
+
     public DebugWindow(DebugConfig config)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
-        
+
         SetupWindowProperties();
         CreateUI();
         PopulateCategories();
-        
+
         // Set up responsive font scaling
         SizeChanged += OnWindowSizeChanged;
     }
-    
+
     /// <summary>
     /// Configures window properties for optimal debug access.
     /// Positioned to not interfere with game view while remaining easily accessible.
@@ -62,17 +62,17 @@ public partial class DebugWindow : Window
         Title = "Debug Configuration";
         Size = new Vector2I(350, 500);
         Position = new Vector2I(20, 20);
-        
+
         // Enable resizing with sensible constraints
         Unresizable = false;
         MinSize = new Vector2I(300, 400);  // Minimum size for usability
         MaxSize = new Vector2I(600, 800);  // Maximum size to prevent excessive screen usage
-        
+
         // Keep window on top but not always
         Transient = false;
-        
+
         // Enable close button and handle close requests
-        CloseRequested += () => 
+        CloseRequested += () =>
         {
             Visible = false;
             // Notify debug system that window was closed via close button
@@ -82,7 +82,7 @@ public partial class DebugWindow : Window
             }
         };
     }
-    
+
     /// <summary>
     /// Creates the main UI structure with search box and scrollable category container.
     /// Uses VBoxContainer for clean vertical layout and ScrollContainer for many options.
@@ -91,69 +91,69 @@ public partial class DebugWindow : Window
     {
         _mainContainer = new VBoxContainer();
         AddChild(_mainContainer);
-        
+
         // Set to fill the entire window
         _mainContainer.AnchorLeft = 0;
         _mainContainer.AnchorTop = 0;
         _mainContainer.AnchorRight = 1;
         _mainContainer.AnchorBottom = 1;
-        
+
         // Add title label
-        _titleLabel = new Label 
-        { 
-            Text = "🐛 Debug Configuration", 
+        _titleLabel = new Label
+        {
+            Text = "🐛 Debug Configuration",
             HorizontalAlignment = HorizontalAlignment.Center
         };
         _titleLabel.AddThemeStyleboxOverride("normal", new StyleBoxEmpty());
         _mainContainer.AddChild(_titleLabel);
-        
+
         // Add search box
-        _searchBox = new LineEdit 
-        { 
-            PlaceholderText = "🔍 Search settings..." 
+        _searchBox = new LineEdit
+        {
+            PlaceholderText = "🔍 Search settings..."
         };
         _searchBox.TextChanged += OnSearchTextChanged;
         _mainContainer.AddChild(_searchBox);
-        
+
         // Add log level selection
         var logLevelContainer = new HBoxContainer();
         _mainContainer.AddChild(logLevelContainer);
-        
+
         logLevelContainer.AddChild(new Label { Text = "Log Level:" });
-        
+
         var logLevelOption = new OptionButton();
         logLevelOption.AddItem("Debug", (int)LogLevel.Debug);
         logLevelOption.AddItem("Information", (int)LogLevel.Information);
         logLevelOption.AddItem("Warning", (int)LogLevel.Warning);
         logLevelOption.AddItem("Error", (int)LogLevel.Error);
-        
+
         // Set current selection
         logLevelOption.Selected = (int)_config.CurrentLogLevel;
-        
+
         logLevelOption.ItemSelected += (long index) =>
         {
             _config.CurrentLogLevel = (LogLevel)index;
             _config.NotifySettingChanged(nameof(_config.CurrentLogLevel));
         };
-        
+
         logLevelContainer.AddChild(logLevelOption);
-        
+
         // Add separator
         _mainContainer.AddChild(new HSeparator());
-        
+
         // Create scroll container for categories
-        _scrollContainer = new ScrollContainer 
-        { 
+        _scrollContainer = new ScrollContainer
+        {
             SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
             SizeFlagsVertical = Control.SizeFlags.ExpandFill
         };
         _mainContainer.AddChild(_scrollContainer);
-        
+
         // Container for all categories
         _categoriesContainer = new VBoxContainer();
         _scrollContainer.AddChild(_categoriesContainer);
     }
-    
+
     /// <summary>
     /// Automatically generates UI categories from DebugConfig ExportGroup attributes.
     /// Uses reflection to discover categories and their properties.
@@ -162,13 +162,13 @@ public partial class DebugWindow : Window
     private void PopulateCategories()
     {
         var categories = GetDebugConfigCategories();
-        
+
         foreach (var category in categories)
         {
             CreateCategorySection(category.Key, category.Value);
         }
     }
-    
+
     /// <summary>
     /// Extracts categories from DebugConfig using ExportGroup attributes.
     /// Maps category names to their properties for UI generation.
@@ -178,9 +178,9 @@ public partial class DebugWindow : Window
     {
         var categories = new Dictionary<string, List<PropertyInfo>>();
         var properties = _config.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance);
-        
+
         string currentCategory = "General";
-        
+
         foreach (var property in properties)
         {
             // Check for ExportGroup attribute to determine category
@@ -190,21 +190,21 @@ public partial class DebugWindow : Window
                 currentCategory = exportGroupAttr.Name;
                 continue;
             }
-            
+
             // Check if property has Export attribute (should be included in UI)
             var exportAttr = property.GetCustomAttribute<ExportAttribute>();
             if (exportAttr != null && property.PropertyType == typeof(bool))
             {
                 if (!categories.ContainsKey(currentCategory))
                     categories[currentCategory] = new List<PropertyInfo>();
-                    
+
                 categories[currentCategory].Add(property);
             }
         }
-        
+
         return categories;
     }
-    
+
     /// <summary>
     /// Creates a collapsible section for a debug category.
     /// Includes expand/collapse header, toggle-all checkbox, and individual property controls.
@@ -215,46 +215,46 @@ public partial class DebugWindow : Window
     {
         // Default categories to expanded
         _categoryExpanded[categoryName] = true;
-        
+
         // Category header button
-        var headerButton = new Button 
-        { 
+        var headerButton = new Button
+        {
             Text = $"▼ {categoryName}",
             Flat = true,
             Alignment = HorizontalAlignment.Left
         };
-        
+
         headerButton.Pressed += () => ToggleCategory(categoryName, headerButton);
         _categoriesContainer.AddChild(headerButton);
-        
+
         // Category container
         var categoryContainer = new VBoxContainer();
         _categoriesContainer.AddChild(categoryContainer);
         _categoryContainers[categoryName] = categoryContainer;
-        
+
         // Add some indentation
         categoryContainer.AddThemeConstantOverride("margin_left", 20);
-        
+
         // Toggle All checkbox
-        var toggleAllCheckbox = new CheckBox 
-        { 
+        var toggleAllCheckbox = new CheckBox
+        {
             Text = "Enable All",
             ButtonPressed = AreAllCategorySettingsEnabled(properties)
         };
-        
+
         toggleAllCheckbox.Toggled += (bool pressed) => ToggleAllInCategory(properties, pressed);
         categoryContainer.AddChild(toggleAllCheckbox);
-        
+
         // Individual property checkboxes
         foreach (var property in properties)
         {
             CreatePropertyCheckbox(categoryContainer, property);
         }
-        
+
         // Add separator between categories
         _categoriesContainer.AddChild(new HSeparator());
     }
-    
+
     /// <summary>
     /// Creates a checkbox control for a boolean property.
     /// Automatically syncs with the DebugConfig property value.
@@ -263,21 +263,21 @@ public partial class DebugWindow : Window
     /// <param name="property">Property info for the boolean setting</param>
     private void CreatePropertyCheckbox(Container parent, PropertyInfo property)
     {
-        var checkbox = new CheckBox 
-        { 
+        var checkbox = new CheckBox
+        {
             Text = FormatPropertyName(property.Name),
             ButtonPressed = (bool)(property.GetValue(_config) ?? false)
         };
-        
+
         checkbox.Toggled += (bool pressed) =>
         {
             property.SetValue(_config, pressed);
             _config.NotifySettingChanged(property.Name);
         };
-        
+
         parent.AddChild(checkbox);
     }
-    
+
     /// <summary>
     /// Converts property names from PascalCase to human-readable format.
     /// Example: "ShowVisionRanges" becomes "Show Vision Ranges"
@@ -295,7 +295,7 @@ public partial class DebugWindow : Window
         }
         return result;
     }
-    
+
     /// <summary>
     /// Toggles the expanded/collapsed state of a category.
     /// Updates button text and container visibility.
@@ -306,15 +306,15 @@ public partial class DebugWindow : Window
     {
         _categoryExpanded[categoryName] = !_categoryExpanded[categoryName];
         var isExpanded = _categoryExpanded[categoryName];
-        
+
         headerButton.Text = $"{(isExpanded ? "▼" : "▶")} {categoryName}";
-        
+
         if (_categoryContainers.TryGetValue(categoryName, out var container))
         {
             container.Visible = isExpanded;
         }
     }
-    
+
     /// <summary>
     /// Toggles all boolean properties in a category.
     /// Used by the "Enable All" checkbox functionality.
@@ -331,11 +331,11 @@ public partial class DebugWindow : Window
                 _config.NotifySettingChanged(property.Name);
             }
         }
-        
+
         // Refresh UI to reflect changes
         RefreshAllCheckboxes();
     }
-    
+
     /// <summary>
     /// Checks if all settings in a category are currently enabled.
     /// Used to set the initial state of "Enable All" checkboxes.
@@ -354,7 +354,7 @@ public partial class DebugWindow : Window
         }
         return true;
     }
-    
+
     /// <summary>
     /// Refreshes all checkbox states to match current configuration.
     /// Called after batch updates to ensure UI consistency.
@@ -365,7 +365,7 @@ public partial class DebugWindow : Window
         // For now, the individual checkbox event handlers maintain consistency
         // A full implementation would store checkbox references for batch updates
     }
-    
+
     /// <summary>
     /// Handles search text changes to filter visible categories and settings.
     /// Shows/hides categories based on search term matching.
@@ -379,14 +379,14 @@ public partial class DebugWindow : Window
         {
             var categoryName = kvp.Key;
             var container = kvp.Value;
-            
-            bool shouldShow = string.IsNullOrEmpty(searchText) || 
+
+            bool shouldShow = string.IsNullOrEmpty(searchText) ||
                             categoryName.Contains(searchText, StringComparison.OrdinalIgnoreCase);
-                            
+
             ((Control)container.GetParent()).Visible = shouldShow;
         }
     }
-    
+
     /// <summary>
     /// Handles window size changes to update font scaling responsively.
     /// Calculates appropriate font sizes based on window width relative to base size.
@@ -395,10 +395,10 @@ public partial class DebugWindow : Window
     {
         var scaleFactor = (float)Size.X / BaseWindowWidth;
         scaleFactor = Math.Clamp(scaleFactor, 0.8f, 1.5f); // Reasonable scaling limits
-        
+
         UpdateFontScaling(scaleFactor);
     }
-    
+
     /// <summary>
     /// Updates font sizes for all UI elements based on the scale factor.
     /// Maintains readability across different window sizes.
@@ -408,23 +408,23 @@ public partial class DebugWindow : Window
     {
         var titleFontSize = (int)(BaseTitleFontSize * scaleFactor);
         var regularFontSize = (int)(BaseRegularFontSize * scaleFactor);
-        
+
         // Update title font size
         if (_titleLabel != null)
         {
             _titleLabel.AddThemeFontSizeOverride("font_size", titleFontSize);
         }
-        
+
         // Update search box font size
         if (_searchBox != null)
         {
             _searchBox.AddThemeFontSizeOverride("font_size", regularFontSize);
         }
-        
+
         // Update all category labels and checkboxes
         UpdateChildFontSizes(_categoriesContainer, regularFontSize);
     }
-    
+
     /// <summary>
     /// Recursively updates font sizes for all child controls.
     /// Ensures consistent font scaling throughout the debug window.
@@ -434,11 +434,11 @@ public partial class DebugWindow : Window
     private void UpdateChildFontSizes(Node parent, int fontSize)
     {
         if (parent == null) return;
-        
+
         for (int i = 0; i < parent.GetChildCount(); i++)
         {
             var child = parent.GetChild(i);
-            
+
             // Update font sizes for text-displaying controls
             switch (child)
             {
@@ -458,7 +458,7 @@ public partial class DebugWindow : Window
                     button.AddThemeFontSizeOverride("font_size", fontSize);
                     break;
             }
-            
+
             // Recursively update children
             UpdateChildFontSizes(child, fontSize);
         }
