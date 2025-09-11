@@ -18,6 +18,7 @@ namespace Darklands.Views
         private ActorPresenter? _presenter;
         private ILogger? _logger;
         private readonly Dictionary<Darklands.Core.Domain.Grid.ActorId, ColorRect> _actorNodes = new();
+        private readonly Dictionary<Darklands.Core.Domain.Grid.ActorId, ProgressBar> _healthBars = new();
         private const int TileSize = 64;
         private const float MoveDuration = 0.3f; // Seconds for movement animation
 
@@ -93,6 +94,13 @@ namespace Darklands.Views
                     Color = GetActorColor(actorType),
                     Position = new Vector2(position.X * TileSize, position.Y * TileSize)
                 };
+
+                // Create health bar as child of actor node
+                if (actorType != ActorType.Neutral) // Only add health bars to actors that need them
+                {
+                    var healthBar = CreateHealthBar(actorId);
+                    actorNode.AddChild(healthBar);
+                }
 
                 // Queue for deferred call - prevents race condition
                 lock (_pendingActorCreations)
@@ -245,6 +253,7 @@ namespace Darklands.Views
                     {
                         actorNode?.QueueFree();
                         _actorNodes.Remove(id);
+                        _healthBars.Remove(id); // Also remove health bar reference
                     }
                     else
                     {
@@ -384,6 +393,79 @@ namespace Darklands.Views
                 ActorType.Interactive => InteractiveColor,
                 _ => PlayerColor // Default to player color
             };
+        }
+
+        /// <summary>
+        /// Creates a health bar as a child node of an actor.
+        /// The health bar will automatically move with its parent actor.
+        /// </summary>
+        private ProgressBar CreateHealthBar(Darklands.Core.Domain.Grid.ActorId actorId)
+        {
+            var healthBar = new ProgressBar
+            {
+                Size = new Vector2(TileSize - 8, 6), // Slightly smaller than tile
+                Position = new Vector2(4, -10), // Positioned above the actor
+                MinValue = 0,
+                MaxValue = 100,
+                Value = 100, // Default to full health
+                ShowPercentage = false
+            };
+
+            // Style the health bar
+            var styleBoxFilled = new StyleBoxFlat();
+            styleBoxFilled.BgColor = new Color(0.0f, 0.8f, 0.0f); // Green for health
+            styleBoxFilled.BorderWidthTop = 1;
+            styleBoxFilled.BorderWidthBottom = 1;
+            styleBoxFilled.BorderWidthLeft = 1;
+            styleBoxFilled.BorderWidthRight = 1;
+            styleBoxFilled.BorderColor = new Color(0.2f, 0.2f, 0.2f);
+            
+            var styleBoxBackground = new StyleBoxFlat();
+            styleBoxBackground.BgColor = new Color(0.3f, 0.1f, 0.1f); // Dark red background
+            styleBoxBackground.BorderWidthTop = 1;
+            styleBoxBackground.BorderWidthBottom = 1;
+            styleBoxBackground.BorderWidthLeft = 1;
+            styleBoxBackground.BorderWidthRight = 1;
+            styleBoxBackground.BorderColor = new Color(0.2f, 0.2f, 0.2f);
+
+            healthBar.AddThemeStyleboxOverride("fill", styleBoxFilled);
+            healthBar.AddThemeStyleboxOverride("background", styleBoxBackground);
+
+            // Store reference for later updates
+            _healthBars[actorId] = healthBar;
+
+            return healthBar;
+        }
+
+        /// <summary>
+        /// Updates the health value of an actor's health bar.
+        /// </summary>
+        public void UpdateActorHealth(Darklands.Core.Domain.Grid.ActorId actorId, int currentHealth, int maxHealth)
+        {
+            if (_healthBars.TryGetValue(actorId, out var healthBar))
+            {
+                healthBar.MaxValue = maxHealth;
+                healthBar.Value = currentHealth;
+                
+                // Change color based on health percentage
+                var healthPercent = (float)currentHealth / maxHealth;
+                var styleBoxFilled = new StyleBoxFlat();
+                
+                if (healthPercent > 0.5f)
+                    styleBoxFilled.BgColor = new Color(0.0f, 0.8f, 0.0f); // Green
+                else if (healthPercent > 0.25f)
+                    styleBoxFilled.BgColor = new Color(0.8f, 0.8f, 0.0f); // Yellow
+                else
+                    styleBoxFilled.BgColor = new Color(0.8f, 0.0f, 0.0f); // Red
+                    
+                styleBoxFilled.BorderWidthTop = 1;
+                styleBoxFilled.BorderWidthBottom = 1;
+                styleBoxFilled.BorderWidthLeft = 1;
+                styleBoxFilled.BorderWidthRight = 1;
+                styleBoxFilled.BorderColor = new Color(0.2f, 0.2f, 0.2f);
+                
+                healthBar.AddThemeStyleboxOverride("fill", styleBoxFilled);
+            }
         }
 
         /// <summary>

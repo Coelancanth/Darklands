@@ -9,7 +9,7 @@
 ## 🔢 Next Item Numbers by Type
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
-- **Next BR**: 006
+- **Next BR**: 003
 - **Next TD**: 034  
 - **Next VS**: 014 
 
@@ -358,104 +358,7 @@ Movement interrupted at (25, 25) - Orc spotted!
 **Depends On**: VS_011 (Vision System) - ✅ Infrastructure foundation complete (Phase 3)
 **Next Step**: Ready to begin implementation (Enhanced infrastructure available)
 
-### BR_003: Multiple Player Creation Causing Movement Tracking Conflicts
-**Status**: New
-**Owner**: Debugger Expert
-**Size**: S (2-4h)
-**Priority**: Critical
-**Created**: 2025-09-11 13:29
-**Discovered During**: VS_011 Phase 4 testing
 
-**What**: Multiple player entities are being created, causing movement tracking conflicts
-**Why**: Prevents proper player position updates and causes inconsistent game state
-
-**Symptoms**:
-- Player position not updating correctly during movement
-- Vision system calculates correctly but position tracking fails
-- Multiple player instances detected in game state
-- Movement commands appear to succeed but position remains stale
-
-**Investigation Needed**:
-- Trace player entity creation flow
-- Identify where duplicate players are instantiated
-- Check DI container registration for singleton violations
-- Verify game state initialization sequence
-
-**Done When**:
-- Only one player entity exists in game state
-- Player position updates correctly with movement
-- Movement tracking works consistently
-- No duplicate entity creation detected
-
-### BR_004: Fog of War Color Rendering Not Showing Proper Terrain Modulation
-**Status**: New 
-**Owner**: Debugger Expert
-**Size**: S (2h)
-**Priority**: Critical
-**Created**: 2025-09-11 13:29
-**Discovered During**: VS_011 Phase 4 testing
-
-**What**: Fog of war color modulation not properly showing terrain in explored areas
-**Why**: Explored areas should show terrain with gray modulation, but colors appear incorrect
-
-**Symptoms**:
-- Explored areas not showing expected gray modulation of terrain
-- Fog colors may not be applying correctly to terrain tiles
-- Visual distinction between unseen/explored/visible states unclear
-- Terrain textures not properly combining with fog overlays
-
-**Investigation Needed**:
-- Check GridView fog modulation implementation
-- Verify Color values for FogUnseen, FogExplored states
-- Test fog color application to different terrain types
-- Validate UpdateFogOfWar method in GridView
-
-**Expected Behavior**:
-- Unseen: Near-black overlay (Color 0.05, 0.05, 0.05)
-- Explored: Gray modulation showing terrain (Color 0.35, 0.35, 0.4)
-- Visible: Clear terrain with no fog overlay
-
-**Done When**:
-- Explored areas show terrain with proper gray modulation
-- Clear visual distinction between all three fog states
-- Fog colors apply correctly to all terrain types
-- Fog rendering matches design specifications
-
-### BR_005: Player Position Not Updating Correctly During Movement
-**Status**: New
-**Owner**: Debugger Expert  
-**Size**: S (2-3h)
-**Priority**: Critical
-**Created**: 2025-09-11 13:29
-**Discovered During**: VS_011 Phase 4 testing
-
-**What**: Player position tracking fails while vision system updates correctly
-**Why**: Creates desync between visual position and actual game state position
-
-**Symptoms**:
-- Vision calculations use correct player position
-- Movement commands execute but position doesn't persist
-- Player appears to move but reverts to old position
-- Position tracking inconsistent between systems
-
-**Investigation Needed**:
-- Trace position update flow in movement system
-- Check if position changes are being persisted correctly
-- Verify GridView position synchronization
-- Identify disconnect between vision system and position tracking
-
-**Related Issues**:
-- May be connected to BR_003 (multiple player entities)
-- Position updates might be applied to wrong player instance
-- State synchronization between domain and presentation layers
-
-**Done When**:
-- Player position updates correctly with all movement
-- Position tracking consistent across all systems
-- No position reversion after movement commands
-- Vision system and position tracking use same player state
-
----
 
 
 

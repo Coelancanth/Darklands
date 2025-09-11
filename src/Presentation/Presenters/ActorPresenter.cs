@@ -79,26 +79,9 @@ namespace Darklands.Core.Presentation.Presenters
                     playerResult.Match(
                         Succ: playerId =>
                         {
-                            // Display the actor visually
+                            // Display the actor visually (health bar is created as child)
                             View.DisplayActorAsync(playerId, new Domain.Grid.Position(15, 10), ActorType.Player);
-
-                            // Notify health presenter if connected
-                            if (_healthPresenter != null)
-                            {
-                                var healthResult = Domain.Actor.Health.CreateAtFullHealth(100);
-                                healthResult.Match(
-                                    Succ: health =>
-                                    {
-                                        _healthPresenter.HandleActorCreated(playerId, new Domain.Grid.Position(15, 10), health);
-                                        _logger.Debug("Player created with health bar at strategic center (15,10) with ID {ActorId}", playerId);
-                                    },
-                                    Fail: error => _logger.Warning("Failed to create health for test player: {Error}", error.Message)
-                                );
-                            }
-                            else
-                            {
-                                _logger.Warning("HealthPresenter not connected - health bar will not be displayed for test player");
-                            }
+                            _logger.Debug("Player created at strategic center (15,10) with ID {ActorId}", playerId);
 
                             // Trigger initial vision update after player creation
                             if (_gridPresenter != null)
@@ -119,26 +102,9 @@ namespace Darklands.Core.Presentation.Presenters
                     dummyResult.Match(
                         Succ: dummyId =>
                         {
-                            // Display the dummy visually
+                            // Display the dummy visually (health bar is created as child)
                             View.DisplayActorAsync(dummyId, new Domain.Grid.Position(5, 5), ActorType.Enemy);
-
-                            // Notify health presenter if connected
-                            if (_healthPresenter != null)
-                            {
-                                var healthResult = Domain.Actor.Health.CreateAtFullHealth(50);
-                                healthResult.Match(
-                                    Succ: health =>
-                                    {
-                                        _healthPresenter.HandleActorCreated(dummyId, new Domain.Grid.Position(5, 5), health);
-                                        _logger.Debug("Dummy target created with health bar at position (5,5) with ID {ActorId}", dummyId);
-                                    },
-                                    Fail: error => _logger.Warning("Failed to create health for dummy target: {Error}", error.Message)
-                                );
-                            }
-                            else
-                            {
-                                _logger.Warning("HealthPresenter not connected - dummy health bar will not be displayed");
-                            }
+                            _logger.Debug("Dummy target created at position (5,5) with ID {ActorId}", dummyId);
                         },
                         Fail: error => _logger.Warning("Failed to create dummy target: {Error}", error.Message)
                     );
@@ -172,19 +138,13 @@ namespace Darklands.Core.Presentation.Presenters
             try
             {
                 // Update the actor's visual position
+                // Health bar moves automatically as a child node
                 await View.MoveActorAsync(actorId, fromPosition, toPosition);
-
-                // CRITICAL: Also update the health bar position to follow the actor
-                if (_healthPresenter != null)
-                {
-                    await _healthPresenter.HandleActorMovedAsync(actorId, fromPosition, toPosition);
-                    _logger.Debug("Health bar position updated for actor {ActorId}", actorId);
-                }
 
                 // Show brief success feedback
                 await View.ShowActorFeedbackAsync(actorId, ActorFeedbackType.ActionSuccess, "Moved");
 
-                _logger.Debug("Successfully updated actor position and health bar for {ActorId}", actorId);
+                _logger.Debug("Successfully updated actor position for {ActorId}", actorId);
             }
             catch (Exception ex)
             {
@@ -290,8 +250,8 @@ namespace Darklands.Core.Presentation.Presenters
         }
 
         /// <summary>
-        /// Sets the visibility of an actor and its health bar based on player vision.
-        /// Used by the fog of war system to show/hide actors dynamically.
+        /// Sets the visibility of an actor based on player vision.
+        /// Health bar visibility is handled automatically as it's a child node.
         /// </summary>
         /// <param name="actorId">ID of the actor to show/hide</param>
         /// <param name="isVisible">True to show the actor, false to hide</param>
@@ -300,15 +260,10 @@ namespace Darklands.Core.Presentation.Presenters
             try
             {
                 // Update actor visibility in the view
+                // Health bar will be hidden/shown automatically as a child node
                 await View.SetActorVisibilityAsync(actorId, isVisible);
 
-                // Update health bar visibility through HealthPresenter
-                if (_healthPresenter != null)
-                {
-                    await _healthPresenter.SetActorVisibilityAsync(actorId, isVisible);
-                }
-
-                _logger.Debug("Set actor {ActorId} and health bar visibility to {Visible}",
+                _logger.Debug("Set actor {ActorId} visibility to {Visible}",
                     actorId.Value.ToString()[..8], isVisible ? "VISIBLE" : "HIDDEN");
             }
             catch (Exception ex)
