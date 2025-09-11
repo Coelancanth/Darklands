@@ -114,7 +114,7 @@ namespace Darklands.Views
                 if (DebugSystem.Instance?.Logger != null)
                 {
                     DebugSystem.Instance.Logger.Log(LogLevel.Information, LogCategory.Gameplay,
-                        "Actor {ActorId} created at ({X},{Y})", actorId, position.X, position.Y);
+                        "Actor {0} created at ({1},{2})", actorId, position.X, position.Y);
                 }
 
                 await Task.CompletedTask;
@@ -200,7 +200,7 @@ namespace Darklands.Views
                         if (DebugSystem.Instance?.Logger != null)
                         {
                             DebugSystem.Instance.Logger.Log(LogLevel.Information, LogCategory.Gameplay,
-                                "Actor {ActorId} moved to ({FromX},{FromY}) → ({ToX},{ToY})",
+                                "Actor {0} moved from ({1},{2}) to ({3},{4})",
                                 moveData.ActorId,
                                 moveData.FromPosition.X, moveData.FromPosition.Y,
                                 moveData.ToPosition.X, moveData.ToPosition.Y);
