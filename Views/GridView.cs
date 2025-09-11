@@ -35,8 +35,8 @@ namespace Darklands.Views
         private const float GridLineWidth = 1.0f;
 
         // Fog of war colors (applied as modulation to preserve terrain colors)
-        private readonly Color FogUnseen = new Color(0.1f, 0.1f, 0.1f);       // Dark fog (unseen areas)
-        private readonly Color FogExplored = new Color(0.9f, 0.9f, 0.9f);    // Medium gray (previously explored)
+        private readonly Color FogUnseen = new Color(0.05f, 0.05f, 0.05f);       // Dark fog (unseen areas)
+        private readonly Color FogExplored = new Color(0.6f, 0.6f, 0.6f);    // Medium gray (previously explored)
         private readonly Color FogVisible = new Color(1.0f, 1.0f, 1.0f);      // White (no modulation - fully visible)
 
         /// <summary>

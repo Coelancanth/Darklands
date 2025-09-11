@@ -403,13 +403,35 @@ namespace Darklands.Views
         {
             var healthBar = new ProgressBar
             {
-                Size = new Vector2(TileSize - 8, 6), // Slightly smaller than tile
-                Position = new Vector2(4, -10), // Positioned above the actor
+                Size = new Vector2(TileSize - 8, 4), // Thinner health bar
+                Position = new Vector2(4, -12), // Positioned above the actor
                 MinValue = 0,
                 MaxValue = 100,
                 Value = 100, // Default to full health
-                ShowPercentage = false
+                ShowPercentage = false // We'll use a label instead
             };
+            
+            // Add a label to show HP numbers
+            var hpLabel = new Label
+            {
+                Text = "100/100",
+                Position = new Vector2(0, -4), // Above the health bar
+                Size = new Vector2(TileSize - 8, 12),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            
+            // Set font size using method
+            hpLabel.AddThemeFontSizeOverride("font_size", 10);
+            
+            // Style the label for visibility
+            hpLabel.AddThemeColorOverride("font_color", Colors.White);
+            hpLabel.AddThemeColorOverride("font_shadow_color", Colors.Black);
+            hpLabel.AddThemeConstantOverride("shadow_offset_x", 1);
+            hpLabel.AddThemeConstantOverride("shadow_offset_y", 1);
+            
+            healthBar.AddChild(hpLabel);
+            healthBar.SetMeta("hp_label", hpLabel); // Store reference for updates
 
             // Style the health bar
             var styleBoxFilled = new StyleBoxFlat();
@@ -446,6 +468,16 @@ namespace Darklands.Views
             {
                 healthBar.MaxValue = maxHealth;
                 healthBar.Value = currentHealth;
+                
+                // Update the HP label
+                if (healthBar.HasMeta("hp_label"))
+                {
+                    var labelVariant = healthBar.GetMeta("hp_label");
+                    if (labelVariant.AsGodotObject() is Label label)
+                    {
+                        label.Text = $"{currentHealth}/{maxHealth}";
+                    }
+                }
                 
                 // Change color based on health percentage
                 var healthPercent = (float)currentHealth / maxHealth;

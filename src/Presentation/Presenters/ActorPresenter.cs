@@ -86,7 +86,7 @@ namespace Darklands.Core.Presentation.Presenters
                             // Trigger initial vision update after player creation
                             if (_gridPresenter != null)
                             {
-                                _ = Task.Run(async () => await _gridPresenter.UpdatePlayerVisionAsync());
+                                _ = Task.Run(async () => await _gridPresenter.UpdatePlayerVisionAsync(1));
                                 _logger.Debug("Triggered initial vision update after player creation");
                             }
                             else
@@ -269,6 +269,30 @@ namespace Darklands.Core.Presentation.Presenters
             catch (Exception ex)
             {
                 _logger.Error(ex, "Error setting actor visibility for {ActorId}", actorId);
+            }
+        }
+
+        /// <summary>
+        /// Updates an actor's health bar when health changes occur.
+        /// Called by HealthPresenter to maintain coordination between health and actor systems.
+        /// </summary>
+        /// <param name="actorId">ID of the actor whose health changed</param>
+        /// <param name="currentHealth">New current health value</param>
+        /// <param name="maxHealth">Maximum health value</param>
+        public async Task UpdateActorHealthAsync(Domain.Grid.ActorId actorId, int currentHealth, int maxHealth)
+        {
+            try
+            {
+                // Update the health bar via the actor view interface
+                View.UpdateActorHealth(actorId, currentHealth, maxHealth);
+                _logger.Debug("Updated health bar for actor {ActorId} to {Current}/{Max}",
+                    actorId, currentHealth, maxHealth);
+
+                await Task.CompletedTask;
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Error updating health bar for actor {ActorId}", actorId);
             }
         }
 

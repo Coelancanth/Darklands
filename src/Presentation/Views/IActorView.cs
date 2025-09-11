@@ -77,6 +77,15 @@ namespace Darklands.Core.Presentation.Views
         /// Used for initialization or full refresh scenarios.
         /// </summary>
         Task RefreshAllActorsAsync();
+
+        /// <summary>
+        /// Updates the health bar display for an actor.
+        /// Called when actor health changes to reflect new health values.
+        /// </summary>
+        /// <param name="actorId">Unique identifier of the actor</param>
+        /// <param name="currentHealth">Current health value to display</param>
+        /// <param name="maxHealth">Maximum health value for the health bar</param>
+        void UpdateActorHealth(ActorId actorId, int currentHealth, int maxHealth);
     }
 
     /// <summary>

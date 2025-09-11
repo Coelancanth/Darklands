@@ -28,6 +28,7 @@ namespace Darklands.Core.Presentation.Presenters
         private readonly ICombatQueryService _combatQueryService;
         private readonly IActorFactory _actorFactory;
         private ActorPresenter? _actorPresenter;
+        private int _currentTurn = 1; // Track turn for vision system
 
         /// <summary>
         /// Creates a new GridPresenter with the specified dependencies.
@@ -179,8 +180,10 @@ namespace Darklands.Core.Presentation.Presenters
                     }
 
                     // Update player vision after movement (fog of war)
-                    _logger.Debug("Updating player vision after move to {Position}", targetPosition);
-                    await UpdatePlayerVisionAsync();
+                    // Force recalculation by incrementing turn number
+                    _currentTurn++;
+                    _logger.Debug("Updating player vision after move to {Position} (turn {Turn})", targetPosition, _currentTurn);
+                    await UpdatePlayerVisionAsync(_currentTurn);
 
                     await View.ShowSuccessFeedbackAsync(targetPosition, "Moved");
                 },
@@ -311,7 +314,7 @@ namespace Darklands.Core.Presentation.Presenters
                         await View.RefreshGridAsync(grid);
 
                         // Initialize player vision (fog of war)
-                        await UpdatePlayerVisionAsync();
+                        await UpdatePlayerVisionAsync(_currentTurn);
 
                         _logger.Debug("Grid display refreshed successfully with {Width}x{Height} grid and initial fog of war",
                             grid.Width, grid.Height);

@@ -250,6 +250,10 @@ namespace Darklands
                 // This ensures player vision is applied after player creation
                 _actorPresenter.SetGridPresenter(_gridPresenter);
 
+                // CRITICAL: Connect HealthPresenter to ActorPresenter for health bar updates (BR_003 fix)
+                // This ensures health changes reach the health bars displayed in ActorView
+                _healthPresenter.SetActorPresenter(_actorPresenter);
+
                 // Event subscription is now handled automatically by EventAwareNode base class
                 // SubscribeToEvents() will be called after EventBus is initialized
                 _logger?.Information("GameManager will subscribe to domain events via UI Event Bus - modern architecture replaces static router");
