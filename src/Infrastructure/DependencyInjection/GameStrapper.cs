@@ -126,6 +126,12 @@ public static class GameStrapper
     }
 
     /// <summary>
+    /// Global logging level switch that can be updated at runtime.
+    /// Allows dynamic control of log verbosity from the debug configuration.
+    /// </summary>
+    public static readonly LoggingLevelSwitch GlobalLevelSwitch = new(Serilog.Events.LogEventLevel.Information);
+
+    /// <summary>
     /// Configures Serilog with fallback-safe configuration.
     /// Even if logging configuration fails, the application continues to work.
     /// </summary>
@@ -133,9 +139,12 @@ public static class GameStrapper
     {
         try
         {
-            // Create fallback-safe Serilog configuration
+            // Set initial level
+            GlobalLevelSwitch.MinimumLevel = config.LogLevel;
+
+            // Create fallback-safe Serilog configuration with dynamic level control
             var loggerConfiguration = new LoggerConfiguration()
-                .MinimumLevel.Is(config.LogLevel)
+                .MinimumLevel.ControlledBy(GlobalLevelSwitch)
                 .Enrich.FromLogContext()
                 .WriteTo.Console(
                     outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {SourceContext}: {Message:lj}{NewLine}{Exception}")

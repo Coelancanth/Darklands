@@ -78,6 +78,7 @@ public sealed class GodotCategoryLogger : ICategoryLogger
         _coreLogger.Log(level, category, message);
 
         // Add Godot console output with color coding and level prefix
+        // Only output to console if the core logger would log it
         var color = CategoryColors.GetValueOrDefault(category, "#FFFFFF");
         var levelPrefix = GetLevelPrefix(level);
         GD.PrintRich($"[color={color}]{levelPrefix}[{category}][/color] {message}");

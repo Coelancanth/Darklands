@@ -36,7 +36,7 @@ namespace Darklands.Views
 
         // Fog of war colors (applied as modulation to preserve terrain colors)
         private readonly Color FogUnseen = new Color(0.05f, 0.05f, 0.05f);       // Dark fog (unseen areas)
-        private readonly Color FogExplored = new Color(0.6f, 0.6f, 0.6f);    // Medium gray (previously explored)
+        private readonly Color FogExplored = new Color(0.4f, 0.4f, 0.4f);    // Medium gray (previously explored)
         private readonly Color FogVisible = new Color(1.0f, 1.0f, 1.0f);      // White (no modulation - fully visible)
 
         /// <summary>

@@ -58,6 +58,9 @@ public partial class DebugSystem : Node
 
         // Create debug window UI
         InitializeDebugWindow();
+        
+        // Listen for configuration changes to update standard logging
+        Config.SettingChanged += OnDebugConfigChanged;
 
         IsInitialized = true;
 
@@ -165,5 +168,34 @@ public partial class DebugSystem : Node
     public bool IsDebugEnabled(LogCategory category)
     {
         return Config?.ShouldLog(category) ?? false;
+    }
+    
+    /// <summary>
+    /// Handles changes to debug configuration, particularly log level changes.
+    /// Updates the standard Microsoft.Extensions.Logging level to match our configuration.
+    /// </summary>
+    /// <param name="propertyName">Name of the property that changed</param>
+    private void OnDebugConfigChanged(string propertyName)
+    {
+        if (propertyName == nameof(Config.CurrentLogLevel))
+        {
+            // Update the global Serilog minimum level to match our configuration
+            var serilogLevel = Config.CurrentLogLevel switch
+            {
+                LogLevel.Debug => Serilog.Events.LogEventLevel.Debug,
+                LogLevel.Information => Serilog.Events.LogEventLevel.Information,
+                LogLevel.Warning => Serilog.Events.LogEventLevel.Warning,
+                LogLevel.Error => Serilog.Events.LogEventLevel.Error,
+                _ => Serilog.Events.LogEventLevel.Information
+            };
+            
+            // Update the global level switch (elegant SSOT solution)
+            if (Core.Infrastructure.DependencyInjection.GameStrapper.GlobalLevelSwitch != null)
+            {
+                Core.Infrastructure.DependencyInjection.GameStrapper.GlobalLevelSwitch.MinimumLevel = serilogLevel;
+                Logger.Log(LogCategory.Developer, 
+                    $"Updated global log level to {Config.CurrentLogLevel} (Serilog: {serilogLevel})");
+            }
+        }
     }
 }
