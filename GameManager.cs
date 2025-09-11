@@ -123,8 +123,10 @@ namespace Darklands
                     null);
 
                 // Initialize the dependency injection container with Godot console support
-                // Use Development configuration to enable Debug level logging
-                var initResult = GameStrapper.Initialize(GameStrapperConfiguration.Development, godotConsoleSink);
+                // Load initial log level from debug configuration to respect user preferences
+                var initialLogLevel = DebugConfig.LoadInitialLogLevel();
+                var config = new GameStrapperConfiguration(LogLevel: initialLogLevel);
+                var initResult = GameStrapper.Initialize(config, godotConsoleSink);
                 if (initResult.IsFail)
                 {
                     var error = initResult.Match(

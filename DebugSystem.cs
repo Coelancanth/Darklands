@@ -59,7 +59,7 @@ public partial class DebugSystem : Node
         // Create debug window UI
         InitializeDebugWindow();
         
-        // Listen for configuration changes to update standard logging
+        // Listen for configuration changes to update standard logging and persistence
         Config.SettingChanged += OnDebugConfigChanged;
 
         IsInitialized = true;
@@ -173,6 +173,7 @@ public partial class DebugSystem : Node
     /// <summary>
     /// Handles changes to debug configuration, particularly log level changes.
     /// Updates the standard Microsoft.Extensions.Logging level to match our configuration.
+    /// Also handles persistence of configuration changes to the resource file.
     /// </summary>
     /// <param name="propertyName">Name of the property that changed</param>
     private void OnDebugConfigChanged(string propertyName)
@@ -196,6 +197,28 @@ public partial class DebugSystem : Node
                 Logger.Log(LogCategory.Developer, 
                     $"Updated global log level to {Config.CurrentLogLevel} (Serilog: {serilogLevel})");
             }
+        }
+        
+        // Save configuration changes to persist settings
+        SaveConfiguration();
+    }
+    
+    /// <summary>
+    /// Saves the current configuration to the resource file for persistence.
+    /// Called automatically when configuration changes to maintain state across sessions.
+    /// </summary>
+    private void SaveConfiguration()
+    {
+        const string configPath = "res://debug_config.tres";
+        
+        var result = ResourceSaver.Save(Config, configPath);
+        if (result == Error.Ok)
+        {
+            Logger.Log(LogCategory.Developer, "Debug configuration saved successfully");
+        }
+        else
+        {
+            Logger.Log(LogCategory.Developer, $"Failed to save debug configuration: {result}");
         }
     }
 }

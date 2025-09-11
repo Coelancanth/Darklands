@@ -69,6 +69,9 @@ public partial class DebugConfig : Resource, IDebugConfiguration
     // Global Log Level Control
     [ExportGroup("🔧 Global Settings")]
     [Export] public LogLevel CurrentLogLevel { get; set; } = LogLevel.Information;
+    [Export] public int DebugWindowFontSize { get; set; } = 16;
+    [Export] public Vector2I DebugWindowSize { get; set; } = new Vector2I(350, 500);
+    [Export] public Vector2I DebugWindowPosition { get; set; } = new Vector2I(20, 20);
 
     /// <summary>
     /// Signal emitted when any configuration setting changes.
@@ -143,5 +146,39 @@ public partial class DebugConfig : Resource, IDebugConfiguration
         // This would be implemented based on reflection or manual mapping
         // For now, focusing on core functionality
         NotifySettingChanged($"Category_{categoryName}");
+    }
+    
+    /// <summary>
+    /// Loads the current log level from the debug configuration resource.
+    /// Used during GameStrapper initialization to set the correct initial log level.
+    /// </summary>
+    /// <returns>The configured log level, or Information as fallback</returns>
+    public static Serilog.Events.LogEventLevel LoadInitialLogLevel()
+    {
+        const string configPath = "res://debug_config.tres";
+        
+        try
+        {
+            if (ResourceLoader.Exists(configPath))
+            {
+                var config = GD.Load<DebugConfig>(configPath);
+                return config.CurrentLogLevel switch
+                {
+                    LogLevel.Debug => Serilog.Events.LogEventLevel.Debug,
+                    LogLevel.Information => Serilog.Events.LogEventLevel.Information,
+                    LogLevel.Warning => Serilog.Events.LogEventLevel.Warning,
+                    LogLevel.Error => Serilog.Events.LogEventLevel.Error,
+                    _ => Serilog.Events.LogEventLevel.Information
+                };
+            }
+        }
+        catch (System.Exception ex)
+        {
+            // Log to Godot console if resource loading fails
+            GD.PrintErr($"Failed to load debug config for log level: {ex.Message}");
+        }
+        
+        // Fallback to Information level (not Debug like Development config)
+        return Serilog.Events.LogEventLevel.Information;
     }
 }

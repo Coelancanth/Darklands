@@ -6,8 +6,8 @@
 script = ExtResource("1")
 ShowPaths = false
 ShowPathCosts = false
-PathColor = Color(0, 0, 1, 0.5)
-PathAlpha = 0.5
+PathColorValue = Color(0, 0, 1, 0.5)
+PathAlphaValue = 0.5
 ShowVisionRanges = false
 ShowFOVCalculations = false
 ShowExploredOverlay = true
@@ -38,3 +38,6 @@ ShowVisionMessages = true
 ShowPathfindingMessages = false
 ShowCombatMessages = true
 CurrentLogLevel = 1
+DebugWindowFontSize = 16
+DebugWindowSize = Vector2i(350, 500)
+DebugWindowPosition = Vector2i(20, 20)
