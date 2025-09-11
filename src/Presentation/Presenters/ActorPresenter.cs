@@ -143,7 +143,7 @@ namespace Darklands.Core.Presentation.Presenters
         /// <param name="toPosition">New position</param>
         public async Task HandleActorMovedAsync(Domain.Grid.ActorId actorId, Domain.Grid.Position fromPosition, Domain.Grid.Position toPosition)
         {
-            _logger.Information("Handling actor move for {ActorId} from {FromPosition} to {ToPosition}",
+            _logger.Debug("Handling actor move for {ActorId} from {FromPosition} to {ToPosition}",
                 actorId, fromPosition, toPosition);
 
             try

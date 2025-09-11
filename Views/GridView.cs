@@ -213,7 +213,7 @@ namespace Darklands.Views
         {
             // For Phase 4, just print to console
             // Future: Show floating text or particle effects
-            _logger?.Information("{Message} at ({X},{Y})", message, position.X, position.Y);
+            _logger?.Debug("{Message} at ({X},{Y})", message, position.X, position.Y);
             await Task.CompletedTask;
         }
 
@@ -315,7 +315,7 @@ namespace Darklands.Views
                 {
                     var gridPosition = new Darklands.Core.Domain.Grid.Position(tileX, tileY);
 
-                    _logger?.Information("User clicked tile ({X},{Y})", tileX, tileY);
+                    _logger?.Debug("User clicked tile ({X},{Y})", tileX, tileY);
 
                     // Notify the presenter about the tile click
                     _ = Task.Run(async () =>

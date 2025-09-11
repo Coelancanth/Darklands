@@ -87,7 +87,7 @@ namespace Darklands.Core.Presentation.Presenters
         /// <param name="position">The grid position that was clicked</param>
         public async Task HandleTileClickAsync(Domain.Grid.Position position)
         {
-            _logger.Information("User clicked on tile at position {Position}", position);
+            _logger.Debug("User clicked on tile at position {Position}", position);
 
             try
             {
@@ -108,13 +108,13 @@ namespace Darklands.Core.Presentation.Presenters
                 if (targetActor != null)
                 {
                     // There's a living enemy at this position - attempt attack
-                    _logger.Information("Attempting to attack {TargetName} at position {Position}", targetActor.Actor.Name, position);
+                    _logger.Debug("Attempting to attack {TargetName} at position {Position}", targetActor.Actor.Name, position);
                     await HandleAttackActionAsync(playerId, targetActor.Id, position);
                 }
                 else
                 {
                     // No enemy at position - attempt move
-                    _logger.Information("Attempting to move to empty position {Position}", position);
+                    _logger.Debug("Attempting to move to empty position {Position}", position);
                     await HandleMoveActionAsync(playerId, position);
                 }
             }
