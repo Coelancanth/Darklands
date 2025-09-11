@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using Darklands.Core.Application.Common;
 using Darklands.Core.Application.Grid.Queries;
 using Darklands.Core.Application.Actor.Services;
+using Darklands.Core.Application.Combat.Services;
 using Darklands.Core.Presentation.Views;
 using MediatR;
 using Serilog;
@@ -21,7 +22,7 @@ namespace Darklands.Core.Presentation.Presenters
         private readonly ILogger _logger;
         private readonly IActorFactory _actorFactory;
         private readonly IActorStateService _actorStateService;
-        private HealthPresenter? _healthPresenter;
+        private readonly ICombatQueryService _combatQueryService;
         private GridPresenter? _gridPresenter;
 
         /// <summary>
@@ -32,25 +33,17 @@ namespace Darklands.Core.Presentation.Presenters
         /// <param name="logger">Logger for tracking actor operations</param>
         /// <param name="actorFactory">Factory for creating and managing actors</param>
         /// <param name="actorStateService">Service for querying actor state including health</param>
-        public ActorPresenter(IActorView view, IMediator mediator, ILogger logger, IActorFactory actorFactory, IActorStateService actorStateService)
+        /// <param name="combatQueryService">Combat query service for composite actor and position data</param>
+        public ActorPresenter(IActorView view, IMediator mediator, ILogger logger, IActorFactory actorFactory, IActorStateService actorStateService, ICombatQueryService combatQueryService)
             : base(view)
         {
             _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _actorFactory = actorFactory ?? throw new ArgumentNullException(nameof(actorFactory));
             _actorStateService = actorStateService ?? throw new ArgumentNullException(nameof(actorStateService));
+            _combatQueryService = combatQueryService ?? throw new ArgumentNullException(nameof(combatQueryService));
         }
 
-        /// <summary>
-        /// Sets the health presenter for coordinated health bar updates.
-        /// Called by GameManager during MVP setup.
-        /// </summary>
-        /// <param name="healthPresenter">The health presenter to coordinate with</param>
-        public void SetHealthPresenter(HealthPresenter healthPresenter)
-        {
-            _healthPresenter = healthPresenter ?? throw new ArgumentNullException(nameof(healthPresenter));
-            _logger.Debug("ActorPresenter connected to HealthPresenter for coordinated updates");
-        }
 
         /// <summary>
         /// Sets the grid presenter for coordinated vision updates.
@@ -341,6 +334,145 @@ namespace Darklands.Core.Presentation.Presenters
             catch (Exception ex)
             {
                 _logger.Error(ex, "Error initializing health bar for actor {ActorId}", actorId);
+            }
+        }
+
+        // Health-specific methods consolidated from HealthPresenter
+
+        /// <summary>
+        /// Handles health change notifications from the application layer.
+        /// Updates the health bar display and shows appropriate feedback.
+        /// </summary>
+        /// <param name="actorId">ID of the actor whose health changed</param>
+        /// <param name="oldHealth">Previous health state</param>
+        /// <param name="newHealth">New health state</param>
+        public async Task HandleHealthChangedAsync(Domain.Grid.ActorId actorId, Domain.Actor.Health oldHealth, Domain.Actor.Health newHealth)
+        {
+            _logger.Information("Handling health change for {ActorId} from {OldHealth} to {NewHealth}",
+                actorId, oldHealth, newHealth);
+
+            try
+            {
+                // Update the health bar display via the consolidated ActorView
+                await View.UpdateActorHealthAsync(actorId, oldHealth, newHealth);
+
+                // Show appropriate feedback based on the change
+                if (newHealth.Current < oldHealth.Current)
+                {
+                    // Damage was taken
+                    var damage = oldHealth.Current - newHealth.Current;
+                    var actorWithPositionOption = _combatQueryService.GetActorWithPosition(actorId);
+                    await actorWithPositionOption.Match(
+                        Some: async actorWithPosition =>
+                        {
+                            await View.ShowHealthFeedbackAsync(actorId, HealthFeedbackType.Damage, damage, actorWithPosition.Position);
+
+                            // Check for critical health or death
+                            if (newHealth.IsDead)
+                            {
+                                await View.ShowHealthFeedbackAsync(actorId, HealthFeedbackType.Death, 0, actorWithPosition.Position);
+                                _logger.Information("Actor {ActorId} died from health change", actorId);
+                            }
+                            else if (newHealth.HealthPercentage <= 0.25) // Critical at 25% health
+                            {
+                                await View.HighlightActorHealthBarAsync(actorId, HealthHighlightType.Critical);
+                                await View.ShowHealthFeedbackAsync(actorId, HealthFeedbackType.CriticalHealth, 0, actorWithPosition.Position);
+                                _logger.Warning("Actor {ActorId} is at critical health: {Health}", actorId, newHealth);
+                            }
+                        },
+                        None: () =>
+                        {
+                            _logger.Warning("Actor {ActorId} not found when handling health change", actorId);
+                            return Task.CompletedTask;
+                        }
+                    );
+                }
+                else if (newHealth.Current > oldHealth.Current)
+                {
+                    // Healing was applied
+                    var healing = newHealth.Current - oldHealth.Current;
+                    var actorWithPositionOption = _combatQueryService.GetActorWithPosition(actorId);
+                    await actorWithPositionOption.Match(
+                        Some: async actorWithPosition =>
+                        {
+                            await View.ShowHealthFeedbackAsync(actorId, HealthFeedbackType.Healing, healing, actorWithPosition.Position);
+
+                            // Remove critical highlighting if healed above 25%
+                            if (oldHealth.HealthPercentage <= 0.25 && newHealth.HealthPercentage > 0.25)
+                            {
+                                await View.UnhighlightActorHealthBarAsync(actorId);
+                            }
+
+                            // Show full restore effect if fully healed
+                            if (newHealth.IsFullHealth && !oldHealth.IsFullHealth)
+                            {
+                                await View.ShowHealthFeedbackAsync(actorId, HealthFeedbackType.FullRestore, 0, actorWithPosition.Position);
+                            }
+                        },
+                        None: () =>
+                        {
+                            _logger.Warning("Actor {ActorId} not found when handling health change", actorId);
+                            return Task.CompletedTask;
+                        }
+                    );
+                }
+
+                _logger.Debug("Successfully updated health display for {ActorId}", actorId);
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Error handling health change for {ActorId}", actorId);
+            }
+        }
+
+        /// <summary>
+        /// Handles actor targeting for healing spells or abilities.
+        /// </summary>
+        /// <param name="actorId">ID of the actor being targeted for healing</param>
+        public async Task HandleHealTargetingAsync(Domain.Grid.ActorId actorId)
+        {
+            try
+            {
+                await View.HighlightActorHealthBarAsync(actorId, HealthHighlightType.HealTarget);
+                _logger.Debug("Highlighted health bar for healing target {ActorId}", actorId);
+            }
+            catch (Exception ex)
+            {
+                _logger.Warning(ex, "Error highlighting heal target for {ActorId}", actorId);
+            }
+        }
+
+        /// <summary>
+        /// Handles actor targeting for damage attacks.
+        /// </summary>
+        /// <param name="actorId">ID of the actor being targeted for damage</param>
+        public async Task HandleDamageTargetingAsync(Domain.Grid.ActorId actorId)
+        {
+            try
+            {
+                await View.HighlightActorHealthBarAsync(actorId, HealthHighlightType.DamageTarget);
+                _logger.Debug("Highlighted health bar for damage target {ActorId}", actorId);
+            }
+            catch (Exception ex)
+            {
+                _logger.Warning(ex, "Error highlighting damage target for {ActorId}", actorId);
+            }
+        }
+
+        /// <summary>
+        /// Clears all targeting highlights.
+        /// </summary>
+        /// <param name="actorId">ID of the actor to unhighlight</param>
+        public async Task HandleTargetingClearedAsync(Domain.Grid.ActorId actorId)
+        {
+            try
+            {
+                await View.UnhighlightActorHealthBarAsync(actorId);
+                _logger.Debug("Cleared targeting highlight for {ActorId}", actorId);
+            }
+            catch (Exception ex)
+            {
+                _logger.Warning(ex, "Error clearing targeting highlight for {ActorId}", actorId);
             }
         }
 

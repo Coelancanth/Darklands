@@ -37,6 +37,9 @@ This directory contains Architecture Decision Records (ADRs) - documents that ca
 - [ADR-015: Namespace Organization Strategy](ADR-015-namespace-organization-strategy.md) - **Proposed**
   - Resolves namespace-class collisions using Bounded Context organization
 
+- [ADR-016: Embrace Engine Scene Graph for UI Composition](ADR-016-embrace-engine-scene-graph.md) - **Proposed**
+  - Use parent-child relationships for naturally coupled UI elements instead of fighting the engine
+
 ## Missing ADRs (Need Creation)
 
 The following concepts are referenced in persona documents but lack formal ADRs:
