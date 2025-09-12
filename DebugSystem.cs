@@ -1,5 +1,9 @@
+using System;
 using Darklands.Core.Domain.Debug;
+using Darklands.Core.Infrastructure.Debug;
+using Darklands.Core.Infrastructure.DependencyInjection;
 using Godot;
+using Microsoft.Extensions.DependencyInjection;
 using Serilog;
 
 namespace Darklands;
@@ -29,6 +33,15 @@ public partial class DebugSystem : Node
     /// Used throughout the game for filtered debug output.
     /// </summary>
     public ICategoryLogger Logger { get; private set; } = null!;
+    
+    /// <summary>
+    /// Updates the logger instance. Used by GameManager to provide the UnifiedLogger
+    /// after DI initialization is complete.
+    /// </summary>
+    public void SetLogger(ICategoryLogger logger)
+    {
+        Logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
 
     /// <summary>
     /// Debug window UI for runtime configuration changes.
@@ -92,16 +105,42 @@ public partial class DebugSystem : Node
             ResourceSaver.Save(Config, configPath);
             GD.Print("Created default debug configuration at: ", configPath);
         }
+        
+        // Set the live configuration for the Core project's DefaultDebugConfiguration
+        DefaultDebugConfiguration.SetLiveConfiguration(Config);
     }
 
     /// <summary>
-    /// Creates category-filtered logger using Serilog and debug configuration.
-    /// Uses default Serilog logger if none is configured.
+    /// Gets the unified category-filtered logger from dependency injection.
+    /// Falls back to creating a basic logger if DI is not initialized.
     /// </summary>
     private void InitializeLogger()
     {
-        // Create a basic Serilog logger if none exists
-        // In a full implementation, this would use the existing logging infrastructure
+        // Try to get the unified logger from dependency injection
+        var servicesResult = GameStrapper.GetServices();
+        if (servicesResult.IsSucc)
+        {
+            servicesResult.Match(
+                Succ: provider =>
+                {
+                    // Get the unified logger from DI
+                    var categoryLogger = provider.GetService<ICategoryLogger>();
+                    if (categoryLogger != null)
+                    {
+                        Logger = categoryLogger;
+                        return provider;
+                    }
+                    return provider;
+                },
+                Fail: _ => (ServiceProvider?)null);
+            
+            // Return early if we successfully got the logger from DI
+            if (Logger != null)
+                return;
+        }
+
+        // Fallback: Create a basic logger if DI is not available
+        // This should only happen during early initialization or tests
         var serilogLogger = Log.Logger ?? new LoggerConfiguration()
             .WriteTo.Console()
             .CreateLogger();
@@ -198,23 +237,91 @@ public partial class DebugSystem : Node
                     $"Updated global log level to {Config.CurrentLogLevel} (Serilog: {serilogLevel})");
             }
         }
+        else
+        {
+            // Log specific setting changes with current value
+            LogSettingChange(propertyName);
+        }
         
         // Save configuration changes to persist settings
-        SaveConfiguration();
+        SaveConfiguration(propertyName);
+    }
+    
+    /// <summary>
+    /// Logs specific debug setting changes with descriptive messages and current values.
+    /// </summary>
+    /// <param name="propertyName">Name of the property that changed</param>
+    private void LogSettingChange(string propertyName)
+    {
+        var message = propertyName switch
+        {
+            // Logging categories
+            nameof(Config.ShowDeveloperMessages) => $"Developer messages: {Config.ShowDeveloperMessages}",
+            nameof(Config.ShowSystemMessages) => $"System messages: {Config.ShowSystemMessages}",
+            nameof(Config.ShowCommandMessages) => $"Command messages: {Config.ShowCommandMessages}",
+            nameof(Config.ShowEventMessages) => $"Event messages: {Config.ShowEventMessages}",
+            nameof(Config.ShowThreadMessages) => $"Thread messages: {Config.ShowThreadMessages}",
+            nameof(Config.ShowAIMessages) => $"AI messages: {Config.ShowAIMessages}",
+            nameof(Config.ShowPerformanceMessages) => $"Performance messages: {Config.ShowPerformanceMessages}",
+            nameof(Config.ShowNetworkMessages) => $"Network messages: {Config.ShowNetworkMessages}",
+            nameof(Config.ShowVisionMessages) => $"Vision messages: {Config.ShowVisionMessages}",
+            nameof(Config.ShowPathfindingMessages) => $"Pathfinding messages: {Config.ShowPathfindingMessages}",
+            nameof(Config.ShowCombatMessages) => $"Combat messages: {Config.ShowCombatMessages}",
+            
+            // Debug visualization
+            nameof(Config.ShowPaths) => $"Show paths: {Config.ShowPaths}",
+            nameof(Config.ShowPathCosts) => $"Show path costs: {Config.ShowPathCosts}",
+            nameof(Config.ShowVisionRanges) => $"Show vision ranges: {Config.ShowVisionRanges}",
+            nameof(Config.ShowFOVCalculations) => $"Show FOV calculations: {Config.ShowFOVCalculations}",
+            nameof(Config.ShowExploredOverlay) => $"Show explored overlay: {Config.ShowExploredOverlay}",
+            nameof(Config.ShowLineOfSight) => $"Show line of sight: {Config.ShowLineOfSight}",
+            nameof(Config.ShowDamageNumbers) => $"Show damage numbers: {Config.ShowDamageNumbers}",
+            nameof(Config.ShowHitChances) => $"Show hit chances: {Config.ShowHitChances}",
+            nameof(Config.ShowTurnOrder) => $"Show turn order: {Config.ShowTurnOrder}",
+            nameof(Config.ShowAttackRanges) => $"Show attack ranges: {Config.ShowAttackRanges}",
+            nameof(Config.ShowAIStates) => $"Show AI states: {Config.ShowAIStates}",
+            nameof(Config.ShowAIDecisionScores) => $"Show AI decision scores: {Config.ShowAIDecisionScores}",
+            nameof(Config.ShowAITargeting) => $"Show AI targeting: {Config.ShowAITargeting}",
+            
+            // Performance monitoring
+            nameof(Config.ShowFPS) => $"Show FPS: {Config.ShowFPS}",
+            nameof(Config.ShowFrameTime) => $"Show frame time: {Config.ShowFrameTime}",
+            nameof(Config.ShowMemoryUsage) => $"Show memory usage: {Config.ShowMemoryUsage}",
+            nameof(Config.EnableProfiling) => $"Enable profiling: {Config.EnableProfiling}",
+            
+            // Gameplay debug
+            nameof(Config.GodMode) => $"God mode: {Config.GodMode}",
+            nameof(Config.UnlimitedActions) => $"Unlimited actions: {Config.UnlimitedActions}",
+            nameof(Config.InstantKills) => $"Instant kills: {Config.InstantKills}",
+            
+            // Window settings
+            nameof(Config.DebugWindowFontSize) => $"Debug window font size: {Config.DebugWindowFontSize}",
+            nameof(Config.DebugWindowSize) => $"Debug window size: {Config.DebugWindowSize}",
+            nameof(Config.DebugWindowPosition) => $"Debug window position: {Config.DebugWindowPosition}",
+            
+            // Default for unknown properties
+            _ => $"Setting '{propertyName}' changed"
+        };
+        
+        Logger.Log(LogLevel.Information, LogCategory.Developer, $"Debug setting changed: {message}");
     }
     
     /// <summary>
     /// Saves the current configuration to the resource file for persistence.
     /// Called automatically when configuration changes to maintain state across sessions.
     /// </summary>
-    private void SaveConfiguration()
+    /// <param name="propertyName">Name of the property that changed (optional, for logging)</param>
+    private void SaveConfiguration(string? propertyName = null)
     {
         const string configPath = "res://debug_config.tres";
         
         var result = ResourceSaver.Save(Config, configPath);
         if (result == Error.Ok)
         {
-            Logger.Log(LogLevel.Information, LogCategory.Developer, "Debug configuration saved successfully");
+            var message = propertyName != null 
+                ? $"Debug configuration saved: {propertyName} persisted"
+                : "Debug configuration saved successfully";
+            Logger.Log(LogLevel.Debug, LogCategory.Developer, message);
         }
         else
         {

@@ -8,7 +8,7 @@ using Darklands.Core.Application.Actor.Services;
 using Darklands.Core.Domain.Grid;
 using Darklands.Core.Domain.Actor;
 using Darklands.Core.Tests.TestUtilities;
-using Serilog;
+using Darklands.Core.Domain.Debug;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -17,6 +17,19 @@ using static LanguageExt.Prelude;
 
 namespace Darklands.Core.Tests.Application.Grid.Commands
 {
+    /// <summary>
+    /// Test implementation of ICategoryLogger that does nothing
+    /// </summary>
+    internal class NullCategoryLogger : ICategoryLogger
+    {
+        public void Log(LogCategory category, string message) { }
+        public void Log(LogCategory category, string template, params object[] args) { }
+        public void Log(LogLevel level, LogCategory category, string message) { }
+        public void Log(LogLevel level, LogCategory category, string template, params object[] args) { }
+        public bool IsEnabled(LogCategory category) => false;
+        public bool IsEnabled(LogLevel level, LogCategory category) => false;
+    }
+
     [Trait("Category", "Phase2")]
     public class SpawnDummyCommandHandlerTests
     {
@@ -79,7 +92,7 @@ namespace Darklands.Core.Tests.Application.Grid.Commands
             var command = SpawnDummyCommand.Create(_validPosition, 50, "Test Dummy");
             var gridStateService = new TestGridStateService(positionEmpty: true, addToGridSucceeds: true);
             var actorStateService = new TestActorStateService(addActorSucceeds: true);
-            var handler = new SpawnDummyCommandHandler(gridStateService, actorStateService, null!, TestIdGenerator.Instance);
+            var handler = new SpawnDummyCommandHandler(gridStateService, actorStateService, new NullCategoryLogger(), TestIdGenerator.Instance);
 
             // Act
             var result = await handler.Handle(command, CancellationToken.None);
@@ -95,7 +108,7 @@ namespace Darklands.Core.Tests.Application.Grid.Commands
             var command = SpawnDummyCommand.Create(_validPosition, 50, "Test Dummy");
             var gridStateService = new TestGridStateService(positionEmpty: false);
             var actorStateService = new TestActorStateService();
-            var handler = new SpawnDummyCommandHandler(gridStateService, actorStateService, null!, TestIdGenerator.Instance);
+            var handler = new SpawnDummyCommandHandler(gridStateService, actorStateService, new NullCategoryLogger(), TestIdGenerator.Instance);
 
             // Act
             var result = await handler.Handle(command, CancellationToken.None);
@@ -115,7 +128,7 @@ namespace Darklands.Core.Tests.Application.Grid.Commands
             var command = SpawnDummyCommand.Create(_validPosition, -10, "Invalid Dummy");
             var gridStateService = new TestGridStateService();
             var actorStateService = new TestActorStateService();
-            var handler = new SpawnDummyCommandHandler(gridStateService, actorStateService, null!, TestIdGenerator.Instance);
+            var handler = new SpawnDummyCommandHandler(gridStateService, actorStateService, new NullCategoryLogger(), TestIdGenerator.Instance);
 
             // Act
             var result = await handler.Handle(command, CancellationToken.None);
@@ -138,7 +151,7 @@ namespace Darklands.Core.Tests.Application.Grid.Commands
             var command = SpawnDummyCommand.Create(_validPosition, 50, invalidName!);
             var gridStateService = new TestGridStateService();
             var actorStateService = new TestActorStateService();
-            var handler = new SpawnDummyCommandHandler(gridStateService, actorStateService, null!, TestIdGenerator.Instance);
+            var handler = new SpawnDummyCommandHandler(gridStateService, actorStateService, new NullCategoryLogger(), TestIdGenerator.Instance);
 
             // Act
             var result = await handler.Handle(command, CancellationToken.None);
@@ -158,7 +171,7 @@ namespace Darklands.Core.Tests.Application.Grid.Commands
             var command = SpawnDummyCommand.Create(_validPosition, 50, "Test Dummy");
             var gridStateService = new TestGridStateService();
             var actorStateService = new TestActorStateService(addActorSucceeds: false);
-            var handler = new SpawnDummyCommandHandler(gridStateService, actorStateService, null!, TestIdGenerator.Instance);
+            var handler = new SpawnDummyCommandHandler(gridStateService, actorStateService, new NullCategoryLogger(), TestIdGenerator.Instance);
 
             // Act
             var result = await handler.Handle(command, CancellationToken.None);
@@ -178,7 +191,7 @@ namespace Darklands.Core.Tests.Application.Grid.Commands
             var command = SpawnDummyCommand.Create(_validPosition, 50, "Test Dummy");
             var gridStateService = new TestGridStateService(positionEmpty: true, addToGridSucceeds: false);
             var actorStateService = new TestActorStateService();
-            var handler = new SpawnDummyCommandHandler(gridStateService, actorStateService, null!, TestIdGenerator.Instance);
+            var handler = new SpawnDummyCommandHandler(gridStateService, actorStateService, new NullCategoryLogger(), TestIdGenerator.Instance);
 
             // Act
             var result = await handler.Handle(command, CancellationToken.None);
@@ -202,7 +215,7 @@ namespace Darklands.Core.Tests.Application.Grid.Commands
             var command = SpawnDummyCommand.Create(_validPosition, maxHealth, "Health Test Dummy");
             var gridStateService = new TestGridStateService();
             var actorStateService = new TestActorStateService();
-            var handler = new SpawnDummyCommandHandler(gridStateService, actorStateService, null!, TestIdGenerator.Instance);
+            var handler = new SpawnDummyCommandHandler(gridStateService, actorStateService, new NullCategoryLogger(), TestIdGenerator.Instance);
 
             // Act
             var result = await handler.Handle(command, CancellationToken.None);
@@ -221,7 +234,7 @@ namespace Darklands.Core.Tests.Application.Grid.Commands
             var command = SpawnDummyCommand.Create(_validPosition, invalidMaxHealth, "Invalid Health Dummy");
             var gridStateService = new TestGridStateService();
             var actorStateService = new TestActorStateService();
-            var handler = new SpawnDummyCommandHandler(gridStateService, actorStateService, null!, TestIdGenerator.Instance);
+            var handler = new SpawnDummyCommandHandler(gridStateService, actorStateService, new NullCategoryLogger(), TestIdGenerator.Instance);
 
             // Act
             var result = await handler.Handle(command, CancellationToken.None);
@@ -241,7 +254,7 @@ namespace Darklands.Core.Tests.Application.Grid.Commands
             var command = SpawnDummyCommand.Create(_validPosition, 50, "Test Dummy");
             var gridStateService = new TestGridStateService();
             var actorStateService = new TestActorStateService();
-            var handler = new SpawnDummyCommandHandler(gridStateService, actorStateService, null!, TestIdGenerator.Instance);
+            var handler = new SpawnDummyCommandHandler(gridStateService, actorStateService, new NullCategoryLogger(), TestIdGenerator.Instance);
             var cancellationToken = new CancellationToken(canceled: true);
 
             // Act & Assert - Should complete despite cancellation request
@@ -256,7 +269,7 @@ namespace Darklands.Core.Tests.Application.Grid.Commands
             var command = SpawnDummyCommand.CreateCombatDummy(_validPosition);
             var gridStateService = new TestGridStateService();
             var actorStateService = new TestActorStateService();
-            var handler = new SpawnDummyCommandHandler(gridStateService, actorStateService, null!, TestIdGenerator.Instance);
+            var handler = new SpawnDummyCommandHandler(gridStateService, actorStateService, new NullCategoryLogger(), TestIdGenerator.Instance);
 
             // Act
             var result = await handler.Handle(command, CancellationToken.None);
@@ -277,7 +290,7 @@ namespace Darklands.Core.Tests.Application.Grid.Commands
 
             var gridStateService = new TestGridStateService();
             var actorStateService = new TestActorStateService();
-            var handler = new SpawnDummyCommandHandler(gridStateService, actorStateService, null!, TestIdGenerator.Instance);
+            var handler = new SpawnDummyCommandHandler(gridStateService, actorStateService, new NullCategoryLogger(), TestIdGenerator.Instance);
 
             // Act
             var result1 = await handler.Handle(command1, CancellationToken.None);

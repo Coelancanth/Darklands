@@ -1,7 +1,8 @@
 using System.Threading;
 using System.Threading.Tasks;
 using MediatR;
-using Serilog;
+using Darklands.Core.Domain.Debug;
+using Darklands.Core.Infrastructure.Debug;
 
 namespace Darklands.Core.Application.Events;
 
@@ -28,7 +29,7 @@ public sealed class UIEventForwarder<TEvent> : INotificationHandler<TEvent>
     where TEvent : INotification
 {
     private readonly IUIEventBus _eventBus;
-    private readonly ILogger _logger;
+    private readonly ICategoryLogger _logger;
 
     /// <summary>
     /// Initializes a new UIEventForwarder for the specified event type.
@@ -36,7 +37,7 @@ public sealed class UIEventForwarder<TEvent> : INotificationHandler<TEvent>
     /// </summary>
     /// <param name="eventBus">The UI event bus for forwarding events to subscribers</param>
     /// <param name="logger">Logger for debugging and monitoring event flow</param>
-    public UIEventForwarder(IUIEventBus eventBus, ILogger logger)
+    public UIEventForwarder(IUIEventBus eventBus, ICategoryLogger logger)
     {
         _eventBus = eventBus;
         _logger = logger;
@@ -64,20 +65,19 @@ public sealed class UIEventForwarder<TEvent> : INotificationHandler<TEvent>
     {
         try
         {
-            _logger.Debug("[UIEventForwarder<{EventType}>] Forwarding event to UI subscribers: {Event}",
+            _logger.Log(LogLevel.Debug, LogCategory.Event, "[UIEventForwarder<{EventType}>] Forwarding event to UI subscribers: {Event}",
                 typeof(TEvent).Name, notification);
 
             await _eventBus.PublishAsync(notification);
 
-            _logger.Debug("[UIEventForwarder<{EventType}>] Successfully forwarded event to UI",
+            _logger.Log(LogLevel.Debug, LogCategory.Event, "[UIEventForwarder<{EventType}>] Successfully forwarded event to UI",
                 typeof(TEvent).Name);
         }
         catch (System.Exception ex)
         {
             // Log but don't rethrow - UI failures shouldn't break domain event processing
-            _logger.Error(ex,
-                "[UIEventForwarder<{EventType}>] Failed to forward event to UI: {Event}",
-                typeof(TEvent).Name, notification);
+            _logger.Log(LogLevel.Error, LogCategory.Event, "[UIEventForwarder<{EventType}>] Failed to forward event to UI: {Event}. Exception: {Exception}",
+                typeof(TEvent).Name, notification, ex);
         }
     }
 }

@@ -100,10 +100,11 @@ public sealed class CategoryFilteredLogger : ICategoryLogger
     /// <summary>
     /// Logs a formatted message with specified level and category.
     /// Only outputs if both the category is enabled AND the level meets the threshold.
+    /// Passes structured templates directly to Serilog for proper formatting.
     /// </summary>
     /// <param name="level">The log level of this message</param>
     /// <param name="category">The category this message belongs to</param>
-    /// <param name="template">The message template with placeholders</param>
+    /// <param name="template">The Serilog message template with structured placeholders</param>
     /// <param name="args">Arguments to substitute in the template</param>
     public void Log(LogLevel level, LogCategory category, string template, params object[] args)
     {
@@ -112,12 +113,32 @@ public sealed class CategoryFilteredLogger : ICategoryLogger
 
         try
         {
-            var formattedMessage = string.Format(template, args);
-            Log(level, category, formattedMessage);
+            // Prefix the template with category and pass directly to Serilog for structured logging
+            var categoryTemplate = $"[{category}] {template}";
+
+            // Map our log level to Serilog level and log with structured template
+            switch (level)
+            {
+                case LogLevel.Debug:
+                    _serilogLogger.Debug(categoryTemplate, args);
+                    break;
+                case LogLevel.Information:
+                    _serilogLogger.Information(categoryTemplate, args);
+                    break;
+                case LogLevel.Warning:
+                    _serilogLogger.Warning(categoryTemplate, args);
+                    break;
+                case LogLevel.Error:
+                    _serilogLogger.Error(categoryTemplate, args);
+                    break;
+                default:
+                    _serilogLogger.Information(categoryTemplate, args);
+                    break;
+            }
         }
         catch (FormatException ex)
         {
-            // Fallback if string formatting fails
+            // Fallback if Serilog formatting fails
             _serilogLogger.Warning("Failed to format log message template '{Template}': {Error}",
                 template, ex.Message);
             Log(LogLevel.Warning, category, $"[FORMAT ERROR] {template}");

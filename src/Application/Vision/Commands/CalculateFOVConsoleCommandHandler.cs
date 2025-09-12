@@ -1,7 +1,7 @@
 using LanguageExt;
 using LanguageExt.Common;
 using MediatR;
-using Serilog;
+using Darklands.Core.Domain.Debug;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Text;
@@ -21,12 +21,12 @@ namespace Darklands.Core.Application.Vision.Commands
     {
         private readonly IGridStateService _gridStateService;
         private readonly IVisionStateService _visionStateService;
-        private readonly ILogger _logger;
+        private readonly ICategoryLogger _logger;
 
         public CalculateFOVConsoleCommandHandler(
             IGridStateService gridStateService,
             IVisionStateService visionStateService,
-            ILogger logger)
+            ICategoryLogger logger)
         {
             _gridStateService = gridStateService;
             _visionStateService = visionStateService;
@@ -35,7 +35,7 @@ namespace Darklands.Core.Application.Vision.Commands
 
         public Task<Fin<string>> Handle(CalculateFOVConsoleCommand request, CancellationToken cancellationToken)
         {
-            _logger?.Information("Processing FOV Console Command for Actor {ActorId} at {Position} with range {Range}",
+            _logger.Log(LogLevel.Information, LogCategory.Vision, "Processing FOV Console Command for Actor {ActorId} at {Position} with range {Range}",
                 request.ViewerId.Value.ToString()[..8], request.Origin, request.Range.Value);
 
             var result = GenerateConsoleOutput(request);
@@ -43,12 +43,12 @@ namespace Darklands.Core.Application.Vision.Commands
             return Task.FromResult(result.Match(
                 Succ: output =>
                 {
-                    _logger?.Information("Generated FOV console output ({Length} characters)", output.Length);
+                    _logger.Log(LogLevel.Information, LogCategory.Vision, "Generated FOV console output ({Length} characters)", output.Length);
                     return result;
                 },
                 Fail: error =>
                 {
-                    _logger?.Warning("Failed to generate FOV console output: {Error}", error.Message);
+                    _logger.Log(LogLevel.Warning, LogCategory.Vision, "Failed to generate FOV console output: {Error}", error.Message);
                     return result;
                 }
             ));
@@ -158,7 +158,7 @@ namespace Darklands.Core.Application.Vision.Commands
             catch (Exception ex)
             {
                 var error = Error.New("Failed to generate FOV console output", ex);
-                _logger?.Error(ex, "Error generating FOV console output");
+                _logger.Log(LogLevel.Error, LogCategory.Vision, "Error generating FOV console output: {Exception}", ex.Message);
                 return FinFail<string>(error);
             }
         }

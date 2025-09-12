@@ -5,8 +5,9 @@ using Darklands.Core.Application.Grid.Queries;
 using Darklands.Core.Application.Actor.Services;
 using Darklands.Core.Application.Combat.Services;
 using Darklands.Core.Presentation.Views;
+using Darklands.Core.Domain.Debug;
+using Darklands.Core.Infrastructure.Debug;
 using MediatR;
-using Serilog;
 using static LanguageExt.Prelude;
 
 namespace Darklands.Core.Presentation.Presenters
@@ -19,7 +20,7 @@ namespace Darklands.Core.Presentation.Presenters
     public sealed class ActorPresenter : PresenterBase<IActorView>
     {
         private readonly IMediator _mediator;
-        private readonly ILogger _logger;
+        private readonly ICategoryLogger _logger;
         private readonly IActorFactory _actorFactory;
         private readonly IActorStateService _actorStateService;
         private readonly ICombatQueryService _combatQueryService;
@@ -34,7 +35,7 @@ namespace Darklands.Core.Presentation.Presenters
         /// <param name="actorFactory">Factory for creating and managing actors</param>
         /// <param name="actorStateService">Service for querying actor state including health</param>
         /// <param name="combatQueryService">Combat query service for composite actor and position data</param>
-        public ActorPresenter(IActorView view, IMediator mediator, ILogger logger, IActorFactory actorFactory, IActorStateService actorStateService, ICombatQueryService combatQueryService)
+        public ActorPresenter(IActorView view, IMediator mediator, ICategoryLogger logger, IActorFactory actorFactory, IActorStateService actorStateService, ICombatQueryService combatQueryService)
             : base(view)
         {
             _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
@@ -53,7 +54,7 @@ namespace Darklands.Core.Presentation.Presenters
         public void SetGridPresenter(GridPresenter gridPresenter)
         {
             _gridPresenter = gridPresenter ?? throw new ArgumentNullException(nameof(gridPresenter));
-            _logger.Debug("ActorPresenter connected to GridPresenter for vision updates");
+            _logger.Log(LogLevel.Debug, LogCategory.System, "ActorPresenter connected to GridPresenter for vision updates");
         }
 
         /// <summary>
@@ -64,7 +65,7 @@ namespace Darklands.Core.Presentation.Presenters
         {
             base.Initialize();
 
-            _logger.Information("ActorPresenter initialized, setting up initial actors");
+            _logger.Log(LogCategory.System, "ActorPresenter initialized, setting up initial actors");
 
             try
             {
@@ -85,20 +86,20 @@ namespace Darklands.Core.Presentation.Presenters
                                 await InitializeActorHealthBar(playerId);
                             });
 
-                            _logger.Debug("Player created at strategic center (15,10) with ID {ActorId}", playerId);
+                            _logger.Log(LogLevel.Debug, LogCategory.System, "Player created at strategic center (15,10) with ID {0}", playerId);
 
                             // Trigger initial vision update after player creation
                             if (_gridPresenter != null)
                             {
                                 _ = Task.Run(async () => await _gridPresenter.UpdatePlayerVisionAsync(1));
-                                _logger.Debug("Triggered initial vision update after player creation");
+                                _logger.Log(LogLevel.Debug, LogCategory.System, "Triggered initial vision update after player creation");
                             }
                             else
                             {
-                                _logger.Warning("GridPresenter not connected - initial vision update skipped");
+                                _logger.Log(LogLevel.Warning, LogCategory.System, "GridPresenter not connected - initial vision update skipped");
                             }
                         },
-                        Fail: error => _logger.Warning("Failed to create test player: {Error}", error.Message)
+                        Fail: error => _logger.Log(LogLevel.Warning, LogCategory.System, "Failed to create test player: {0}", error.Message)
                     );
 
                     // Create dummy target at position (5,5)
@@ -115,21 +116,21 @@ namespace Darklands.Core.Presentation.Presenters
                                 await InitializeActorHealthBar(dummyId);
                             });
 
-                            _logger.Debug("Dummy target created at position (5,5) with ID {ActorId}", dummyId);
+                            _logger.Log(LogLevel.Debug, LogCategory.System, "Dummy target created at position (5,5) with ID {0}", dummyId);
                         },
-                        Fail: error => _logger.Warning("Failed to create dummy target: {Error}", error.Message)
+                        Fail: error => _logger.Log(LogLevel.Warning, LogCategory.System, "Failed to create dummy target: {0}", error.Message)
                     );
 
-                    _logger.Debug("Initial actor display setup completed - player and dummy target");
+                    _logger.Log(LogLevel.Debug, LogCategory.System, "Initial actor display setup completed - player and dummy target");
                 }
                 catch (Exception ex)
                 {
-                    _logger.Error(ex, "Error during actor initialization");
+                    _logger.Log(LogLevel.Error, LogCategory.System, "Error during actor initialization: {0}", ex.Message);
                 }
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, "Error during ActorPresenter initialization");
+                _logger.Log(LogLevel.Error, LogCategory.System, "Error during ActorPresenter initialization: {0}", ex.Message);
             }
         }
 
@@ -143,7 +144,7 @@ namespace Darklands.Core.Presentation.Presenters
         /// <param name="toPosition">New position</param>
         public async Task HandleActorMovedAsync(Domain.Grid.ActorId actorId, Domain.Grid.Position fromPosition, Domain.Grid.Position toPosition)
         {
-            _logger.Debug("Handling actor move for {ActorId} from {FromPosition} to {ToPosition}",
+            _logger.Log(LogLevel.Debug, LogCategory.Gameplay, "Handling actor move for {0} from {1} to {2}",
                 actorId, fromPosition, toPosition);
 
             try
@@ -155,11 +156,11 @@ namespace Darklands.Core.Presentation.Presenters
                 // Show brief success feedback
                 await View.ShowActorFeedbackAsync(actorId, ActorFeedbackType.ActionSuccess, "Moved");
 
-                _logger.Debug("Successfully updated actor position for {ActorId}", actorId);
+                _logger.Log(LogLevel.Debug, LogCategory.Gameplay, "Successfully updated actor position for {ActorId}", actorId);
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, "Error handling actor move for {ActorId}", actorId);
+                _logger.Log(LogLevel.Error, LogCategory.Gameplay, "Error handling actor move for {0}: {1}", actorId, ex.Message);
             }
         }
 
@@ -173,11 +174,11 @@ namespace Darklands.Core.Presentation.Presenters
             try
             {
                 await View.HighlightActorAsync(actorId, ActorHighlightType.Selected);
-                _logger.Debug("Actor {ActorId} selected and highlighted", actorId);
+                _logger.Log(LogLevel.Debug, LogCategory.Gameplay, "Actor {ActorId} selected and highlighted", actorId);
             }
             catch (Exception ex)
             {
-                _logger.Warning(ex, "Error handling actor selection for {ActorId}", actorId);
+                _logger.Log(LogLevel.Warning, LogCategory.Gameplay, "Error handling actor selection for {0}: {1}", actorId, ex.Message);
             }
         }
 
@@ -191,11 +192,11 @@ namespace Darklands.Core.Presentation.Presenters
             try
             {
                 await View.UnhighlightActorAsync(actorId);
-                _logger.Debug("Actor {ActorId} deselected and unhighlighted", actorId);
+                _logger.Log(LogLevel.Debug, LogCategory.Gameplay, "Actor {ActorId} deselected and unhighlighted", actorId);
             }
             catch (Exception ex)
             {
-                _logger.Warning(ex, "Error handling actor deselection for {ActorId}", actorId);
+                _logger.Log(LogLevel.Warning, LogCategory.Gameplay, "Error handling actor deselection for {ActorId}. Exception: {Exception}", actorId, ex);
             }
         }
 
@@ -207,17 +208,17 @@ namespace Darklands.Core.Presentation.Presenters
         {
             try
             {
-                _logger.Debug("Refreshing all actor displays");
+                _logger.Log(LogLevel.Debug, LogCategory.Gameplay, "Refreshing all actor displays");
 
                 // For Phase 4, we only have the test player
                 // Future versions would query the application layer for all actors
                 await View.RefreshAllActorsAsync();
 
-                _logger.Debug("All actor displays refreshed successfully");
+                _logger.Log(LogLevel.Debug, LogCategory.Gameplay, "All actor displays refreshed successfully");
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, "Error refreshing all actor displays");
+                _logger.Log(LogLevel.Error, LogCategory.Gameplay, "Error refreshing all actor displays. Exception: {Exception}", ex);
             }
         }
 
@@ -233,11 +234,11 @@ namespace Darklands.Core.Presentation.Presenters
             try
             {
                 await View.UpdateActorAsync(actorId, position, actorType);
-                _logger.Debug("Updated actor {ActorId} at position {Position}", actorId, position);
+                _logger.Log(LogLevel.Debug, LogCategory.Gameplay, "Updated actor {ActorId} at position {Position}", actorId, position);
             }
             catch (Exception ex)
             {
-                _logger.Warning(ex, "Error updating actor {ActorId} at position {Position}", actorId, position);
+                _logger.Log(LogLevel.Warning, LogCategory.Gameplay, "Error updating actor {ActorId} at position {Position}. Exception: {Exception}", actorId, position, ex);
             }
         }
 
@@ -252,11 +253,11 @@ namespace Darklands.Core.Presentation.Presenters
             try
             {
                 await View.RemoveActorAsync(actorId, position);
-                _logger.Information("Removed actor {ActorId} from position {Position}", actorId, position);
+                _logger.Log(LogCategory.System, "Removed actor {ActorId} from position {Position}", actorId, position);
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, "Error removing actor {ActorId} from position {Position}", actorId, position);
+                _logger.Log(LogLevel.Error, LogCategory.Gameplay, "Error removing actor {ActorId} from position {Position}: {1}", actorId, position, ex.Message);
             }
         }
 
@@ -274,12 +275,12 @@ namespace Darklands.Core.Presentation.Presenters
                 // Health bar will be hidden/shown automatically as a child node
                 await View.SetActorVisibilityAsync(actorId, isVisible);
 
-                _logger.Debug("Set actor {ActorId} visibility to {Visible}",
+                _logger.Log(LogLevel.Debug, LogCategory.Gameplay, "Set actor {0} visibility to {1}",
                     actorId.Value.ToString()[..8], isVisible ? "VISIBLE" : "HIDDEN");
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, "Error setting actor visibility for {ActorId}", actorId);
+                _logger.Log(LogLevel.Error, LogCategory.Gameplay, "Error setting actor visibility for {ActorId}: {1}", actorId, ex.Message);
             }
         }
 
@@ -296,14 +297,14 @@ namespace Darklands.Core.Presentation.Presenters
             {
                 // Update the health bar via the actor view interface
                 View.UpdateActorHealth(actorId, currentHealth, maxHealth);
-                _logger.Debug("Updated health bar for actor {ActorId} to {Current}/{Max}",
+                _logger.Log(LogLevel.Debug, LogCategory.Gameplay, "Updated health bar for actor {0} to {1}/{2}",
                     actorId, currentHealth, maxHealth);
 
                 await Task.CompletedTask;
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, "Error updating health bar for actor {ActorId}", actorId);
+                _logger.Log(LogLevel.Error, LogCategory.Gameplay, "Error updating health bar for actor {ActorId}: {1}", actorId, ex.Message);
             }
         }
 
@@ -323,17 +324,17 @@ namespace Darklands.Core.Presentation.Presenters
                     {
                         // Update health bar with actual values
                         View.UpdateActorHealth(actorId, actor.Health.Current, actor.Health.Maximum);
-                        _logger.Debug("Initialized health bar for actor {ActorId} with {Current}/{Max} HP",
+                        _logger.Log(LogLevel.Debug, LogCategory.Gameplay, "Initialized health bar for actor {0} with {1}/{2} HP",
                             actorId, actor.Health.Current, actor.Health.Maximum);
                     },
-                    None: () => _logger.Warning("Could not initialize health bar - actor {ActorId} not found in state service", actorId)
+                    None: () => _logger.Log(LogLevel.Warning, LogCategory.Gameplay, "Could not initialize health bar - actor {ActorId} not found in state service", actorId)
                 );
 
                 await Task.CompletedTask;
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, "Error initializing health bar for actor {ActorId}", actorId);
+                _logger.Log(LogLevel.Error, LogCategory.Gameplay, "Error initializing health bar for actor {ActorId}: {1}", actorId, ex.Message);
             }
         }
 
@@ -348,7 +349,7 @@ namespace Darklands.Core.Presentation.Presenters
         /// <param name="newHealth">New health state</param>
         public async Task HandleHealthChangedAsync(Domain.Grid.ActorId actorId, Domain.Actor.Health oldHealth, Domain.Actor.Health newHealth)
         {
-            _logger.Information("Handling health change for {ActorId} from {OldHealth} to {NewHealth}",
+            _logger.Log(LogCategory.System, "Handling health change for {0} from {1} to {2}",
                 actorId, oldHealth, newHealth);
 
             try
@@ -371,18 +372,18 @@ namespace Darklands.Core.Presentation.Presenters
                             if (newHealth.IsDead)
                             {
                                 await View.ShowHealthFeedbackAsync(actorId, HealthFeedbackType.Death, 0, actorWithPosition.Position);
-                                _logger.Information("Actor {ActorId} died from health change", actorId);
+                                _logger.Log(LogCategory.System, "Actor {ActorId} died from health change", actorId);
                             }
                             else if (newHealth.HealthPercentage <= 0.25) // Critical at 25% health
                             {
                                 await View.HighlightActorHealthBarAsync(actorId, HealthHighlightType.Critical);
                                 await View.ShowHealthFeedbackAsync(actorId, HealthFeedbackType.CriticalHealth, 0, actorWithPosition.Position);
-                                _logger.Warning("Actor {ActorId} is at critical health: {Health}", actorId, newHealth);
+                                _logger.Log(LogLevel.Warning, LogCategory.Gameplay, "Actor {ActorId} is at critical health: {Health}", actorId, newHealth);
                             }
                         },
                         None: () =>
                         {
-                            _logger.Warning("Actor {ActorId} not found when handling health change", actorId);
+                            _logger.Log(LogLevel.Warning, LogCategory.Gameplay, "Actor {ActorId} not found when handling health change", actorId);
                             return Task.CompletedTask;
                         }
                     );
@@ -411,17 +412,17 @@ namespace Darklands.Core.Presentation.Presenters
                         },
                         None: () =>
                         {
-                            _logger.Warning("Actor {ActorId} not found when handling health change", actorId);
+                            _logger.Log(LogLevel.Warning, LogCategory.Gameplay, "Actor {ActorId} not found when handling health change", actorId);
                             return Task.CompletedTask;
                         }
                     );
                 }
 
-                _logger.Debug("Successfully updated health display for {ActorId}", actorId);
+                _logger.Log(LogLevel.Debug, LogCategory.Gameplay, "Successfully updated health display for {ActorId}", actorId);
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, "Error handling health change for {ActorId}", actorId);
+                _logger.Log(LogLevel.Error, LogCategory.Gameplay, "Error handling health change for {ActorId}: {1}", actorId, ex.Message);
             }
         }
 
@@ -434,11 +435,11 @@ namespace Darklands.Core.Presentation.Presenters
             try
             {
                 await View.HighlightActorHealthBarAsync(actorId, HealthHighlightType.HealTarget);
-                _logger.Debug("Highlighted health bar for healing target {ActorId}", actorId);
+                _logger.Log(LogLevel.Debug, LogCategory.Gameplay, "Highlighted health bar for healing target {ActorId}", actorId);
             }
             catch (Exception ex)
             {
-                _logger.Warning(ex, "Error highlighting heal target for {ActorId}", actorId);
+                _logger.Log(LogLevel.Warning, LogCategory.Gameplay, "Error highlighting heal target for {ActorId}. Exception: {Exception}", actorId, ex);
             }
         }
 
@@ -451,11 +452,11 @@ namespace Darklands.Core.Presentation.Presenters
             try
             {
                 await View.HighlightActorHealthBarAsync(actorId, HealthHighlightType.DamageTarget);
-                _logger.Debug("Highlighted health bar for damage target {ActorId}", actorId);
+                _logger.Log(LogLevel.Debug, LogCategory.Gameplay, "Highlighted health bar for damage target {ActorId}", actorId);
             }
             catch (Exception ex)
             {
-                _logger.Warning(ex, "Error highlighting damage target for {ActorId}", actorId);
+                _logger.Log(LogLevel.Warning, LogCategory.Gameplay, "Error highlighting damage target for {ActorId}. Exception: {Exception}", actorId, ex);
             }
         }
 
@@ -468,11 +469,11 @@ namespace Darklands.Core.Presentation.Presenters
             try
             {
                 await View.UnhighlightActorHealthBarAsync(actorId);
-                _logger.Debug("Cleared targeting highlight for {ActorId}", actorId);
+                _logger.Log(LogLevel.Debug, LogCategory.Gameplay, "Cleared targeting highlight for {ActorId}", actorId);
             }
             catch (Exception ex)
             {
-                _logger.Warning(ex, "Error clearing targeting highlight for {ActorId}", actorId);
+                _logger.Log(LogLevel.Warning, LogCategory.Gameplay, "Error clearing targeting highlight for {ActorId}. Exception: {Exception}", actorId, ex);
             }
         }
 
@@ -481,7 +482,7 @@ namespace Darklands.Core.Presentation.Presenters
         /// </summary>
         public override void Dispose()
         {
-            _logger.Information("ActorPresenter disposing and cleaning up resources");
+            _logger.Log(LogCategory.System, "ActorPresenter disposing and cleaning up resources");
             base.Dispose();
         }
     }

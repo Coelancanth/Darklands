@@ -1,7 +1,7 @@
 using LanguageExt;
 using LanguageExt.Common;
 using MediatR;
-using Serilog;
+using Darklands.Core.Domain.Debug;
 using System.Threading;
 using System.Threading.Tasks;
 using Darklands.Core.Application.Actor.Services;
@@ -16,11 +16,11 @@ namespace Darklands.Core.Application.Actor.Commands
     public class DamageActorCommandHandler : IRequestHandler<DamageActorCommand, Fin<LanguageExt.Unit>>
     {
         private readonly IActorStateService _actorStateService;
-        private readonly ILogger _logger;
+        private readonly ICategoryLogger _logger;
 
         public DamageActorCommandHandler(
             IActorStateService actorStateService,
-            ILogger logger)
+            ICategoryLogger logger)
         {
             _actorStateService = actorStateService;
             _logger = logger;
@@ -28,14 +28,14 @@ namespace Darklands.Core.Application.Actor.Commands
 
         public Task<Fin<LanguageExt.Unit>> Handle(DamageActorCommand request, CancellationToken cancellationToken)
         {
-            _logger?.Debug("Processing DamageActorCommand for ActorId: {ActorId}, Damage: {Damage}, Source: {Source}",
+            _logger.Log(LogLevel.Debug, LogCategory.Command, "Processing DamageActorCommand for ActorId: {ActorId}, Damage: {Damage}, Source: {Source}",
                 request.ActorId, request.Damage, request.Source ?? "Unknown");
 
             // Step 1: Validate damage amount
             if (request.Damage < 0)
             {
                 var error = Error.New("INVALID_DAMAGE: Damage amount cannot be negative");
-                _logger?.Warning("Invalid damage amount {Damage} for ActorId {ActorId}: {Error}",
+                _logger.Log(LogLevel.Warning, LogCategory.Command, "Invalid damage amount {Damage} for ActorId {ActorId}: {Error}",
                     request.Damage, request.ActorId, error.Message);
                 return Task.FromResult(FinFail<LanguageExt.Unit>(error));
             }
@@ -45,7 +45,7 @@ namespace Darklands.Core.Application.Actor.Commands
             if (actorOption.IsNone)
             {
                 var error = Error.New($"ACTOR_NOT_FOUND: Actor {request.ActorId} not found");
-                _logger?.Warning("Actor not found for ActorId {ActorId}: {Error}", request.ActorId, error.Message);
+                _logger.Log(LogLevel.Warning, LogCategory.Command, "Actor not found for ActorId {ActorId}: {Error}", request.ActorId, error.Message);
                 return Task.FromResult(FinFail<LanguageExt.Unit>(error));
             }
 
@@ -62,7 +62,7 @@ namespace Darklands.Core.Application.Actor.Commands
                     Succ: _ => Error.New("UNKNOWN: Unknown error"),
                     Fail: e => e
                 );
-                _logger?.Error("Failed to damage actor {ActorId}: {Error}", request.ActorId, error.Message);
+                _logger.Log(LogLevel.Error, LogCategory.Command, "Failed to damage actor {ActorId}: {Error}", request.ActorId, error.Message);
                 return Task.FromResult(FinFail<LanguageExt.Unit>(error));
             }
 
@@ -74,12 +74,12 @@ namespace Darklands.Core.Application.Actor.Commands
             // Log the damage result
             if (damagedActor.Health.IsDead)
             {
-                _logger?.Information("Actor {ActorId} died from {Damage} damage from {Source}. Final health: {Health}",
+                _logger.Log(LogLevel.Information, LogCategory.Combat, "Actor {ActorId} died from {Damage} damage from {Source}. Final health: {Health}",
                     request.ActorId, request.Damage, request.Source ?? "Unknown", damagedActor.Health);
             }
             else
             {
-                _logger?.Debug("Actor {ActorId} took {Damage} damage from {Source}. Health: {PreviousHealth} → {NewHealth}",
+                _logger.Log(LogLevel.Debug, LogCategory.Combat, "Actor {ActorId} took {Damage} damage from {Source}. Health: {PreviousHealth} → {NewHealth}",
                     request.ActorId, request.Damage, request.Source ?? "Unknown",
                     currentActor.Health, damagedActor.Health);
             }

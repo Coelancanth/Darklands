@@ -2,12 +2,15 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
 using Serilog.Extensions.Logging;
+using System;
 using System.Reflection;
 using MediatR;
 using LanguageExt;
 using LanguageExt.Common;
 using static LanguageExt.Prelude;
 using Serilog.Core;
+using Darklands.Core.Domain.Debug;
+using Darklands.Core.Infrastructure.Debug;
 
 namespace Darklands.Core.Infrastructure.DependencyInjection;
 
@@ -171,6 +174,18 @@ public static class GameStrapper
             services.AddSingleton<Serilog.ILogger>(Log.Logger);
             services.AddSingleton<ILoggerFactory>(provider => new SerilogLoggerFactory(Log.Logger));
             services.AddLogging(builder => builder.AddSerilog(Log.Logger));
+
+            // Register debug configuration and category logger
+            services.AddSingleton<IDebugConfiguration, DefaultDebugConfiguration>();
+
+            // Register factory for ICategoryLogger - will be overridden by composition root with UnifiedLogger
+            services.AddSingleton<ICategoryLogger>(provider =>
+            {
+                // Temporary fallback - this should be overridden by the composition root
+                var serilogLogger = provider.GetRequiredService<Serilog.ILogger>();
+                var config = provider.GetRequiredService<IDebugConfiguration>();
+                return new CategoryFilteredLogger(serilogLogger, config);
+            });
 
             return FinSucc(LanguageExt.Unit.Default);
         }
@@ -393,6 +408,21 @@ public record GameStrapperConfiguration(
     public static GameStrapperConfiguration Development => new(
         LogLevel: Serilog.Events.LogEventLevel.Debug,
         ValidateScopes: true);
+
+    /// <summary>
+    /// Configuration for Godot Editor runs that overwrites log file for easy reading.
+    /// Uses a fixed filename without rolling to ensure each editor run gets a fresh log.
+    /// </summary>
+    public static GameStrapperConfiguration DevelopmentEditor => new(
+        LogLevel: Serilog.Events.LogEventLevel.Debug,
+        LogFilePath: "logs/darklands-current.log",
+        CustomLoggerConfiguration: config => config
+            .WriteTo.File(
+                path: "logs/darklands-current.log",
+                rollOnFileSizeLimit: false,
+                retainedFileCountLimit: 1,
+                shared: true,  // Allow live tailing
+                flushToDiskInterval: TimeSpan.FromSeconds(1)));
 
     public static GameStrapperConfiguration Testing => new(
         LogLevel: Serilog.Events.LogEventLevel.Warning,

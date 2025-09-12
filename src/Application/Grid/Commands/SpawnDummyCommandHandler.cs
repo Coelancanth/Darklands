@@ -1,7 +1,7 @@
 using LanguageExt;
 using LanguageExt.Common;
 using MediatR;
-using Serilog;
+using Darklands.Core.Domain.Debug;
 using System.Threading;
 using System.Threading.Tasks;
 using Darklands.Core.Application.Grid.Services;
@@ -20,13 +20,13 @@ namespace Darklands.Core.Application.Grid.Commands
     {
         private readonly IGridStateService _gridStateService;
         private readonly IActorStateService _actorStateService;
-        private readonly ILogger _logger;
+        private readonly ICategoryLogger _logger;
         private readonly Domain.Common.IStableIdGenerator _idGenerator;
 
         public SpawnDummyCommandHandler(
             IGridStateService gridStateService,
             IActorStateService actorStateService,
-            ILogger logger,
+            ICategoryLogger logger,
             Domain.Common.IStableIdGenerator idGenerator)
         {
             _gridStateService = gridStateService;
@@ -37,7 +37,7 @@ namespace Darklands.Core.Application.Grid.Commands
 
         public Task<Fin<LanguageExt.Unit>> Handle(SpawnDummyCommand request, CancellationToken cancellationToken)
         {
-            _logger?.Debug("Processing SpawnDummyCommand at Position: {Position}, MaxHealth: {MaxHealth}, Name: {Name}",
+            _logger.Log(LogLevel.Debug, LogCategory.Command, "Processing SpawnDummyCommand at Position: {Position}, MaxHealth: {MaxHealth}, Name: {Name}",
                 request.Position, request.MaxHealth, request.Name);
 
             // Step 1: Validate target position is available
@@ -45,7 +45,7 @@ namespace Darklands.Core.Application.Grid.Commands
             if (!isEmpty)
             {
                 var error = Error.New($"POSITION_OCCUPIED: Position {request.Position} is already occupied");
-                _logger?.Warning("Cannot spawn dummy at occupied position {Position}: {Error}", request.Position, error.Message);
+                _logger.Log(LogLevel.Warning, LogCategory.Command, "Cannot spawn dummy at occupied position {Position}: {Error}", request.Position, error.Message);
                 return Task.FromResult(FinFail<LanguageExt.Unit>(error));
             }
 
@@ -54,7 +54,7 @@ namespace Darklands.Core.Application.Grid.Commands
             if (dummyResult.IsFail)
             {
                 var error = dummyResult.Match<Error>(Succ: _ => Error.New("UNKNOWN: Unknown error"), Fail: e => e);
-                _logger?.Error("Failed to create DummyActor: {Error}", error.Message);
+                _logger.Log(LogLevel.Error, LogCategory.Command, "Failed to create DummyActor: {Error}", error.Message);
                 return Task.FromResult(FinFail<LanguageExt.Unit>(error));
             }
 
@@ -69,7 +69,7 @@ namespace Darklands.Core.Application.Grid.Commands
             if (actorForRegistration.IsFail)
             {
                 var error = actorForRegistration.Match<Error>(Succ: _ => Error.New("UNKNOWN: Unknown error"), Fail: e => e);
-                _logger?.Error("Failed to convert dummy {ActorId} to Actor: {Error}", dummy.Id, error.Message);
+                _logger.Log(LogLevel.Error, LogCategory.Command, "Failed to convert dummy {ActorId} to Actor: {Error}", dummy.Id, error.Message);
                 return Task.FromResult(FinFail<LanguageExt.Unit>(error));
             }
 
@@ -82,7 +82,7 @@ namespace Darklands.Core.Application.Grid.Commands
             if (addActorResult.IsFail)
             {
                 var error = addActorResult.Match<Error>(Succ: _ => Error.New("UNKNOWN: Unknown error"), Fail: e => e);
-                _logger?.Error("Failed to register dummy {ActorId} in actor state service: {Error}", dummy.Id, error.Message);
+                _logger.Log(LogLevel.Error, LogCategory.Command, "Failed to register dummy {ActorId} in actor state service: {Error}", dummy.Id, error.Message);
                 return Task.FromResult(FinFail<LanguageExt.Unit>(error));
             }
 
@@ -93,11 +93,11 @@ namespace Darklands.Core.Application.Grid.Commands
                 // If grid placement fails, remove from actor state service to maintain consistency
                 _ = _actorStateService.RemoveDeadActor(dummy.Id); // Best effort cleanup
                 var error = addGridResult.Match<Error>(Succ: _ => Error.New("UNKNOWN: Unknown error"), Fail: e => e);
-                _logger?.Error("Failed to add dummy {ActorId} to grid at {Position}: {Error}", dummy.Id, request.Position, error.Message);
+                _logger.Log(LogLevel.Error, LogCategory.Command, "Failed to add dummy {ActorId} to grid at {Position}: {Error}", dummy.Id, request.Position, error.Message);
                 return Task.FromResult(FinFail<LanguageExt.Unit>(error));
             }
 
-            _logger?.Information("Successfully spawned dummy {Name} ({ActorId}) at position {Position} with {Health} health",
+            _logger.Log(LogLevel.Information, LogCategory.Command, "Successfully spawned dummy {Name} ({ActorId}) at position {Position} with {Health} health",
                 dummy.Name, dummy.Id, request.Position, dummy.Health.Maximum);
 
             return Task.FromResult(FinSucc(LanguageExt.Unit.Default));

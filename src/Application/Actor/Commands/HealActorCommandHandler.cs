@@ -1,7 +1,7 @@
 using LanguageExt;
 using LanguageExt.Common;
 using MediatR;
-using Serilog;
+using Darklands.Core.Domain.Debug;
 using System.Threading;
 using System.Threading.Tasks;
 using Darklands.Core.Application.Actor.Services;
@@ -16,11 +16,11 @@ namespace Darklands.Core.Application.Actor.Commands
     public class HealActorCommandHandler : IRequestHandler<HealActorCommand, Fin<LanguageExt.Unit>>
     {
         private readonly IActorStateService _actorStateService;
-        private readonly ILogger _logger;
+        private readonly ICategoryLogger _logger;
 
         public HealActorCommandHandler(
             IActorStateService actorStateService,
-            ILogger logger)
+            ICategoryLogger logger)
         {
             _actorStateService = actorStateService;
             _logger = logger;
@@ -28,14 +28,14 @@ namespace Darklands.Core.Application.Actor.Commands
 
         public Task<Fin<LanguageExt.Unit>> Handle(HealActorCommand request, CancellationToken cancellationToken)
         {
-            _logger?.Debug("Processing HealActorCommand for ActorId: {ActorId}, HealAmount: {HealAmount}, Source: {Source}",
+            _logger.Log(LogLevel.Debug, LogCategory.Command, "Processing HealActorCommand for ActorId: {ActorId}, HealAmount: {HealAmount}, Source: {Source}",
                 request.ActorId, request.HealAmount, request.Source ?? "Unknown");
 
             // Step 1: Validate heal amount
             if (request.HealAmount < 0)
             {
                 var error = Error.New("INVALID_HEAL: Heal amount cannot be negative");
-                _logger?.Warning("Invalid heal amount {HealAmount} for ActorId {ActorId}: {Error}",
+                _logger.Log(LogLevel.Warning, LogCategory.Command, "Invalid heal amount {HealAmount} for ActorId {ActorId}: {Error}",
                     request.HealAmount, request.ActorId, error.Message);
                 return Task.FromResult(FinFail<LanguageExt.Unit>(error));
             }
@@ -45,7 +45,7 @@ namespace Darklands.Core.Application.Actor.Commands
             if (actorOption.IsNone)
             {
                 var error = Error.New($"ACTOR_NOT_FOUND: Actor {request.ActorId} not found");
-                _logger?.Warning("Actor not found for ActorId {ActorId}: {Error}", request.ActorId, error.Message);
+                _logger.Log(LogLevel.Warning, LogCategory.Command, "Actor not found for ActorId {ActorId}: {Error}", request.ActorId, error.Message);
                 return Task.FromResult(FinFail<LanguageExt.Unit>(error));
             }
 
@@ -58,7 +58,7 @@ namespace Darklands.Core.Application.Actor.Commands
             if (currentActor.Health.IsDead)
             {
                 var error = Error.New($"CANNOT_HEAL_DEAD: Cannot heal dead actor {request.ActorId}");
-                _logger?.Warning("Attempted to heal dead actor {ActorId}: {Error}", request.ActorId, error.Message);
+                _logger.Log(LogLevel.Warning, LogCategory.Command, "Attempted to heal dead actor {ActorId}: {Error}", request.ActorId, error.Message);
                 return Task.FromResult(FinFail<LanguageExt.Unit>(error));
             }
 
@@ -70,7 +70,7 @@ namespace Darklands.Core.Application.Actor.Commands
                     Succ: _ => Error.New("UNKNOWN: Unknown error"),
                     Fail: e => e
                 );
-                _logger?.Error("Failed to heal actor {ActorId}: {Error}", request.ActorId, error.Message);
+                _logger.Log(LogLevel.Error, LogCategory.Command, "Failed to heal actor {ActorId}: {Error}", request.ActorId, error.Message);
                 return Task.FromResult(FinFail<LanguageExt.Unit>(error));
             }
 
@@ -83,13 +83,13 @@ namespace Darklands.Core.Application.Actor.Commands
             var actualHealing = healedActor.Health.Current - currentActor.Health.Current;
             if (actualHealing > 0)
             {
-                _logger?.Debug("Actor {ActorId} healed {ActualHealing} points from {Source}. Health: {PreviousHealth} → {NewHealth}",
+                _logger.Log(LogLevel.Debug, LogCategory.Combat, "Actor {ActorId} healed {ActualHealing} points from {Source}. Health: {PreviousHealth} → {NewHealth}",
                     request.ActorId, actualHealing, request.Source ?? "Unknown",
                     currentActor.Health, healedActor.Health);
             }
             else
             {
-                _logger?.Debug("Actor {ActorId} was already at full health, no healing applied. Health: {Health}",
+                _logger.Log(LogLevel.Debug, LogCategory.Combat, "Actor {ActorId} was already at full health, no healing applied. Health: {Health}",
                     request.ActorId, healedActor.Health);
             }
 

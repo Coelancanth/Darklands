@@ -7,11 +7,12 @@ using Darklands.Core.Application.Common;
 using Darklands.Core.Application.Grid.Queries;
 using Darklands.Core.Application.Vision.Queries;
 using Darklands.Core.Domain.Combat;
+using Darklands.Core.Domain.Debug;
 using Darklands.Core.Domain.Vision;
+using Darklands.Core.Infrastructure.Debug;
 using Darklands.Core.Presentation.Views;
 using LanguageExt;
 using MediatR;
-using Serilog;
 
 namespace Darklands.Core.Presentation.Presenters
 {
@@ -23,7 +24,7 @@ namespace Darklands.Core.Presentation.Presenters
     public sealed class GridPresenter : PresenterBase<IGridView>
     {
         private readonly IMediator _mediator;
-        private readonly ILogger _logger;
+        private readonly ICategoryLogger _logger;
         private readonly Application.Grid.Services.IGridStateService _gridStateService;
         private readonly ICombatQueryService _combatQueryService;
         private readonly IActorFactory _actorFactory;
@@ -39,7 +40,7 @@ namespace Darklands.Core.Presentation.Presenters
         /// <param name="gridStateService">Service for accessing grid state directly</param>
         /// <param name="combatQueryService">Service for querying actor positions and combat data</param>
         /// <param name="actorFactory">Factory for accessing actor information</param>
-        public GridPresenter(IGridView view, IMediator mediator, ILogger logger, Application.Grid.Services.IGridStateService gridStateService, ICombatQueryService combatQueryService, IActorFactory actorFactory)
+        public GridPresenter(IGridView view, IMediator mediator, ICategoryLogger logger, Application.Grid.Services.IGridStateService gridStateService, ICombatQueryService combatQueryService, IActorFactory actorFactory)
             : base(view)
         {
             _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
@@ -76,7 +77,7 @@ namespace Darklands.Core.Presentation.Presenters
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, "Error during GridPresenter initialization");
+                _logger.Log(LogLevel.Error, LogCategory.System, "Error during GridPresenter initialization" + ": " + ex.Message);
             }
         }
 
@@ -87,14 +88,14 @@ namespace Darklands.Core.Presentation.Presenters
         /// <param name="position">The grid position that was clicked</param>
         public async Task HandleTileClickAsync(Domain.Grid.Position position)
         {
-            _logger.Debug("User clicked on tile at position {Position}", position);
+            _logger.Log(LogLevel.Debug, LogCategory.System, "User clicked on tile at position {Position}", position);
 
             try
             {
                 // Get the player ID from the actor factory
                 if (_actorFactory.PlayerId == null)
                 {
-                    _logger.Warning("No player available for action");
+                    _logger.Log(LogLevel.Warning, LogCategory.System, "No player available for action");
                     await View.ShowErrorFeedbackAsync(position, "No player available");
                     return;
                 }
@@ -108,19 +109,19 @@ namespace Darklands.Core.Presentation.Presenters
                 if (targetActor != null)
                 {
                     // There's a living enemy at this position - attempt attack
-                    _logger.Debug("Attempting to attack {TargetName} at position {Position}", targetActor.Actor.Name, position);
+                    _logger.Log(LogLevel.Debug, LogCategory.System, "Attempting to attack {TargetName} at position {Position}", targetActor.Actor.Name, position);
                     await HandleAttackActionAsync(playerId, targetActor.Id, position);
                 }
                 else
                 {
                     // No enemy at position - attempt move
-                    _logger.Debug("Attempting to move to empty position {Position}", position);
+                    _logger.Log(LogLevel.Debug, LogCategory.System, "Attempting to move to empty position {Position}", position);
                     await HandleMoveActionAsync(playerId, position);
                 }
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, "Unexpected error handling tile click at position {Position}", position);
+                _logger.Log(LogLevel.Error, LogCategory.System, "Unexpected error handling tile click at position {Position}", position + ": " + ex.Message);
                 await View.ShowErrorFeedbackAsync(position, "An unexpected error occurred");
             }
         }
@@ -141,7 +142,7 @@ namespace Darklands.Core.Presentation.Presenters
                 },
                 Fail: async error =>
                 {
-                    _logger.Warning("Attack on target at {Position} failed: {Error}", targetPosition, error.Message);
+                    _logger.Log(LogLevel.Warning, LogCategory.System, "Attack on target at {Position} failed: {Error}", targetPosition, error.Message);
                     await View.ShowErrorFeedbackAsync(targetPosition, error.Message);
                 }
             );
@@ -161,11 +162,11 @@ namespace Darklands.Core.Presentation.Presenters
             await result.Match(
                 Succ: async _ =>
                 {
-                    _logger.Debug("Successfully processed move to position {Position}", targetPosition);
+                    _logger.Log(LogLevel.Debug, LogCategory.System, "Successfully processed move to position {Position}", targetPosition);
 
                     // Verify the move was actually applied by checking the new position
                     var newPositionOption = _gridStateService.GetActorPosition(playerId);
-                    _logger.Debug("After move command - Player position in GridStateService: {Position}",
+                    _logger.Log(LogLevel.Debug, LogCategory.Gameplay, "After move command - Player position in GridStateService: {Position}",
                         newPositionOption.Match(p => p.ToString(), () => "NOT_FOUND"));
 
                     // Notify ActorPresenter about the successful move
@@ -176,20 +177,20 @@ namespace Darklands.Core.Presentation.Presenters
                     }
                     else
                     {
-                        _logger.Warning("ActorPresenter not available or from position unknown - visual update skipped");
+                        _logger.Log(LogLevel.Warning, LogCategory.System, "ActorPresenter not available or from position unknown - visual update skipped");
                     }
 
                     // Update player vision after movement (fog of war)
                     // Force recalculation by incrementing turn number
                     _currentTurn++;
-                    _logger.Debug("Updating player vision after move to {Position} (turn {Turn})", targetPosition, _currentTurn);
+                    _logger.Log(LogLevel.Debug, LogCategory.System, "Updating player vision after move to {Position} (turn {Turn})", targetPosition, _currentTurn);
                     await UpdatePlayerVisionAsync(_currentTurn);
 
                     await View.ShowSuccessFeedbackAsync(targetPosition, "Moved");
                 },
                 Fail: async error =>
                 {
-                    _logger.Warning("Move to position {Position} failed: {Error}", targetPosition, error.Message);
+                    _logger.Log(LogLevel.Warning, LogCategory.System, "Move to position {Position} failed: {Error}", targetPosition, error.Message);
                     await View.ShowErrorFeedbackAsync(targetPosition, error.Message);
                 }
             );
@@ -210,7 +211,7 @@ namespace Darklands.Core.Presentation.Presenters
             }
             catch (Exception ex)
             {
-                _logger.Warning(ex, "Error handling tile hover at position {Position}", position);
+                _logger.Log(LogLevel.Warning, LogCategory.System, "Error handling tile hover at position {Position}. Exception: {Exception}", position, ex);
             }
         }
 
@@ -226,7 +227,7 @@ namespace Darklands.Core.Presentation.Presenters
             }
             catch (Exception ex)
             {
-                _logger.Warning(ex, "Error handling tile unhover at position {Position}", position);
+                _logger.Log(LogLevel.Warning, LogCategory.System, "Error handling tile unhover at position {Position}. Exception: {Exception}", position, ex);
             }
         }
 
@@ -242,7 +243,7 @@ namespace Darklands.Core.Presentation.Presenters
                 // Get the player actor
                 if (_actorFactory.PlayerId == null)
                 {
-                    _logger.Debug("No player available for vision update");
+                    _logger.Log(LogLevel.Debug, LogCategory.System, "No player available for vision update");
                     return;
                 }
 
@@ -252,12 +253,12 @@ namespace Darklands.Core.Presentation.Presenters
                 var playerPositionOption = _gridStateService.GetActorPosition(playerId);
                 if (playerPositionOption.IsNone)
                 {
-                    _logger.Warning("Could not get player position for vision update");
+                    _logger.Log(LogLevel.Warning, LogCategory.System, "Could not get player position for vision update");
                     return;
                 }
 
                 var playerPosition = playerPositionOption.Match(p => p, () => new Domain.Grid.Position(0, 0));
-                _logger.Debug("Vision update - Using player position: {Position}", playerPosition);
+                _logger.Log(LogLevel.Debug, LogCategory.System, "Vision update - Using player position: {Position}", playerPosition);
 
                 // Create FOV calculation query
                 var playerVisionRange = VisionRange.Create(8).IfFail(VisionRange.Blind); // Player vision range from backlog
@@ -266,10 +267,10 @@ namespace Darklands.Core.Presentation.Presenters
                 // Calculate new vision state
                 var visionResult = await _mediator.Send(fovQuery);
 
-                await visionResult.Match(
+                var visionTask = visionResult.Match(
                     Succ: async visionState =>
                     {
-                        _logger.Debug("Calculated vision for player at {Position}: {Visible} visible, {Explored} explored",
+                        _logger.Log(LogLevel.Debug, LogCategory.Vision, "Calculated vision for player at {Position}: {Visible} visible, {Explored} explored",
                             playerPosition, visionState.CurrentlyVisible.Count, visionState.PreviouslyExplored.Count);
 
                         // Update the view with new fog of war
@@ -280,15 +281,17 @@ namespace Darklands.Core.Presentation.Presenters
                     },
                     Fail: error =>
                     {
-                        _logger.Warning("Failed to calculate player vision: {Error}", error.Message);
+                        _logger.Log(LogLevel.Warning, LogCategory.System, "Failed to calculate player vision: {Error}", error.Message);
                         // Continue without fog of war update
                         return Task.CompletedTask;
                     }
                 );
+
+                await visionTask;
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, "Unexpected error updating player vision");
+                _logger.Log(LogLevel.Error, LogCategory.System, "Unexpected error updating player vision" + ": " + ex.Message);
             }
         }
 
@@ -304,7 +307,7 @@ namespace Darklands.Core.Presentation.Presenters
                 var query = new GetGridStateQuery();
                 var result = await _mediator.Send(query);
 
-                await result.Match(
+                var refreshTask = result.Match(
                     Succ: async grid =>
                     {
                         // Display grid boundaries
@@ -316,20 +319,22 @@ namespace Darklands.Core.Presentation.Presenters
                         // Initialize player vision (fog of war)
                         await UpdatePlayerVisionAsync(_currentTurn);
 
-                        _logger.Debug("Grid display refreshed successfully with {Width}x{Height} grid and initial fog of war",
+                        _logger.Log(LogLevel.Debug, LogCategory.System, "Grid display refreshed successfully with {Width}x{Height} grid and initial fog of war",
                             grid.Width, grid.Height);
 
                     },
                     Fail: error =>
                     {
-                        _logger.Error("Failed to refresh grid display: {Error}", error.Message);
+                        _logger.Log(LogLevel.Error, LogCategory.System, "Failed to refresh grid display: {0}", error.Message);
                         return Task.CompletedTask;
                     }
                 );
+
+                await refreshTask;
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, "Unexpected error refreshing grid display");
+                _logger.Log(LogLevel.Error, LogCategory.System, "Unexpected error refreshing grid display" + ": " + ex.Message);
             }
         }
 
@@ -347,7 +352,7 @@ namespace Darklands.Core.Presentation.Presenters
             }
             catch (Exception ex)
             {
-                _logger.Warning(ex, "Error updating tile at position {Position}", position);
+                _logger.Log(LogLevel.Warning, LogCategory.System, "Error updating tile at position {Position}. Exception: {Exception}", position, ex);
             }
         }
 
@@ -375,7 +380,7 @@ namespace Darklands.Core.Presentation.Presenters
                     var actorPosition = actorData.Position;
                     var isVisible = visionState.GetVisibilityLevel(actorPosition) == Domain.Vision.VisibilityLevel.Visible;
 
-                    _logger.Debug("Actor {ActorId} at {Position}: {Visibility}",
+                    _logger.Log(LogLevel.Debug, LogCategory.Vision, "Actor {ActorId} at {Position}: {Visibility}",
                         actorData.Id.Value.ToString()[..8], actorPosition,
                         isVisible ? "VISIBLE" : "HIDDEN");
 
@@ -388,7 +393,7 @@ namespace Darklands.Core.Presentation.Presenters
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, "Error updating actor visibility based on vision");
+                _logger.Log(LogLevel.Error, LogCategory.System, "Error updating actor visibility based on vision" + ": " + ex.Message);
             }
         }
 

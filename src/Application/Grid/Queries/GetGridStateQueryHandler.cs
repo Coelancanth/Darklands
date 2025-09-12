@@ -1,7 +1,7 @@
 using LanguageExt;
 using LanguageExt.Common;
 using MediatR;
-using Serilog;
+using Darklands.Core.Domain.Debug;
 using System.Threading;
 using System.Threading.Tasks;
 using Darklands.Core.Application.Grid.Services;
@@ -16,11 +16,11 @@ namespace Darklands.Core.Application.Grid.Queries
     public class GetGridStateQueryHandler : IRequestHandler<GetGridStateQuery, Fin<Domain.Grid.Grid>>
     {
         private readonly IGridStateService _gridStateService;
-        private readonly ILogger _logger;
+        private readonly ICategoryLogger _logger;
 
         public GetGridStateQueryHandler(
             IGridStateService gridStateService,
-            ILogger logger)
+            ICategoryLogger logger)
         {
             _gridStateService = gridStateService;
             _logger = logger;
@@ -28,18 +28,18 @@ namespace Darklands.Core.Application.Grid.Queries
 
         public Task<Fin<Domain.Grid.Grid>> Handle(GetGridStateQuery request, CancellationToken cancellationToken)
         {
-            _logger?.Debug("Processing GetGridStateQuery");
+            _logger.Log(LogLevel.Debug, LogCategory.Command, "Processing GetGridStateQuery");
 
             var gridResult = _gridStateService.GetCurrentGrid();
             var result = gridResult.Match(
                 Succ: grid =>
                 {
-                    _logger?.Debug("Retrieved grid state successfully");
+                    _logger.Log(LogLevel.Debug, LogCategory.Command, "Retrieved grid state successfully");
                     return gridResult;
                 },
                 Fail: error =>
                 {
-                    _logger?.Warning("Failed to retrieve grid state: {Error}", error.Message);
+                    _logger.Log(LogLevel.Warning, LogCategory.Command, "Failed to retrieve grid state: {Error}", error.Message);
                     return gridResult;
                 }
             );

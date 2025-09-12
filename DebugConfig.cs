@@ -69,7 +69,7 @@ public partial class DebugConfig : Resource, IDebugConfiguration
 
     // Global Log Level Control
     [ExportGroup("🔧 Global Settings")]
-    [Export] public LogLevel CurrentLogLevel { get; set; } = LogLevel.Information;
+    [Export] public LogLevel CurrentLogLevel { get; set; } = LogLevel.Debug;
     [Export] public int DebugWindowFontSize { get; set; } = 16;
     [Export] public Vector2I DebugWindowSize { get; set; } = new Vector2I(350, 500);
     [Export] public Vector2I DebugWindowPosition { get; set; } = new Vector2I(20, 20);
@@ -180,7 +180,7 @@ public partial class DebugConfig : Resource, IDebugConfiguration
             GD.PrintErr($"Failed to load debug config for log level: {ex.Message}");
         }
         
-        // Fallback to Information level (not Debug like Development config)
-        return Serilog.Events.LogEventLevel.Information;
+        // Fallback to Debug level for development
+        return Serilog.Events.LogEventLevel.Debug;
     }
 }

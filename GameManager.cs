@@ -5,10 +5,14 @@ using Darklands.Presentation.UI;
 using Darklands.Views;
 using Darklands.Infrastructure.Logging;
 using Darklands.Core.Domain.Combat;
+using Darklands.Core.Domain.Debug;
+using Darklands.Core.Infrastructure.Debug;
 using Godot;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace Darklands
@@ -28,7 +32,8 @@ namespace Darklands
         private GridPresenter? _gridPresenter;
         private ActorPresenter? _actorPresenter;
         private ServiceProvider? _serviceProvider;
-        private Serilog.ILogger? _logger;
+        private ICategoryLogger? _logger;
+        private Serilog.ILogger? _serilogLogger;
 
         /// <summary>
         /// Called when the node is added to the scene tree.
@@ -54,13 +59,13 @@ namespace Darklands
                     try
                     {
                         await CompleteInitializationAsync();
-                        _logger?.Information("GameManager initialization completed successfully");
+                        _logger?.Log(LogLevel.Information, LogCategory.System, "GameManager initialization completed successfully");
                     }
                     catch (Exception ex)
                     {
                         // Use GD.PrintErr as fallback since structured logging may not be available yet
                         GD.PrintErr($"GameManager initialization failed: {ex.Message}");
-                        _logger?.Error(ex, "GameManager initialization failed");
+                        _logger?.Log(LogLevel.Error, LogCategory.System, "GameManager initialization failed: {0}", ex.Message);
                     }
                 });
             }
@@ -68,7 +73,7 @@ namespace Darklands
             {
                 // Use GD.PrintErr as fallback since structured logging may not be available yet
                 GD.PrintErr($"GameManager._Ready error: {ex.Message}");
-                _logger?.Error(ex, "GameManager._Ready error");
+                _logger?.Log(LogLevel.Error, LogCategory.System, "GameManager._Ready error: {0}", ex.Message);
             }
         }
 
@@ -80,13 +85,13 @@ namespace Darklands
         {
             try
             {
-                _logger?.Information("GameManager cleaning up resources...");
+                _logger?.Log(LogLevel.Information, LogCategory.System, "GameManager cleaning up resources...");
 
                 // Dispose presenters
                 _gridPresenter?.Dispose();
                 _actorPresenter?.Dispose();
 
-                _logger?.Information("Presenters disposed successfully");
+                _logger?.Log(LogLevel.Information, LogCategory.System, "Presenters disposed successfully");
 
                 // Dispose DI container
                 GameStrapper.Dispose();
@@ -98,7 +103,7 @@ namespace Darklands
             {
                 // Use GD.PrintErr as fallback since logger may be disposed
                 GD.PrintErr($"GameManager cleanup error: {ex.Message}");
-                _logger?.Error(ex, "GameManager cleanup error");
+                _logger?.Log(LogLevel.Error, LogCategory.System, "GameManager cleanup error: {0}", ex.Message);
             }
             finally
             {
@@ -126,7 +131,20 @@ namespace Darklands
                 // Initialize the dependency injection container
                 // Load initial log level from debug configuration to respect user preferences
                 var initialLogLevel = DebugConfig.LoadInitialLogLevel();
-                var config = new GameStrapperConfiguration(LogLevel: initialLogLevel);
+                
+                // Detect editor mode and use appropriate configuration
+                GameStrapperConfiguration config;
+                if (OS.HasFeature("editor"))
+                {
+                    // Editor mode: use fixed log file that overwrites on each run
+                    config = GameStrapperConfiguration.DevelopmentEditor;
+                }
+                else
+                {
+                    // Normal mode: use default configuration with rolling logs
+                    config = new GameStrapperConfiguration(LogLevel: initialLogLevel);
+                }
+                
                 var initResult = GameStrapper.Initialize(config, null); // No GodotConsoleSink to avoid duplicates
                 if (initResult.IsFail)
                 {
@@ -142,10 +160,20 @@ namespace Darklands
                     Fail: _ => throw new InvalidOperationException("GameStrapper initialization returned failure")
                 );
 
-                // Initialize logger after DI container is ready
-                _logger = _serviceProvider.GetRequiredService<Serilog.ILogger>();
+                // Initialize loggers after DI container is ready  
+                _serilogLogger = _serviceProvider.GetRequiredService<Serilog.ILogger>();
+                var debugConfig = _serviceProvider.GetRequiredService<IDebugConfiguration>();
+                
+                // Create UnifiedLogger directly - this will be the authoritative logger instance
+                _logger = new UnifiedLogger(_serilogLogger, debugConfig);
 
-                _logger.Information("DI container initialized successfully - switching to structured logging");
+                // Update DebugSystem to use the same UnifiedLogger instance
+                if (DebugSystem.Instance != null)
+                {
+                    DebugSystem.Instance.SetLogger(_logger);
+                }
+
+                _logger.Log(LogLevel.Information, LogCategory.System, "DI container initialized successfully - switching to structured logging");
             }
             catch (Exception ex)
             {
@@ -171,7 +199,7 @@ namespace Darklands
             {
                 // Use GD.PrintErr as fallback since structured logging may not be available yet
                 GD.PrintErr($"Application initialization error: {ex.Message}");
-                _logger?.Error(ex, "Application initialization error");
+                _logger?.Log(LogLevel.Error, LogCategory.System, "Application initialization error: {0}", ex.Message);
                 throw;
             }
         }
@@ -184,7 +212,7 @@ namespace Darklands
         {
             try
             {
-                _logger?.Information("Setting up MVP architecture...");
+                _logger?.Log(LogLevel.Information, LogCategory.System, "Setting up MVP architecture...");
 
                 if (_serviceProvider == null)
                 {
@@ -205,7 +233,7 @@ namespace Darklands
                     throw new InvalidOperationException("ActorView node not found. Expected child node named 'Actors'");
                 }
 
-                _logger?.Information("Views found successfully - Grid: {GridView}, Actor: {ActorView} (health consolidated into ActorView)",
+                _logger?.Log(LogLevel.Information, LogCategory.System, "Views found successfully - Grid: \"{0}\", Actor: \"{1}\" (health consolidated into ActorView)",
                     _gridView?.Name ?? "null", _actorView?.Name ?? "null");
 
                 // Inject logger into views for proper architectural logging
@@ -239,19 +267,19 @@ namespace Darklands
 
                 // Event subscription is now handled automatically by EventAwareNode base class
                 // SubscribeToEvents() will be called after EventBus is initialized
-                _logger?.Information("GameManager will subscribe to domain events via UI Event Bus - modern architecture replaces static router");
+                _logger?.Log(LogLevel.Information, LogCategory.System, "GameManager will subscribe to domain events via UI Event Bus - modern architecture replaces static router");
 
-                _logger?.Information("Presenters created and connected - GridPresenter and ActorPresenter (with consolidated health functionality) initialized with cross-presenter coordination");
+                _logger?.Log(LogLevel.Information, LogCategory.System, "Presenters created and connected - GridPresenter and ActorPresenter (with consolidated health functionality) initialized with cross-presenter coordination");
 
                 // Initialize presenters (this will set up initial state)
                 _gridPresenter.Initialize();
                 _actorPresenter.Initialize();
 
-                _logger?.Information("MVP architecture setup completed - application ready for interaction");
+                _logger?.Log(LogLevel.Information, LogCategory.System, "MVP architecture setup completed - application ready for interaction");
             }
             catch (Exception ex)
             {
-                _logger?.Error(ex, "MVP setup error - failed to initialize presenters and views");
+                _logger?.Log(LogLevel.Error, LogCategory.System, "MVP setup error - failed to initialize presenters and views: {0}", ex.Message);
                 // Fallback to GD.PrintErr for critical startup errors
                 GD.PrintErr($"MVP setup error: {ex.Message}");
             }
@@ -263,7 +291,7 @@ namespace Darklands
         /// </summary>
         private void HandleUnhandledException(Exception ex)
         {
-            _logger?.Fatal(ex, "Unhandled exception in GameManager - application may be unstable");
+            _logger?.Log(LogLevel.Error, LogCategory.System, "Unhandled exception in GameManager - application may be unstable: {0}", ex.Message);
             // Fallback to GD.PrintErr for critical errors
             GD.PrintErr($"Unhandled exception in GameManager: {ex.Message}");
 
@@ -282,7 +310,7 @@ namespace Darklands
         {
             if (EventBus == null)
             {
-                _logger?.Error("[GameManager] Cannot subscribe to events - EventBus is null");
+                _logger?.Log(LogLevel.Error, LogCategory.System, "Cannot subscribe to events - EventBus is null");
                 return;
             }
 
@@ -292,12 +320,12 @@ namespace Darklands
                 EventBus.Subscribe<ActorDiedEvent>(this, HandleActorDiedEvent);
                 EventBus.Subscribe<ActorDamagedEvent>(this, HandleActorDamagedEvent);
 
-                _logger?.Information("[GameManager] Successfully subscribed to domain events via UI Event Bus");
-                _logger?.Information("Modern event architecture active - static router fully replaced");
+                _logger?.Log(LogLevel.Information, LogCategory.System, "Successfully subscribed to domain events via UI Event Bus");
+                _logger?.Log(LogLevel.Information, LogCategory.System, "Modern event architecture active - static router fully replaced");
             }
             catch (Exception ex)
             {
-                _logger?.Error(ex, "[GameManager] Failed to subscribe to domain events");
+                _logger?.Log(LogLevel.Error, LogCategory.System, "Failed to subscribe to domain events: {0}", ex.Message);
                 GD.PrintErr($"GameManager event subscription failed: {ex.Message}");
             }
         }
@@ -311,7 +339,7 @@ namespace Darklands
         {
             try
             {
-                _logger?.Information("[GameManager] UpdateHealthBarDeferred called for {ActorIdStr}: {OldCurrent}/{OldMax} → {NewCurrent}/{NewMax}",
+                _logger?.Log(LogLevel.Debug, LogCategory.System, "UpdateHealthBarDeferred called for {0}: {1}/{2} → {3}/{4}",
                     actorIdStr, oldCurrent, oldMaximum, newCurrent, newMaximum);
 
                 var actorId = Darklands.Core.Domain.Grid.ActorId.FromGuid(Guid.Parse(actorIdStr));
@@ -326,31 +354,31 @@ namespace Darklands
                         {
                             if (_actorPresenter != null)
                             {
-                                _logger?.Information("[GameManager] Calling ActorPresenter.HandleHealthChangedAsync (consolidated functionality)");
+                                _logger?.Log(LogLevel.Debug, LogCategory.System, "Calling ActorPresenter.HandleHealthChangedAsync (consolidated functionality)");
                                 await _actorPresenter.HandleHealthChangedAsync(actorId, oldHealth, newHealth);
-                                _logger?.Information("Updated health bar for {ActorId}", actorId);
+                                _logger?.Log(LogLevel.Debug, LogCategory.System, "Updated health bar for {0}", actorId);
                             }
                             else
                             {
-                                _logger?.Error("[GameManager] ActorPresenter is NULL in deferred health update!");
+                                _logger?.Log(LogLevel.Error, LogCategory.System, "ActorPresenter is NULL in deferred health update!");
                             }
                         },
                         Fail: error =>
                         {
-                            _logger?.Error("Failed to create new health object: {Error}", error.Message);
+                            _logger?.Log(LogLevel.Error, LogCategory.System, "Failed to create new health object: {0}", error.Message);
                             return Task.CompletedTask;
                         }
                     ),
                     Fail: error =>
                     {
-                        _logger?.Error("Failed to create old health object: {Error}", error.Message);
+                        _logger?.Log(LogLevel.Error, LogCategory.System, "Failed to create old health object: {0}", error.Message);
                         return Task.CompletedTask;
                     }
                 );
             }
             catch (Exception ex)
             {
-                _logger?.Error(ex, "💥 Error in deferred health bar update for {ActorIdStr}", actorIdStr);
+                _logger?.Log(LogLevel.Error, LogCategory.System, "Error in deferred health bar update for {0}: {1}", actorIdStr, ex.Message);
             }
         }
 
@@ -361,7 +389,7 @@ namespace Darklands
         {
             try
             {
-                _logger?.Information("[GameManager] RemoveActorDeferred called for {ActorIdStr} at ({X},{Y})", actorIdStr, x, y);
+                _logger?.Log(LogLevel.Debug, LogCategory.System, "RemoveActorDeferred called for {0} at ({1},{2})", actorIdStr, x, y);
 
                 var actorId = Darklands.Core.Domain.Grid.ActorId.FromGuid(Guid.Parse(actorIdStr));
                 var position = new Darklands.Core.Domain.Grid.Position(x, y);
@@ -369,23 +397,23 @@ namespace Darklands
                 // Remove actor sprite
                 if (_actorPresenter != null)
                 {
-                    _logger?.Information("[GameManager] Removing actor sprite via presenter");
+                    _logger?.Log(LogLevel.Debug, LogCategory.System, "Removing actor sprite via presenter");
                     await _actorPresenter.RemoveActorAsync(actorId, position);
-                    _logger?.Information("Removed dead actor {ActorId} sprite", actorId);
+                    _logger?.Log(LogLevel.Debug, LogCategory.System, "Removed dead actor {0} sprite", actorId);
                 }
                 else
                 {
-                    _logger?.Error("[GameManager] ActorPresenter is NULL in deferred removal!");
+                    _logger?.Log(LogLevel.Error, LogCategory.System, "ActorPresenter is NULL in deferred removal!");
                 }
 
                 // Health bar removal is now handled automatically by ActorView when actor is removed
-                _logger?.Information("Health bar removal handled automatically via parent-child node relationship");
+                _logger?.Log(LogLevel.Debug, LogCategory.System, "Health bar removal handled automatically via parent-child node relationship");
 
-                _logger?.Information("Visual cleanup complete for dead actor {ActorId} at {Position}", actorId, position);
+                _logger?.Log(LogLevel.Debug, LogCategory.System, "Visual cleanup complete for dead actor {0} at {1}", actorId, position);
             }
             catch (Exception ex)
             {
-                _logger?.Error(ex, "💥 Error in deferred actor removal for {ActorIdStr}", actorIdStr);
+                _logger?.Log(LogLevel.Error, LogCategory.System, "Error in deferred actor removal for {0}: {1}", actorIdStr, ex.Message);
             }
         }
     }

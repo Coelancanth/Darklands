@@ -1,7 +1,7 @@
 using LanguageExt;
 using LanguageExt.Common;
 using MediatR;
-using Serilog;
+using Darklands.Core.Domain.Debug;
 using System.Threading;
 using System.Threading.Tasks;
 using Darklands.Core.Application.Combat.Services;
@@ -18,11 +18,11 @@ namespace Darklands.Core.Application.Combat.Commands
     public class ScheduleActorCommandHandler : IRequestHandler<ScheduleActorCommand, Fin<LanguageExt.Unit>>
     {
         private readonly ICombatSchedulerService _combatSchedulerService;
-        private readonly ILogger _logger;
+        private readonly ICategoryLogger _logger;
 
         public ScheduleActorCommandHandler(
             ICombatSchedulerService combatSchedulerService,
-            ILogger logger)
+            ICategoryLogger logger)
         {
             _combatSchedulerService = combatSchedulerService;
             _logger = logger;
@@ -30,7 +30,7 @@ namespace Darklands.Core.Application.Combat.Commands
 
         public Task<Fin<LanguageExt.Unit>> Handle(ScheduleActorCommand request, CancellationToken cancellationToken)
         {
-            _logger?.Debug("Processing ScheduleActorCommand for ActorId: {ActorId} at Position: {Position} NextTurn: {NextTurn}",
+            _logger.Log(LogLevel.Debug, LogCategory.Combat, "Processing ScheduleActorCommand for ActorId: {ActorId} at Position: {Position} NextTurn: {NextTurn}",
                 request.ActorId, request.Position, request.NextTurn);
 
             // Schedule the actor using the combat scheduler service
@@ -39,13 +39,13 @@ namespace Darklands.Core.Application.Combat.Commands
             return result.Match(
                 Succ: _ =>
                 {
-                    _logger?.Debug("Successfully scheduled actor {ActorId} for NextTurn: {NextTurn}",
+                    _logger.Log(LogLevel.Debug, LogCategory.Combat, "Successfully scheduled actor {ActorId} for NextTurn: {NextTurn}",
                         request.ActorId, request.NextTurn);
                     return Task.FromResult(FinSucc(LanguageExt.Unit.Default));
                 },
                 Fail: error =>
                 {
-                    _logger?.Warning("Failed to schedule actor {ActorId}: {Error}",
+                    _logger.Log(LogLevel.Warning, LogCategory.Combat, "Failed to schedule actor {ActorId}: {Error}",
                         request.ActorId, error.Message);
                     return Task.FromResult(FinFail<LanguageExt.Unit>(error));
                 }

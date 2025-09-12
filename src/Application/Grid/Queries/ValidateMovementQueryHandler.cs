@@ -1,7 +1,7 @@
 using LanguageExt;
 using LanguageExt.Common;
 using MediatR;
-using Serilog;
+using Darklands.Core.Domain.Debug;
 using System.Threading;
 using System.Threading.Tasks;
 using Darklands.Core.Application.Grid.Services;
@@ -17,11 +17,11 @@ namespace Darklands.Core.Application.Grid.Queries
     public class ValidateMovementQueryHandler : IRequestHandler<ValidateMovementQuery, Fin<bool>>
     {
         private readonly IGridStateService _gridStateService;
-        private readonly ILogger _logger;
+        private readonly ICategoryLogger _logger;
 
         public ValidateMovementQueryHandler(
             IGridStateService gridStateService,
-            ILogger logger)
+            ICategoryLogger logger)
         {
             _gridStateService = gridStateService;
             _logger = logger;
@@ -29,19 +29,19 @@ namespace Darklands.Core.Application.Grid.Queries
 
         public Task<Fin<bool>> Handle(ValidateMovementQuery request, CancellationToken cancellationToken)
         {
-            _logger?.Debug("Processing ValidateMovementQuery from {FromPosition} to {ToPosition}",
+            _logger.Log(LogLevel.Debug, LogCategory.Gameplay, "Processing ValidateMovementQuery from {FromPosition} to {ToPosition}",
                 request.FromPosition, request.ToPosition);
 
             var validationResult = _gridStateService.ValidateMove(request.FromPosition, request.ToPosition);
             var result = validationResult.Match(
                 Succ: _ =>
                 {
-                    _logger?.Debug("Movement validation successful");
+                    _logger.Log(LogLevel.Debug, LogCategory.Gameplay, "Movement validation successful");
                     return FinSucc(true);
                 },
                 Fail: error =>
                 {
-                    _logger?.Debug("Movement validation failed: {Error}", error.Message);
+                    _logger.Log(LogLevel.Debug, LogCategory.Gameplay, "Movement validation failed: {Error}", error.Message);
                     return FinSucc(false);  // Return false rather than error for validation query
                 }
             );
