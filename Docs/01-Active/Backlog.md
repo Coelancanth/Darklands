@@ -479,6 +479,16 @@ else
 5. **Enhanced TimeUnit**: Added arithmetic/comparison operators for better usability
 6. **Additional Events**: Added ActorHealedEvent and ActorStunRemovedEvent for completeness
 
+**✅ Phase 2 Complete (Dev Engineer 2025-09-13 05:56)**:
+- [x] Application layer with VSA folder structure
+- [x] ExecuteAttackCommand with handler (functional error handling)
+- [x] ProcessNextTurnCommand with scheduling handlers
+- [x] IActorRepository and ICombatSchedulerService interfaces
+- [x] Proper assembly isolation between layers
+- [x] MediatR configured for CQRS pattern
+- [x] All handlers use Fin<T> for error handling
+- [x] Build issues resolved, 661 tests still passing
+
 **Success Criteria**:
 - [x] Tactical context created with proper assembly boundaries ✅
 - [ ] Old Combat code still runs (Strangler Fig pattern)
