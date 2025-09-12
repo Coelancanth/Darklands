@@ -266,6 +266,9 @@ public static class GameStrapper
 
             services.AddSingleton<Application.Vision.Services.IVisionStateService, Infrastructure.Vision.PersistentVisionStateService>();
 
+            // TD_043: Register combat services with Strangler Fig parallel operation
+            services.AddCombatServices(stranglerFigConfig);
+
             // TD_009: Composite query service (coordinates ActorState + Grid services)
             services.AddSingleton<Application.Combat.Services.ICombatQueryService, Application.Combat.Services.CombatQueryService>();
 

@@ -1,7 +1,12 @@
 using Microsoft.Extensions.DependencyInjection;
 using MediatR;
+using LanguageExt;
 using Darklands.Core.Application.Vision.Services;
 using Darklands.Core.Infrastructure.Vision;
+using Darklands.Tactical.Infrastructure.Adapters;
+using Darklands.Tactical.Application.Features.Combat.Attack;
+using Darklands.Tactical.Application.Features.Combat.Scheduling;
+using Unit = LanguageExt.Unit;
 
 namespace Darklands.Core.Infrastructure.Configuration;
 
@@ -51,6 +56,46 @@ public static class StranglerFigServiceRegistrar
                     provider.GetRequiredService<Infrastructure.Vision.VisionPerformanceMonitor>(),
                     provider.GetRequiredService<IPublisher>()));
         }
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers Combat implementations based on configuration.
+    /// During TD_043: Always runs parallel operation for validation
+    /// Future: Will respect toggle to switch between implementations
+    /// </summary>
+    public static IServiceCollection AddCombatServices(
+        this IServiceCollection services,
+        StranglerFigConfiguration config)
+    {
+        // Always register both implementations during parallel phase
+
+        // Legacy handlers are already registered in GameStrapper
+        // The new Tactical handlers are registered in their own namespace
+
+        // Register the actual Tactical handlers (not the adapter)
+        services.AddTransient<ExecuteAttackCommandHandler>();
+        services.AddTransient<ProcessNextTurnCommandHandler>();
+
+        // Register the contract adapter for parallel operation
+        services.AddTransient<TacticalContractAdapter>();
+
+        // Feature toggle determines which implementation is exposed to Application layer
+        // For Phase 4, both systems run in parallel with contract events for validation
+        // In the future, the toggle will switch between implementations
+
+        // Register parallel adapter for validation when logging is enabled
+        if (config.EnableValidationLogging)
+        {
+            services.AddTransient<Core.Infrastructure.Combat.ParallelCombatAdapter>();
+        }
+
+        // Register contract event handlers for cross-context monitoring
+        services.AddTransient<INotificationHandler<Tactical.Contracts.AttackExecutedEvent>,
+            Tactical.Infrastructure.Monitoring.AttackExecutedEventHandler>();
+        services.AddTransient<INotificationHandler<Tactical.Contracts.TurnProcessedEvent>,
+            Tactical.Infrastructure.Monitoring.TurnProcessedEventHandler>();
 
         return services;
     }

@@ -23,7 +23,8 @@
       "Bash(./scripts/persona/embody.ps1 dev-engineer)",
       "Bash(Select-String -Path \"C:\\Users\\Coel\\Documents\\Godot\\darklands\\Docs\\01-Active\\Backlog.md\" -Pattern \"TD_043\" -Context 0,80)",
       "Bash(git commit:*)",
-      "Bash(Get-ChildItem -Path \"C:\\Users\\Coel\\Documents\\Godot\\darklands\\src\\Tactical\" -Directory)"
+      "Bash(Get-ChildItem -Path \"C:\\Users\\Coel\\Documents\\Godot\\darklands\\src\\Tactical\" -Directory)",
+      "Bash(Get-ChildItem -Path \"src/Tactical\" -Directory)"
     ],
     "deny": [],
     "ask": [],

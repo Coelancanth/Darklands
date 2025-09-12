@@ -13,6 +13,7 @@
     <ProjectReference Include="Darklands.Tactical.Domain.csproj" />
     <ProjectReference Include="Darklands.Tactical.Application.csproj" />
     <ProjectReference Include="..\..\SharedKernel\Darklands.SharedKernel.csproj" />
+    <ProjectReference Include="..\..\Contracts\Darklands.Tactical.Contracts\Darklands.Tactical.Contracts.csproj" />
   </ItemGroup>
 
   <ItemGroup>
