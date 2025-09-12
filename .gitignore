@@ -129,3 +129,5 @@ temp_assets/
 *_prototype.*
 *.proto.tscn
 godot_project/temp_proto/  
+
+tmp.md

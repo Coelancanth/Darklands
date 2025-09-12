@@ -3,9 +3,12 @@
 ## Status
 **Status**: Proposed  
 **Date**: 2025-09-12  
-**Updated**: 2025-09-12 (Revised based on architectural review)
+**Updated**: 2025-09-12 (Simplified with pragmatic patterns for single-player game)
 **Decision Makers**: Tech Lead, Dev Engineer  
 **Supersedes**: Enhances ADR-015 (Namespace Organization)
+**Key Enhancement**: Contracts assembly pattern for true module isolation
+**Pragmatic Focus**: Single MediatR with interface differentiation (no over-engineering)
+**Quick Guide**: [DDD Feature Implementation Protocol](./DDD-Feature-Implementation-Protocol.md)
 
 ## Context
 
@@ -17,6 +20,13 @@ Our current monolithic domain structure creates several architectural issues:
 4. **Unclear Boundaries**: No separation between core game logic and cross-cutting concerns
 5. **Testing Complexity**: Can't apply different rules to different parts of the system
 6. **Accidental Coupling**: Easy to reference wrong types across logical boundaries
+7. **Feature Organization Confusion**: Unclear where new features should be implemented
+
+### Pragmatic Approach
+We adopt patterns that solve REAL problems for a single-player monolithic game, avoiding over-engineering:
+- ✅ **DO**: Module isolation, type safety, clear boundaries
+- ❌ **DON'T**: Distributed system patterns (Outbox/Inbox), complex event sourcing
+- 📋 **GUIDE**: [DDD Feature Implementation Protocol](./DDD-Feature-Implementation-Protocol.md) for clear decisions
 
 ### Current Pain Points
 ```csharp
@@ -44,19 +54,24 @@ src/
 ├── Tactical/                                   # Core game mechanics
 │   ├── Darklands.Tactical.Domain.csproj       # STRICT determinism enforced
 │   ├── Darklands.Tactical.Application.csproj  # Commands, Queries, Handlers
-│   └── Darklands.Tactical.Infrastructure.csproj # Repositories, Services
+│   ├── Darklands.Tactical.Infrastructure.csproj # Repositories, Services
+│   └── Darklands.Tactical.Contracts.csproj    # PUBLIC API for other contexts
 │
 ├── Diagnostics/                                # Monitoring & Debug
 │   ├── Darklands.Diagnostics.Domain.csproj    # DateTime/double allowed
 │   ├── Darklands.Diagnostics.Application.csproj # Monitoring queries
-│   └── Darklands.Diagnostics.Infrastructure.csproj # Loggers, Monitors
+│   ├── Darklands.Diagnostics.Infrastructure.csproj # Loggers, Monitors
+│   └── Darklands.Diagnostics.Contracts.csproj # PUBLIC API for other contexts
 │
 ├── Platform/                                   # External integrations
 │   ├── Darklands.Platform.Domain.csproj       # Service interfaces
-│   └── Darklands.Platform.Infrastructure.Godot.csproj # Godot implementations
+│   ├── Darklands.Platform.Infrastructure.Godot.csproj # Godot implementations
+│   └── Darklands.Platform.Contracts.csproj    # PUBLIC API for other contexts
 │
 ├── SharedKernel/                               # Minimal shared types
-│   └── Darklands.SharedKernel.csproj          # EntityId, Fixed, Fin<T>
+│   ├── Darklands.SharedKernel.Domain.csproj   # Entity, ValueObject, IBusinessRule, IDomainEvent
+│   ├── Darklands.SharedKernel.Application.csproj # ICommand, IQuery
+│   └── Darklands.SharedKernel.Infrastructure.csproj # IIntegrationEvent
 │
 └── Darklands.csproj                           # Main Godot project
     └── Presentation/                           # All Godot nodes here
@@ -65,17 +80,31 @@ src/
         └── Bootstrapper.cs                     # DI composition root
 ```
 
-### Assembly References
+### Assembly References - The Critical Pattern
 ```xml
 <!-- Darklands.csproj (Main Godot Project) -->
 <ItemGroup>
   <ProjectReference Include="src/Tactical/Darklands.Tactical.Application.csproj" />
   <ProjectReference Include="src/Diagnostics/Darklands.Diagnostics.Application.csproj" />
   <ProjectReference Include="src/Platform/Darklands.Platform.Infrastructure.Godot.csproj" />
-  <ProjectReference Include="src/SharedKernel/Darklands.SharedKernel.csproj" />
+  <ProjectReference Include="src/SharedKernel/Darklands.SharedKernel.Domain.csproj" />
+  <ProjectReference Include="src/SharedKernel/Darklands.SharedKernel.Infrastructure.csproj" />
 </ItemGroup>
 
-<!-- No direct references between contexts! -->
+<!-- CRITICAL: Modules reference ONLY Contracts from other modules -->
+<!-- Diagnostics.Application.csproj -->
+<ItemGroup>
+  <!-- Can subscribe to Tactical events WITHOUT accessing Tactical internals! -->
+  <ProjectReference Include="../../Tactical/Contracts/Darklands.Tactical.Contracts.csproj" />
+  <!-- But CANNOT reference Tactical.Domain, Application, or Infrastructure -->
+</ItemGroup>
+
+<!-- Tactical.Application.csproj -->
+<ItemGroup>
+  <!-- Can subscribe to Diagnostics events if needed -->
+  <ProjectReference Include="../../Diagnostics/Contracts/Darklands.Diagnostics.Contracts.csproj" />
+  <!-- Complete isolation of implementation details -->
+</ItemGroup>
 ```
 
 ## Shared Identity Strategy
@@ -83,15 +112,36 @@ src/
 ### Problem: Context Isolation
 Different contexts must NOT reference each other's domain types. Using `ActorId` from Tactical in Diagnostics violates isolation.
 
-### Solution: Shared Identity Types
+### Solution: Strongly-Typed Identity Pattern
 ```csharp
-// SharedKernel/Identity/EntityId.cs
+// SharedKernel/Domain/TypedIdValueBase.cs
+namespace Darklands.SharedKernel.Domain
+{
+    public abstract class TypedIdValueBase : IEquatable<TypedIdValueBase>
+    {
+        public Guid Value { get; }
+        
+        protected TypedIdValueBase(Guid value)
+        {
+            if (value == Guid.Empty)
+                throw new InvalidOperationException("Id value cannot be empty");
+            Value = value;
+        }
+        
+        public override bool Equals(object obj) => 
+            obj is TypedIdValueBase other && Value == other.Value;
+        public override int GetHashCode() => Value.GetHashCode();
+        public override string ToString() => Value.ToString("N")[..8];
+    }
+}
+
+// SharedKernel/Identity/EntityId.cs - For cross-context communication
 namespace Darklands.SharedKernel.Identity
 {
-    public readonly record struct EntityId(Guid Value)
+    public sealed class EntityId : TypedIdValueBase
     {
+        public EntityId(Guid value) : base(value) { }
         public static EntityId NewId() => new(Guid.NewGuid());
-        public override string ToString() => Value.ToString("N")[..8];
     }
 }
 
@@ -115,48 +165,55 @@ namespace Darklands.Diagnostics.Domain.Performance
 }
 ```
 
-## Event Bus Architecture
+## Event Architecture - Single MediatR + Interfaces
 
-### Dual Bus Strategy
-We use TWO separate event buses to avoid mixing concerns:
+### Single MediatR with Interface Differentiation
+We use a SINGLE MediatR instance with different interfaces to distinguish event types:
 
 ```csharp
-// 1. Domain Event Bus (MediatR) - Within context only
+// 1. Domain Events (Internal) - Stay within context
 namespace Darklands.Tactical.Domain.Events
 {
-    public record ActorDamagedEvent(ActorId Actor, int Damage) : INotification;
-    // Published via IMediator within Tactical context only
-}
-
-// 2. Integration Event Bus - Cross-context communication
-namespace Darklands.SharedKernel.Integration
-{
-    public interface IIntegrationEvent 
-    { 
-        int Version { get; }
-        DateTime OccurredUtc { get; }
-        string CorrelationId { get; }
-    }
-    
-    public interface IIntegrationEventBus
+    public record ActorDamagedEvent(ActorId Actor, int Damage) : IDomainEvent
     {
-        Task PublishAsync(IIntegrationEvent evt, CancellationToken ct = default);
-        void Subscribe<TEvent>(Func<TEvent, Task> handler) where TEvent : IIntegrationEvent;
+        public DateTime OccurredAt { get; } = DateTime.UtcNow;
+    }
+    // Published via IMediator, handled within Tactical context only
+}
+
+// 2. Contract Events (Public API) - Can cross context boundaries
+namespace Darklands.Tactical.Contracts.Events
+{
+    public sealed record ActorDamagedContractEvent(
+        Guid EntityId,           // Guid, not ActorId (public type)
+        int Damage,
+        string ActorName         // Additional context for other modules
+    ) : IContractEvent
+    {
+        public Guid Id { get; } = Guid.NewGuid();
+        public DateTime OccurredAt { get; } = DateTime.UtcNow;
+        public int Version { get; } = 1;
+    }
+    // Also published via IMediator, but in Contracts assembly
+}
+
+// SharedKernel defines the interfaces
+namespace Darklands.SharedKernel.Domain
+{
+    public interface IDomainEvent : INotification
+    {
+        DateTime OccurredAt { get; }
     }
 }
 
-// Integration events use primitive types only
-namespace Darklands.SharedKernel.Integration.Events
+namespace Darklands.SharedKernel.Contracts
 {
-    public sealed record CombatMetricRecordedEvent(
-        string EntityId,           // String, not ActorId
-        long TimestampTicks,        // Ticks, not DateTime
-        string MetricType,
-        double MetricValue,
-        int Version = 1,
-        DateTime OccurredUtc = default,
-        string CorrelationId = ""
-    ) : IIntegrationEvent;
+    public interface IContractEvent : INotification
+    {
+        Guid Id { get; }
+        DateTime OccurredAt { get; }
+        int Version { get; }
+    }
 }
 ```
 
@@ -173,41 +230,263 @@ public class ExecuteAttackCommandHandler
     }
 }
 
-// 2. Integration adapter bridges to other contexts
-public class TacticalIntegrationAdapter : INotificationHandler<ActorDamagedEvent>
+// 2. Contract adapter bridges domain to public API
+public class TacticalContractAdapter : INotificationHandler<ActorDamagedEvent>
 {
-    private readonly IIntegrationEventBus _integrationBus;
+    private readonly IMediator _mediator;
+    private readonly IActorRepository _actors;
     
     public async Task Handle(ActorDamagedEvent evt, CancellationToken ct)
     {
-        // Convert to integration event (primitive types only)
-        var integration = new CombatMetricRecordedEvent(
-            EntityId: evt.Actor.Value.ToString(),
-            TimestampTicks: DateTime.UtcNow.Ticks,
-            MetricType: "Damage",
-            MetricValue: evt.Damage,
-            CorrelationId: Guid.NewGuid().ToString()
+        // Get additional context for contract event
+        var actor = await _actors.GetByIdAsync(evt.Actor);
+        
+        // Convert to contract event (public API)
+        var contractEvent = new ActorDamagedContractEvent(
+            EntityId: evt.Actor.Value,
+            Damage: evt.Damage,
+            ActorName: actor.Name
         );
-        await _integrationBus.PublishAsync(integration, ct);
+        
+        // Publish through same MediatR (but different interface)
+        await _mediator.Publish(contractEvent, ct);
     }
 }
 
-// 3. Diagnostics consumes integration event
-public class MetricsRecorder
+// 3. Diagnostics consumes contract event
+public class DamageMetricsHandler : INotificationHandler<ActorDamagedContractEvent>
 {
-    public MetricsRecorder(IIntegrationEventBus bus)
-    {
-        bus.Subscribe<CombatMetricRecordedEvent>(RecordMetric);
-    }
+    private readonly IPerformanceMonitor _monitor;
     
-    private async Task RecordMetric(CombatMetricRecordedEvent evt)
+    public async Task Handle(ActorDamagedContractEvent evt, CancellationToken ct)
     {
-        // Can use DateTime, double, etc (OK in diagnostics)
-        var timestamp = new DateTime(evt.TimestampTicks);
-        await _monitor.Record(timestamp, evt.MetricType, evt.MetricValue);
+        // Can use DateTime, double, etc (OK in diagnostics context)
+        await _monitor.RecordDamage(evt.EntityId, evt.Damage, evt.OccurredAt);
     }
 }
 ```
+
+## Simplified Event Strategy
+
+### MediatR with Interface Differentiation
+We use a single MediatR bus with different interfaces to distinguish event types:
+
+```csharp
+// SharedKernel/Domain/IDomainEvent.cs
+namespace Darklands.SharedKernel.Domain
+{
+    public interface IDomainEvent : INotification
+    {
+        DateTime OccurredAt { get; }
+    }
+}
+
+// SharedKernel/Infrastructure/IIntegrationEvent.cs
+namespace Darklands.SharedKernel.Infrastructure
+{
+    public interface IIntegrationEvent : INotification
+    {
+        Guid Id { get; }
+        DateTime OccurredAt { get; }
+        int Version { get; }
+    }
+}
+
+// Domain event - stays within context
+public record ActorDamagedEvent(ActorId ActorId, int Damage) : IDomainEvent
+{
+    public DateTime OccurredAt { get; } = DateTime.UtcNow;
+}
+
+// Contract event - can cross contexts (in Contracts assembly)
+public record ActorDamagedContractEvent(
+    Guid EntityId,     // Uses shared types only
+    int Damage,
+    string ActorName   // Public API can include context
+) : IContractEvent
+{
+    public Guid Id { get; } = Guid.NewGuid();
+    public DateTime OccurredAt { get; } = DateTime.UtcNow;
+    public int Version { get; } = 1;
+}
+```
+
+**Benefits**:
+- Single event bus (MediatR) with clear semantics
+- Type safety through interfaces
+- No over-engineering for single-player game
+- Clear distinction between internal and public events
+
+## Business Rules Pattern
+
+### Explicit Domain Validation
+Business rules are first-class citizens in the domain:
+
+```csharp
+// SharedKernel/Domain/IBusinessRule.cs
+namespace Darklands.SharedKernel.Domain
+{
+    public interface IBusinessRule
+    {
+        bool IsBroken();
+        string Message { get; }
+    }
+}
+
+// Example rule in Tactical domain
+namespace Darklands.Tactical.Domain.Actors.Rules
+{
+    public class ActorMustBeAliveRule : IBusinessRule
+    {
+        private readonly int _health;
+        
+        public ActorMustBeAliveRule(int health) => _health = health;
+        
+        public bool IsBroken() => _health <= 0;
+        public string Message => "Actor must be alive to perform this action";
+    }
+}
+
+// Usage in aggregate
+public class Actor : Entity, IAggregateRoot
+{
+    public void Move(Position newPosition)
+    {
+        CheckRule(new ActorMustBeAliveRule(_health));
+        CheckRule(new PositionMustBeEmptyRule(newPosition, _grid));
+        
+        var oldPosition = _position;
+        _position = newPosition;
+        
+        AddDomainEvent(new ActorMovedEvent(Id, oldPosition, newPosition));
+    }
+}
+```
+
+## Domain Events Collection Pattern
+
+### Standardized Event Management
+All entities collect domain events in a standard way:
+
+```csharp
+// SharedKernel/Domain/Entity.cs
+namespace Darklands.SharedKernel.Domain
+{
+    public abstract class Entity
+    {
+        private List<IDomainEvent> _domainEvents;
+        
+        public IReadOnlyCollection<IDomainEvent> DomainEvents => 
+            _domainEvents?.AsReadOnly();
+        
+        protected void AddDomainEvent(IDomainEvent domainEvent)
+        {
+            _domainEvents ??= new List<IDomainEvent>();
+            _domainEvents.Add(domainEvent);
+        }
+        
+        public void ClearDomainEvents()
+        {
+            _domainEvents?.Clear();
+        }
+        
+        protected void CheckRule(IBusinessRule rule)
+        {
+            if (rule.IsBroken())
+            {
+                throw new BusinessRuleValidationException(rule);
+            }
+        }
+    }
+}
+```
+
+## VSA and DDD Alignment
+
+### Vertical Slices Within Bounded Contexts
+VSA and DDD work together in a hierarchical architecture:
+
+```
+Tactical Context (DDD Boundary)
+├── Features/                          # VSA Organization
+│   ├── Attack/                        # Vertical Slice
+│   │   ├── Domain/
+│   │   │   └── Rules/
+│   │   ├── Application/
+│   │   │   └── ExecuteAttackCommandHandler.cs
+│   │   └── Infrastructure/
+│   └── Movement/                      # Vertical Slice
+│       ├── Domain/
+│       ├── Application/
+│       └── Infrastructure/
+├── Domain/
+│   └── Aggregates/                    # Shared within context
+│       └── Actor.cs                   # Used by multiple slices
+└── Contracts/                         # Public API
+    └── Events/
+        └── ActorDamagedContractEvent.cs
+
+**CRITICAL Namespace Convention**: Use plural folder names for aggregates to avoid collisions:
+- `Domain/Actors/Actor.cs` (not `Domain/Actor/Actor.cs`)
+- `Domain/Grids/Grid.cs` (not `Domain/Grid/Grid.cs`)
+- Inspired by modular-monolith-with-ddd pattern
+```
+
+**Key Principles**:
+- **Slices operate WITHIN contexts**: Never cross bounded context boundaries
+- **Aggregates shared within context**: Multiple slices can use same aggregate
+- **Events for cross-context**: Use integration events between contexts
+- **Direct calls within context**: Slices in same context can call each other
+- **Test at both levels**: Slice tests AND context isolation tests
+- **Follow the protocol**: Use [DDD Feature Implementation Protocol](./DDD-Feature-Implementation-Protocol.md) for decisions
+
+## Feature Organization Guide
+
+### Quick Decision Process
+When implementing a new feature, follow this decision tree:
+
+```
+1. Which Context? → Primary concern determines context
+   - Combat mechanics → Tactical
+   - Performance metrics → Diagnostics
+   - Audio/Input/Saves → Platform
+
+2. Vertical Slice or Shared?
+   - Complete user action with UI → Vertical Slice (Features/)
+   - Core entity/aggregate → Shared Domain (Domain/)
+   - Business rules used by multiple slices → Shared Domain
+
+3. Which Event Type?
+   - Within context communication → IDomainEvent
+   - Cross-context communication → IContractEvent
+   - UI updates → Application notifications
+```
+
+### Example: Adding "Poison Damage" Feature
+
+```
+Decision Process:
+1. Context: Tactical (game mechanic)
+2. Type: Vertical Slice (complete feature)
+3. Events: DomainEvent (internal) + ContractEvent (for monitoring)
+
+Structure:
+Tactical/
+├── Features/Poison/
+│   ├── Domain/
+│   │   └── Rules/
+│   │       └── PoisonResistanceRule.cs
+│   ├── Application/
+│   │   ├── ApplyPoisonCommand.cs
+│   │   └── ApplyPoisonCommandHandler.cs
+│   └── Infrastructure/
+│       └── PoisonEffectService.cs
+└── Contracts/
+    └── Events/
+        └── ActorPoisonedContractEvent.cs
+```
+
+For detailed guidance, see [DDD Feature Implementation Protocol](./DDD-Feature-Implementation-Protocol.md).
 
 ## Godot Threading Strategy
 
@@ -469,6 +748,60 @@ public void Contexts_MustNotDirectlyReference_EachOther()
         .And().NotHaveDependencyOn("Darklands.Platform")
         .GetResult().IsSuccessful.Should().BeTrue();
 }
+
+[Fact]
+public void ModuleIsolation_WithSmartExclusions()
+{
+    // CRITICAL: This test enforces module isolation while allowing integration event handlers
+    var tacticalAssemblies = new[]
+    {
+        typeof(Darklands.Tactical.Domain.TacticalMarker).Assembly,
+        typeof(Darklands.Tactical.Application.TacticalMarker).Assembly,
+        typeof(Darklands.Tactical.Infrastructure.TacticalMarker).Assembly
+    };
+    
+    var otherModules = new[] 
+    { 
+        "Darklands.Diagnostics.Domain",
+        "Darklands.Diagnostics.Application", 
+        "Darklands.Diagnostics.Infrastructure",
+        "Darklands.Platform.Domain",
+        "Darklands.Platform.Infrastructure"
+    };
+    
+    var result = Types.InAssemblies(tacticalAssemblies)
+        .That()
+        // CRITICAL: Exclude integration event handlers from isolation check!
+        .DoNotImplementInterface(typeof(INotificationHandler<>))
+        .And().DoNotHaveNameEndingWith("IntegrationEventHandler")
+        .And().DoNotHaveName("EventsBusStartup")
+        .Should()
+        .NotHaveDependencyOnAny(otherModules)
+        .GetResult();
+        
+    result.IsSuccessful.Should().BeTrue(
+        $"Module isolation violated. Failing types: {string.Join(", ", result.FailingTypeNames)}");
+}
+
+[Fact]
+public void ContractEvents_OnlyUseSharedTypes()
+{
+    // Contract events must only use primitive types or SharedKernel types
+    var contractsAssembly = typeof(Darklands.Tactical.Contracts.TacticalMarker).Assembly;
+    
+    var result = Types.InAssembly(contractsAssembly)
+        .Should()
+        // Can reference SharedKernel
+        .HaveDependencyOn("Darklands.SharedKernel")
+        // But NOT internal domain types
+        .And().NotHaveDependencyOn("Darklands.Tactical.Domain")
+        .And().NotHaveDependencyOn("Darklands.Tactical.Application")
+        .And().NotHaveDependencyOn("Darklands.Tactical.Infrastructure")
+        .GetResult();
+        
+    result.IsSuccessful.Should().BeTrue(
+        "Contract events must only use shared types, not internal domain types");
+}
 ```
 
 ## Presentation Layer Decoupling
@@ -580,41 +913,58 @@ public static IServiceCollection AddPlatformContext(
 
 ## Implementation Protocol
 
-### Phase 1: Create Assembly Structure (1 day)
+### Phase 0: Team Alignment (30 minutes)
+1. **Review DDD Feature Implementation Protocol** with all personas
+2. **Establish decision tree** for feature placement
+3. **Agree on event types** (IDomainEvent vs IContractEvent)
+
+### Phase 1: Foundation Patterns (4 hours) - CRITICAL
+1. **Create Contracts assemblies** for each context
+   - Tactical.Contracts.csproj (public API)
+   - Diagnostics.Contracts.csproj (public API)
+   - Platform.Contracts.csproj (public API)
+2. **Implement TypedIdValueBase** in SharedKernel.Domain
+3. **Add Entity base class** with domain events collection
+4. **Add IBusinessRule interface** to SharedKernel.Domain
+5. **Create module isolation tests** with smart exclusions
+
+### Phase 2: Assembly Structure (1 day)
 1. Create separate .csproj files for each context
-2. Move SharedKernel types first (EntityId, Fixed, Fin<T>)
-3. Set up project references (no cross-context refs)
-4. Configure build pipeline
+2. Layer SharedKernel (Domain, Application, Infrastructure)
+3. Set up project references (contexts reference ONLY Contracts)
+4. Configure build pipeline to enforce boundaries
+5. Add TacticalMarker, DiagnosticsMarker, etc. for test references
 
-### Phase 2: Namespace to Assembly Migration (2 days)
-1. Execute TD_032 namespace reorganization first
-2. Move reorganized code to appropriate assemblies
-3. Fix compilation errors from boundary violations
-4. Update all using statements
+### Phase 3: Core Patterns Implementation (1 day)
+1. **Business Rules**: Create rules folder per aggregate
+2. **Domain Events**: Standardize AddDomainEvent pattern
+3. **Strongly-Typed IDs**: Convert all Guid IDs to typed versions
+4. **VSA Integration**: Create Features/ folder structure within contexts
+5. **Repository Per Aggregate**: Replace generic repositories
 
-### Phase 3: Extract Diagnostics Context (TD_040 - 6h)
-1. Create Diagnostics assemblies
-2. Move performance monitoring (use EntityId, not ActorId)
-3. Set up integration event adapter
-4. Configure separate DI registration
+### Phase 4: Event Infrastructure (4 hours)
+1. **Configure Single MediatR** for both event types
+   - IDomainEvent handlers within context
+   - IContractEvent handlers can cross contexts
+2. **Create Contract Adapters**
+   - Convert domain events to contract events
+   - Map at context boundaries only
+3. **Wire up event flow**
+   - Domain → Adapter → Contract → Other contexts
 
-### Phase 4: Implement Integration Events (1 day)
-1. Create IIntegrationEventBus implementation
-2. Add versioning and correlation IDs
-3. Create adapters for each context
-4. Wire up cross-context communication
+### Phase 5: Contract Event Wiring (2 hours)
+1. Configure MediatR handlers for contract events
+2. Add event versioning (Version property)
+3. Create TacticalContractAdapter for domain→contract mapping
+4. Wire up cross-context subscriptions via Contracts
+5. Add version tracking for contract evolution
 
-### Phase 5: Platform & Threading (1 day)
-1. Extract Platform context assemblies
-2. Implement MainThreadDispatcher
-3. Update all presenters to use dispatcher
-4. Create GodotRuntimeEnvironment
-
-### Phase 6: Testing & Validation (1 day)
-1. Add architecture tests per context
-2. Verify determinism in Tactical
-3. Test integration event flow
-4. Performance profiling
+### Phase 6: Testing & Validation (4 hours)
+1. **Module isolation tests** - Verify no cross-references
+2. **Contract tests** - Verify only shared types used
+3. **Determinism tests** - Tactical must be deterministic
+4. **Event flow tests** - End-to-end event processing
+5. **VSA slice tests** - Per-feature testing
 
 ## Context Mapping Patterns
 
@@ -657,14 +1007,30 @@ public static IServiceCollection AddPlatformContext(
 
 ## Decision Outcome
 
-We will implement assembly-based bounded contexts with:
-1. **Separate assemblies** per context (not just namespaces)
-2. **Dual event buses** (MediatR for domain, custom for integration)
-3. **Main thread marshaling** for all Godot API calls
-4. **No scoped services** (Singleton or Transient only)
-5. **Shared identity types** in SharedKernel
-6. **Application notifications** for UI (not domain events)
-7. **Integration event versioning** from day one
+We will implement assembly-based bounded contexts with enhanced patterns from modular-monolith-with-ddd:
+
+### Core Architecture
+1. **Contracts assemblies** - Public API between contexts
+2. **Module isolation with smart exclusions** - Allow event handlers while enforcing boundaries
+3. **Single MediatR with interfaces** - IDomainEvent for internal, IContractEvent for public
+4. **VSA within contexts** - Vertical slices operate within bounded contexts
+
+### Foundational Patterns
+5. **Strongly-typed IDs** - TypedIdValueBase for all identifiers
+6. **Business Rules pattern** - IBusinessRule for explicit domain validation
+7. **Domain Events collection** - Standardized in Entity base class
+8. **Repository per aggregate** - No generic repositories
+
+### Infrastructure & Simplicity
+9. **Single MediatR instance** - One bus, two interfaces (IDomainEvent, IContractEvent)
+10. **Main thread marshaling** - All Godot API calls on main thread
+11. **No scoped services** - Singleton or Transient only in game loops
+12. **Application notifications** - Presentation uses app events, not domain events
+
+### Quality & Testing
+13. **Architecture tests per module** - With ContractEventHandler exclusions
+14. **Contract versioning** - Version property from day one for evolution
+15. **Determinism enforcement** - Concrete tests for Tactical context
 
 ## References
 - [Domain-Driven Design by Eric Evans](https://www.domainlanguage.com/ddd/)
@@ -672,3 +1038,7 @@ We will implement assembly-based bounded contexts with:
 - [MediatR Documentation](https://github.com/jbogard/MediatR)
 - [Clean Architecture by Robert Martin](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html)
 - [Assembly-based Architecture Enforcement](https://docs.microsoft.com/en-us/dotnet/architecture/modern-web-apps-azure/architectural-principles)
+- [Modular Monolith with DDD by Kamil Grzybek](https://github.com/kgrzybek/modular-monolith-with-ddd) - **Source of key enhancement patterns**
+- [ADR-017 Enhancement Analysis](./ADR-017-enhancements-from-modular-monolith.md) - Detailed pattern analysis
+- [DDD Bounded Contexts Patterns Learning](../../08-Learning/2025-09-12-ddd-bounded-contexts-patterns.md) - In-depth learnings
+- **[DDD Feature Implementation Protocol](./DDD-Feature-Implementation-Protocol.md)** - Quick decision guide for feature placement
