@@ -3,6 +3,7 @@ using Darklands.Core.Presentation.Presenters;
 using Darklands.Core.Domain.Debug;
 using Godot;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
@@ -17,8 +18,9 @@ namespace Darklands.Views
     {
         private ActorPresenter? _presenter;
         private ICategoryLogger? _logger;
-        private readonly Dictionary<Darklands.Core.Domain.Grid.ActorId, ColorRect> _actorNodes = new();
-        private readonly Dictionary<Darklands.Core.Domain.Grid.ActorId, ProgressBar> _healthBars = new();
+        // FIXED BR_007: Use ConcurrentDictionary for thread-safe access from async operations
+        private readonly ConcurrentDictionary<Darklands.Core.Domain.Grid.ActorId, ColorRect> _actorNodes = new();
+        private readonly ConcurrentDictionary<Darklands.Core.Domain.Grid.ActorId, ProgressBar> _healthBars = new();
         private const int TileSize = 64;
         private const float MoveDuration = 0.3f; // Seconds for movement animation
 
@@ -79,11 +81,10 @@ namespace Darklands.Views
         {
             try
             {
-                // Remove existing actor node if it exists (synchronously to avoid race conditions)
-                if (_actorNodes.TryGetValue(actorId, out var existingNode))
+                // Remove existing actor node if it exists (thread-safe with ConcurrentDictionary)
+                if (_actorNodes.TryRemove(actorId, out var existingNode))
                 {
                     existingNode?.QueueFree();
-                    _actorNodes.Remove(actorId);
                     _logger?.Log(LogLevel.Debug, LogCategory.Gameplay, "Removed existing actor node for {ActorId}", actorId);
                 }
 
@@ -136,7 +137,8 @@ namespace Darklands.Views
                 {
                     var creationData = _pendingActorCreations.Dequeue();
                     AddChild(creationData.ActorNode);
-                    _actorNodes[creationData.ActorId] = creationData.ActorNode;
+                    // BR_007 FIX: Use thread-safe AddOrUpdate to handle concurrent access
+                    _actorNodes.AddOrUpdate(creationData.ActorId, creationData.ActorNode, (key, oldValue) => creationData.ActorNode);
                     _logger?.Log(LogLevel.Debug, LogCategory.Gameplay, "Processed actor creation for {ActorId}", creationData.ActorId);
                 }
             }
@@ -259,11 +261,10 @@ namespace Darklands.Views
             {
                 try
                 {
-                    if (_actorNodes.TryGetValue(id, out var actorNode))
+                    if (_actorNodes.TryRemove(id, out var actorNode))
                     {
                         actorNode?.QueueFree();
-                        _actorNodes.Remove(id);
-                        _healthBars.Remove(id); // Also remove health bar reference
+                        _healthBars.TryRemove(id, out _); // Also remove health bar reference (thread-safe)
                     }
                     else
                     {
@@ -463,8 +464,8 @@ namespace Darklands.Views
             healthBar.AddThemeStyleboxOverride("fill", styleBoxFilled);
             healthBar.AddThemeStyleboxOverride("background", styleBoxBackground);
 
-            // Store reference for later updates
-            _healthBars[actorId] = healthBar;
+            // Store reference for later updates (thread-safe)
+            _healthBars.AddOrUpdate(actorId, healthBar, (key, oldValue) => healthBar);
 
             return healthBar;
         }
