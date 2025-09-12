@@ -14,7 +14,7 @@ using Darklands.Core.Domain.Actor;
 using Darklands.Core.Domain.Grid;
 using Darklands.Core.Domain.Combat;
 using Darklands.SharedKernel.Domain;
-using Darklands.Tactical.Domain.Aggregates.Actors;
+using TacticalActor = Darklands.Tactical.Domain.Aggregates.Actors.Actor;
 using Darklands.Tactical.Domain.ValueObjects;
 using Darklands.Tactical.Application.Features.Combat.Services;
 using static LanguageExt.Prelude;
@@ -238,10 +238,10 @@ public class CombatSystemValidationTests : IDisposable
 
     private async Task SetupTacticalActor(Guid id, int health, Position position)
     {
-        var actor = Actor.Create(
+        var actor = TacticalActor.Create(
             new EntityId(id.ToString()),
             $"TestActor_{id}",
-            ActorType.Enemy, // Tactical uses different enum
+            Darklands.Tactical.Domain.Aggregates.Actors.ActorType.Enemy, // Tactical uses different enum
             health,
             10, // speed
             5   // initiative
@@ -301,6 +301,9 @@ public class CombatSystemValidationTests : IDisposable
         public Task<TResponse> Send<TResponse>(MediatR.IRequest<TResponse> request, CancellationToken ct = default)
             => Task.FromResult(default(TResponse)!);
 
+        public Task<object?> Send(object request, CancellationToken ct = default)
+            => Task.FromResult<object?>(null);
+
         public Task Send<TRequest>(TRequest request, CancellationToken ct = default) where TRequest : MediatR.IRequest
             => Task.CompletedTask;
 
@@ -320,44 +323,54 @@ public class CombatSystemValidationTests : IDisposable
 
     private class TestLogger : Core.Domain.Debug.ICategoryLogger
     {
-        public void Log(Core.Domain.Debug.LogLevel level, Core.Domain.Debug.LogCategory category, string message, params object[] args) { }
+        public void Log(Core.Domain.Debug.LogCategory category, string message) { }
+        public void Log(Core.Domain.Debug.LogCategory category, string template, params object[] args) { }
+        public void Log(Core.Domain.Debug.LogLevel level, Core.Domain.Debug.LogCategory category, string message) { }
+        public void Log(Core.Domain.Debug.LogLevel level, Core.Domain.Debug.LogCategory category, string template, params object[] args) { }
+        public bool IsEnabled(Core.Domain.Debug.LogCategory category) => true;
+        public bool IsEnabled(Core.Domain.Debug.LogLevel level, Core.Domain.Debug.LogCategory category) => true;
     }
 
     // In-memory implementation of tactical actor repository
     private class InMemoryActorRepository : IActorRepository
     {
-        private readonly Dictionary<EntityId, Actor> _actors = new();
+        private readonly Dictionary<EntityId, TacticalActor> _actors = new();
 
-        public Task<Fin<Actor>> GetByIdAsync(EntityId id)
+        public Task<Fin<TacticalActor>> GetByIdAsync(EntityId id)
         {
             return Task.FromResult(
                 _actors.TryGetValue(id, out var actor)
                     ? FinSucc(actor)
-                    : FinFail<Actor>(Error.New($"Actor {id} not found"))
+                    : FinFail<TacticalActor>(Error.New($"Actor {id} not found"))
             );
         }
 
-        public Task<Fin<Unit>> AddAsync(Actor actor)
+        public Task<Fin<Seq<TacticalActor>>> GetAllAsync()
+        {
+            return Task.FromResult(FinSucc(toSeq(_actors.Values)));
+        }
+
+        public Task<Fin<Unit>> AddAsync(TacticalActor actor)
         {
             _actors[actor.Id] = actor;
             return Task.FromResult(FinSucc(Unit.Default));
         }
 
-        public Task<Fin<Unit>> UpdateAsync(Actor actor)
+        public Task<Fin<Unit>> UpdateAsync(TacticalActor actor)
         {
             _actors[actor.Id] = actor;
             return Task.FromResult(FinSucc(Unit.Default));
         }
 
-        public Task<Fin<Unit>> DeleteAsync(EntityId id)
+        public Task<Fin<Unit>> RemoveAsync(EntityId id)
         {
             _actors.Remove(id);
             return Task.FromResult(FinSucc(Unit.Default));
         }
 
-        public Task<Fin<Seq<Actor>>> GetAllAsync()
+        public Task<bool> ExistsAsync(EntityId id)
         {
-            return Task.FromResult(FinSucc(toSeq(_actors.Values)));
+            return Task.FromResult(_actors.ContainsKey(id));
         }
     }
 
