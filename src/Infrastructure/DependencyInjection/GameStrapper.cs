@@ -209,10 +209,16 @@ public static class GameStrapper
         {
             var coreAssembly = Assembly.GetExecutingAssembly();
 
+            // TD_043: Load Tactical bounded context assemblies for Strangler Fig
+            var tacticalApplicationAssembly = Assembly.Load("Darklands.Tactical.Application");
+
             // Register MediatR with assembly scanning
             services.AddMediatR(config =>
             {
                 config.RegisterServicesFromAssembly(coreAssembly);
+
+                // TD_043: Also scan Tactical bounded context for handlers
+                config.RegisterServicesFromAssembly(tacticalApplicationAssembly);
 
                 // Add logging pipeline behavior
                 config.AddOpenBehavior(typeof(LoggingBehavior<,>));
@@ -326,6 +332,15 @@ public static class GameStrapper
             // Actor Factory (TD_013) - Clean separation of test data from presenters
             // Singleton to maintain player ID state across the application
             services.AddSingleton<Application.Common.IActorFactory, Application.Common.ActorFactory>();
+
+            // TD_043: Tactical Bounded Context (Strangler Fig Phase 2)
+            // These services run in parallel with legacy combat system during migration
+            // NOTE: Different namespace from legacy Application.Combat.Services
+            services.AddSingleton<Tactical.Application.Features.Combat.Services.IActorRepository,
+                                 Tactical.Infrastructure.Repositories.ActorRepository>();
+
+            services.AddSingleton<Tactical.Application.Features.Combat.Services.ICombatSchedulerService,
+                                 Tactical.Infrastructure.Services.CombatSchedulerService>();
 
             return FinSucc(LanguageExt.Unit.Default);
         }

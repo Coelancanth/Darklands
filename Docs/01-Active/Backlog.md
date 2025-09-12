@@ -318,12 +318,12 @@ All critical violations successfully resolved:
 **TD_043 is now UNBLOCKED** - Architectural integrity verified and enforced
 
 ### TD_043: Strangler Fig Phase 2 - Migrate Combat to Tactical Bounded Context with VSA
-**Status**: In Progress - Phase 2/4 Complete
+**Status**: In Progress - Phase 3/4 Complete
 **Owner**: Dev Engineer
 **Size**: L (2 days)
 **Priority**: Important
 **Created**: 2025-09-12 16:13
-**Updated**: 2025-09-13 06:05 (Dev Engineer - Phase 2 Application layer complete, build errors fixed)
+**Updated**: 2025-09-13 06:23 (Dev Engineer - Phase 3 Infrastructure layer complete, all tests passing)
 **Depends On**: TD_042 ✅ Completed, TD_046 ✅ Completed
 **Markers**: [ARCHITECTURE] [DDD] [STRANGLER-FIG] [PHASE-2] [VSA]
 
@@ -523,13 +523,28 @@ else
 - [ ] Contracts only use SharedKernel types (EntityId, not ActorId)
 - [ ] Contract adapter bridges domain events to public API
 
+**✅ Phase 3 Complete** (Dev Engineer 2025-09-13):
+**Infrastructure Layer Successfully Implemented**:
+1. **ActorRepository** (`src/Tactical/Infrastructure/Repositories/ActorRepository.cs`):
+   - Thread-safe in-memory implementation using ConcurrentDictionary
+   - Full CRUD operations with Fin<T> error handling
+   - Proper null checking and error codes
+
+2. **CombatSchedulerService** (`src/Tactical/Infrastructure/Services/CombatSchedulerService.cs`):
+   - Priority queue using SortedSet for efficient scheduling
+   - Thread-safe with lock synchronization
+   - Turn scheduling with TimeUnit and priority support
+
+3. **Dependency Injection**:
+   - Added Tactical project references to Core.csproj
+   - MediatR configured to scan Tactical.Application assembly
+   - Services registered in GameStrapper for parallel operation
+   - Fixed assembly generation conflicts with GenerateAssemblyInfo=false
+
+**Build Status**: ✅ All 661 tests passing, zero warnings
+
 **🚧 Remaining Work for TD_043**:
-1. **Phase 3 - Infrastructure Layer**:
-   - Implement ActorRepository (in-memory for now)
-   - Implement CombatSchedulerService with priority queue
-   - Wire up dependency injection in GameStrapper
-   
-2. **Phase 4 - Presentation/Integration**:
+1. **Phase 4 - Presentation/Integration**:
    - Create TacticalContractAdapter for domain→contract events
    - Wire up parallel operation (old and new systems)
    - Add feature toggle for switching implementations
