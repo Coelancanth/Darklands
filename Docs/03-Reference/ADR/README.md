@@ -40,6 +40,20 @@ This directory contains Architecture Decision Records (ADRs) - documents that ca
 - [ADR-016: Embrace Engine Scene Graph for UI Composition](ADR-016-embrace-engine-scene-graph.md) - **Proposed**
   - Use parent-child relationships for naturally coupled UI elements instead of fighting the engine
 
+- [ADR-017: DDD Bounded Contexts Architecture](ADR-017-ddd-bounded-contexts-architecture.md) - **Proposed**
+  - Separates codebase into proper bounded contexts (Tactical, Diagnostics, Platform) with different rules per context
+
+## Critical Foundation ADRs
+
+- [ADR-004: Deterministic Simulation](ADR-004-deterministic-simulation.md) - **Approved**
+  - Strict determinism for saves, debugging, and future multiplayer
+  
+- [ADR-005: Save-Ready Architecture](ADR-005-save-ready-architecture.md) - **Approved**
+  - Domain entities as records with ID references, no circular dependencies
+  
+- [ADR-006: Selective Abstraction Strategy](ADR-006-selective-abstraction-strategy.md) - **Approved**
+  - Abstract only what needs testing/mocking, embrace Godot for UI
+
 ## Missing ADRs (Need Creation)
 
 The following concepts are referenced in persona documents but lack formal ADRs:

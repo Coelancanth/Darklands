@@ -1,13 +1,14 @@
-# ADR-010: UI Event Bus Architecture for Domain-to-UI Event Routing
+# ADR-010: UI Event Bus Architecture for Application-to-UI Event Routing
 
 ## Status
-**Accepted** - 2025-09-08
+**Accepted** - 2025-09-08  
+**Updated** - 2025-09-12 (Aligned with ADR-017 bounded contexts and clarified Application-only events)
 
 ## Context
 
-We need to route domain events from our Clean Architecture domain layer (using MediatR) to Godot UI components. The challenge is a fundamental lifecycle mismatch:
+We need to route **Application-layer notifications** (not domain events) from our Clean Architecture to Godot UI components, respecting bounded context boundaries per ADR-017. The challenge is a fundamental lifecycle mismatch:
 
-- **Domain Layer**: MediatR handlers are transient, managed by DI container
+- **Application Layer**: MediatR handlers are transient, managed by DI container
 - **UI Layer**: Godot nodes have their own lifecycle, managed by scene tree
 - **Scale**: System must handle 200+ event types without modification
 - **Current Problem**: Static event router violates SOLID principles and won't scale
@@ -27,12 +28,15 @@ Implement a **UI Event Bus** pattern with typed subscriptions that acts as a sta
 ### Architecture Overview
 
 ```
-[Domain Layer]          [Infrastructure]         [Presentation Layer]
-MediatR Events    →    UIEventBus (Singleton)  ←    Godot UI Nodes
-(Transient)            (DI Container)               (Scene Tree)
-                            ↑
+[Application Layer]     [Platform Infrastructure]   [Presentation Layer]
+Application       →    UIEventBus (Singleton)    ←    Godot UI Nodes
+Notifications          (Platform.Infrastructure)      (Scene Tree)
+(via MediatR)               ↑
                     Stable Reference Point
+                    (NO Domain Events!)
 ```
+
+**CRITICAL**: This system handles Application→UI notifications only. Domain events stay within their bounded context per ADR-017.
 
 ### Core Components
 
@@ -40,20 +44,20 @@ MediatR Events    →    UIEventBus (Singleton)  ←    Godot UI Nodes
 ```csharp
 public interface IUIEventBus
 {
-    // Typed subscription for specific events
+    // Typed subscription for Application notifications only
     void Subscribe<TEvent>(object subscriber, Action<TEvent> handler) 
-        where TEvent : INotification;
+        where TEvent : IApplicationNotification;
     
-    // Unsubscribe specific event type
+    // Unsubscribe specific Application notification type
     void Unsubscribe<TEvent>(object subscriber) 
-        where TEvent : INotification;
+        where TEvent : IApplicationNotification;
     
     // Unsubscribe all events for a subscriber
     void UnsubscribeAll(object subscriber);
     
-    // Called by MediatR handlers to publish events
+    // Called by Application handlers to publish UI notifications
     Task PublishAsync<TEvent>(TEvent notification) 
-        where TEvent : INotification;
+        where TEvent : IApplicationNotification;
 }
 ```
 
@@ -63,7 +67,7 @@ public sealed class UIEventBus : IUIEventBus
 {
     private readonly Dictionary<Type, List<WeakSubscription>> _subscriptions = new();
     private readonly ILogger<UIEventBus> _logger;
-    private readonly UIDispatcher _dispatcher;
+    private readonly IMainThreadDispatcher _dispatcher;
     
     private class WeakSubscription
     {
@@ -78,7 +82,7 @@ public sealed class UIEventBus : IUIEventBus
     }
     
     public void Subscribe<TEvent>(object subscriber, Action<TEvent> handler) 
-        where TEvent : INotification
+        where TEvent : IApplicationNotification
     {
         var eventType = typeof(TEvent);
         if (!_subscriptions.ContainsKey(eventType))
@@ -92,7 +96,7 @@ public sealed class UIEventBus : IUIEventBus
     }
     
     public void Unsubscribe<TEvent>(object subscriber)
-        where TEvent : INotification
+        where TEvent : IApplicationNotification
     {
         var eventType = typeof(TEvent);
         if (_subscriptions.TryGetValue(eventType, out var subs))
@@ -110,7 +114,7 @@ public sealed class UIEventBus : IUIEventBus
     }
     
     public async Task PublishAsync<TEvent>(TEvent notification) 
-        where TEvent : INotification
+        where TEvent : IApplicationNotification
     {
         var eventType = typeof(TEvent);
         if (!_subscriptions.TryGetValue(eventType, out var subs))
@@ -122,8 +126,8 @@ public sealed class UIEventBus : IUIEventBus
         {
             if (sub.Subscriber.TryGetTarget(out var target))
             {
-                // Thread-safe UI update for Godot via UIDispatcher
-                _dispatcher.Enqueue(() => ((Action<TEvent>)sub.Handler).Invoke(notification), target);
+                // Thread-safe UI update for Godot via MainThreadDispatcher (ADR-017)
+                _dispatcher.Enqueue(() => ((Action<TEvent>)sub.Handler).Invoke(notification));
             }
             else
             {
@@ -140,51 +144,16 @@ public sealed class UIEventBus : IUIEventBus
 }
 ```
 
-```csharp
-/// <summary>
-/// Godot-side dispatcher that marshals actions onto the main thread via CallDeferred.
-/// Register a single instance early (e.g., under /root) and provide it to UIEventBus.
-/// </summary>
-public sealed partial class UIDispatcher : Node
-{
-    private readonly Queue<(object? target, Action action)> _queue = new();
-    
-    public void Enqueue(Action action, object? target = null)
-    {
-        lock (_queue)
-        {
-            _queue.Enqueue((target, action));
-        }
-        CallDeferred(nameof(Drain));
-    }
-    
-    private void Drain()
-    {
-        while (true)
-        {
-            (object? target, Action action) item;
-            lock (_queue)
-            {
-                if (_queue.Count == 0) break;
-                item = _queue.Dequeue();
-            }
-            // If a target Node was provided, ensure it is still valid
-            if (item.target is Node node && !node.IsInsideTree())
-                continue;
-            item.action();
-        }
-    }
-}
-```
+**Thread Dispatcher**: Uses `IMainThreadDispatcher` from ADR-017 instead of custom UIDispatcher. See ADR-017 lines 498-564 for implementation details.
 
-#### 3. MediatR Handler Forwarder
+#### 3. Application Event Forwarder
 ```csharp
-public class UIEventForwarder<TEvent> : INotificationHandler<TEvent> 
-    where TEvent : INotification
+public class ApplicationEventForwarder<TEvent> : INotificationHandler<TEvent> 
+    where TEvent : IApplicationNotification
 {
     private readonly IUIEventBus _eventBus;
     
-    public UIEventForwarder(IUIEventBus eventBus)
+    public ApplicationEventForwarder(IUIEventBus eventBus)
     {
         _eventBus = eventBus;
     }
@@ -195,6 +164,8 @@ public class UIEventForwarder<TEvent> : INotificationHandler<TEvent>
     }
 }
 ```
+
+**CRITICAL**: Only forwards `IApplicationNotification` types, NOT `IDomainEvent` types. This respects bounded context boundaries from ADR-017.
 
 #### 4. Base Class for Event-Aware UI Components
 ```csharp
@@ -208,7 +179,8 @@ public abstract class EventAwareNode : Node2D
     public override void _Ready()
     {
         // Service locator pattern - necessary evil for Godot integration
-        EventBus = ServiceLocator.GetRequiredService<IUIEventBus>();
+        // Using Bootstrapper pattern from ADR-017 for consistency
+        EventBus = Bootstrapper.Services.GetRequiredService<IUIEventBus>();
         SubscribeToEvents();
     }
     
@@ -247,16 +219,43 @@ public partial class GameManager : EventAwareNode
 
 ### DI Registration
 ```csharp
-// In ServiceConfiguration.cs
-public static void ConfigureUIEventBus(this IServiceCollection services)
+// In Platform context registration (ADR-017 structure)
+public static class PlatformContextExtensions
 {
-    // Register the bus as singleton
-    services.AddSingleton<IUIEventBus, UIEventBus>();
-    
-    // Register generic forwarder for all domain events
-    services.AddTransient(typeof(INotificationHandler<>), typeof(UIEventForwarder<>));
+    public static IServiceCollection AddPlatformContext(this IServiceCollection services)
+    {
+        // UIEventBus belongs in Platform.Infrastructure.Godot assembly
+        services.AddSingleton<IUIEventBus, UIEventBus>();
+        
+        // Register forwarder for Application notifications only
+        services.AddTransient(typeof(INotificationHandler<>), typeof(ApplicationEventForwarder<>));
+        
+        // Main thread dispatcher from ADR-017
+        services.AddSingleton<IMainThreadDispatcher>(provider => 
+            GetNode<MainThreadDispatcher>("/root/MainThreadDispatcher"));
+        
+        return services;
+    }
 }
 ```
+
+**Assembly Location**: UIEventBus belongs in `Platform.Infrastructure.Godot` assembly per ADR-017 structure, since it's Godot-specific infrastructure.
+
+### Relationship with Other Event Systems
+
+This ADR defines one part of the complete event architecture:
+
+1. **Domain Events** (`IDomainEvent`): Stay within bounded contexts, handled by MediatR
+2. **Contract Events** (`IContractEvent`): Cross bounded context boundaries via `IIntegrationEventBus`
+3. **Application Notifications** (`IApplicationNotification`): UI updates via `IUIEventBus` (this ADR)
+
+**Flow Example**:
+```
+Domain Event → Contract Event → Application Notification → UI Update
+(Internal)     (Cross-Context)   (UI-Bound)              (Presentation)
+```
+
+See ADR-017 for the complete event architecture pattern.
 
 ## Consequences
 

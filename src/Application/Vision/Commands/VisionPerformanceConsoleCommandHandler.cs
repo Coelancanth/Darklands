@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Darklands.Core.Application.Vision.Services;
+// TODO: Remove this Infrastructure reference as part of TD_042 Strangler Fig migration
 using Darklands.Core.Infrastructure.Vision;
 using static LanguageExt.Prelude;
 

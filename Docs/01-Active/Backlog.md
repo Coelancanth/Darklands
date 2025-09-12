@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-12 10:07 (Tech Lead created ADR-007 for logger architecture, added future analytics ideas)
+**Last Updated**: 2025-09-12 18:06 (Backlog Assistant - TD_041 moved to archive as completed Strangler Fig foundation)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 008
-- **Next TD**: 039
+- **Next TD**: 046
 - **Next VS**: 015 
 
 
@@ -78,227 +78,306 @@
 ## 🔥 Critical (Do First)
 *Blockers preventing other work, production bugs, dependencies for other features*
 
-### VS_012: Vision-Based Movement System
-**Status**: Approved  
+
+
+### TD_043: Strangler Fig Phase 2 - Migrate Combat to VSA Structure
+**Status**: Ready
 **Owner**: Dev Engineer
-**Size**: S (2h)
-**Priority**: Critical
-**Created**: 2025-09-11 00:10
-**Updated**: 2025-09-11
-**Tech Breakdown**: Movement using vision for scheduler activation
+**Size**: L (2 days)
+**Priority**: Important
+**Created**: 2025-09-12 16:13
+**Updated**: 2025-09-12 18:02 (Backlog Assistant - Dependency TD_042 completed, ready for implementation)
+**Depends On**: TD_042 ✅ Completed
+**Markers**: [ARCHITECTURE] [DDD] [STRANGLER-FIG] [PHASE-2]
 
-**What**: Movement system where scheduler activates based on vision connections
-**Why**: Creates natural tactical combat without explicit modes
+**What**: Reorganize Combat features into VSA structure (second strangler vine)
+**Why**: Prove VSA pattern works within bounded contexts before full migration
 
-**Design** (per ADR-014):
-- **Scheduler activation**: When player and hostiles have vision
-- **Movement rules**: Adjacent-only when scheduled, pathfinding otherwise
-- **Interruption**: Stop movement when enemy becomes visible
-- **Fixed cost**: 100 TU per action when scheduled
+**Dependency TD_042 completed** - Proven Strangler Fig pattern ready for Combat system migration
 
-**Implementation Plan**:
-- **Phase 1**: Domain rules (0.5h)
-  - Movement validation (adjacent when scheduled)
-  - Fixed TU costs (100)
-  
-- **Phase 2**: Application layer (0.5h)
-  - MoveCommand handler with vision check
-  - Route to scheduler vs instant movement
-  - Console output for states
-  
-- **Phase 3**: Infrastructure (0.5h)
-  - SchedulerActivationService
-  - PathfindingService integration
-  - Movement interruption handler
-  
-- **Phase 4**: Integration (0.5h)
-  - Wire to existing scheduler
-  - Console messages and turn counter
-  - Test with multiple scenarios
+**Incremental Migration** (preserve working code):
+1. **Create Tactical Context Structure** (2h):
+   ```
+   src/Tactical/
+   ├── Darklands.Tactical.Domain.csproj
+   ├── Darklands.Tactical.Application.csproj
+   ├── Darklands.Tactical.Infrastructure.csproj
+   ├── Features/
+   │   └── Attack/  (NEW VSA structure)
+   │       ├── Domain/
+   │       ├── Application/
+   │       └── Infrastructure/
+   └── Domain/
+       └── Aggregates/
+           └── Actors/  (shared aggregate, plural!)
+   ```
 
-**Scheduler Activation (Solo)**:
-```csharp
-bool ShouldUseScheduler() {
-    // Solo player - only check player vs monsters
-    return monsters.Any(m => 
-        m.State != Dormant && 
-        (visionService.CanSee(player, m) || visionService.CanSee(m, player))
-    );
-}
-```
+2. **Copy Attack Feature to VSA** (4h):
+   - COPY ExecuteAttackCommand/Handler to new location
+   - COPY attack validation logic
+   - Keep old code working in parallel
 
-**Movement Flow**:
-```csharp
-if (ShouldUseScheduler()) {
-    // Tactical movement
-    if (!Position.IsAdjacent(from, to)) {
-        return "Only adjacent moves when enemies visible";
-    }
-    scheduler.Schedule(new MoveAction(actor, to, 100));
-} else {
-    // Instant travel with interruption check
-    foreach (var step in path) {
-        actor.Position = step;
-        if (ShouldUseScheduler()) {
-            return "Movement interrupted - enemy spotted!";
-        }
-    }
-}
-```
+3. **Create Contract Events** (2h):
+   ```csharp
+   // Darklands.Tactical.Contracts
+   public record ActorDamagedContractEvent(
+       EntityId ActorId,
+       int Damage,
+       string ActorName
+   ) : IContractEvent;
+   ```
 
-**Console Examples**:
-```
-// No vision - instant
-> move to (30, 30)
-[Traveling...]
-You arrive at (30, 30)
+4. **Add Routing Logic** (3h):
+   ```csharp
+   // Feature toggle per command
+   if (UseNewAttackHandler)
+       services.AddTransient<IRequestHandler<ExecuteAttackCommand>>(newHandler);
+   else
+       services.AddTransient<IRequestHandler<ExecuteAttackCommand>>(oldHandler);
+   ```
 
-// Vision exists - tactical
-> move to (10, 10)
-[Enemies visible - tactical movement]
-> move north
-[Turn 1] You move north (100 TU)
-[Turn 2] Goblin moves west (100 TU)
-
-// Interruption
-> move to (50, 50)
-[Traveling...]
-Movement interrupted at (25, 25) - Orc spotted!
-```
+5. **Parallel Testing** (3h):
+   - Run both implementations
+   - Compare results
+   - Performance benchmarks
 
 **Done When**:
-- Scheduler activates on vision connections
-- Adjacent-only when scheduled
-- Pathfinding when not scheduled
-- Movement interrupts on new vision
-- Turn counter during tactical movement
-- Clear console messages
+- [ ] New Tactical context structure exists
+- [ ] Attack feature works in BOTH locations
+- [ ] Feature toggle switches implementations
+- [ ] Contract events published from new structure
+- [ ] Performance metrics show no regression
+- [ ] Architecture tests validate VSA structure
 
-**Architectural Constraints**:
-☑ Deterministic: Fixed TU costs
-☑ Save-Ready: Position state only
-☑ Time-Independent: Turn-based
-☑ Integer Math: Tile movement
-☑ Testable: Clear state transitions
+**Tech Lead Notes**:
+- Each feature gets its own toggle (granular control)
+- Old code stays until new is battle-tested
+- Can roll back feature-by-feature if issues
 
-**Depends On**: 
-- VS_011 (Vision System) - ✅ Infrastructure foundation complete (Phase 3)
-- VS_014 (A* Pathfinding) - ⏳ Required for non-adjacent movement
-**Next Step**: Implement VS_014 first, then begin VS_012
-
-
-### VS_014: A* Pathfinding Foundation
-**Status**: Approved
+### TD_040: Extract Diagnostics Bounded Context
+**Status**: Ready
 **Owner**: Dev Engineer  
-**Size**: S (3h)
-**Priority**: Critical
-**Created**: 2025-09-11 18:12
-**Tech Breakdown**: Complete by Tech Lead
+**Size**: M (6h) - Reduced with new approach
+**Priority**: Important (no longer critical)
+**Depends On**: TD_041 ✅ Completed
+**Created**: 2025-09-12 14:52
+**Updated**: 2025-09-12 18:02 (Backlog Assistant - Dependency TD_041 completed)
+**Markers**: [ARCHITECTURE] [DDD]
 
-**What**: Implement A* pathfinding algorithm with visual path display
-**Why**: Foundation for VS_012 movement system and all future tactical movement
+**What**: Create separate Diagnostics bounded context with assembly boundaries
+**Why**: Enables non-deterministic types without violating ADR-004, enforces true isolation
 
-**Implementation Plan**:
+**Problem**: 
+- Performance monitoring needs DateTime/double (non-deterministic)
+- Namespace-only separation allows accidental coupling
+- Using ActorId in Diagnostics violates context isolation
+- Need compile-time enforcement of boundaries
 
-**Phase 1: Domain Algorithm (1h)**
-- Create `Domain.Pathfinding.AStarPathfinder`
-- Pure functional implementation with no dependencies
-- Deterministic tie-breaking (use Position.X then Y for equal F-scores)
-- Support diagonal movement (8-way) with correct costs (100 ortho, 141 diagonal)
-- Handle blocked tiles from Grid.Tile.IsWalkable
+**Solution - Assembly-Based Bounded Contexts**:
 
-```csharp
-public static class AStarPathfinder
-{
-    public static Option<ImmutableList<Position>> FindPath(
-        Position start,
-        Position goal,
-        Grid grid,
-        bool allowDiagonal = true)
-    {
-        // A* with deterministic tie-breaking
-        // Returns None if no path exists
-    }
-}
+1. **Phase 1: Create Assembly Structure** (2h)
+   ```xml
+   <!-- Create separate projects -->
+   src/Diagnostics/Darklands.Diagnostics.Domain.csproj
+   src/Diagnostics/Darklands.Diagnostics.Application.csproj  
+   src/Diagnostics/Darklands.Diagnostics.Infrastructure.csproj
+   ```
+
+2. **Phase 2: Use Shared Identity Types** (2h)
+   ```csharp
+   // SharedKernel - EntityId (NOT ActorId!)
+   public readonly record struct EntityId(Guid Value);
+   
+   // Diagnostics uses EntityId, never ActorId
+   public record VisionPerformanceReport(
+       DateTime Timestamp,
+       Dictionary<EntityId, double> Metrics  // ✅ EntityId not ActorId
+   );
+   ```
+
+3. **Phase 3: Integration Event Bus** (2h)
+   - Separate bus for cross-context events
+   - Integration events use primitives only
+   - Versioning and correlation IDs
+
+4. **Phase 4: Main Thread Dispatcher** (2h)
+   - Implement IMainThreadDispatcher
+   - Ensure Godot calls on main thread
+   - Update presenters to use dispatcher
+
+**Assembly References**:
 ```
+Darklands.csproj (Main)
+├─> Tactical.Application
+├─> Diagnostics.Application
+├─> Platform.Infrastructure.Godot
+└─> SharedKernel
 
-**Phase 2: Application Service (0.5h)**
-- Create `IPathfindingService` interface in Core
-- `FindPathQuery` and handler for CQRS pattern
-- Cache recent paths for performance (LRU cache, 32 entries)
-
-**Phase 3: Infrastructure (0.5h)**
-- Implement `PathfindingService` with caching
-- Performance monitoring (target: <10ms for 50 tiles)
-- Path validation before returning
-
-**Phase 4: Presentation (1h)**
-- Path visualization in GridPresenter
-- Semi-transparent overlay tiles (blue for path, green for destination)
-- Update on mouse hover to show potential paths
-- Clear path display on movement/action
-
-**Visual Feedback Design**:
-```
-Path tile: Modulate(0.5, 0.5, 1.0, 0.5) - Semi-transparent blue
-Destination: Modulate(0.5, 1.0, 0.5, 0.7) - Semi-transparent green  
-Current hover: Updates in real-time as mouse moves
-Animation: Gentle pulse on destination tile
+NO cross-context references!
 ```
 
 **Done When**:
-- A* finds optimal paths deterministically
-- Diagonal movement works correctly (1.41x cost)
-- Path visualizes on grid before movement
-- Performance <10ms for typical paths (50 tiles)
-- Handles no-path-exists gracefully (returns None)
-- All tests pass including edge cases
+- [ ] Separate assemblies created for Diagnostics
+- [ ] Using EntityId instead of ActorId
+- [ ] Integration event bus implemented
+- [ ] Main thread dispatcher working
+- [ ] Architecture tests enforce assembly boundaries
+- [ ] No direct references between contexts
 
-**Test Scenarios**:
-1. Straight line path (no obstacles)
-2. Path around single wall
-3. Maze navigation
-4. No path exists (surrounded)
-5. Diagonal preference when optimal
+**Tech Lead Decision**:
+- Assembly boundaries provide compile-time safety
+- Dual event bus strategy (MediatR + Integration)
+- NO scoped services (Singleton or Transient only)
+- See ADR-017 (revised) for complete strategy
 
-**Architectural Constraints**:
-☑ Deterministic: Consistent tie-breaking rules
-☑ Save-Ready: Paths are transient, not saved
-☑ Time-Independent: Pure algorithm
-☑ Integer Math: Use 100/141 for movement costs
-☑ Testable: Pure domain function
-
-**Dependencies**: None (foundation feature)
-**Blocks**: VS_012 (Movement System)
 
 
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*
 
+### TD_044: Strangler Fig Phase 3 - Extract Platform Services
+**Status**: Proposed
+**Owner**: Tech Lead → Dev Engineer
+**Size**: M (8h)
+**Priority**: Important
+**Created**: 2025-09-12 16:13
+**Updated**: 2025-09-12 17:35 (Tech Lead - Strangler Fig approach)
+**Depends On**: TD_043
+**Markers**: [ARCHITECTURE] [DDD] [STRANGLER-FIG] [PHASE-3]
+
+**What**: Extract Audio/Input/Settings to Platform context (third strangler vine)
+**Why**: Clear abstraction boundary - these are external integrations not game logic
+
+**Parallel Migration Steps**:
+1. **Create Platform Context** (1h):
+   ```
+   src/Platform/
+   ├── Darklands.Platform.Domain.csproj
+   ├── Darklands.Platform.Infrastructure.csproj
+   └── Darklands.Platform.Infrastructure.Godot.csproj
+   ```
+
+2. **Copy Service Abstractions** (2h):
+   - COPY IAudioService, IInputService, ISettingsService
+   - Create contract DTOs for cross-context data
+   - Keep old interfaces working
+
+3. **Implement Godot Adapters** (3h):
+   ```csharp
+   // Platform.Infrastructure.Godot
+   public class GodotAudioService : IAudioService {
+       // Real Godot implementation
+   }
+   ```
+
+4. **Add Service Resolution Switch** (1h):
+   ```csharp
+   if (UsePlatformContext) {
+       services.AddPlatformContext(); // New
+   } else {
+       services.AddLegacyServices(); // Old
+   }
+   ```
+
+5. **Verify with Tests** (1h):
+   - Mock implementations work
+   - Godot implementations work
+   - No Godot references leak to Domain
+
+**Done When**:
+- [ ] Platform context isolates all Godot dependencies
+- [ ] Service interfaces work from both locations
+- [ ] Toggle switches between implementations
+- [ ] Architecture tests enforce Godot isolation
+- [ ] All platform tests pass
+
+### TD_045: Strangler Fig Phase 4 - Remove Old Structure (Final)
+**Status**: Proposed
+**Owner**: Tech Lead → Dev Engineer
+**Size**: M (6h)
+**Priority**: Important
+**Created**: 2025-09-12 16:13
+**Updated**: 2025-09-12 18:02 (Backlog Assistant - Added clarification note)
+**Depends On**: TD_044
+**Markers**: [ARCHITECTURE] [DDD] [STRANGLER-FIG] [PHASE-4]
+
+**What**: Remove old monolithic structure after new is proven
+**Why**: Complete the Strangler Fig migration - old code can finally be deleted
+
+**CRITICAL**: Legacy code removal only after ALL contexts migrated and production validation complete. This is the FINAL phase.
+
+**Safe Removal Steps** (only after validation):
+1. **Verify All Features Migrated** (1h):
+   - Confirm all toggles point to new implementations
+   - Run full test suite on new structure
+   - Performance benchmarks show no regression
+
+2. **Remove Feature Toggles** (1h):
+   - Delete toggle configuration
+   - Wire services directly to new implementations
+   - Remove conditional logic
+
+3. **Delete Old Code** (2h):
+   - Remove old src/Application folder
+   - Remove old src/Domain folder  
+   - Remove old src/Infrastructure folder
+   - Update GameStrapper to use context registration
+
+4. **Clean Up Adapters** (1h):
+   - Remove temporary adapters
+   - Remove parallel testing code
+   - Clean up migration helpers
+
+5. **Final Validation** (1h):
+   - All tests pass
+   - Architecture tests enforce boundaries
+   - No references to old namespaces
+   - Build and deployment work
+
+**Done When**:
+- [ ] Old monolithic structure deleted
+- [ ] Only bounded contexts remain
+- [ ] All tests pass on new structure
+- [ ] No feature toggles remain
+- [ ] Documentation updated
+- [ ] Team trained on new structure
+
+**Tech Lead Decision**:
+- This is the FINAL phase - only execute after production validation
+- Keep backups of old code in separate branch
+- Can revert via git if critical issues found
+
 <!-- TD_031 moved to permanent archive (2025-09-10 21:02) - TimeUnit TU refactor completed successfully -->
 
 
-### TD_032: Fix Namespace-Class Collisions (Grid.Grid, Actor.Actor)
-**Status**: Approved
+### TD_032: Fix Namespace-Class Collisions (Pluralization Strategy)
+**Status**: Revised - Simple Solution
 **Owner**: Dev Engineer
-**Size**: S (4h)
+**Size**: S (2h) - Reduced complexity
 **Priority**: Important
 **Created**: 2025-09-11
-**Complexity**: 2/10
-**ADR**: ADR-015
+**Updated**: 2025-09-12 16:18 (Tech Lead simplified using modular-monolith pattern)
+**Complexity**: 1/10 - Much simpler now
+**References**: modular-monolith-with-ddd namespace strategy
 
-**What**: Refactor namespace structure to eliminate collisions
-**Why**: Current `Domain.Grid.Grid` and `Domain.Actor.Actor` patterns force verbose code and confuse developers
+**What**: Use pluralized folder names to eliminate namespace-class collisions
+**Why**: Current `Domain.Grid.Grid` is verbose; plural folders solve this elegantly
 
-**Implementation Plan** (per ADR-015):
-1. **Domain Layer** (2h):
-   - Rename `Grid` → `WorldGrid` in new `Domain.Spatial` namespace
-   - Move `Actor` to `Domain.Entities` namespace
-   - Reorganize into bounded contexts: Spatial, Entities, TurnBased, Perception
+**Simple Implementation** (inspired by modular-monolith-with-ddd):
+1. **Rename Aggregate Folders** (1h):
+   - `Domain/Actor/` → `Domain/Actors/` (plural)
+   - `Domain/Grid/` → `Domain/Grids/` (plural)
+   - Keep class names singular: `Actor`, `Grid`
    
-2. **Application/Infrastructure** (1h):
-   - Update all imports and references
-   - No structural changes, just namespace updates
+2. **Update Namespace Declarations** (1h):
+   - Change `namespace Domain.Actor` → `namespace Domain.Actors`
+   - Change `namespace Domain.Grid` → `namespace Domain.Grids`
+   - Update all using statements
+
+**Result**:
+- Before: `Domain.Grid.Grid` (collision!)
+- After: `Domain.Grids.Grid` (no collision!)
+- Clean references: `Actors.Actor`, `Grids.Grid`
    
 3. **Tests** (1h):
    - Update test imports
@@ -319,156 +398,57 @@ Animation: Gentle pulse on destination tile
 
 
 
-### TD_035: Standardize Error Handling in Infrastructure Services
-**Status**: Approved
-**Owner**: Dev Engineer
-**Size**: S (3h)
+### TD_039: Fix Application→Infrastructure Boundary Violations
+**Status**: ✅ COMPLETED  
+**Owner**: Dev Engineer → Completed
+**Size**: S (2h) → Actual: 2.5h
 **Priority**: Important
-**Created**: 2025-09-11 18:07
-**Complexity**: 3/10
+**Created**: 2025-09-12 13:59
+**Updated**: 2025-09-12 14:52
+**Complexity**: 2/10
+**Markers**: [ARCHITECTURE]
 
-**What**: Replace remaining try-catch blocks with Fin<T> in infrastructure services
-**Why**: Inconsistent error handling breaks functional composition and makes debugging harder
+**What**: Fix inverted dependencies where Application layer references Infrastructure
+**Why**: Violates Clean Architecture - dependencies should flow inward, not outward
 
-**Scope** (LIMITED TO):
-1. **PersistentVisionStateService** (7 try-catch blocks):
-   - GetVisionState, UpdateVisionState, ClearVisionState methods
-   - Convert to Try().Match() pattern with Fin<T>
-   
-2. **GridPresenter** (3 try-catch in event handlers):
-   - OnActorSpawned, OnActorMoved, OnActorRemoved
-   - Wrap in functional error handling
-   
-3. **ExecuteAttackCommandHandler** (mixed side effects):
-   - Extract logging to separate methods
-   - Isolate side effects from business logic
+**✅ Implementation Complete** (Dev Engineer 2025-09-12):
 
-**NOT IN SCOPE** (critical boundaries):
-- Performance-critical loops in ShadowcastingFOV (keep imperative)
-- ConcurrentDictionary in caching (proven pattern, don't change)
-- Working switch statements (already readable)
-- Domain layer (already fully functional)
+**Fixed Violations** (4/5):
+1. ✅ `ActorFactory.cs` → Removed `Infrastructure.Debug`, uses `Domain.Debug.ICategoryLogger`
+2. ✅ `InMemoryGridStateService.cs` → Removed `Infrastructure.Identity`, refactored to use DI for `IStableIdGenerator`
+3. ✅ `GameLoopCoordinator.cs` → Removed `Infrastructure.Debug`, uses `Domain.Debug.ICategoryLogger`
+4. ✅ `UIEventForwarder.cs` → Removed `Infrastructure.Debug`, uses `Domain.Debug.ICategoryLogger`
 
-**Implementation Guidelines**:
-```csharp
-// Pattern to follow:
-public Fin<T> ServiceMethod() =>
-    Try(() => 
-    {
-        // existing logic
-    })
-    .Match(
-        Succ: result => FinSucc(result),
-        Fail: ex => FinFail<T>(Error.New("Context-specific message", ex))
-    );
-```
+**Key Fixes Implemented**:
+- **Service Locator Fix**: Refactored `InMemoryGridStateService` constructor to receive `IStableIdGenerator` via dependency injection instead of using `GuidIdGenerator.Instance`
+- **Architecture Test Enhancement**: Updated `Application_Should_Not_Reference_Infrastructure` test to actively fail on violations (was previously just logging)
+- **Clean Import Removal**: Eliminated all redundant Infrastructure imports where Domain interfaces were available
 
-**Done When**:
-- Zero try-catch blocks in listed services
-- All errors flow through Fin<T> consistently
-- Side effects isolated into dedicated methods
-- Performance unchanged (measure before/after)
-- All existing tests still pass
+**⚡ Tech Lead Decision** (2025-09-12 14:52):
+**REJECTED Option B (Domain Interface Pattern)** - Violates ADR-004 Deterministic Simulation!
 
-**Tech Lead Notes**:
-- This is about consistency, not FP purity
-- Keep changes mechanical and predictable
-- Don't get creative - follow existing patterns
-- If performance degrades, revert that specific change
+The real issue isn't the boundary violation - it's that `VisionPerformanceReport` contains:
+- `DateTime` (wall clock time) 
+- `double` for timing measurements
+- Non-deterministic performance metrics
+
+Per ADR-004, these CANNOT exist in Domain layer as they break determinism.
+
+**Solution**: Move the shared types to Domain BUT refactor them first:
+1. Replace `DateTime` with turn/action counts
+2. Replace `double` timings with integer microseconds  
+3. Make metrics deterministic (tile counts, cache hits as integers)
+
+This maintains Clean Architecture AND determinism. The types belong in Domain as they're shared contracts, but must be deterministic.
+
+**Follow-up**: Create TD_040 to refactor VisionPerformanceReport for determinism, then move to Domain.
 
 
 
-### VS_013: Basic Enemy AI
-**Status**: Proposed
-**Owner**: Product Owner → Tech Lead
-**Size**: M (4-8h)  
-**Priority**: Important
-**Created**: 2025-09-10 19:03
-
-**What**: Simple but effective enemy AI for combat testing
-**Why**: Need opponents to validate combat system and create gameplay loop
-**How**:
-- Decision tree for action selection (move/attack/wait)
-- Target prioritization (closest/weakest/most dangerous)
-- Basic pathfinding to reach targets
-- Flee behavior when low health
-**Done When**:
-- Enemies move towards player intelligently
-- Enemies attack when in range
-- AI makes decisions based on game state
-- Different enemy types show different behaviors
-- AI actions integrate with scheduler
-
-**Architectural Constraints** (MANDATORY):
-☑ Deterministic: AI decisions based on seeded random
-☑ Save-Ready: AI state fully serializable
-☑ Time-Independent: Decisions based on game state not time
-☑ Integer Math: All AI calculations use integers
-☑ Testable: AI logic can be unit tested
-
----
 
 ## 💡 Future Ideas (Not Current Priority)
 *Features and systems to consider when foundational work is complete*
 
-### IDEA_001: Life-Review/Obituary System
-**Status**: Future Consideration
-**Owner**: Unassigned
-**Size**: L (2-3 days)
-**Priority**: Ideas
-**Created**: 2025-09-12
-
-**What**: Battle Brothers-style obituary and company history system
-**Why**: Creates narrative and emotional attachment to characters
-**How**: 
-- Track all character events (battles, injuries, level-ups, deaths)
-- Generate procedural obituaries for fallen characters
-- Company timeline showing major events
-- Statistics and achievements per character
-**Technical Approach**: 
-- Separate IGameHistorian system (not debug logging)
-- SQLite or JSON for structured event storage
-- Query system for generating reports
-**Reference**: ADR-007 Future Considerations section
-
-### IDEA_002: Economy Analytics System  
-**Status**: Future Consideration
-**Owner**: Unassigned
-**Size**: M (1-2 days)
-**Priority**: Ideas
-**Created**: 2025-09-12
-
-**What**: Track economic metrics for balance analysis
-**Why**: Balance item prices, loot tables, and gold flow
-**How**:
-- Record all transactions (buy/sell/loot/reward)
-- Aggregate metrics (avg gold per battle, popular items)
-- Export reports for balance decisions
-**Technical Approach**:
-- Separate IEconomyTracker system (not debug logging)
-- Aggregated analytics database
-- Periodic report generation
-**Reference**: ADR-007 Future Considerations section
-
-### IDEA_003: Player Analytics Dashboard
-**Status**: Future Consideration  
-**Owner**: Unassigned
-**Size**: L (3-4 days)
-**Priority**: Ideas
-**Created**: 2025-09-12
-
-**What**: Comprehensive player behavior analytics
-**Why**: Understand difficulty spikes, player preferences, death patterns
-**How**:
-- Heat maps of death locations
-- Progression funnel analysis
-- Play session patterns
-- Difficulty curve validation
-**Technical Approach**:
-- Separate IPlayerAnalytics system (not debug logging)
-- Event stream processing
-- Visual dashboard for analysis
-**Reference**: ADR-007 Future Considerations section
 
 ## 📋 Quick Reference
 

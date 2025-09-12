@@ -2,7 +2,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using MediatR;
 using Darklands.Core.Domain.Debug;
-using Darklands.Core.Infrastructure.Debug;
 
 namespace Darklands.Core.Application.Events;
 

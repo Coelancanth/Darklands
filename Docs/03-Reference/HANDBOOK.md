@@ -27,13 +27,13 @@
 - **Use LanguageExt v5?** → [LanguageExt Usage Guide](LanguageExt-Usage-Guide.md) ⭐⭐⭐⭐⭐
 - **Handle errors?** → [Error Handling](#-error-handling-with-languageext-v5) - Fin<T> everywhere!
 - **Route work?** → [Persona Routing](#-persona-routing)
-- **Add DI service?** → [GameStrapper Pattern](#gamestrapper-pattern)
+- **Add DI service?** → [Bootstrapper Pattern](#bootstrapper-pattern) (ADR-017)
 
 **🚨 Emergency Fixes:**
 - **First-time setup** → Run `./scripts/setup/verify-environment.ps1`
-- **30+ test failures** → Check DI registration in GameStrapper.cs first
+- **30+ test failures** → Check DI registration in Bootstrapper.cs first
 - **Handler not found** → Namespace MUST be `Darklands.Core.*` for MediatR discovery
-- **DI container fails** → Check namespace matches pattern
+- **DI container fails** → Check bounded context registration in Bootstrapper (ADR-017)
 - **Build/test issues** → Run `./scripts/fix/common-issues.ps1`
 - **Tests pass but game won't compile** → Use `./scripts/core/build.ps1 test` not `test-only`
 - **Concurrent collection error** → Replace Dictionary with ConcurrentDictionary (BR_007 pattern)
@@ -260,12 +260,12 @@ Y↑
 - Godot aligned: Y+ is up
 ```
 
-### GameStrapper Pattern
-**CRITICAL**: Follow established GameStrapper.cs pattern (468 lines)
-- Full DI container setup with validation
-- Fallback-safe Serilog configuration
-- Service lifetime management
-- MediatR pipeline registration
+### Bootstrapper Pattern (ADR-017)
+**CRITICAL**: Follow ADR-017 bounded context DI pattern
+- Bounded context service registration (Tactical, Platform, Diagnostics)
+- Single IServiceProvider accessed via Bootstrapper.Services
+- Assembly-based isolation with proper references
+- See ADR-017 for complete implementation details
 
 ---
 
@@ -725,7 +725,7 @@ public class ProcessAfterSpellHandler : INotificationHandler<SpellCompletedNotif
 
 ### DI Container Issues
 **Symptom**: "Unable to resolve service"  
-**Fix**: Check registration in GameStrapper.cs, verify namespace
+**Fix**: Check registration in bounded context extensions (ADR-017), verify namespace
 
 ### MediatR Handler Not Found
 **Symptom**: "No handler registered"  
@@ -872,7 +872,7 @@ git config --get core.hookspath  # Should return .husky
 - **Established HANDBOOK**: Our template and proven patterns
 - **ADR-001**: Strict Model-View Separation
 - **ADR-002**: Phased Implementation Protocol
-- **GameStrapper.cs**: DI container pattern (established approach)
+- **Bootstrapper (ADR-017)**: Bounded context DI pattern (current approach)
 - **Clean Architecture**: Uncle Bob's principles
 - **LanguageExt Docs**: Functional patterns in C#
 

@@ -6,7 +6,6 @@ using LanguageExt;
 using LanguageExt.Common;
 using MediatR;
 using Darklands.Core.Domain.Debug;
-using Darklands.Core.Infrastructure.Debug;
 using Darklands.Core.Application.Combat.Common;
 using Darklands.Core.Application.Combat.Commands;
 using Darklands.Core.Application.Combat.Queries;

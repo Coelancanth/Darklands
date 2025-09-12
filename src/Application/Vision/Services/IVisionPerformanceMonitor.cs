@@ -1,5 +1,6 @@
 using LanguageExt;
 using Darklands.Core.Domain.Grid;
+// TODO: Remove this Infrastructure reference as part of TD_042 Strangler Fig migration
 using Darklands.Core.Infrastructure.Vision;
 
 namespace Darklands.Core.Application.Vision.Services
