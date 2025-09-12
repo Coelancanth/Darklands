@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Serilog;
 using Serilog.Extensions.Logging;
 using System;
+using System.Linq;
 using System.Reflection;
 using MediatR;
 using LanguageExt;
@@ -212,13 +213,16 @@ public static class GameStrapper
             // TD_043: Load Tactical bounded context assemblies for Strangler Fig
             var tacticalApplicationAssembly = Assembly.Load("Darklands.Tactical.Application");
 
-            // Register MediatR with assembly scanning
+            // Register MediatR with assembly scanning but exclude combat handlers
             services.AddMediatR(config =>
             {
+                // TD_043: Register from assembly but will manually override combat handlers
                 config.RegisterServicesFromAssembly(coreAssembly);
 
-                // TD_043: Also scan Tactical bounded context for handlers
-                config.RegisterServicesFromAssembly(tacticalApplicationAssembly);
+                // TD_043: DON'T auto-scan Tactical assembly to avoid duplicate handlers
+                // The Tactical handlers are for different command types (Tactical namespace)
+                // and will be manually wired through the switch adapter
+                // config.RegisterServicesFromAssembly(tacticalApplicationAssembly);
 
                 // Add logging pipeline behavior
                 config.AddOpenBehavior(typeof(LoggingBehavior<,>));
@@ -226,6 +230,32 @@ public static class GameStrapper
                 // Add error handling pipeline behavior
                 config.AddOpenBehavior(typeof(ErrorHandlingBehavior<,>));
             });
+
+            // TD_043: Override combat handlers with switch adapter
+            // Remove the auto-discovered handlers AFTER MediatR registration
+            // This is necessary because MediatR auto-discovers them
+            var descriptorsToRemove = services
+                .Where(d => d.ServiceType == typeof(IRequestHandler<Application.Combat.Commands.ExecuteAttackCommand, Fin<LanguageExt.Unit>>) ||
+                           d.ServiceType == typeof(IRequestHandler<Application.Combat.Commands.ProcessNextTurnCommand, Fin<Option<Guid>>>))
+                .ToList();
+            
+            foreach (var descriptor in descriptorsToRemove)
+            {
+                services.Remove(descriptor);
+            }
+
+            // Register the legacy handlers (not as IRequestHandler to avoid MediatR picking them up)
+            services.AddTransient<Application.Combat.Commands.ExecuteAttackCommandHandler>();
+            services.AddTransient<Application.Combat.Commands.ProcessNextTurnCommandHandler>();
+
+            // Register the switch adapter
+            services.AddTransient<Infrastructure.Combat.CombatSwitchAdapter>();
+
+            // Register the switch adapter as the handler for combat commands
+            services.AddTransient<IRequestHandler<Application.Combat.Commands.ExecuteAttackCommand, Fin<LanguageExt.Unit>>>(
+                provider => provider.GetRequiredService<Infrastructure.Combat.CombatSwitchAdapter>());
+            services.AddTransient<IRequestHandler<Application.Combat.Commands.ProcessNextTurnCommand, Fin<Option<Guid>>>>(
+                provider => provider.GetRequiredService<Infrastructure.Combat.CombatSwitchAdapter>());
 
             return FinSucc(LanguageExt.Unit.Default);
         }

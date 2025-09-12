@@ -75,6 +75,8 @@ public static class StranglerFigServiceRegistrar
         // The new Tactical handlers are registered in their own namespace
 
         // Register the actual Tactical handlers (not the adapter)
+        // NOTE: These are for the Tactical namespace commands, not Core commands
+        // They're used internally by TacticalContractAdapter
         services.AddTransient<ExecuteAttackCommandHandler>();
         services.AddTransient<ProcessNextTurnCommandHandler>();
 
@@ -86,7 +88,9 @@ public static class StranglerFigServiceRegistrar
         // In the future, the toggle will switch between implementations
 
         // Register parallel adapter for validation when logging is enabled
-        if (config.EnableValidationLogging)
+        // NOTE: Currently disabled to avoid ambiguous handler registration
+        // To enable: Remove legacy handler registration and use ParallelCombatAdapter instead
+        if (config.EnableValidationLogging && false) // Temporarily disabled
         {
             services.AddTransient<Core.Infrastructure.Combat.ParallelCombatAdapter>();
         }

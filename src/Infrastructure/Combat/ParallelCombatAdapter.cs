@@ -21,17 +21,17 @@ namespace Darklands.Core.Infrastructure.Combat;
 /// </summary>
 public sealed class ParallelCombatAdapter :
     IRequestHandler<ExecuteAttackCommand, Fin<Unit>>,
-    IRequestHandler<ProcessNextTurnCommand, Fin<Unit>>
+    IRequestHandler<ProcessNextTurnCommand, Fin<Option<Guid>>>
 {
     private readonly IRequestHandler<ExecuteAttackCommand, Fin<Unit>> _legacyAttackHandler;
-    private readonly IRequestHandler<ProcessNextTurnCommand, Fin<Unit>> _legacyTurnHandler;
+    private readonly IRequestHandler<ProcessNextTurnCommand, Fin<Option<Guid>>> _legacyTurnHandler;
     private readonly TacticalContractAdapter _tacticalAdapter;
     private readonly ILogger<ParallelCombatAdapter> _logger;
     private readonly bool _validateResults;
 
     public ParallelCombatAdapter(
         IRequestHandler<ExecuteAttackCommand, Fin<Unit>> legacyAttackHandler,
-        IRequestHandler<ProcessNextTurnCommand, Fin<Unit>> legacyTurnHandler,
+        IRequestHandler<ProcessNextTurnCommand, Fin<Option<Guid>>> legacyTurnHandler,
         TacticalContractAdapter tacticalAdapter,
         ILogger<ParallelCombatAdapter> logger,
         bool validateResults = true)
@@ -69,29 +69,27 @@ public sealed class ParallelCombatAdapter :
         return legacyResult;
     }
 
-    public async Task<Fin<Unit>> Handle(ProcessNextTurnCommand request, CancellationToken cancellationToken)
+    public async Task<Fin<Option<Guid>>> Handle(ProcessNextTurnCommand request, CancellationToken cancellationToken)
     {
         _logger.LogInformation("[PARALLEL] Starting parallel turn processing");
 
         // Execute legacy system (primary)
-        var legacyTask = _legacyTurnHandler.Handle(request, cancellationToken);
+        var legacyResult = await _legacyTurnHandler.Handle(request, cancellationToken);
 
-        // Execute new Tactical system (shadow)
-        var tacticalTask = ExecuteTacticalTurnAsync(request, cancellationToken);
-
-        // Wait for both
-        var results = await Task.WhenAll(legacyTask, tacticalTask);
-
-        var legacyResult = results[0];
-        var tacticalResult = results[1];
-
-        // Compare results if validation enabled
-        if (_validateResults)
+        // Execute new Tactical system (shadow) - fire and forget for now
+        _ = Task.Run(async () =>
         {
-            ValidateTurnResults(legacyResult, tacticalResult, request);
-        }
+            try
+            {
+                await ExecuteTacticalTurnAsync(request, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[PARALLEL] Tactical turn processing failed");
+            }
+        });
 
-        // Return legacy result
+        // Return legacy result (it's the source of truth)
         return legacyResult;
     }
 
@@ -106,10 +104,7 @@ public sealed class ParallelCombatAdapter :
                 attackerId: new EntityId(legacyCommand.AttackerId.Value),
                 targetId: new EntityId(legacyCommand.TargetId.Value),
                 baseDamage: legacyCommand.CombatAction.BaseDamage,
-                occurredAt: Tactical.Domain.ValueObjects.TimeUnit.Create(1000).Match(
-                    Succ: t => t,
-                    Fail: _ => Tactical.Domain.ValueObjects.TimeUnit.Zero
-                ),
+                occurredAt: new Tactical.Domain.ValueObjects.TimeUnit(1000),
                 attackType: legacyCommand.CombatAction.Name
             );
 
@@ -139,11 +134,9 @@ public sealed class ParallelCombatAdapter :
         try
         {
             // Map legacy command to Tactical command
+            // Note: Legacy ProcessNextTurnCommand doesn't have currentTime parameter
             var tacticalCommand = new Tactical.Application.Features.Combat.Scheduling.ProcessNextTurnCommand(
-                currentTime: Tactical.Domain.ValueObjects.TimeUnit.Create(legacyCommand.CurrentTime).Match(
-                    Succ: t => t,
-                    Fail: _ => Tactical.Domain.ValueObjects.TimeUnit.Zero
-                ),
+                currentTime: new Tactical.Domain.ValueObjects.TimeUnit(1000),
                 autoExecuteAI: false
             );
 
@@ -187,25 +180,4 @@ public sealed class ParallelCombatAdapter :
         }
     }
 
-    private void ValidateTurnResults(
-        Fin<Unit> legacyResult,
-        Fin<Unit> tacticalResult,
-        ProcessNextTurnCommand command)
-    {
-        var legacySuccess = legacyResult.IsSucc;
-        var tacticalSuccess = tacticalResult.IsSucc;
-
-        if (legacySuccess != tacticalSuccess)
-        {
-            _logger.LogWarning(
-                "[VALIDATION] Turn result mismatch! Legacy: {LegacySuccess}, Tactical: {TacticalSuccess}, Time: {CurrentTime}",
-                legacySuccess, tacticalSuccess, command.CurrentTime);
-        }
-        else
-        {
-            _logger.LogDebug(
-                "[VALIDATION] Turn results match. Both succeeded: {Success}",
-                legacySuccess);
-        }
-    }
 }
