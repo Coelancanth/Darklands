@@ -3,7 +3,7 @@ using Darklands.Core.Infrastructure.Events;
 using Darklands.Core.Presentation.Presenters;
 using Darklands.Presentation.UI;
 using Darklands.Views;
-using Darklands.Infrastructure.Logging;
+using Darklands.Core.Infrastructure.Logging;
 using Darklands.Core.Domain.Combat;
 using Darklands.Core.Domain.Debug;
 using Darklands.Core.Infrastructure.Debug;
@@ -33,7 +33,6 @@ namespace Darklands
         private ActorPresenter? _actorPresenter;
         private ServiceProvider? _serviceProvider;
         private ICategoryLogger? _logger;
-        private Serilog.ILogger? _serilogLogger;
 
         /// <summary>
         /// Called when the node is added to the scene tree.
@@ -41,7 +40,7 @@ namespace Darklands
         /// </summary>
         public override void _Ready()
         {
-            // Use GD.Print here since logger isn't initialized yet
+            // Use minimal console output until logging is initialized
             GD.Print("GameManager starting initialization...");
 
             try
@@ -160,12 +159,16 @@ namespace Darklands
                     Fail: _ => throw new InvalidOperationException("GameStrapper initialization returned failure")
                 );
 
-                // Initialize loggers after DI container is ready  
-                _serilogLogger = _serviceProvider.GetRequiredService<Serilog.ILogger>();
-                var debugConfig = _serviceProvider.GetRequiredService<IDebugConfiguration>();
-                
-                // Create UnifiedLogger directly - this will be the authoritative logger instance
-                _logger = new UnifiedLogger(_serilogLogger, debugConfig);
+                // Configure composite outputs (Godot console + file) at the Godot layer
+                var logOutput = _serviceProvider.GetRequiredService<Darklands.Core.Infrastructure.Logging.ILogOutput>();
+                if (logOutput is Darklands.Core.Infrastructure.Logging.CompositeLogOutput composite)
+                {
+                    composite.AddOutput(new GodotConsoleOutput());
+                    composite.AddOutput(new Darklands.Core.Infrastructure.Logging.FileLogOutput("logs"));
+                }
+
+                // Initialize logger from DI
+                _logger = _serviceProvider.GetRequiredService<ICategoryLogger>();
 
                 // Update DebugSystem to use the same UnifiedLogger instance
                 if (DebugSystem.Instance != null)
@@ -173,7 +176,7 @@ namespace Darklands
                     DebugSystem.Instance.SetLogger(_logger);
                 }
 
-                _logger.Log(LogLevel.Information, LogCategory.System, "DI container initialized successfully - switching to structured logging");
+                _logger.Log(LogLevel.Information, LogCategory.System, "DI container initialized successfully - unified logging active");
             }
             catch (Exception ex)
             {
@@ -329,8 +332,6 @@ namespace Darklands
                 GD.PrintErr($"GameManager event subscription failed: {ex.Message}");
             }
         }
-
-
 
         /// <summary>
         /// Deferred method to update health bar on main thread.

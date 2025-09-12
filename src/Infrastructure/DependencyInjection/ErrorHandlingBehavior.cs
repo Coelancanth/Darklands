@@ -1,7 +1,7 @@
 using MediatR;
-using Microsoft.Extensions.Logging;
 using LanguageExt;
 using LanguageExt.Common;
+using Darklands.Core.Domain.Debug;
 
 namespace Darklands.Core.Infrastructure.DependencyInjection;
 
@@ -12,9 +12,9 @@ namespace Darklands.Core.Infrastructure.DependencyInjection;
 public class ErrorHandlingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
     where TRequest : notnull
 {
-    private readonly ILogger<ErrorHandlingBehavior<TRequest, TResponse>> _logger;
+    private readonly ICategoryLogger _logger;
 
-    public ErrorHandlingBehavior(ILogger<ErrorHandlingBehavior<TRequest, TResponse>> logger)
+    public ErrorHandlingBehavior(ICategoryLogger logger)
     {
         _logger = logger;
     }
@@ -31,7 +31,7 @@ public class ErrorHandlingBehavior<TRequest, TResponse> : IPipelineBehavior<TReq
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             var requestName = typeof(TRequest).Name;
-            _logger.LogError(ex, "Unhandled exception in {RequestName}", requestName);
+            _logger.Log(LogLevel.Error, LogCategory.Command, "Unhandled exception in {0}: {1}", requestName, ex.Message);
 
             // If TResponse is Fin<T>, convert exception to error result
             if (typeof(TResponse).IsGenericType &&

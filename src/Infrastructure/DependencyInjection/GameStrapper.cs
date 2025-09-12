@@ -11,6 +11,7 @@ using static LanguageExt.Prelude;
 using Serilog.Core;
 using Darklands.Core.Domain.Debug;
 using Darklands.Core.Infrastructure.Debug;
+using Darklands.Core.Infrastructure.Logging;
 
 namespace Darklands.Core.Infrastructure.DependencyInjection;
 
@@ -175,17 +176,23 @@ public static class GameStrapper
             services.AddSingleton<ILoggerFactory>(provider => new SerilogLoggerFactory(Log.Logger));
             services.AddLogging(builder => builder.AddSerilog(Log.Logger));
 
-            // Register debug configuration and category logger
+            // Register debug configuration and unified logging per ADR-007
             services.AddSingleton<IDebugConfiguration, DefaultDebugConfiguration>();
 
-            // Register factory for ICategoryLogger - will be overridden by composition root with UnifiedLogger
-            services.AddSingleton<ICategoryLogger>(provider =>
+            // Register composite output with sensible defaults (console in non-Godot contexts)
+            services.AddSingleton<ILogOutput>(sp =>
             {
-                // Temporary fallback - this should be overridden by the composition root
-                var serilogLogger = provider.GetRequiredService<Serilog.ILogger>();
-                var config = provider.GetRequiredService<IDebugConfiguration>();
-                return new CategoryFilteredLogger(serilogLogger, config);
+                var composite = new CompositeLogOutput();
+                // Add console output for testing/non-Godot contexts
+                composite.AddOutput(new TestConsoleOutput());
+                return composite;
             });
+
+            // Register unified category logger
+            services.AddSingleton<ICategoryLogger, UnifiedCategoryLogger>();
+
+            // Compatibility: allow resolving ILogger<T> via adapter
+            services.AddSingleton(typeof(Microsoft.Extensions.Logging.ILogger<>), typeof(Darklands.Core.Infrastructure.Logging.CategoryLoggerAdapter<>));
 
             return FinSucc(LanguageExt.Unit.Default);
         }

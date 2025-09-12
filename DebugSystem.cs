@@ -139,13 +139,9 @@ public partial class DebugSystem : Node
                 return;
         }
 
-        // Fallback: Create a basic logger if DI is not available
-        // This should only happen during early initialization or tests
-        var serilogLogger = Log.Logger ?? new LoggerConfiguration()
-            .WriteTo.Console()
-            .CreateLogger();
-
-        Logger = new GodotCategoryLogger(serilogLogger, Config);
+        // Fallback: Create a minimal unified logger using console output
+        var fallbackOutput = new Darklands.Core.Infrastructure.Logging.TestConsoleOutput();
+        Logger = new Darklands.Core.Infrastructure.Logging.UnifiedCategoryLogger(fallbackOutput, Config);
     }
 
     /// <summary>

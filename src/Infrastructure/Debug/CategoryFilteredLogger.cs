@@ -10,6 +10,7 @@ namespace Darklands.Core.Infrastructure.Debug;
 /// Wraps Serilog ILogger while adding category-based filtering and color-coded console output.
 /// Respects debug configuration settings to provide runtime control over log verbosity.
 /// </summary>
+// DEPRECATED: Replaced by UnifiedCategoryLogger. Kept temporarily for compatibility; will be removed in cleanup phase.
 public sealed class CategoryFilteredLogger : ICategoryLogger
 {
     private readonly ILogger _serilogLogger;

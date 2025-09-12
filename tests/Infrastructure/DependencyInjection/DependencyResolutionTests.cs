@@ -58,6 +58,7 @@ public class DependencyResolutionTests
             typeof(IMediator),
             typeof(ILogger),
             typeof(Microsoft.Extensions.Logging.ILoggerFactory),
+            typeof(Darklands.Core.Domain.Debug.ICategoryLogger)
 
             // TODO: Add business services as they're implemented in future phases:
             // typeof(ICombatStateService),
@@ -135,10 +136,12 @@ public class DependencyResolutionTests
         var serilogLogger = serviceProvider.GetRequiredService<ILogger>();
         var msLoggerFactory = serviceProvider.GetRequiredService<Microsoft.Extensions.Logging.ILoggerFactory>();
         var msLogger = serviceProvider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<DependencyResolutionTests>>();
+        var categoryLogger = serviceProvider.GetRequiredService<Darklands.Core.Domain.Debug.ICategoryLogger>();
 
         serilogLogger.Should().NotBeNull("Serilog ILogger should be registered");
         msLoggerFactory.Should().NotBeNull("Microsoft ILoggerFactory should be registered");
         msLogger.Should().NotBeNull("Microsoft ILogger<T> should be available");
+        categoryLogger.Should().NotBeNull("Unified ICategoryLogger should be registered");
     }
 
     private static void ValidateAllServicesResolvable(IServiceProvider serviceProvider, string context)
@@ -148,7 +151,8 @@ public class DependencyResolutionTests
         {
             typeof(IMediator),
             typeof(ILogger),
-            typeof(Microsoft.Extensions.Logging.ILoggerFactory)
+            typeof(Microsoft.Extensions.Logging.ILoggerFactory),
+            typeof(Darklands.Core.Domain.Debug.ICategoryLogger)
         };
 
         foreach (var serviceType in basicServices)
