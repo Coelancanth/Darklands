@@ -4,7 +4,7 @@
 
 **Purpose**: Completed and rejected work items for historical reference and lessons learned.
 
-**Last Updated**: 2025-09-11 20:03 (Added BR_005 - Debug log level filtering fixed) 
+**Last Updated**: 2025-09-12 12:47 (Added BR_007 - Concurrent Collection Access Error fix) 
 
 ## Archive Protocol
 
@@ -41,6 +41,97 @@ Items are moved here COMPLETE with all context, then marked for extraction:
 ---
 
 ## ✅ Completed Items
+
+### BR_007: Concurrent Collection Access Error in Actor Display System
+**Extraction Status**: NOT EXTRACTED ⚠️
+**Completed**: 2025-09-12 12:47
+**Archive Note**: Fixed critical concurrent collection error with ConcurrentDictionary replacement
+---
+### BR_007: Concurrent Collection Access Error in Actor Display System
+**Status**: ✅ RESOLVED
+**Owner**: ~~Test Specialist~~ → Debugger Expert → FIXED
+**Size**: XS-S (1.5h actual)
+**Priority**: Critical
+**Created**: 2025-09-12 11:47
+**Resolved**: 2025-09-12 12:47
+**Severity**: High - System stability issue
+
+**What**: Actor display system throws "Operations that change non-concurrent collections must have exclusive access" error
+**Why**: Concurrent collection modification corrupting application state and causing actor visibility failures
+
+**Root Cause** (Debugger Expert - 2025-09-12 12:47):
+- `ActorPresenter.Initialize()` uses `Task.Run()` to create actors asynchronously (lines 81, 111)
+- `ActorView` used regular `Dictionary<>` for `_actorNodes` and `_healthBars` (not thread-safe)
+- Concurrent read/write operations on these dictionaries caused race conditions
+- While CallDeferred was used correctly for Godot operations, the dictionary operations themselves were unprotected
+
+**Fix Applied**:
+- Replaced `Dictionary<>` with `ConcurrentDictionary<>` for thread-safe access
+- Updated all dictionary operations to use thread-safe methods (TryRemove, AddOrUpdate)
+- Added comprehensive regression tests in `ActorViewConcurrencyTests.cs`
+- Fix verified with ThreadSafety category tests (5 tests passing)
+
+**Files Modified**:
+- `Views/ActorView.cs` - Changed to ConcurrentDictionary (lines 22-23)
+- `tests/Presentation/Views/ActorViewConcurrencyTests.cs` - Added regression tests
+
+**Lessons Learned**:
+- Always use thread-safe collections when accessed from async/Task.Run contexts
+- CallDeferred only protects Godot node operations, not C# collection access
+- High concurrency stress tests are essential for catching race conditions
+
+---
+
+### TD_038: Complete Logger System Rewrite
+**Extraction Status**: NOT EXTRACTED ⚠️
+**Completed**: 2025-09-12
+**Archive Note**: Successfully resolved critical test failures (36→0) and implemented unified logger architecture with proper DI integration
+---
+### TD_038: Complete Logger System Rewrite
+**Status**: COMPLETED ✅
+**Owner**: Tech Lead → Dev Engineer → COMPLETED
+**Size**: M (6h total → 100% completed)
+**Priority**: Critical
+**Complexity**: 3/10 (Architecture simplified via ADR-007)
+**Created**: 2025-09-12
+**Completed**: 2025-09-12
+**Tech Lead Decision** (2025-09-12): **ADR-007 Created - Unified Logger Architecture**
+**Dev Engineer Final Report** (2025-09-12): All objectives completed successfully
+
+**What**: Delete all existing logger implementations and rebuild from scratch with single, elegant design
+**Why**: Current system had 4+ parallel logger implementations creating unmaintainable complexity
+
+**Root Cause**: Years of incremental "fixes" created 4+ parallel logging systems:
+1. `ILogger` (Serilog) - Used by 18+ Application files
+2. `ILogger<T>` (Microsoft Extensions) - Used by 8+ Infrastructure files  
+3. `ICategoryLogger` with two broken implementations (CategoryFilteredLogger, GodotCategoryLogger)
+4. Direct `GD.Print()` calls scattered throughout Godot layer
+
+**FINAL SOLUTION IMPLEMENTED**:
+1. **UnifiedCategoryLogger**: Complete logger implementation with rich formatting
+2. **NullCategoryLogger**: Test utility for proper dependency injection in tests
+3. **Comprehensive Test Fix**: Resolved 36 NullReferenceException failures (622→658 passing tests)
+4. **DI Integration**: Proper logger registration in GameStrapper with CompositeLogOutput
+5. **Visual Bug Fix**: Forest terrain now displays as dark green (distinct from Open terrain)
+
+**TECHNICAL ACHIEVEMENTS**:
+- ✅ 100% test success rate (658/658 passing)
+- ✅ Zero build warnings
+- ✅ Proper null object pattern for test isolation
+- ✅ Clean Architecture compliance maintained
+- ✅ Rich console output with category-based filtering
+- ✅ Visual consistency between game logic and display
+
+**QUALITY IMPACT**:
+- Test suite stability: 36 failing tests → 0 failing tests
+- Developer productivity: Eliminated daily test failures blocking development
+- User experience: Clear visual distinction between terrain types
+- Code maintainability: Single logger architecture replacing 4+ parallel systems
+---
+**Extraction Targets**:
+- [ ] ADR-007 already exists (Unified Logger Architecture)
+- [ ] HANDBOOK update: Logger testing patterns with NullCategoryLogger
+- [ ] Test pattern: Null object pattern for dependency injection in unit tests
 
 ### VS_011: Vision/FOV System with Shadowcasting and Fog of War
 **Extraction Status**: NOT EXTRACTED ⚠️

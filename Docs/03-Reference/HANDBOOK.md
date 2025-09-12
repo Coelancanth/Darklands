@@ -36,6 +36,8 @@
 - **DI container fails** → Check namespace matches pattern
 - **Build/test issues** → Run `./scripts/fix/common-issues.ps1`
 - **Tests pass but game won't compile** → Use `./scripts/core/build.ps1 test` not `test-only`
+- **Concurrent collection error** → Replace Dictionary with ConcurrentDictionary (BR_007 pattern)
+- **"Collection was modified" in async** → You're using non-thread-safe collection with Task.Run
 
 ## 📍 Navigation
 
@@ -668,6 +670,24 @@ public class GameLoopCoordinator {
 ```
 **Key**: Complete one actor fully before starting next
 
+### 🎯 Pattern: Thread-Safe Collections in Async Contexts
+**When**: Using Task.Run or async operations with shared collections
+**Why**: CallDeferred only protects Godot nodes, not C# collections (BR_007)
+```csharp
+// ❌ WRONG - Race condition with async access
+private readonly Dictionary<ActorId, ColorRect> _actorNodes = new();
+_ = Task.Run(async () => {
+    _actorNodes[id] = node;  // CRASH: Concurrent modification
+});
+
+// ✅ CORRECT Thread-Safe Pattern (from BR_007 fix)
+private readonly ConcurrentDictionary<ActorId, ColorRect> _actorNodes = new();
+_ = Task.Run(async () => {
+    _actorNodes.AddOrUpdate(id, node, (k, old) => node);  // Thread-safe
+});
+```
+**Key**: Use ConcurrentDictionary/ConcurrentBag when ANY async access exists
+
 ### Namespace Mismatch Breaking MediatR Discovery (CRITICAL)
 ```csharp
 // ❌ WRONG - Silent failure, handler won't be discovered
@@ -738,6 +758,8 @@ public class CombatState {
 3. **Wrong Fin<T> Pattern**: Always use Match or IfSucc/IfFail
 4. **Godot in Core**: Breaks modding, fails architecture tests
 5. **Skipping Phases**: Creates integration nightmares
+6. **Thread-Unsafe Collections with Task.Run**: (BR_007) Use ConcurrentDictionary when ANY async access
+7. **CallDeferred ≠ Full Thread Safety**: Only protects Godot nodes, NOT C# collections
 
 ---
 
