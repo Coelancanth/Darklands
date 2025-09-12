@@ -72,7 +72,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
 
             var command = HealActorCommand.Create(_validActorId, 20, "Healing Potion");
             var actorService = new TestActorStateService(actorExists: true, actor: damagedActor, healSucceeds: true);
-            var handler = new HealActorCommandHandler(actorService, null!);
+            var handler = new HealActorCommandHandler(actorService, new NullCategoryLogger());
 
             // Act
             var result = await handler.Handle(command, CancellationToken.None);
@@ -87,7 +87,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
             // Arrange
             var command = HealActorCommand.Create(_validActorId, 25);
             var actorService = new TestActorStateService(actorExists: false);
-            var handler = new HealActorCommandHandler(actorService, null!);
+            var handler = new HealActorCommandHandler(actorService, new NullCategoryLogger());
 
             // Act
             var result = await handler.Handle(command, CancellationToken.None);
@@ -111,7 +111,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
 
             var command = HealActorCommand.Create(_validActorId, -10);
             var actorService = new TestActorStateService(actorExists: true, actor: testActor);
-            var handler = new HealActorCommandHandler(actorService, null!);
+            var handler = new HealActorCommandHandler(actorService, new NullCategoryLogger());
 
             // Act
             var result = await handler.Handle(command, CancellationToken.None);
@@ -135,7 +135,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
 
             var command = HealActorCommand.Create(_validActorId, 50, "Healing Attempt");
             var actorService = new TestActorStateService(actorExists: true, actor: deadActor);
-            var handler = new HealActorCommandHandler(actorService, null!);
+            var handler = new HealActorCommandHandler(actorService, new NullCategoryLogger());
 
             // Act
             var result = await handler.Handle(command, CancellationToken.None);
@@ -159,7 +159,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
 
             var command = HealActorCommand.Create(_validActorId, 25);
             var actorService = new TestActorStateService(actorExists: true, actor: testActor, healSucceeds: false);
-            var handler = new HealActorCommandHandler(actorService, null!);
+            var handler = new HealActorCommandHandler(actorService, new NullCategoryLogger());
 
             // Act
             var result = await handler.Handle(command, CancellationToken.None);
@@ -183,7 +183,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
 
             var command = HealActorCommand.Create(_validActorId, 0, "No Healing");
             var actorService = new TestActorStateService(actorExists: true, actor: testActor);
-            var handler = new HealActorCommandHandler(actorService, null!);
+            var handler = new HealActorCommandHandler(actorService, new NullCategoryLogger());
 
             // Act
             var result = await handler.Handle(command, CancellationToken.None);
@@ -203,7 +203,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
 
             var command = HealActorCommand.Create(_validActorId, 25, "Overheal Attempt");
             var actorService = new TestActorStateService(actorExists: true, actor: fullHealthActor);
-            var handler = new HealActorCommandHandler(actorService, null!);
+            var handler = new HealActorCommandHandler(actorService, new NullCategoryLogger());
 
             // Act
             var result = await handler.Handle(command, CancellationToken.None);
@@ -223,7 +223,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
 
             var command = HealActorCommand.Create(_validActorId, 30, "Divine Blessing");
             var actorService = new TestActorStateService(actorExists: true, actor: damagedActor);
-            var handler = new HealActorCommandHandler(actorService, null!);
+            var handler = new HealActorCommandHandler(actorService, new NullCategoryLogger());
 
             // Act
             var result = await handler.Handle(command, CancellationToken.None);
@@ -243,7 +243,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
 
             var command = HealActorCommand.Create(_validActorId, 50, "Major Healing");
             var actorService = new TestActorStateService(actorExists: true, actor: criticalActor);
-            var handler = new HealActorCommandHandler(actorService, null!);
+            var handler = new HealActorCommandHandler(actorService, new NullCategoryLogger());
 
             // Act
             var result = await handler.Handle(command, CancellationToken.None);

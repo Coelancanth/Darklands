@@ -5,6 +5,7 @@ using LanguageExt.Common;
 using Darklands.Core.Application.Grid.Commands;
 using Darklands.Core.Application.Grid.Services;
 using Darklands.Core.Domain.Grid;
+using Darklands.Core.Tests.TestUtilities;
 using Serilog;
 using System;
 using System.Collections.Generic;
@@ -59,7 +60,7 @@ namespace Darklands.Core.Tests.Application.Grid.Commands
 
             // Use test stub that simulates successful scenario
             var gridStateService = new TestGridStateService(actorExists: true, validMove: true);
-            var handler = new MoveActorCommandHandler(gridStateService, null!);
+            var handler = new MoveActorCommandHandler(gridStateService, new NullCategoryLogger());
 
             // Act
             var result = await handler.Handle(command, CancellationToken.None);
@@ -78,7 +79,7 @@ namespace Darklands.Core.Tests.Application.Grid.Commands
 
             // Use test stub that simulates actor not found
             var gridStateService = new TestGridStateService(actorExists: false);
-            var handler = new MoveActorCommandHandler(gridStateService, null!);
+            var handler = new MoveActorCommandHandler(gridStateService, new NullCategoryLogger());
 
             // Act
             var result = await handler.Handle(command, CancellationToken.None);

@@ -9,6 +9,7 @@ using Darklands.Core.Application.Combat.Commands;
 using Darklands.Core.Application.Combat.Services;
 using Darklands.Core.Domain.Combat;
 using Darklands.Core.Domain.Grid;
+using Darklands.Core.Tests.TestUtilities;
 using static LanguageExt.Prelude;
 
 namespace Darklands.Core.Tests.Application.Combat.Commands
@@ -46,7 +47,7 @@ namespace Darklands.Core.Tests.Application.Combat.Commands
             // Arrange
             var expectedActorId = Guid.NewGuid();
             var service = new TestCombatSchedulerService(FinSucc(Some(expectedActorId)));
-            var handler = new ProcessNextTurnCommandHandler(service, null!);
+            var handler = new ProcessNextTurnCommandHandler(service, new NullCategoryLogger());
             var command = ProcessNextTurnCommand.Create();
 
             // Act
@@ -70,7 +71,7 @@ namespace Darklands.Core.Tests.Application.Combat.Commands
         {
             // Arrange
             var service = new TestCombatSchedulerService(FinSucc(Option<Guid>.None));
-            var handler = new ProcessNextTurnCommandHandler(service, null!);
+            var handler = new ProcessNextTurnCommandHandler(service, new NullCategoryLogger());
             var command = ProcessNextTurnCommand.Create();
 
             // Act
@@ -92,7 +93,7 @@ namespace Darklands.Core.Tests.Application.Combat.Commands
             // Arrange
             var error = Error.New("Test scheduler error");
             var service = new TestCombatSchedulerService(FinFail<Option<Guid>>(error));
-            var handler = new ProcessNextTurnCommandHandler(service, null!);
+            var handler = new ProcessNextTurnCommandHandler(service, new NullCategoryLogger());
             var command = ProcessNextTurnCommand.Create();
 
             // Act
@@ -113,14 +114,14 @@ namespace Darklands.Core.Tests.Application.Combat.Commands
         {
             // Arrange
             var actorIds = new[] { Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid() };
-            var handler = new ProcessNextTurnCommandHandler(null!, null!);
+            var handler = new ProcessNextTurnCommandHandler(null!, new NullCategoryLogger());
             var command = ProcessNextTurnCommand.Create();
 
             // Act & Assert - Simulate processing multiple turns in sequence
             for (int i = 0; i < actorIds.Length; i++)
             {
                 var service = new TestCombatSchedulerService(FinSucc(Some(actorIds[i])));
-                var testHandler = new ProcessNextTurnCommandHandler(service, null!);
+                var testHandler = new ProcessNextTurnCommandHandler(service, new NullCategoryLogger());
 
                 var result = await testHandler.Handle(command, CancellationToken.None);
 
@@ -148,7 +149,7 @@ namespace Darklands.Core.Tests.Application.Combat.Commands
 
             // Verify it can be handled
             var service = new TestCombatSchedulerService(FinSucc(Option<Guid>.None));
-            var handler = new ProcessNextTurnCommandHandler(service, null!);
+            var handler = new ProcessNextTurnCommandHandler(service, new NullCategoryLogger());
             var result = await handler.Handle(command, CancellationToken.None);
             result.IsSucc.Should().BeTrue();
         }
@@ -158,7 +159,7 @@ namespace Darklands.Core.Tests.Application.Combat.Commands
         {
             // Arrange
             var service = new TestCombatSchedulerService(FinSucc(Some(Guid.NewGuid())));
-            var handler = new ProcessNextTurnCommandHandler(service, null!);
+            var handler = new ProcessNextTurnCommandHandler(service, new NullCategoryLogger());
             var command = ProcessNextTurnCommand.Create();
 
             using var cts = new CancellationTokenSource();

@@ -225,7 +225,8 @@
       "Bash(./scripts/core/build.ps1 test --filter \"*Log*\")",
       "Bash(./scripts/core/build.ps1 test --filter \"*UIEventBus*\")",
       "Bash(./scripts/core/build.ps1 test --filter \"*Combat*Commands*\")",
-      "Bash(./scripts/core/build.ps1 test --filter \"*Category*Logger*\")"
+      "Bash(./scripts/core/build.ps1 test --filter \"*Category*Logger*\")",
+      "Bash(./scripts/core/build.ps1 test --filter \"HealActorCommandHandlerTests.Handle_ZeroHealing_ReturnsSuccess\")"
     ],
     "deny": [],
     "ask": [],

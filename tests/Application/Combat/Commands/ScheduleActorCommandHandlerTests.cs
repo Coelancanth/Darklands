@@ -60,7 +60,7 @@ namespace Darklands.Core.Tests.Application.Combat.Commands
             var command = ScheduleActorCommand.Create(actorId, position, nextTurn);
 
             var service = new TestCombatSchedulerService(shouldSucceed: true);
-            var handler = new ScheduleActorCommandHandler(service, null!);
+            var handler = new ScheduleActorCommandHandler(service, new NullCategoryLogger());
 
             // Act
             var result = await handler.Handle(command, CancellationToken.None);
@@ -82,7 +82,7 @@ namespace Darklands.Core.Tests.Application.Combat.Commands
                 TimeUnit.CreateUnsafe(1000));
 
             var service = new TestCombatSchedulerService(shouldSucceed: false, errorMessage: "SCHEDULER_FULL");
-            var handler = new ScheduleActorCommandHandler(service, null!);
+            var handler = new ScheduleActorCommandHandler(service, new NullCategoryLogger());
 
             // Act
             var result = await handler.Handle(command, CancellationToken.None);
@@ -100,7 +100,7 @@ namespace Darklands.Core.Tests.Application.Combat.Commands
         {
             // Arrange
             var service = new TestCombatSchedulerService(shouldSucceed: true);
-            var handler = new ScheduleActorCommandHandler(service, null!);
+            var handler = new ScheduleActorCommandHandler(service, new NullCategoryLogger());
 
             var commands = new[]
             {
@@ -140,7 +140,7 @@ namespace Darklands.Core.Tests.Application.Combat.Commands
 
             // Verify it can be handled
             var service = new TestCombatSchedulerService(shouldSucceed: true);
-            var handler = new ScheduleActorCommandHandler(service, null!);
+            var handler = new ScheduleActorCommandHandler(service, new NullCategoryLogger());
             var result = await handler.Handle(command, CancellationToken.None);
             result.IsSucc.Should().BeTrue();
         }
@@ -150,7 +150,7 @@ namespace Darklands.Core.Tests.Application.Combat.Commands
         {
             // Arrange - Test with edge case values
             var service = new TestCombatSchedulerService(shouldSucceed: true);
-            var handler = new ScheduleActorCommandHandler(service, null!);
+            var handler = new ScheduleActorCommandHandler(service, new NullCategoryLogger());
 
             var edgeCases = new[]
             {

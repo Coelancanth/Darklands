@@ -30,6 +30,7 @@ namespace Darklands.Views
         private readonly Color GrassColor = new Color(0.3f, 0.7f, 0.2f); // Green
         private readonly Color StoneColor = new Color(0.5f, 0.5f, 0.5f); // Gray
         private readonly Color WaterColor = new Color(0.2f, 0.4f, 0.8f); // Blue
+        private readonly Color ForestColor = new Color(0.1f, 0.4f, 0.1f); // Dark Green
         private readonly Color HighlightColor = new Color(1.0f, 1.0f, 0.0f, 0.7f); // Yellow with transparency
         private readonly Color GridLineColor = new Color(0.1f, 0.1f, 0.1f, 0.8f); // Dark gray with transparency
         private const float GridLineWidth = 1.0f;
@@ -434,7 +435,7 @@ namespace Darklands.Views
                 Darklands.Core.Domain.Grid.TerrainType.Open => GrassColor,
                 Darklands.Core.Domain.Grid.TerrainType.Rocky => StoneColor,
                 Darklands.Core.Domain.Grid.TerrainType.Water => WaterColor,
-                Darklands.Core.Domain.Grid.TerrainType.Forest => GrassColor,
+                Darklands.Core.Domain.Grid.TerrainType.Forest => ForestColor,
                 Darklands.Core.Domain.Grid.TerrainType.Hill => StoneColor,
                 Darklands.Core.Domain.Grid.TerrainType.Swamp => WaterColor,
                 Darklands.Core.Domain.Grid.TerrainType.Wall => StoneColor,
