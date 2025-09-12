@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-12 18:06 (Backlog Assistant - TD_041 moved to archive as completed Strangler Fig foundation)
+**Last Updated**: 2025-09-12 22:44 (Dev Engineer - Removed duplicate TD_040, cleaned up backlog)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 008
-- **Next TD**: 046
+- **Next TD**: 047
 - **Next VS**: 015 
 
 
@@ -229,14 +229,102 @@ Strangler Fig pattern successfully implemented - parallel operation framework pr
 - Only remove old after new is proven in production (**✅ Ready**)
 - Feature toggle allows instant rollback (**✅ Implemented**)
 
+### TD_046: Fix Critical Architectural Violations from TD_041/042
+**Status**: ✅ COMPLETED
+**Owner**: Dev Engineer → Completed
+**Size**: S (2h) → Actual: 45min
+**Priority**: Critical - MUST fix before TD_043
+**Created**: 2025-09-12 22:29
+**Updated**: 2025-09-12 22:41 (Dev Engineer - All violations fixed, tests passing)
+**Completed**: 2025-09-12
+**Markers**: [ARCHITECTURE] [DDD] [CRITICAL-FIX]
+
+**What**: Fix bounded context isolation violations and incomplete patterns from TD_041/042
+**Why**: Current implementation breaks fundamental DDD principles that will cause major problems
+
+**Critical Violations Found**:
+1. **Domain→Contracts Reference** (BREAKS isolation!):
+   - `Darklands.Diagnostics.Domain.csproj` references `Darklands.Tactical.Contracts`
+   - Domain should NEVER know about other contexts
+   - Contracts are for Infrastructure/Application layers ONLY
+
+2. **IContractEvent Incomplete**:
+   - Missing required properties: `Guid Id`, `DateTime OccurredAt`, `int Version`
+   - No versioning support for contract evolution
+   - Inconsistent with ADR-017 specification
+
+3. **Architecture Tests Are Placeholders**:
+   - Current tests just return `true` with TODO comments
+   - No actual boundary enforcement happening
+   - Violations can creep in undetected
+
+**Implementation Steps**:
+1. **Fix Domain Isolation** (30min):
+   ```xml
+   <!-- REMOVE from Darklands.Diagnostics.Domain.csproj -->
+   <ProjectReference Include="../../Contracts/Darklands.Tactical.Contracts/..." />
+   ```
+   - Move `ActorVisionCalculatedEventHandler` from Domain to Infrastructure
+   - Domain should only reference SharedKernel
+
+2. **Implement Proper IContractEvent** (30min):
+   ```csharp
+   // SharedKernel/Contracts/IContractEvent.cs
+   public interface IContractEvent : INotification
+   {
+       Guid Id { get; }
+       DateTime OccurredAt { get; }
+       int Version { get; }
+   }
+   ```
+   - Update `ActorVisionCalculatedEvent` to properly implement interface
+   - Add version tracking from day one
+
+3. **Add Real Architecture Tests** (1h):
+   ```csharp
+   [Fact]
+   public void DiagnosticsDomain_MustNotReferenceOtherContexts()
+   {
+       var result = Types.InAssembly(typeof(DiagnosticsMarker).Assembly)
+           .Should()
+           .NotHaveDependencyOnAny("Darklands.Tactical", "Darklands.Platform")
+           .And().NotHaveDependencyOn("Darklands.Tactical.Contracts") // CRITICAL!
+           .GetResult();
+       
+       result.IsSuccessful.Should().BeTrue();
+   }
+   ```
+
+**Done When** (All criteria met):
+- [x] Diagnostics.Domain has NO reference to any Contracts (**✅ Fixed**)
+- [x] IContractEvent has all required properties (Id, OccurredAt, Version) (**✅ Implemented**)
+- [x] Architecture tests actually enforce boundaries (no placeholders) (**✅ Real tests added**)
+- [x] All 661 tests still pass (**✅ Verified**)
+- [x] Build succeeds with zero warnings (**✅ Clean build**)
+
+**Tech Lead Decision** (2025-09-12):
+- These are CRITICAL fixes - TD_043 blocked until complete
+- Domain purity is non-negotiable for bounded contexts
+- Proper tests prevent future violations
+- Dev Engineer MUST NOT work around these - fix them properly
+
+**✅ Implementation Complete** (Dev Engineer 2025-09-12):
+All critical violations successfully resolved:
+1. **Domain isolation restored** - Removed illegal Contracts reference from Domain project
+2. **IContractEvent completed** - Added Id, OccurredAt, Version properties with MediatR integration  
+3. **Real architecture tests** - Replaced placeholders with actual NetArchTest boundary enforcement
+4. **All validation passed** - 661 tests pass, 5 architecture tests pass, zero warnings
+
+**TD_043 is now UNBLOCKED** - Architectural integrity verified and enforced
+
 ### TD_043: Strangler Fig Phase 2 - Migrate Combat to VSA Structure
-**Status**: Ready
+**Status**: Approved (Ready to implement)
 **Owner**: Dev Engineer
 **Size**: L (2 days)
 **Priority**: Important
 **Created**: 2025-09-12 16:13
-**Updated**: 2025-09-12 18:02 (Backlog Assistant - Dependency TD_042 completed, ready for implementation)
-**Depends On**: TD_042 ✅ Completed
+**Updated**: 2025-09-12 22:41 (Dev Engineer - Unblocked, TD_046 complete)
+**Depends On**: TD_042 ✅ Completed, TD_046 ✅ Completed
 **Markers**: [ARCHITECTURE] [DDD] [STRANGLER-FIG] [PHASE-2]
 
 **What**: Reorganize Combat features into VSA structure (second strangler vine)
@@ -303,82 +391,7 @@ Strangler Fig pattern successfully implemented - parallel operation framework pr
 - Old code stays until new is battle-tested
 - Can roll back feature-by-feature if issues
 
-### TD_040: Extract Diagnostics Bounded Context
-**Status**: Ready
-**Owner**: Dev Engineer  
-**Size**: M (6h) - Reduced with new approach
-**Priority**: Important (no longer critical)
-**Depends On**: TD_041 ✅ Completed
-**Created**: 2025-09-12 14:52
-**Updated**: 2025-09-12 18:02 (Backlog Assistant - Dependency TD_041 completed)
-**Markers**: [ARCHITECTURE] [DDD]
-
-**What**: Create separate Diagnostics bounded context with assembly boundaries
-**Why**: Enables non-deterministic types without violating ADR-004, enforces true isolation
-
-**Problem**: 
-- Performance monitoring needs DateTime/double (non-deterministic)
-- Namespace-only separation allows accidental coupling
-- Using ActorId in Diagnostics violates context isolation
-- Need compile-time enforcement of boundaries
-
-**Solution - Assembly-Based Bounded Contexts**:
-
-1. **Phase 1: Create Assembly Structure** (2h)
-   ```xml
-   <!-- Create separate projects -->
-   src/Diagnostics/Darklands.Diagnostics.Domain.csproj
-   src/Diagnostics/Darklands.Diagnostics.Application.csproj  
-   src/Diagnostics/Darklands.Diagnostics.Infrastructure.csproj
-   ```
-
-2. **Phase 2: Use Shared Identity Types** (2h)
-   ```csharp
-   // SharedKernel - EntityId (NOT ActorId!)
-   public readonly record struct EntityId(Guid Value);
-   
-   // Diagnostics uses EntityId, never ActorId
-   public record VisionPerformanceReport(
-       DateTime Timestamp,
-       Dictionary<EntityId, double> Metrics  // ✅ EntityId not ActorId
-   );
-   ```
-
-3. **Phase 3: Integration Event Bus** (2h)
-   - Separate bus for cross-context events
-   - Integration events use primitives only
-   - Versioning and correlation IDs
-
-4. **Phase 4: Main Thread Dispatcher** (2h)
-   - Implement IMainThreadDispatcher
-   - Ensure Godot calls on main thread
-   - Update presenters to use dispatcher
-
-**Assembly References**:
-```
-Darklands.csproj (Main)
-├─> Tactical.Application
-├─> Diagnostics.Application
-├─> Platform.Infrastructure.Godot
-└─> SharedKernel
-
-NO cross-context references!
-```
-
-**Done When**:
-- [ ] Separate assemblies created for Diagnostics
-- [ ] Using EntityId instead of ActorId
-- [ ] Integration event bus implemented
-- [ ] Main thread dispatcher working
-- [ ] Architecture tests enforce assembly boundaries
-- [ ] No direct references between contexts
-
-**Tech Lead Decision**:
-- Assembly boundaries provide compile-time safety
-- Dual event bus strategy (MediatR + Integration)
-- NO scoped services (Singleton or Transient only)
-- See ADR-017 (revised) for complete strategy
-
+<!-- TD_040 REMOVED (2025-09-12): Duplicate of TD_042 which already extracted Diagnostics context -->
 
 
 ## 📈 Important (Do Next)

@@ -10,7 +10,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\SharedKernel\Darklands.SharedKernel.csproj" />
-    <ProjectReference Include="..\..\Contracts\Darklands.Tactical.Contracts\Darklands.Tactical.Contracts.csproj" />
   </ItemGroup>
 
   <ItemGroup>

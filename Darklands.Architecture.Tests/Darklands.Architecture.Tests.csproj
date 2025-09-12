@@ -9,9 +9,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\SharedKernel\Darklands.SharedKernel.csproj" />
-    <ProjectReference Include="..\Contracts\Darklands.Tactical.Contracts.csproj" />
-    <ProjectReference Include="..\Contracts\Darklands.Diagnostics.Contracts.csproj" />
-    <ProjectReference Include="..\Contracts\Darklands.Platform.Contracts.csproj" />
+    <ProjectReference Include="..\Contracts\Darklands.Tactical.Contracts\Darklands.Tactical.Contracts.csproj" />
+    <ProjectReference Include="..\Contracts\Darklands.Diagnostics.Contracts\Darklands.Diagnostics.Contracts.csproj" />
+    <!-- Platform.Contracts not created yet - will be added in TD_044 -->
   </ItemGroup>
 
   <ItemGroup>
