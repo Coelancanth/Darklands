@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-12 16:20 (Tech Lead simplified TD_032 using modular-monolith pluralization strategy)
+**Last Updated**: 2025-09-12 17:35 (Tech Lead - Redesigned TD_041-045 as true Strangler Fig migration)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -78,91 +78,200 @@
 ## 🔥 Critical (Do First)
 *Blockers preventing other work, production bugs, dependencies for other features*
 
-### TD_041: DDD Phase 1 - Foundation Patterns (ADR-017)
+### TD_041: Strangler Fig Phase 0 - Foundation Layer (Non-Breaking)
 **Status**: Approved
 **Owner**: Dev Engineer
-**Size**: S (4h)
+**Size**: S (3h)
 **Priority**: Critical
 **Created**: 2025-09-12 16:13
-**Markers**: [ARCHITECTURE] [DDD] [PHASE-1]
+**Updated**: 2025-09-12 17:30 (Tech Lead - Refined as true Strangler Fig)
+**Markers**: [ARCHITECTURE] [DDD] [STRANGLER-FIG] [PHASE-0]
 
-**What**: Implement foundation patterns for DDD bounded contexts
-**Why**: Enable true module isolation without breaking existing code
+**What**: Add foundation for bounded contexts WITHOUT touching existing code
+**Why**: Strangler Fig requires new structure alongside old - this creates the foundation
 
-**Implementation Steps**:
-1. Create Contracts assemblies for each context
-   - `Darklands.Tactical.Contracts.csproj`
-   - `Darklands.Diagnostics.Contracts.csproj`
-   - `Darklands.Platform.Contracts.csproj`
-2. Add interfaces to SharedKernel
-   - `IDomainEvent` for internal events
-   - `IContractEvent` for public API events
-   - `IBusinessRule` for validation
-3. Implement `TypedIdValueBase` for strongly-typed IDs
-4. Add `Entity` base class with domain event collection
-5. Create architecture tests with smart exclusions
+**Pure Addition Steps** (no changes to existing code):
+1. **Create Empty Contract Assemblies** (30min):
+   ```
+   src/Contracts/
+   ├── Darklands.Tactical.Contracts.csproj (empty)
+   ├── Darklands.Diagnostics.Contracts.csproj (empty)
+   └── Darklands.Platform.Contracts.csproj (empty)
+   ```
+
+2. **Create SharedKernel** (1h):
+   ```
+   src/SharedKernel/
+   ├── Darklands.SharedKernel.csproj
+   ├── Domain/
+   │   ├── IBusinessRule.cs
+   │   ├── IDomainEvent.cs
+   │   └── EntityId.cs (for cross-context IDs)
+   └── Contracts/
+       └── IContractEvent.cs
+   ```
+
+3. **Add Architecture Test Project** (1h):
+   ```
+   tests/Darklands.Architecture.Tests/
+   └── ModuleIsolationTests.cs (will pass - no modules yet!)
+   ```
+
+4. **Update .sln file** (30min):
+   - Add new projects to solution
+   - Set build order
 
 **Done When**:
-- [ ] Contracts assemblies created (empty initially)
-- [ ] SharedKernel interfaces added
-- [ ] Architecture tests pass with exclusions
-- [ ] Single MediatR configured for both event types
-- [ ] No existing code broken
+- [ ] Empty Contracts assemblies compile
+- [ ] SharedKernel compiles independently
+- [ ] Architecture test project runs (passes trivially)
+- [ ] Main project still compiles unchanged
+- [ ] All existing tests still pass
 
 **Tech Lead Decision** (2025-09-12):
-- Start with empty Contracts assemblies
-- Add events incrementally as we refactor
-- Existing code continues working unchanged
+- This is TRUE Strangler Fig - add alongside, don't modify
+- Existing code remains 100% untouched
+- Sets foundation for gradual migration
 
-### TD_042: DDD Phase 2 - Migrate First Vertical Slice
+### TD_042: Strangler Fig Phase 1 - Extract First Monitoring Feature
 **Status**: Proposed
 **Owner**: Tech Lead → Dev Engineer
 **Size**: M (6h)
 **Priority**: Critical
 **Created**: 2025-09-12 16:13
+**Updated**: 2025-09-12 17:30 (Tech Lead - True Strangler Fig approach)
 **Depends On**: TD_041
-**Markers**: [ARCHITECTURE] [DDD] [PHASE-2]
+**Markers**: [ARCHITECTURE] [DDD] [STRANGLER-FIG] [PHASE-1]
 
-**What**: Migrate Attack feature to new DDD structure as proof of concept
-**Why**: Validate the pattern with a real feature before full migration
+**What**: Extract VisionPerformanceMonitor to Diagnostics context (first strangler vine)
+**Why**: Perfect candidate - uses DateTime/double, violates ADR-004, clear boundary
 
-**Implementation Steps**:
-1. Create `Features/Attack/` folder structure
-2. Move attack-related code to vertical slice
-3. Create `ActorDamagedContractEvent` in Contracts
-4. Implement `TacticalContractAdapter` for event mapping
-5. Wire up Diagnostics to consume contract event
+**Strangler Fig Steps** (old code remains during transition):
+1. **Create Diagnostics Context Structure** (1h):
+   ```
+   src/Diagnostics/
+   ├── Darklands.Diagnostics.Domain.csproj
+   ├── Darklands.Diagnostics.Infrastructure.csproj
+   └── Performance/
+       └── VisionPerformanceMonitor.cs (COPY, not move)
+   ```
+
+2. **Create First Contract Event** (1h):
+   ```csharp
+   // In Darklands.Tactical.Contracts
+   public record ActorVisionCalculatedEvent(
+       EntityId ActorId,  // SharedKernel type
+       int TilesVisible,
+       int CalculationTimeMs  // Integer, not double
+   ) : IContractEvent;
+   ```
+
+3. **Add Adapter in Existing Code** (2h):
+   ```csharp
+   // TEMPORARY adapter in existing Infrastructure
+   public class VisionEventAdapter {
+       // Publishes contract event when vision calculated
+       // Both old and new monitors can listen
+   }
+   ```
+
+4. **Wire Up Parallel Operation** (1h):
+   - Old VisionPerformanceMonitor continues working
+   - New Diagnostics.VisionPerformanceMonitor also receives events
+   - Compare outputs to verify correctness
+
+5. **Add Feature Toggle** (1h):
+   ```csharp
+   if (UseNewDiagnostics) // Config flag
+       services.AddSingleton<IVisionPerformanceMonitor>(diagnosticsVersion);
+   else
+       services.AddSingleton<IVisionPerformanceMonitor>(oldVersion);
+   ```
 
 **Done When**:
-- [ ] Attack feature follows VSA structure
-- [ ] Domain events stay internal
-- [ ] Contract events cross boundaries
-- [ ] Diagnostics receives events via Contracts
-- [ ] All attack tests still pass
+- [ ] New Diagnostics context compiles
+- [ ] Contract event published from tactical
+- [ ] BOTH monitors receive events (parallel operation)
+- [ ] Feature toggle switches between implementations
+- [ ] All existing tests still pass
+- [ ] New architecture test validates Diagnostics isolation
 
-### TD_043: DDD Phase 3 - Complete Tactical Context Migration
+**Tech Lead Decision**:
+- Run old and new in parallel first (true Strangler)
+- Only remove old after new is proven in production
+- Feature toggle allows instant rollback
+
+### TD_043: Strangler Fig Phase 2 - Migrate Combat to VSA Structure
 **Status**: Proposed
 **Owner**: Tech Lead → Dev Engineer
 **Size**: L (2 days)
 **Priority**: Important
 **Created**: 2025-09-12 16:13
+**Updated**: 2025-09-12 17:30 (Tech Lead - Incremental Strangler approach)
 **Depends On**: TD_042
-**Markers**: [ARCHITECTURE] [DDD] [PHASE-3]
+**Markers**: [ARCHITECTURE] [DDD] [STRANGLER-FIG] [PHASE-2]
 
-**What**: Migrate all Tactical features to VSA + Contracts structure
-**Why**: Complete the bounded context transformation
+**What**: Reorganize Combat features into VSA structure (second strangler vine)
+**Why**: Prove VSA pattern works within bounded contexts before full migration
 
-**Features to Migrate**:
-- Movement → `Features/Movement/`
-- Vision → `Features/Vision/`
-- Combat Scheduler → `Features/Scheduler/`
-- Shared aggregates → `Domain/Aggregates/`
+**Incremental Migration** (preserve working code):
+1. **Create Tactical Context Structure** (2h):
+   ```
+   src/Tactical/
+   ├── Darklands.Tactical.Domain.csproj
+   ├── Darklands.Tactical.Application.csproj
+   ├── Darklands.Tactical.Infrastructure.csproj
+   ├── Features/
+   │   └── Attack/  (NEW VSA structure)
+   │       ├── Domain/
+   │       ├── Application/
+   │       └── Infrastructure/
+   └── Domain/
+       └── Aggregates/
+           └── Actors/  (shared aggregate, plural!)
+   ```
+
+2. **Copy Attack Feature to VSA** (4h):
+   - COPY ExecuteAttackCommand/Handler to new location
+   - COPY attack validation logic
+   - Keep old code working in parallel
+
+3. **Create Contract Events** (2h):
+   ```csharp
+   // Darklands.Tactical.Contracts
+   public record ActorDamagedContractEvent(
+       EntityId ActorId,
+       int Damage,
+       string ActorName
+   ) : IContractEvent;
+   ```
+
+4. **Add Routing Logic** (3h):
+   ```csharp
+   // Feature toggle per command
+   if (UseNewAttackHandler)
+       services.AddTransient<IRequestHandler<ExecuteAttackCommand>>(newHandler);
+   else
+       services.AddTransient<IRequestHandler<ExecuteAttackCommand>>(oldHandler);
+   ```
+
+5. **Parallel Testing** (3h):
+   - Run both implementations
+   - Compare results
+   - Performance benchmarks
 
 **Done When**:
-- [ ] All features in VSA structure
-- [ ] All cross-context events in Contracts
-- [ ] Module isolation tests pass
-- [ ] No direct references between contexts
+- [ ] New Tactical context structure exists
+- [ ] Attack feature works in BOTH locations
+- [ ] Feature toggle switches implementations
+- [ ] Contract events published from new structure
+- [ ] Performance metrics show no regression
+- [ ] Architecture tests validate VSA structure
+
+**Tech Lead Notes**:
+- Each feature gets its own toggle (granular control)
+- Old code stays until new is battle-tested
+- Can roll back feature-by-feature if issues
 
 ### TD_040: Extract Diagnostics Bounded Context
 **Status**: Updated → Depends on TD_041
@@ -245,55 +354,115 @@ NO cross-context references!
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*
 
-### TD_044: DDD Phase 4 - Platform & Diagnostics Contexts
+### TD_044: Strangler Fig Phase 3 - Extract Platform Services
 **Status**: Proposed
 **Owner**: Tech Lead → Dev Engineer
 **Size**: M (8h)
 **Priority**: Important
 **Created**: 2025-09-12 16:13
-**Depends On**: TD_042
-**Markers**: [ARCHITECTURE] [DDD] [PHASE-4]
+**Updated**: 2025-09-12 17:35 (Tech Lead - Strangler Fig approach)
+**Depends On**: TD_043
+**Markers**: [ARCHITECTURE] [DDD] [STRANGLER-FIG] [PHASE-3]
 
-**What**: Complete Platform and Diagnostics bounded contexts
-**Why**: Finish the context separation for all non-tactical concerns
+**What**: Extract Audio/Input/Settings to Platform context (third strangler vine)
+**Why**: Clear abstraction boundary - these are external integrations not game logic
 
-**Implementation Steps**:
-1. Move performance monitoring to Diagnostics context
-2. Use EntityId (not ActorId) in Diagnostics
-3. Move audio/input abstractions to Platform context
-4. Create Platform.Contracts for audio/input events
-5. Update all references to use Contracts only
+**Parallel Migration Steps**:
+1. **Create Platform Context** (1h):
+   ```
+   src/Platform/
+   ├── Darklands.Platform.Domain.csproj
+   ├── Darklands.Platform.Infrastructure.csproj
+   └── Darklands.Platform.Infrastructure.Godot.csproj
+   ```
+
+2. **Copy Service Abstractions** (2h):
+   - COPY IAudioService, IInputService, ISettingsService
+   - Create contract DTOs for cross-context data
+   - Keep old interfaces working
+
+3. **Implement Godot Adapters** (3h):
+   ```csharp
+   // Platform.Infrastructure.Godot
+   public class GodotAudioService : IAudioService {
+       // Real Godot implementation
+   }
+   ```
+
+4. **Add Service Resolution Switch** (1h):
+   ```csharp
+   if (UsePlatformContext) {
+       services.AddPlatformContext(); // New
+   } else {
+       services.AddLegacyServices(); // Old
+   }
+   ```
+
+5. **Verify with Tests** (1h):
+   - Mock implementations work
+   - Godot implementations work
+   - No Godot references leak to Domain
 
 **Done When**:
-- [ ] Diagnostics uses only EntityId and contract events
-- [ ] Platform handles all Godot abstractions
-- [ ] No cross-context direct references
-- [ ] Architecture tests pass
+- [ ] Platform context isolates all Godot dependencies
+- [ ] Service interfaces work from both locations
+- [ ] Toggle switches between implementations
+- [ ] Architecture tests enforce Godot isolation
+- [ ] All platform tests pass
 
-### TD_045: DDD Phase 5 - Documentation & Training
+### TD_045: Strangler Fig Phase 4 - Remove Old Structure (Final)
 **Status**: Proposed
-**Owner**: Tech Lead
-**Size**: S (3h)
+**Owner**: Tech Lead → Dev Engineer
+**Size**: M (6h)
 **Priority**: Important
 **Created**: 2025-09-12 16:13
-**Depends On**: TD_043
-**Markers**: [ARCHITECTURE] [DDD] [PHASE-5]
+**Updated**: 2025-09-12 17:35 (Tech Lead - Final Strangler phase)
+**Depends On**: TD_044
+**Markers**: [ARCHITECTURE] [DDD] [STRANGLER-FIG] [PHASE-4]
 
-**What**: Update all documentation and create training materials
-**Why**: Ensure team understands new architecture
+**What**: Remove old monolithic structure after new is proven
+**Why**: Complete the Strangler Fig migration - old code can finally be deleted
 
-**Deliverables**:
-1. Update all persona docs with DDD guidance
-2. Create example features showing patterns
-3. Update CLAUDE.md with new structure
-4. Hold team review session
-5. Create troubleshooting guide
+**Safe Removal Steps** (only after validation):
+1. **Verify All Features Migrated** (1h):
+   - Confirm all toggles point to new implementations
+   - Run full test suite on new structure
+   - Performance benchmarks show no regression
+
+2. **Remove Feature Toggles** (1h):
+   - Delete toggle configuration
+   - Wire services directly to new implementations
+   - Remove conditional logic
+
+3. **Delete Old Code** (2h):
+   - Remove old src/Application folder
+   - Remove old src/Domain folder  
+   - Remove old src/Infrastructure folder
+   - Update GameStrapper to use context registration
+
+4. **Clean Up Adapters** (1h):
+   - Remove temporary adapters
+   - Remove parallel testing code
+   - Clean up migration helpers
+
+5. **Final Validation** (1h):
+   - All tests pass
+   - Architecture tests enforce boundaries
+   - No references to old namespaces
+   - Build and deployment work
 
 **Done When**:
-- [ ] All personas reference DDD protocol
-- [ ] Example code demonstrates patterns
-- [ ] Team understands where features go
-- [ ] Common mistakes documented
+- [ ] Old monolithic structure deleted
+- [ ] Only bounded contexts remain
+- [ ] All tests pass on new structure
+- [ ] No feature toggles remain
+- [ ] Documentation updated
+- [ ] Team trained on new structure
+
+**Tech Lead Decision**:
+- This is the FINAL phase - only execute after production validation
+- Keep backups of old code in separate branch
+- Can revert via git if critical issues found
 
 <!-- TD_031 moved to permanent archive (2025-09-10 21:02) - TimeUnit TU refactor completed successfully -->
 
