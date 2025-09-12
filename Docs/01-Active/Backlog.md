@@ -318,18 +318,26 @@ All critical violations successfully resolved:
 **TD_043 is now UNBLOCKED** - Architectural integrity verified and enforced
 
 ### TD_043: Strangler Fig Phase 2 - Migrate Combat to Tactical Bounded Context with VSA
-**Status**: ✅ COMPLETE - All 4 Phases Implemented
+**Status**: 🚧 BLOCKED - MediatR Handler Conflicts
 **Owner**: Dev Engineer
 **Size**: L (2 days)
 **Priority**: Important
 **Created**: 2025-09-12 16:13
-**Updated**: 2025-09-13 06:45 (Dev Engineer - Phase 4 complete, parallel operation infrastructure ready)
-**Completed**: 2025-09-13
+**Updated**: 2025-09-13 07:30 (Dev Engineer - Blocked by MediatR auto-discovery conflicts)
 **Depends On**: TD_042 ✅ Completed, TD_046 ✅ Completed
-**Markers**: [ARCHITECTURE] [DDD] [STRANGLER-FIG] [PHASE-2] [VSA]
+**Markers**: [ARCHITECTURE] [DDD] [STRANGLER-FIG] [PHASE-2] [VSA] [BLOCKED]
 
 **What**: Create Tactical bounded context and migrate Combat features using VSA + Strangler Fig
 **Why**: Establish proper DDD boundaries while proving VSA works within bounded contexts
+
+**⚠️ CRITICAL BLOCKER**: MediatR auto-discovery creates duplicate handler registrations
+- When MediatR scans assemblies, it finds both legacy handlers and switch adapter
+- Results in "Ambiguous match found" errors (44 tests failing)
+- Godot cannot start due to same error
+- Attempted solutions that failed:
+  1. Removing handlers after registration (too late in process)
+  2. Switch adapter approach (still gets auto-discovered)
+  3. Manual registration override (MediatR ignores it)
 
 **⚠️ CRITICAL**: Tactical context doesn't exist yet - must create full structure first!
 
@@ -544,8 +552,8 @@ else
 
 **Build Status**: ✅ All 661 tests passing, zero warnings
 
-**✅ Phase 4 Complete** (Dev Engineer 2025-09-13):
-**All Infrastructure Ready for Parallel Operation**:
+**🚧 Phase 4 BLOCKED** (Dev Engineer 2025-09-13 07:30):
+**Infrastructure Built but Cannot Activate**:
 
 1. **Contract Events Implemented**:
    - `AttackExecutedEvent` - Published when attacks occur
@@ -565,11 +573,14 @@ else
 | Component | Status | Notes |
 |-----------|--------|-------|
 | Infrastructure | ✅ Complete | All adapters, events, handlers built |
-| Parallel Operation | ❌ NOT Active | ParallelCombatAdapter exists but not wired |
+| Parallel Operation | ❌ BLOCKED | MediatR handler conflicts prevent activation |
+| Switch Adapter | ❌ BLOCKED | Creates duplicate registrations |
 | Legacy System | ✅ Running | Handles ALL combat operations |
-| Tactical System | ✅ Built | Receives NO real commands |
+| Tactical System | ✅ Built | Cannot be activated due to conflicts |
 | Presentation | Legacy Only | AttackPresenter uses Application.Combat |
 | Contract Events | ✅ Ready | Published but only to empty handlers |
+| Tests | ❌ 44 Failing | Ambiguous handler errors |
+| Godot | ❌ Won't Start | Same ambiguous handler error |
 
 **How to Activate Parallel Validation**:
 ```csharp
@@ -582,13 +593,21 @@ if (config.EnableValidationLogging)
 }
 ```
 
-**Validation Approach** (for future TD):
-1. Enable ParallelCombatAdapter in DI
-2. Set EnableValidationLogging = true
-3. Run E2E tests
-4. Check logs for [PARALLEL] and [VALIDATION] warnings
-5. Collect metrics from contract events
-6. Compare performance between systems
+**🔧 Potential Solutions to Unblock**:
+1. **Option A: Separate Assembly** - Move legacy combat handlers to separate assembly not scanned by MediatR
+2. **Option B: Decorator Pattern** - Wrap handlers instead of replacing them
+3. **Option C: Custom Service Factory** - Override MediatR's service resolution
+4. **Option D: Non-Handler Adapter** - Don't implement IRequestHandler on switch adapter
+5. **Option E: Conditional Compilation** - Use #if directives to exclude handlers during specific builds
+
+**Validation Approach** (once unblocked):
+1. Resolve MediatR handler conflicts
+2. Enable switch/parallel adapter in DI
+3. Set EnableValidationLogging = true  
+4. Run E2E tests with new system
+5. Check logs for [SWITCH] or [PARALLEL] messages
+6. Verify both systems produce identical results
+7. Compare performance metrics
 
 **Tech Lead Critical Notes**:
 **ADR-017 Alignment**:
