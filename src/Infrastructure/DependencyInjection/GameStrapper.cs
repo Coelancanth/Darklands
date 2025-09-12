@@ -179,14 +179,8 @@ public static class GameStrapper
             // Register debug configuration and unified logging per ADR-007
             services.AddSingleton<IDebugConfiguration, DefaultDebugConfiguration>();
 
-            // Register composite output with sensible defaults (console in non-Godot contexts)
-            services.AddSingleton<ILogOutput>(sp =>
-            {
-                var composite = new CompositeLogOutput();
-                // Add console output for testing/non-Godot contexts
-                composite.AddOutput(new TestConsoleOutput());
-                return composite;
-            });
+            // Register empty composite output - GameManager will add GodotConsoleOutput and FileLogOutput
+            services.AddSingleton<ILogOutput>(sp => new CompositeLogOutput());
 
             // Register unified category logger
             services.AddSingleton<ICategoryLogger, UnifiedCategoryLogger>();

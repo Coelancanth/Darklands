@@ -9,7 +9,7 @@
 ## 🔢 Next Item Numbers by Type
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
-- **Next BR**: 007
+- **Next BR**: 008
 - **Next TD**: 039
 - **Next VS**: 015 
 
@@ -77,6 +77,42 @@
 
 ## 🔥 Critical (Do First)
 *Blockers preventing other work, production bugs, dependencies for other features*
+
+### BR_007: Concurrent Collection Access Error in Actor Display System
+**Status**: New  
+**Owner**: Test Specialist → Debugger Expert
+**Size**: XS-S (<2h investigation)
+**Priority**: Critical
+**Created**: 2025-09-12 11:47
+**Severity**: High - System stability issue
+
+**What**: Actor display system throws "Operations that change non-concurrent collections must have exclusive access" error
+**Why**: Concurrent collection modification corrupting application state and causing actor visibility failures
+**Symptoms**: 
+```
+[11:46:43] [ERR] [Gameplay] Error displaying actor Actor_813e2abc: Operations that change non-concurrent collections must have exclusive access. A concurrent update was performed on this collection and corrupted its state. The collection's state is no longer correct.
+[11:46:43] [WAR] [Gameplay] Actor Actor_813e2abc not found for visibility update
+```
+
+**Error Context**:
+- Occurs during actor creation/display sequence
+- Affects actor visibility system 
+- Suggests threading/concurrent access issue in collection management
+- Could impact game stability and actor rendering
+
+**Investigation Needed**:
+- Identify which collection is being accessed concurrently
+- Determine if issue is in ActorPresenter, ActorView, or underlying state management
+- Check for CallDeferred usage in Godot-related actor operations
+- Examine actor creation/display pipeline for race conditions
+
+**Acceptance Criteria**:
+- No concurrent collection access exceptions during actor operations
+- Actor visibility updates work consistently
+- All actors display correctly without errors
+- Thread-safe collection access implemented where needed
+
+**Priority Justification**: System stability issue affecting core actor functionality
 
 ### TD_038: Complete Logger System Rewrite
 **Status**: Architecture Approved → Ready for Implementation  

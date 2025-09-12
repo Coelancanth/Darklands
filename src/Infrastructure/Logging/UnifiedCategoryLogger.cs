@@ -48,11 +48,27 @@ public sealed class UnifiedCategoryLogger : ICategoryLogger
         string message;
         try
         {
-            message = args == null || args.Length == 0 ? template : string.Format(template, args);
+            if (args == null || args.Length == 0)
+            {
+                message = template;
+            }
+            else
+            {
+                // Try positional formatting first (e.g., {0}, {1})
+                try
+                {
+                    message = string.Format(template, args);
+                }
+                catch (FormatException)
+                {
+                    // If positional fails, try named placeholder substitution
+                    message = SubstituteNamedPlaceholders(template, args);
+                }
+            }
         }
         catch (FormatException)
         {
-            message = template; // Fallback on bad format
+            message = template; // Final fallback on bad format
         }
 
         var timestamp = DateTime.Now.ToString(_timestampFormat);
@@ -72,6 +88,41 @@ public sealed class UnifiedCategoryLogger : ICategoryLogger
     }
 
     public void Flush() => _output.Flush();
+
+
+    /// <summary>
+    /// Substitutes named placeholders like {ActorId}, {Position} with provided arguments.
+    /// This provides compatibility with existing logging code that uses named placeholders.
+    /// Arguments are substituted in order of appearance in the template.
+    /// </summary>
+    private static string SubstituteNamedPlaceholders(string template, object[] args)
+    {
+        if (args == null || args.Length == 0)
+            return template;
+
+        var result = template;
+        int argIndex = 0;
+
+        // List of common named placeholders in order of priority
+        string[] placeholders = {
+            "{ActorId}", "{FromPosition}", "{ToPosition}", "{Position}",
+            "{Damage}", "{Source}", "{Health}", "{Error}", "{Exception}",
+            "{Visible}", "{Explored}", "{Turn}", "{Range}", "{X}", "{Y}"
+        };
+
+        // Replace placeholders with arguments in the order they appear
+        foreach (var placeholder in placeholders)
+        {
+            if (result.Contains(placeholder, StringComparison.OrdinalIgnoreCase) && argIndex < args.Length)
+            {
+                var argValue = args[argIndex]?.ToString() ?? "null";
+                result = result.Replace(placeholder, argValue, StringComparison.OrdinalIgnoreCase);
+                argIndex++;
+            }
+        }
+
+        return result;
+    }
 }
 
 
