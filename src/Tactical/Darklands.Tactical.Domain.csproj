@@ -17,4 +17,10 @@
     <PackageReference Include="LanguageExt.Core" Version="5.0.0-beta-54" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Exclude Application and Infrastructure files from Domain project -->
+    <Compile Remove="Application\**\*.cs" />
+    <Compile Remove="Infrastructure\**\*.cs" />
+  </ItemGroup>
+
 </Project>

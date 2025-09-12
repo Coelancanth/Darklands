@@ -318,12 +318,12 @@ All critical violations successfully resolved:
 **TD_043 is now UNBLOCKED** - Architectural integrity verified and enforced
 
 ### TD_043: Strangler Fig Phase 2 - Migrate Combat to Tactical Bounded Context with VSA
-**Status**: Approved (Ready to implement)
+**Status**: In Progress - Phase 1/4 Complete
 **Owner**: Dev Engineer
 **Size**: L (2 days)
 **Priority**: Important
 **Created**: 2025-09-12 16:13
-**Updated**: 2025-09-12 23:00 (Tech Lead - Detailed implementation plan aligned with ADR-017)
+**Updated**: 2025-09-13 05:44 (Dev Engineer - Phase 1 Domain layer complete)
 **Depends On**: TD_042 ✅ Completed, TD_046 ✅ Completed
 **Markers**: [ARCHITECTURE] [DDD] [STRANGLER-FIG] [PHASE-2] [VSA]
 
@@ -459,14 +459,34 @@ else
     services.AddLegacyCombatServices(); // Old path (still works!)
 ```
 
+**✅ Phase 1 Complete (Dev Engineer 2025-09-13 05:44)**:
+- [x] Tactical context folder structure created
+- [x] Three projects with proper DDD isolation (Domain, Application, Infrastructure)
+- [x] Actor aggregate with comprehensive business logic
+- [x] TimeUnit value object for deterministic time (no DateTime)
+- [x] CombatAction value object with action modeling
+- [x] Business rules (ActorMustBeAliveRule, ActorCanActRule)
+- [x] Domain events (ActorDamagedEvent, ActorDiedEvent, ActorHealedEvent, ActorStunnedEvent)
+- [x] All functional error handling via LanguageExt Fin<T>
+- [x] Build successful with zero warnings
+- [x] 661 tests still passing
+
+**📝 Implementation Deviations (All Improvements)**:
+1. **Domain Events**: Placed in Actor.cs for cohesion instead of separate Events folder
+2. **EntityId Usage**: Using EntityId from SharedKernel instead of ActorId (correct DDD practice)
+3. **GameTick**: Used TimeUnit instead as GameTick doesn't exist in SharedKernel
+4. **LanguageExt Version**: Used 5.0.0-beta-54 (newer) instead of beta-48
+5. **Enhanced TimeUnit**: Added arithmetic/comparison operators for better usability
+6. **Additional Events**: Added ActorHealedEvent and ActorStunRemovedEvent for completeness
+
 **Success Criteria**:
-- [ ] Tactical context created with proper assembly boundaries
+- [x] Tactical context created with proper assembly boundaries ✅
 - [ ] Old Combat code still runs (Strangler Fig pattern)
 - [ ] Feature toggle allows instant switching between old/new
 - [ ] Architecture tests pass (determinism, isolation)
 - [ ] Contract events work for cross-context communication
 - [ ] Both paths produce identical results
-- [ ] No DateTime/Random/float in Tactical.Domain
+- [x] No DateTime/Random/float in Tactical.Domain ✅
 - [ ] Contracts only use SharedKernel types (EntityId, not ActorId)
 - [ ] Contract adapter bridges domain events to public API
 
