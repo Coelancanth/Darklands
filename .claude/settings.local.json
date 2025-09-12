@@ -3,7 +3,8 @@
     "allow": [
       "Bash(Select-Object Name)",
       "Bash(Get-ChildItem -Path \"src\" -Directory)",
-      "Bash(dotnet clean:*)"
+      "Bash(dotnet clean:*)",
+      "Bash(dir:*)"
     ],
     "deny": [],
     "ask": [],
