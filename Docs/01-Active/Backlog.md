@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 008
-- **Next TD**: 047
+- **Next TD**: 048
 - **Next VS**: 015 
 
 
@@ -316,6 +316,42 @@ All critical violations successfully resolved:
 4. **All validation passed** - 661 tests pass, 5 architecture tests pass, zero warnings
 
 **TD_043 is now UNBLOCKED** - Architectural integrity verified and enforced
+
+### TD_047: Phase 4 Validation - Test Harness for Combat System Comparison
+**Status**: Proposed
+**Owner**: Test Specialist → Dev Engineer
+**Size**: S (4h)
+**Priority**: Important
+**Dependencies**: TD_043 (must be complete)
+**Created**: 2025-09-13 (Dev Engineer)
+
+**Problem**: 
+The tactical and legacy combat systems use separate data stores (IActorRepository vs IActorStateService), making runtime validation difficult. Actors created in one system aren't visible to the other.
+
+**Solution**:
+Create a controlled test harness that:
+- Sets up identical test actors in BOTH systems
+- Runs the same combat scenarios through each
+- Compares damage calculations, turn order, and outcomes
+- Validates algorithmic correctness without production data sync
+
+**Acceptance Criteria**:
+- [ ] Test harness can create identical actors in both systems
+- [ ] Can execute same attack sequence in both systems
+- [ ] Produces comparison report of results
+- [ ] No production runtime sync required (YAGNI)
+- [ ] Tests prove mathematical equivalence of combat calculations
+
+**Why Not Sync?**:
+- Temporary code that will be deleted after migration
+- Adds synchronization bugs and complexity
+- Violates bounded context isolation
+- Not needed for validation (test harness is sufficient)
+
+**Notes**:
+- This is the correct approach per Dev Engineer complexity veto
+- Avoids over-engineering the Strangler Fig pattern
+- Focus on validating logic, not state management
 
 ### TD_043: Strangler Fig Phase 2 - Migrate Combat to Tactical Bounded Context with VSA
 **Status**: In Progress - Ready for Phase 4
