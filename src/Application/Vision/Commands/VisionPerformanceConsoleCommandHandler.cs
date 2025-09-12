@@ -1,7 +1,7 @@
 using LanguageExt;
 using LanguageExt.Common;
 using MediatR;
-using Serilog;
+using Darklands.Core.Domain.Debug;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -19,11 +19,11 @@ namespace Darklands.Core.Application.Vision.Commands
     public class VisionPerformanceConsoleCommandHandler : IRequestHandler<VisionPerformanceConsoleCommand, Fin<string>>
     {
         private readonly IVisionPerformanceMonitor _performanceMonitor;
-        private readonly ILogger _logger;
+        private readonly ICategoryLogger _logger;
 
         public VisionPerformanceConsoleCommandHandler(
             IVisionPerformanceMonitor performanceMonitor,
-            ILogger logger)
+            ICategoryLogger logger)
         {
             _performanceMonitor = performanceMonitor;
             _logger = logger;
@@ -33,7 +33,7 @@ namespace Darklands.Core.Application.Vision.Commands
         {
             try
             {
-                _logger?.Debug("Generating vision performance report: {ReportType}, Actor details: {IncludeActorDetails}, Reset: {Reset}",
+                _logger.Log(LogLevel.Debug, LogCategory.Performance, "Generating vision performance report: {ReportType}, Actor details: {IncludeActorDetails}, Reset: {Reset}",
                     request.ReportType, request.IncludeActorDetails, request.ResetAfterReport);
 
                 var reportResult = _performanceMonitor.GetPerformanceReport();
@@ -46,7 +46,7 @@ namespace Darklands.Core.Application.Vision.Commands
                         if (request.ResetAfterReport)
                         {
                             _performanceMonitor.Reset();
-                            _logger?.Debug("Performance metrics reset after report generation");
+                            _logger.Log(LogLevel.Debug, LogCategory.Performance, "Performance metrics reset after report generation");
                         }
 
                         return Fin<string>.Succ(output);
@@ -54,7 +54,7 @@ namespace Darklands.Core.Application.Vision.Commands
                     Fail: error =>
                     {
                         var errorMessage = $"Failed to generate vision performance report: {error.Message}";
-                        _logger?.Warning("Vision performance report generation failed: {Error}", error.Message);
+                        _logger.Log(LogLevel.Warning, LogCategory.Performance, "Vision performance report generation failed: {Error}", error.Message);
                         return Fin<string>.Fail(Error.New(errorMessage, error));
                     }
                 ));
@@ -62,7 +62,7 @@ namespace Darklands.Core.Application.Vision.Commands
             catch (Exception ex)
             {
                 var error = Error.New("Vision performance console command failed", ex);
-                _logger?.Error(ex, "Vision performance console command failed");
+                _logger.Log(LogLevel.Error, LogCategory.Performance, "Vision performance console command failed: {Exception}", ex.Message);
                 return Task.FromResult(Fin<string>.Fail(error));
             }
         }

@@ -47,6 +47,11 @@ public enum LogCategory
     Developer,
 
     /// <summary>
+    /// Gameplay events, actor movement, player actions, game state changes.
+    /// </summary>
+    Gameplay,
+
+    /// <summary>
     /// Vision system, field of view calculations, line of sight, fog of war.
     /// </summary>
     Vision,

@@ -1,7 +1,7 @@
 using LanguageExt;
 using LanguageExt.Common;
 using MediatR;
-using Serilog;
+using Darklands.Core.Domain.Debug;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
@@ -22,13 +22,13 @@ namespace Darklands.Core.Application.Vision.Queries
         private readonly IGridStateService _gridStateService;
         private readonly IVisionStateService _visionStateService;
         private readonly IVisionPerformanceMonitor _performanceMonitor;
-        private readonly ILogger _logger;
+        private readonly ICategoryLogger _logger;
 
         public CalculateFOVQueryHandler(
             IGridStateService gridStateService,
             IVisionStateService visionStateService,
             IVisionPerformanceMonitor performanceMonitor,
-            ILogger logger)
+            ICategoryLogger logger)
         {
             _gridStateService = gridStateService;
             _visionStateService = visionStateService;
@@ -40,7 +40,7 @@ namespace Darklands.Core.Application.Vision.Queries
         {
             var overallStopwatch = Stopwatch.StartNew();
 
-            _logger?.Debug("Processing enhanced FOV calculation for Actor {ActorId} at {Position} with range {Range}",
+            _logger.Log(LogLevel.Debug, LogCategory.Vision, "Processing enhanced FOV calculation for Actor {ActorId} at {Position} with range {Range}",
                 request.ViewerId.Value.ToString()[..8], request.Origin, request.Range.Value);
 
             var result = CalculateVisionStateWithMetrics(request);
@@ -50,7 +50,7 @@ namespace Darklands.Core.Application.Vision.Queries
             return Task.FromResult(result.Match(
                 Succ: visionState =>
                 {
-                    _logger?.Debug("Enhanced FOV calculation completed in {TotalMs}ms: {Visible} visible tiles, {Explored} total explored",
+                    _logger.Log(LogLevel.Debug, LogCategory.Vision, "Enhanced FOV calculation completed in {TotalMs}ms: {Visible} visible tiles, {Explored} total explored",
                         overallStopwatch.Elapsed.TotalMilliseconds,
                         visionState.CurrentlyVisible.Count,
                         visionState.PreviouslyExplored.Count);
@@ -58,7 +58,7 @@ namespace Darklands.Core.Application.Vision.Queries
                 },
                 Fail: error =>
                 {
-                    _logger?.Warning("Enhanced FOV calculation failed after {TotalMs}ms: {Error}",
+                    _logger.Log(LogLevel.Warning, LogCategory.Vision, "Enhanced FOV calculation failed after {TotalMs}ms: {Error}",
                         overallStopwatch.Elapsed.TotalMilliseconds, error.Message);
                     return result;
                 }
@@ -105,7 +105,7 @@ namespace Darklands.Core.Application.Vision.Queries
                         wasFromCache: true
                     );
 
-                    _logger?.Debug("Using cached vision state for Actor {ActorId} (cache lookup: {CacheMs}ms)",
+                    _logger.Log(LogLevel.Debug, LogCategory.Vision, "Using cached vision state for Actor {ActorId} (cache lookup: {CacheMs}ms)",
                         request.ViewerId.Value.ToString()[..8], cacheStopwatch.Elapsed.TotalMilliseconds);
 
                     return previousState;
@@ -123,7 +123,7 @@ namespace Darklands.Core.Application.Vision.Queries
                 );
                 fovStopwatch.Stop();
 
-                return newVisionStateResult.Match(
+                return newVisionStateResult.Match<Fin<VisionState>>(
                     Succ: newState =>
                     {
                         calculationStopwatch.Stop();
@@ -148,24 +148,24 @@ namespace Darklands.Core.Application.Vision.Queries
                         cacheResult.Match(
                             Succ: _ =>
                             {
-                                _logger?.Debug("Cached new vision state for Actor {ActorId} (cache update: {CacheMs}ms)",
+                                _logger.Log(LogLevel.Debug, LogCategory.Vision, "Cached new vision state for Actor {ActorId} (cache update: {CacheMs}ms)",
                                     request.ViewerId.Value.ToString()[..8], cacheStopwatch2.Elapsed.TotalMilliseconds);
                             },
                             Fail: error =>
                             {
-                                _logger?.Warning("Failed to cache vision state for Actor {ActorId}: {Error}",
+                                _logger.Log(LogLevel.Warning, LogCategory.Vision, "Failed to cache vision state for Actor {ActorId}: {Error}",
                                     request.ViewerId.Value.ToString()[..8], error.Message);
                             }
                         );
 
-                        _logger?.Debug("Calculated new FOV for Actor {ActorId}: {FOVMs}ms calculation, {CacheMs}ms cache lookup, {UpdateMs}ms cache update",
+                        _logger.Log(LogLevel.Debug, LogCategory.Vision, "Calculated new FOV for Actor {ActorId}: {FOVMs}ms calculation, {CacheMs}ms cache lookup, {UpdateMs}ms cache update",
                             request.ViewerId.Value.ToString()[..8],
                             fovStopwatch.Elapsed.TotalMilliseconds,
                             cacheStopwatch.Elapsed.TotalMilliseconds,
                             cacheStopwatch2.Elapsed.TotalMilliseconds);
 
                         // Always return the calculated state, regardless of caching result
-                        return newState;
+                        return Fin<VisionState>.Succ(newState);
                     },
                     Fail: error =>
                     {
@@ -198,7 +198,7 @@ namespace Darklands.Core.Application.Vision.Queries
                 );
 
                 var error = Error.New("Enhanced FOV calculation failed with exception", ex);
-                _logger?.Error(ex, "Enhanced FOV calculation failed for Actor {ActorId}", request.ViewerId.Value);
+                _logger.Log(LogLevel.Error, LogCategory.Vision, "Enhanced FOV calculation failed for Actor {ActorId}: {Exception}", request.ViewerId.Value, ex.Message);
                 return Fin<VisionState>.Fail(error);
             }
         }

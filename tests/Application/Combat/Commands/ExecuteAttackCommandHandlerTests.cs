@@ -1,7 +1,7 @@
 using FluentAssertions;
 using Xunit;
 using Moq;
-using Serilog;
+using Darklands.Core.Domain.Debug;
 using Darklands.Core.Application.Combat.Commands;
 using Darklands.Core.Application.Combat.Services;
 using Darklands.Core.Application.Actor.Services;
@@ -38,7 +38,7 @@ public class ExecuteAttackCommandHandlerTests
     private readonly Mock<IActorStateService> _actorStateService = new();
     private readonly Mock<ICombatSchedulerService> _combatSchedulerService = new();
     private readonly Mock<IMediator> _mediator = new();
-    private readonly Mock<ILogger> _logger = new();
+    private readonly Mock<ICategoryLogger> _logger = new();
 
     [Fact]
     public async Task Handle_ValidAttack_ReturnsSuccess()

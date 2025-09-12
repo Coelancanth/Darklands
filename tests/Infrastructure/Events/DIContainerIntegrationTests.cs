@@ -145,8 +145,7 @@ public class DIContainerIntegrationTests : IDisposable
             typeof(IMediator),
             typeof(IUIEventBus),
             typeof(INotificationHandler<TestEvent>),
-            typeof(Microsoft.Extensions.Logging.ILoggerFactory),
-            typeof(Serilog.ILogger)
+            typeof(Microsoft.Extensions.Logging.ILoggerFactory)
         };
 
         foreach (var serviceType in criticalServiceTypes)

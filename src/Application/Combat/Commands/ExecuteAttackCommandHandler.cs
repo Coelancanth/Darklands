@@ -1,9 +1,9 @@
 using LanguageExt;
 using LanguageExt.Common;
 using MediatR;
-using Serilog;
 using System.Threading;
 using System.Threading.Tasks;
+using Darklands.Core.Domain.Debug;
 using Darklands.Core.Application.Combat.Services;
 using Darklands.Core.Application.Actor.Services;
 using Darklands.Core.Application.Actor.Commands;
@@ -33,7 +33,7 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
     private readonly IActorStateService _actorStateService;
     private readonly ICombatSchedulerService _combatSchedulerService;
     private readonly IMediator _mediator;
-    private readonly ILogger _logger;
+    private readonly ICategoryLogger _logger;
     private readonly IAttackFeedbackService? _attackFeedbackService;
 
 
@@ -42,7 +42,7 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
         IActorStateService actorStateService,
         ICombatSchedulerService combatSchedulerService,
         IMediator mediator,
-        ILogger logger,
+        ICategoryLogger logger,
         IAttackFeedbackService? attackFeedbackService = null)
     {
         _gridStateService = gridStateService;
@@ -55,7 +55,7 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
 
     public async Task<Fin<LanguageExt.Unit>> Handle(ExecuteAttackCommand request, CancellationToken cancellationToken)
     {
-        _logger?.Debug("Processing ExecuteAttackCommand: {AttackerId} attacking {TargetId} with {Action}",
+        _logger.Log(LogLevel.Debug, LogCategory.Combat, "Processing ExecuteAttackCommand: {AttackerId} attacking {TargetId} with {Action}",
             request.AttackerId, request.TargetId, request.CombatAction.Name);
 
         // Orchestrate the attack using functional composition
@@ -75,7 +75,7 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
                     None: () => "defeated" // If not found, assume dead
                 );
 
-                _logger?.Information("{AttackerId} [{Action}] → {TargetId} at ({X},{Y}): {Damage} damage ({Outcome})",
+                _logger.Log(LogLevel.Information, LogCategory.Combat, "{AttackerId} [{Action}] → {TargetId} at ({X},{Y}): {Damage} damage ({Outcome})",
                     request.AttackerId, request.CombatAction.Name, request.TargetId,
                     targetPos.X, targetPos.Y, request.CombatAction.BaseDamage, outcomeMessage);
 
@@ -83,7 +83,7 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
             },
             Fail: error =>
             {
-                _logger?.Warning("Attack failed: {AttackerId} -> {TargetId}: {Error}",
+                _logger.Log(LogLevel.Warning, LogCategory.Combat, "Attack failed: {AttackerId} -> {TargetId}: {Error}",
                     request.AttackerId, request.TargetId, error.Message);
 
                 // Provide attack failure feedback (sequential, not concurrent)
@@ -152,7 +152,7 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
         }
 
         // Log attack timing information
-        _logger?.Information("Attack completed: {AttackerId} next turn in +{ActionCost} TU",
+        _logger.Log(LogLevel.Information, LogCategory.Combat, "Attack completed: {AttackerId} next turn in +{ActionCost} TU",
             request.AttackerId, request.CombatAction.BaseCost.Value);
 
         // Step 7: Cleanup dead actor
@@ -187,7 +187,7 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
         Position targetPosition,
         bool isTargetAlive)
     {
-        _logger?.Debug("Validating attack: {AttackerId} at {AttackerPos} -> {TargetId} at {TargetPos}",
+        _logger.Log(LogLevel.Debug, LogCategory.Combat, "Validating attack: {AttackerId} at {AttackerPos} -> {TargetId} at {TargetPos}",
             attackerId, attackerPosition, targetId, targetPosition);
 
         return AttackValidation.Create(attackerId, attackerPosition, targetId, targetPosition, isTargetAlive);
@@ -202,7 +202,7 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
             None: () => 0
         );
 
-        _logger?.Debug("Applying {Damage} damage to {TargetId} from {Source} (HP: {HPBefore})",
+        _logger.Log(LogLevel.Debug, LogCategory.Combat, "Applying {Damage} damage to {TargetId} from {Source} (HP: {HPBefore})",
             damage, targetId, attackSource, hpBefore);
 
         // Apply the damage
@@ -222,12 +222,12 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
 
                 if (actor.IsAlive)
                 {
-                    _logger?.Information("{TargetId} health: {HPBefore} → {HPAfter} ({ActualDamage} damage taken, {HPAfter}/{MaxHP} remaining)",
+                    _logger.Log(LogLevel.Information, LogCategory.Combat, "{TargetId} health: {HPBefore} → {HPAfter} ({ActualDamage} damage taken, {HPAfter}/{MaxHP} remaining)",
                         targetId, hpBefore, hpAfter, actualDamage, hpAfter, maxHp);
                 }
                 else
                 {
-                    _logger?.Information("{TargetId} defeated: {HPBefore} → 0 HP ({ActualDamage} damage taken, DEAD)",
+                    _logger.Log(LogLevel.Information, LogCategory.Combat, "{TargetId} defeated: {HPBefore} → 0 HP ({ActualDamage} damage taken, DEAD)",
                         targetId, hpBefore, actualDamage);
                 }
 
@@ -235,7 +235,7 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
                 if (actualDamage > 0)
                 {
                     var oldHealth = Health.Create(hpBefore, maxHp).Match(h => h, _ => actor.Health);
-                    _logger?.Debug("Publishing damage event for {TargetId}: {OldHP} → {NewHP}",
+                    _logger.Log(LogLevel.Debug, LogCategory.Combat, "Publishing damage event for {TargetId}: {OldHP} → {NewHP}",
                         targetId, oldHealth, actor.Health);
 
                     var damageEvent = ActorDamagedEvent.Create(targetId, oldHealth, actor.Health);
@@ -244,7 +244,7 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
             }
             else
             {
-                _logger?.Warning("Could not retrieve target {TargetId} after damage application", targetId);
+                _logger.Log(LogLevel.Warning, LogCategory.Combat, "Could not retrieve target {TargetId} after damage application", targetId);
             }
         }
 
@@ -253,7 +253,7 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
 
     private async Task<Fin<LanguageExt.Unit>> RescheduleAttackerAsync(ActorId attackerId, Position attackerPosition, TimeUnit actionCost)
     {
-        _logger?.Debug("Rescheduling {AttackerId} with action cost {ActionCost}",
+        _logger.Log(LogLevel.Debug, LogCategory.Combat, "Rescheduling {AttackerId} with action cost {ActionCost}",
             attackerId, actionCost);
 
         // For now, use a simple next turn calculation
@@ -273,7 +273,7 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
             var actor = targetOption.Match(a => a, () => throw new InvalidOperationException("Actor should exist"));
             if (!actor.IsAlive)
             {
-                _logger?.Information("Target {TargetId} died from attack, performing cleanup", targetId);
+                _logger.Log(LogLevel.Information, LogCategory.Combat, "Target {TargetId} died from attack, performing cleanup", targetId);
 
                 // Get the target's position before cleanup for notifications
                 var targetPos = _gridStateService.GetActorPosition(targetId);
@@ -283,27 +283,27 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
                 var removed = _combatSchedulerService.RemoveActor(targetId);
                 if (removed)
                 {
-                    _logger?.Information("Removed dead actor {TargetId} from combat scheduler", targetId);
+                    _logger.Log(LogLevel.Information, LogCategory.Combat, "Removed dead actor {TargetId} from combat scheduler", targetId);
                 }
                 else
                 {
-                    _logger?.Warning("Dead actor {TargetId} was not found in combat scheduler", targetId);
+                    _logger.Log(LogLevel.Warning, LogCategory.Combat, "Dead actor {TargetId} was not found in combat scheduler", targetId);
                 }
 
                 // Remove dead actor from grid (frees up the position)
                 _gridStateService.RemoveActorFromGrid(targetId);
-                _logger?.Information("Removed dead actor {TargetId} from grid position", targetId);
+                _logger.Log(LogLevel.Information, LogCategory.Combat, "Removed dead actor {TargetId} from grid position", targetId);
 
                 // Publish death event for UI cleanup
-                _logger?.Information("Publishing death event for {TargetId} at {Position}", targetId, position);
+                _logger.Log(LogLevel.Information, LogCategory.Combat, "Publishing death event for {TargetId} at {Position}", targetId, position);
                 var deathEvent = ActorDiedEvent.Create(targetId, position);
                 await _mediator.Publish(deathEvent);
-                _logger?.Information("Death event published for {TargetId}", targetId);
+                _logger.Log(LogLevel.Information, LogCategory.Combat, "Death event published for {TargetId}", targetId);
             }
         }
         else
         {
-            _logger?.Warning("Could not verify target state after attack: target not found");
+            _logger.Log(LogLevel.Warning, LogCategory.Combat, "Could not verify target state after attack: target not found");
         }
 
         return FinSucc(LanguageExt.Unit.Default);

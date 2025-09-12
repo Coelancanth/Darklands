@@ -1,9 +1,8 @@
-[gd_scene load_steps=5 format=3 uid="uid://coxy82oj87fjb"]
+[gd_scene load_steps=4 format=3 uid="uid://coxy82oj87fjb"]
 
 [ext_resource type="Script" uid="uid://c65ytrn2klxjg" path="res://GameManager.cs" id="1_kv618"]
 [ext_resource type="Script" uid="uid://beno1aqs3xqou" path="res://Views/ActorView.cs" id="2_qumoa"]
 [ext_resource type="Script" uid="uid://clqly8e0s1jox" path="res://Views/GridView.cs" id="4_gridview"]
-[ext_resource type="Script" uid="uid://djr5xxvqgodii" path="res://Views/HealthView.cs" id="5_healthview"]
 
 [node name="CombatScene" type="Node2D"]
 script = ExtResource("1_kv618")
@@ -13,6 +12,3 @@ script = ExtResource("4_gridview")
 
 [node name="Actors" type="Node2D" parent="."]
 script = ExtResource("2_qumoa")
-
-[node name="HealthBars" type="Node2D" parent="."]
-script = ExtResource("5_healthview")

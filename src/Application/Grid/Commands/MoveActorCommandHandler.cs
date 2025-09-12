@@ -1,9 +1,9 @@
 using LanguageExt;
 using LanguageExt.Common;
 using MediatR;
-using Serilog;
 using System.Threading;
 using System.Threading.Tasks;
+using Darklands.Core.Domain.Debug;
 using Darklands.Core.Application.Grid.Services;
 using static LanguageExt.Prelude;
 
@@ -16,11 +16,11 @@ namespace Darklands.Core.Application.Grid.Commands
     public class MoveActorCommandHandler : IRequestHandler<MoveActorCommand, Fin<LanguageExt.Unit>>
     {
         private readonly IGridStateService _gridStateService;
-        private readonly ILogger _logger;
+        private readonly ICategoryLogger _logger;
 
         public MoveActorCommandHandler(
             IGridStateService gridStateService,
-            ILogger logger)
+            ICategoryLogger logger)
         {
             _gridStateService = gridStateService;
             _logger = logger;
@@ -28,7 +28,7 @@ namespace Darklands.Core.Application.Grid.Commands
 
         public Task<Fin<LanguageExt.Unit>> Handle(MoveActorCommand request, CancellationToken cancellationToken)
         {
-            _logger?.Debug("Processing MoveActorCommand for ActorId: {ActorId} to Position: {ToPosition}",
+            _logger.Log(LogLevel.Debug, LogCategory.Gameplay, "Processing MoveActorCommand for ActorId: {ActorId} to Position: {ToPosition}",
                 request.ActorId, request.ToPosition);
 
             // Step 1: Get current actor position
@@ -36,7 +36,7 @@ namespace Darklands.Core.Application.Grid.Commands
             if (currentPositionOption.IsNone)
             {
                 var error = Error.New($"ACTOR_NOT_FOUND: Actor {request.ActorId} not found on grid");
-                _logger?.Warning("Actor not found for ActorId {ActorId}: {Error}", request.ActorId, error.Message);
+                _logger.Log(LogLevel.Warning, LogCategory.Gameplay, "Actor not found for ActorId {ActorId}: {Error}", request.ActorId, error.Message);
                 return Task.FromResult(FinFail<LanguageExt.Unit>(error));
             }
 
@@ -47,7 +47,7 @@ namespace Darklands.Core.Application.Grid.Commands
             if (validationResult.IsFail)
             {
                 var error = validationResult.Match<Error>(Succ: _ => Error.New("UNKNOWN: Unknown error"), Fail: e => e);
-                _logger?.Warning("Validation failed for MoveActorCommand: {Error}", error.Message);
+                _logger.Log(LogLevel.Warning, LogCategory.Gameplay, "Validation failed for MoveActorCommand: {Error}", error.Message);
                 return Task.FromResult(FinFail<LanguageExt.Unit>(error));
             }
 
@@ -56,12 +56,11 @@ namespace Darklands.Core.Application.Grid.Commands
             if (moveResult.IsFail)
             {
                 var error = moveResult.Match<Error>(Succ: _ => Error.New("UNKNOWN: Unknown error"), Fail: e => e);
-                _logger?.Error("Failed to move actor {ActorId}: {Error}", request.ActorId, error.Message);
+                _logger.Log(LogLevel.Error, LogCategory.Gameplay, "Failed to move actor {ActorId}: {Error}", request.ActorId, error.Message);
                 return Task.FromResult(FinFail<LanguageExt.Unit>(error));
             }
 
-            _logger?.Debug("Successfully moved actor {ActorId} from {FromPosition} to {ToPosition}",
-                request.ActorId, currentPosition, request.ToPosition);
+            // Note: Visual actor movement logging handled by ActorView - no need for duplicate logging here
 
             return Task.FromResult(FinSucc(LanguageExt.Unit.Default));
         }

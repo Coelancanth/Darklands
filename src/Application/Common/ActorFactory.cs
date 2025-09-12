@@ -1,6 +1,7 @@
 using LanguageExt;
 using LanguageExt.Common;
-using Serilog;
+using Darklands.Core.Domain.Debug;
+using Darklands.Core.Infrastructure.Debug;
 using System;
 using System.Threading.Tasks;
 using Darklands.Core.Application.Grid.Services;
@@ -21,7 +22,7 @@ namespace Darklands.Core.Application.Common
         private readonly IGridStateService _gridStateService;
         private readonly IActorStateService _actorStateService;
         private readonly IStableIdGenerator _idGenerator;
-        private readonly ILogger _logger;
+        private readonly ICategoryLogger _logger;
 
         private ActorId? _playerId;
 
@@ -42,7 +43,7 @@ namespace Darklands.Core.Application.Common
             IGridStateService gridStateService,
             IActorStateService actorStateService,
             IStableIdGenerator idGenerator,
-            ILogger logger)
+            ICategoryLogger logger)
         {
             _gridStateService = gridStateService ?? throw new ArgumentNullException(nameof(gridStateService));
             _actorStateService = actorStateService ?? throw new ArgumentNullException(nameof(actorStateService));
@@ -61,7 +62,7 @@ namespace Darklands.Core.Application.Common
         {
             try
             {
-                _logger.Debug("Creating test player at position {Position} with name {Name}", position, name);
+                _logger.Log(LogLevel.Debug, LogCategory.System, "Creating test player at position {Position} with name {Name}", position, name);
 
                 // Create a test player using injected ID generator
                 var playerId = ActorId.NewId(_idGenerator);
@@ -80,7 +81,7 @@ namespace Darklands.Core.Application.Common
                                 Succ: _ => FinFail<ActorId>(Error.New("Unexpected success in error path")),
                                 Fail: error =>
                                 {
-                                    _logger.Warning("Failed to add test player to actor state service: {Error}", error.Message);
+                                    _logger.Log(LogLevel.Warning, LogCategory.System, "Failed to add test player to actor state service: {Error}", error.Message);
                                     return FinFail<ActorId>(error);
                                 });
                         }
@@ -95,7 +96,7 @@ namespace Darklands.Core.Application.Common
                                 Succ: _ => FinFail<ActorId>(Error.New("Unexpected success in error path")),
                                 Fail: error =>
                                 {
-                                    _logger.Warning("Failed to place test player on grid: {Error}", error.Message);
+                                    _logger.Log(LogLevel.Warning, LogCategory.System, "Failed to place test player on grid: {Error}", error.Message);
                                     return FinFail<ActorId>(error);
                                 });
                         }
@@ -103,20 +104,20 @@ namespace Darklands.Core.Application.Common
                         // Store the player ID for other presenters to access
                         _playerId = actor.Id;
 
-                        _logger.Information("Successfully created test player {Name} ({ActorId}) at position {Position} with {Health} health",
+                        _logger.Log(LogCategory.System, "Successfully created test player {Name} ({ActorId}) at position {Position} with {Health} health",
                             actor.Name, actor.Id, position, actor.Health.Maximum);
 
                         return FinSucc(actor.Id);
                     },
                     Fail: error =>
                     {
-                        _logger.Warning("Failed to create test player actor: {Error}", error.Message);
+                        _logger.Log(LogLevel.Warning, LogCategory.System, "Failed to create test player actor: {Error}", error.Message);
                         return FinFail<ActorId>(error);
                     });
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, "Failed to create test player actor at position {Position}", position);
+                _logger.Log(LogLevel.Error, LogCategory.System, "Failed to create test player actor at position {0}: {1}", position, ex.Message);
                 return FinFail<ActorId>(Error.New("Failed to create test player actor", ex));
             }
         }
@@ -132,7 +133,7 @@ namespace Darklands.Core.Application.Common
         {
             try
             {
-                _logger.Information("Creating dummy combat target at position {Position} with {Health} health", position, health);
+                _logger.Log(LogCategory.System, "Creating dummy combat target at position {Position} with {Health} health", position, health);
 
                 // Create the dummy using domain factory pattern (same as existing code)
                 var dummyResult = Domain.Actor.DummyActor.Presets.CreateCombatDummy("Combat Dummy");
@@ -154,7 +155,7 @@ namespace Darklands.Core.Application.Common
                                         Succ: _ => FinFail<ActorId>(Error.New("Unexpected success in error path")),
                                         Fail: error =>
                                         {
-                                            _logger.Warning("Failed to add dummy target to actor state service: {Error}", error.Message);
+                                            _logger.Log(LogLevel.Warning, LogCategory.System, "Failed to add dummy target to actor state service: {Error}", error.Message);
                                             return FinFail<ActorId>(error);
                                         });
                                 }
@@ -169,31 +170,31 @@ namespace Darklands.Core.Application.Common
                                         Succ: _ => FinFail<ActorId>(Error.New("Unexpected success in error path")),
                                         Fail: error =>
                                         {
-                                            _logger.Warning("Failed to place dummy target on grid: {Error}", error.Message);
+                                            _logger.Log(LogLevel.Warning, LogCategory.System, "Failed to place dummy target on grid: {Error}", error.Message);
                                             return FinFail<ActorId>(error);
                                         });
                                 }
 
-                                _logger.Information("Successfully created dummy target {Name} ({ActorId}) at position {Position} with {Health} health",
+                                _logger.Log(LogCategory.System, "Successfully created dummy target {Name} ({ActorId}) at position {Position} with {Health} health",
                                     dummyActor.Name, dummyActor.Id, position, dummyActor.Health.Maximum);
 
                                 return FinSucc(actor.Id);
                             },
                             Fail: error =>
                             {
-                                _logger.Warning("Failed to convert dummy to actor: {Error}", error.Message);
+                                _logger.Log(LogLevel.Warning, LogCategory.System, "Failed to convert dummy to actor: {Error}", error.Message);
                                 return FinFail<ActorId>(error);
                             });
                     },
                     Fail: error =>
                     {
-                        _logger.Warning("Failed to create dummy actor: {Error}", error.Message);
+                        _logger.Log(LogLevel.Warning, LogCategory.System, "Failed to create dummy actor: {Error}", error.Message);
                         return FinFail<ActorId>(error);
                     });
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, "Failed to create dummy combat target at position {Position}", position);
+                _logger.Log(LogLevel.Error, LogCategory.System, "Failed to create dummy combat target at position {0}: {1}", position, ex.Message);
                 return FinFail<ActorId>(Error.New("Failed to create dummy combat target", ex));
             }
         }

@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using LanguageExt;
 using LanguageExt.Common;
 using MediatR;
-using Serilog;
+using Darklands.Core.Domain.Debug;
 using System.Threading;
 using System.Threading.Tasks;
 using Darklands.Core.Application.Combat.Services;
@@ -20,11 +20,11 @@ namespace Darklands.Core.Application.Combat.Queries
     public class GetSchedulerQueryHandler : IRequestHandler<GetSchedulerQuery, Fin<IReadOnlyList<ISchedulable>>>
     {
         private readonly ICombatSchedulerService _combatSchedulerService;
-        private readonly ILogger _logger;
+        private readonly ICategoryLogger _logger;
 
         public GetSchedulerQueryHandler(
             ICombatSchedulerService combatSchedulerService,
-            ILogger logger)
+            ICategoryLogger logger)
         {
             _combatSchedulerService = combatSchedulerService;
             _logger = logger;
@@ -32,19 +32,19 @@ namespace Darklands.Core.Application.Combat.Queries
 
         public Task<Fin<IReadOnlyList<ISchedulable>>> Handle(GetSchedulerQuery request, CancellationToken cancellationToken)
         {
-            _logger?.Debug("Processing GetSchedulerQuery to retrieve current turn order");
+            _logger.Log(LogLevel.Debug, LogCategory.Combat, "Processing GetSchedulerQuery to retrieve current turn order");
 
             var result = _combatSchedulerService.GetTurnOrder();
 
             return result.Match(
                 Succ: turnOrder =>
                 {
-                    _logger?.Debug("Retrieved turn order with {Count} scheduled entities", turnOrder.Count);
+                    _logger.Log(LogLevel.Debug, LogCategory.Combat, "Retrieved turn order with {Count} scheduled entities", turnOrder.Count);
                     return Task.FromResult(FinSucc(turnOrder));
                 },
                 Fail: error =>
                 {
-                    _logger?.Error("Failed to retrieve turn order: {Error}", error.Message);
+                    _logger.Log(LogLevel.Error, LogCategory.Combat, "Failed to retrieve turn order: {Error}", error.Message);
                     return Task.FromResult(FinFail<IReadOnlyList<ISchedulable>>(error));
                 }
             );

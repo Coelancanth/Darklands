@@ -2,7 +2,7 @@ using LanguageExt;
 using LanguageExt.Common;
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
-using Serilog;
+using Darklands.Core.Domain.Debug;
 using Darklands.Core.Domain.Vision;
 using Darklands.Core.Domain.Common;
 using Darklands.Core.Domain.Grid;
@@ -18,9 +18,9 @@ namespace Darklands.Core.Application.Vision.Services
     public class InMemoryVisionStateService : IVisionStateService
     {
         private readonly ConcurrentDictionary<ActorId, VisionState> _visionStates;
-        private readonly ILogger _logger;
+        private readonly ICategoryLogger _logger;
 
-        public InMemoryVisionStateService(ILogger logger)
+        public InMemoryVisionStateService(ICategoryLogger logger)
         {
             _visionStates = new ConcurrentDictionary<ActorId, VisionState>();
             _logger = logger;
@@ -31,14 +31,14 @@ namespace Darklands.Core.Application.Vision.Services
             try
             {
                 var state = _visionStates.GetValueOrDefault(viewerId, VisionState.CreateEmpty(viewerId));
-                _logger?.Debug("Retrieved vision state for Actor {ActorId}: {Visible} visible, {Explored} explored",
+                _logger.Log(LogLevel.Debug, LogCategory.Vision, "Retrieved vision state for Actor {ActorId}: {Visible} visible, {Explored} explored",
                     viewerId.Value.ToString()[..8], state.CurrentlyVisible.Count, state.PreviouslyExplored.Count);
                 return state;
             }
             catch (Exception ex)
             {
                 var error = Error.New("Failed to retrieve vision state", ex);
-                _logger?.Error(ex, "Error retrieving vision state for Actor {ActorId}", viewerId.Value);
+                _logger.Log(LogLevel.Error, LogCategory.Vision, "Error retrieving vision state for Actor {ActorId}: {Exception}", viewerId.Value, ex.Message);
                 return FinFail<VisionState>(error);
             }
         }
@@ -70,7 +70,7 @@ namespace Darklands.Core.Application.Vision.Services
 
                 _visionStates.AddOrUpdate(visionState.ViewerId, mergedState, (_, _) => mergedState);
 
-                _logger?.Debug("Updated vision state for Actor {ActorId}: {Visible} visible, {Explored} total explored",
+                _logger.Log(LogLevel.Debug, LogCategory.Vision, "Updated vision state for Actor {ActorId}: {Visible} visible, {Explored} total explored",
                     visionState.ViewerId.Value.ToString()[..8],
                     mergedState.CurrentlyVisible.Count,
                     mergedState.PreviouslyExplored.Count);
@@ -80,7 +80,7 @@ namespace Darklands.Core.Application.Vision.Services
             catch (Exception ex)
             {
                 var error = Error.New("Failed to update vision state", ex);
-                _logger?.Error(ex, "Error updating vision state for Actor {ActorId}", visionState.ViewerId.Value);
+                _logger.Log(LogLevel.Error, LogCategory.Vision, "Error updating vision state for Actor {ActorId}: {Exception}", visionState.ViewerId.Value, ex.Message);
                 return FinFail<Unit>(error);
             }
         }
@@ -96,7 +96,7 @@ namespace Darklands.Core.Application.Vision.Services
                     var clearedState = existingState.ClearVisibility(currentTurn);
                     _visionStates.AddOrUpdate(viewerId, clearedState, (_, _) => clearedState);
 
-                    _logger?.Debug("Cleared vision state for Actor {ActorId}, preserved {Explored} explored tiles",
+                    _logger.Log(LogLevel.Debug, LogCategory.Vision, "Cleared vision state for Actor {ActorId}, preserved {Explored} explored tiles",
                         viewerId.Value.ToString()[..8], clearedState.PreviouslyExplored.Count);
                 }
 
@@ -105,7 +105,7 @@ namespace Darklands.Core.Application.Vision.Services
             catch (Exception ex)
             {
                 var error = Error.New("Failed to clear vision state", ex);
-                _logger?.Error(ex, "Error clearing vision state for Actor {ActorId}", viewerId.Value);
+                _logger.Log(LogLevel.Error, LogCategory.Vision, "Error clearing vision state for Actor {ActorId}: {Exception}", viewerId.Value, ex.Message);
                 return FinFail<Unit>(error);
             }
         }
@@ -121,7 +121,7 @@ namespace Darklands.Core.Application.Vision.Services
                     var invalidatedState = existingState with { LastCalculatedTurn = -1 };
                     _visionStates.AddOrUpdate(viewerId, invalidatedState, (_, _) => invalidatedState);
 
-                    _logger?.Debug("Invalidated vision cache for Actor {ActorId}", viewerId.Value.ToString()[..8]);
+                    _logger.Log(LogLevel.Debug, LogCategory.Vision, "Invalidated vision cache for Actor {ActorId}", viewerId.Value.ToString()[..8]);
                 }
 
                 return unit;
@@ -129,7 +129,7 @@ namespace Darklands.Core.Application.Vision.Services
             catch (Exception ex)
             {
                 var error = Error.New("Failed to invalidate vision cache", ex);
-                _logger?.Error(ex, "Error invalidating vision cache for Actor {ActorId}", viewerId.Value);
+                _logger.Log(LogLevel.Error, LogCategory.Vision, "Error invalidating vision cache for Actor {ActorId}: {Exception}", viewerId.Value, ex.Message);
                 return FinFail<Unit>(error);
             }
         }
@@ -146,13 +146,13 @@ namespace Darklands.Core.Application.Vision.Services
                     invalidated++;
                 }
 
-                _logger?.Debug("Invalidated vision caches for {Count} actors", invalidated);
+                _logger.Log(LogLevel.Debug, LogCategory.Vision, "Invalidated vision caches for {Count} actors", invalidated);
                 return unit;
             }
             catch (Exception ex)
             {
                 var error = Error.New("Failed to invalidate all vision caches", ex);
-                _logger?.Error(ex, "Error invalidating all vision caches");
+                _logger.Log(LogLevel.Error, LogCategory.Vision, "Error invalidating all vision caches: {Exception}", ex.Message);
                 return FinFail<Unit>(error);
             }
         }
@@ -173,13 +173,13 @@ namespace Darklands.Core.Application.Vision.Services
                     );
                 }
 
-                _logger?.Debug("Generated vision statistics for {Count} actors", stats.Count);
+                _logger.Log(LogLevel.Debug, LogCategory.Vision, "Generated vision statistics for {Count} actors", stats.Count);
                 return stats;
             }
             catch (Exception ex)
             {
                 var error = Error.New("Failed to get vision statistics", ex);
-                _logger?.Error(ex, "Error getting vision statistics");
+                _logger.Log(LogLevel.Error, LogCategory.Vision, "Error getting vision statistics: {Exception}", ex.Message);
                 return FinFail<IDictionary<ActorId, (int visible, int explored, bool needsRecalc)>>(error);
             }
         }
@@ -203,7 +203,7 @@ namespace Darklands.Core.Application.Vision.Services
                     return current.MergeWith(otherState, currentTurn);
                 });
 
-                _logger?.Debug("Merged vision states from {Count} viewers: {Visible} visible, {Explored} explored",
+                _logger.Log(LogLevel.Debug, LogCategory.Vision, "Merged vision states from {Count} viewers: {Visible} visible, {Explored} explored",
                     viewerIdsList.Count, mergedState.CurrentlyVisible.Count, mergedState.PreviouslyExplored.Count);
 
                 return mergedState;
@@ -211,7 +211,7 @@ namespace Darklands.Core.Application.Vision.Services
             catch (Exception ex)
             {
                 var error = Error.New("Failed to merge vision states", ex);
-                _logger?.Error(ex, "Error merging vision states");
+                _logger.Log(LogLevel.Error, LogCategory.Vision, "Error merging vision states: {Exception}", ex.Message);
                 return FinFail<VisionState>(error);
             }
         }

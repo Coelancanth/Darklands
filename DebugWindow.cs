@@ -24,9 +24,10 @@ public partial class DebugWindow : Window
 
     /// <summary>
     /// Base font sizes for scaling calculations.
+    /// Increased default sizes for better readability during debugging.
     /// </summary>
-    private const int BaseTitleFontSize = 14;
-    private const int BaseRegularFontSize = 12;
+    private const int BaseTitleFontSize = 18;
+    private const int BaseRegularFontSize = 16;
     private const int BaseWindowWidth = 350;
 
     /// <summary>
@@ -49,8 +50,11 @@ public partial class DebugWindow : Window
         CreateUI();
         PopulateCategories();
 
-        // Set up responsive font scaling
+        // Set up responsive font scaling with persistent font size
         SizeChanged += OnWindowSizeChanged;
+        
+        // Apply initial font sizing from configuration
+        ApplyPersistentFontSettings();
     }
 
     /// <summary>
@@ -60,8 +64,10 @@ public partial class DebugWindow : Window
     private void SetupWindowProperties()
     {
         Title = "Debug Configuration";
-        Size = new Vector2I(350, 500);
-        Position = new Vector2I(20, 20);
+        
+        // Load persistent settings from configuration
+        Size = _config.DebugWindowSize;
+        Position = _config.DebugWindowPosition;
 
         // Enable resizing with sensible constraints
         Unresizable = false;
@@ -74,13 +80,17 @@ public partial class DebugWindow : Window
         // Enable close button and handle close requests
         CloseRequested += () =>
         {
+            SaveWindowState();
             Visible = false;
             // Notify debug system that window was closed via close button
             if (DebugSystem.Instance != null)
             {
-                DebugSystem.Instance.Logger.Log(LogCategory.Developer, "Debug window closed via close button");
+                DebugSystem.Instance.Logger.Log(LogLevel.Information, LogCategory.Developer, "Debug window closed via close button");
             }
         };
+        
+        // Save state when window is moved or resized
+        SizeChanged += SaveWindowState;
     }
 
     /// <summary>
@@ -137,6 +147,29 @@ public partial class DebugWindow : Window
         };
 
         logLevelContainer.AddChild(logLevelOption);
+
+        // Add font size control
+        var fontSizeContainer = new HBoxContainer();
+        _mainContainer.AddChild(fontSizeContainer);
+
+        fontSizeContainer.AddChild(new Label { Text = "Font Size:" });
+
+        var fontSizeSpinBox = new SpinBox
+        {
+            MinValue = 10,
+            MaxValue = 24,
+            Step = 1,
+            Value = _config.DebugWindowFontSize
+        };
+
+        fontSizeSpinBox.ValueChanged += (double value) =>
+        {
+            _config.DebugWindowFontSize = (int)value;
+            _config.NotifySettingChanged(nameof(_config.DebugWindowFontSize));
+            ApplyPersistentFontSettings();
+        };
+
+        fontSizeContainer.AddChild(fontSizeSpinBox);
 
         // Add separator
         _mainContainer.AddChild(new HSeparator());
@@ -388,42 +421,18 @@ public partial class DebugWindow : Window
     }
 
     /// <summary>
-    /// Handles window size changes to update font scaling responsively.
-    /// Calculates appropriate font sizes based on window width relative to base size.
+    /// Handles window size changes to save state and maintain font consistency.
+    /// Uses persistent font settings instead of scaling calculations.
     /// </summary>
     private void OnWindowSizeChanged()
     {
-        var scaleFactor = (float)Size.X / BaseWindowWidth;
-        scaleFactor = Math.Clamp(scaleFactor, 0.8f, 1.5f); // Reasonable scaling limits
-
-        UpdateFontScaling(scaleFactor);
+        // Save window state when resized
+        SaveWindowState();
+        
+        // Apply persistent font settings (no scaling)
+        ApplyPersistentFontSettings();
     }
 
-    /// <summary>
-    /// Updates font sizes for all UI elements based on the scale factor.
-    /// Maintains readability across different window sizes.
-    /// </summary>
-    /// <param name="scaleFactor">Multiplier for base font sizes</param>
-    private void UpdateFontScaling(float scaleFactor)
-    {
-        var titleFontSize = (int)(BaseTitleFontSize * scaleFactor);
-        var regularFontSize = (int)(BaseRegularFontSize * scaleFactor);
-
-        // Update title font size
-        if (_titleLabel != null)
-        {
-            _titleLabel.AddThemeFontSizeOverride("font_size", titleFontSize);
-        }
-
-        // Update search box font size
-        if (_searchBox != null)
-        {
-            _searchBox.AddThemeFontSizeOverride("font_size", regularFontSize);
-        }
-
-        // Update all category labels and checkboxes
-        UpdateChildFontSizes(_categoriesContainer, regularFontSize);
-    }
 
     /// <summary>
     /// Recursively updates font sizes for all child controls.
@@ -462,5 +471,42 @@ public partial class DebugWindow : Window
             // Recursively update children
             UpdateChildFontSizes(child, fontSize);
         }
+    }
+    
+    /// <summary>
+    /// Saves current window position and size to persistent configuration.
+    /// Called automatically when window is closed or resized.
+    /// </summary>
+    private void SaveWindowState()
+    {
+        _config.DebugWindowSize = Size;
+        _config.DebugWindowPosition = Position;
+        _config.NotifySettingChanged(nameof(_config.DebugWindowSize));
+        _config.NotifySettingChanged(nameof(_config.DebugWindowPosition));
+    }
+    
+    /// <summary>
+    /// Applies persistent font settings from configuration.
+    /// Uses configured font size instead of scaling calculations.
+    /// </summary>
+    private void ApplyPersistentFontSettings()
+    {
+        var fontSize = _config.DebugWindowFontSize;
+        var titleFontSize = fontSize + 2; // Title slightly larger
+        
+        // Update title font size
+        if (_titleLabel != null)
+        {
+            _titleLabel.AddThemeFontSizeOverride("font_size", titleFontSize);
+        }
+
+        // Update search box font size
+        if (_searchBox != null)
+        {
+            _searchBox.AddThemeFontSizeOverride("font_size", fontSize);
+        }
+
+        // Update all category labels and checkboxes
+        UpdateChildFontSizes(_categoriesContainer, fontSize);
     }
 }

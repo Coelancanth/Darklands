@@ -1,5 +1,9 @@
+using System;
 using Darklands.Core.Domain.Debug;
+using Darklands.Core.Infrastructure.Debug;
+using Darklands.Core.Infrastructure.DependencyInjection;
 using Godot;
+using Microsoft.Extensions.DependencyInjection;
 using Serilog;
 
 namespace Darklands;
@@ -29,6 +33,15 @@ public partial class DebugSystem : Node
     /// Used throughout the game for filtered debug output.
     /// </summary>
     public ICategoryLogger Logger { get; private set; } = null!;
+    
+    /// <summary>
+    /// Updates the logger instance. Used by GameManager to provide the UnifiedLogger
+    /// after DI initialization is complete.
+    /// </summary>
+    public void SetLogger(ICategoryLogger logger)
+    {
+        Logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
 
     /// <summary>
     /// Debug window UI for runtime configuration changes.
@@ -58,10 +71,13 @@ public partial class DebugSystem : Node
 
         // Create debug window UI
         InitializeDebugWindow();
+        
+        // Listen for configuration changes to update standard logging and persistence
+        Config.SettingChanged += OnDebugConfigChanged;
 
         IsInitialized = true;
 
-        Logger.Log(LogCategory.System, "DebugSystem initialized successfully");
+        Logger.Log(LogLevel.Information, LogCategory.System, "DebugSystem initialized successfully");
 
         // Test log level filtering during initialization
         Logger.Log(LogLevel.Debug, LogCategory.Developer, "Debug level message - should only show if level is Debug");
@@ -89,21 +105,43 @@ public partial class DebugSystem : Node
             ResourceSaver.Save(Config, configPath);
             GD.Print("Created default debug configuration at: ", configPath);
         }
+        
+        // Set the live configuration for the Core project's DefaultDebugConfiguration
+        DefaultDebugConfiguration.SetLiveConfiguration(Config);
     }
 
     /// <summary>
-    /// Creates category-filtered logger using Serilog and debug configuration.
-    /// Uses default Serilog logger if none is configured.
+    /// Gets the unified category-filtered logger from dependency injection.
+    /// Falls back to creating a basic logger if DI is not initialized.
     /// </summary>
     private void InitializeLogger()
     {
-        // Create a basic Serilog logger if none exists
-        // In a full implementation, this would use the existing logging infrastructure
-        var serilogLogger = Log.Logger ?? new LoggerConfiguration()
-            .WriteTo.Console()
-            .CreateLogger();
+        // Try to get the unified logger from dependency injection
+        var servicesResult = GameStrapper.GetServices();
+        if (servicesResult.IsSucc)
+        {
+            servicesResult.Match(
+                Succ: provider =>
+                {
+                    // Get the unified logger from DI
+                    var categoryLogger = provider.GetService<ICategoryLogger>();
+                    if (categoryLogger != null)
+                    {
+                        Logger = categoryLogger;
+                        return provider;
+                    }
+                    return provider;
+                },
+                Fail: _ => (ServiceProvider?)null);
+            
+            // Return early if we successfully got the logger from DI
+            if (Logger != null)
+                return;
+        }
 
-        Logger = new GodotCategoryLogger(serilogLogger, Config);
+        // Fallback: Create a minimal unified logger using console output
+        var fallbackOutput = new Darklands.Core.Infrastructure.Logging.TestConsoleOutput();
+        Logger = new Darklands.Core.Infrastructure.Logging.UnifiedCategoryLogger(fallbackOutput, Config);
     }
 
     /// <summary>
@@ -148,11 +186,11 @@ public partial class DebugSystem : Node
 
         if (_debugWindow.Visible)
         {
-            Logger.Log(LogCategory.Developer, "Debug window opened");
+            Logger.Log(LogLevel.Information, LogCategory.Developer, "Debug window opened");
         }
         else
         {
-            Logger.Log(LogCategory.Developer, "Debug window closed");
+            Logger.Log(LogLevel.Information, LogCategory.Developer, "Debug window closed");
         }
     }
 
@@ -165,5 +203,125 @@ public partial class DebugSystem : Node
     public bool IsDebugEnabled(LogCategory category)
     {
         return Config?.ShouldLog(category) ?? false;
+    }
+    
+    /// <summary>
+    /// Handles changes to debug configuration, particularly log level changes.
+    /// Updates the standard Microsoft.Extensions.Logging level to match our configuration.
+    /// Also handles persistence of configuration changes to the resource file.
+    /// </summary>
+    /// <param name="propertyName">Name of the property that changed</param>
+    private void OnDebugConfigChanged(string propertyName)
+    {
+        if (propertyName == nameof(Config.CurrentLogLevel))
+        {
+            // Update the global Serilog minimum level to match our configuration
+            var serilogLevel = Config.CurrentLogLevel switch
+            {
+                LogLevel.Debug => Serilog.Events.LogEventLevel.Debug,
+                LogLevel.Information => Serilog.Events.LogEventLevel.Information,
+                LogLevel.Warning => Serilog.Events.LogEventLevel.Warning,
+                LogLevel.Error => Serilog.Events.LogEventLevel.Error,
+                _ => Serilog.Events.LogEventLevel.Information
+            };
+            
+            // Update the global level switch (elegant SSOT solution)
+            if (Core.Infrastructure.DependencyInjection.GameStrapper.GlobalLevelSwitch != null)
+            {
+                Core.Infrastructure.DependencyInjection.GameStrapper.GlobalLevelSwitch.MinimumLevel = serilogLevel;
+                Logger.Log(LogLevel.Information, LogCategory.Developer, 
+                    $"Updated global log level to {Config.CurrentLogLevel} (Serilog: {serilogLevel})");
+            }
+        }
+        else
+        {
+            // Log specific setting changes with current value
+            LogSettingChange(propertyName);
+        }
+        
+        // Save configuration changes to persist settings
+        SaveConfiguration(propertyName);
+    }
+    
+    /// <summary>
+    /// Logs specific debug setting changes with descriptive messages and current values.
+    /// </summary>
+    /// <param name="propertyName">Name of the property that changed</param>
+    private void LogSettingChange(string propertyName)
+    {
+        var message = propertyName switch
+        {
+            // Logging categories
+            nameof(Config.ShowDeveloperMessages) => $"Developer messages: {Config.ShowDeveloperMessages}",
+            nameof(Config.ShowSystemMessages) => $"System messages: {Config.ShowSystemMessages}",
+            nameof(Config.ShowCommandMessages) => $"Command messages: {Config.ShowCommandMessages}",
+            nameof(Config.ShowEventMessages) => $"Event messages: {Config.ShowEventMessages}",
+            nameof(Config.ShowThreadMessages) => $"Thread messages: {Config.ShowThreadMessages}",
+            nameof(Config.ShowAIMessages) => $"AI messages: {Config.ShowAIMessages}",
+            nameof(Config.ShowPerformanceMessages) => $"Performance messages: {Config.ShowPerformanceMessages}",
+            nameof(Config.ShowNetworkMessages) => $"Network messages: {Config.ShowNetworkMessages}",
+            nameof(Config.ShowVisionMessages) => $"Vision messages: {Config.ShowVisionMessages}",
+            nameof(Config.ShowPathfindingMessages) => $"Pathfinding messages: {Config.ShowPathfindingMessages}",
+            nameof(Config.ShowCombatMessages) => $"Combat messages: {Config.ShowCombatMessages}",
+            
+            // Debug visualization
+            nameof(Config.ShowPaths) => $"Show paths: {Config.ShowPaths}",
+            nameof(Config.ShowPathCosts) => $"Show path costs: {Config.ShowPathCosts}",
+            nameof(Config.ShowVisionRanges) => $"Show vision ranges: {Config.ShowVisionRanges}",
+            nameof(Config.ShowFOVCalculations) => $"Show FOV calculations: {Config.ShowFOVCalculations}",
+            nameof(Config.ShowExploredOverlay) => $"Show explored overlay: {Config.ShowExploredOverlay}",
+            nameof(Config.ShowLineOfSight) => $"Show line of sight: {Config.ShowLineOfSight}",
+            nameof(Config.ShowDamageNumbers) => $"Show damage numbers: {Config.ShowDamageNumbers}",
+            nameof(Config.ShowHitChances) => $"Show hit chances: {Config.ShowHitChances}",
+            nameof(Config.ShowTurnOrder) => $"Show turn order: {Config.ShowTurnOrder}",
+            nameof(Config.ShowAttackRanges) => $"Show attack ranges: {Config.ShowAttackRanges}",
+            nameof(Config.ShowAIStates) => $"Show AI states: {Config.ShowAIStates}",
+            nameof(Config.ShowAIDecisionScores) => $"Show AI decision scores: {Config.ShowAIDecisionScores}",
+            nameof(Config.ShowAITargeting) => $"Show AI targeting: {Config.ShowAITargeting}",
+            
+            // Performance monitoring
+            nameof(Config.ShowFPS) => $"Show FPS: {Config.ShowFPS}",
+            nameof(Config.ShowFrameTime) => $"Show frame time: {Config.ShowFrameTime}",
+            nameof(Config.ShowMemoryUsage) => $"Show memory usage: {Config.ShowMemoryUsage}",
+            nameof(Config.EnableProfiling) => $"Enable profiling: {Config.EnableProfiling}",
+            
+            // Gameplay debug
+            nameof(Config.GodMode) => $"God mode: {Config.GodMode}",
+            nameof(Config.UnlimitedActions) => $"Unlimited actions: {Config.UnlimitedActions}",
+            nameof(Config.InstantKills) => $"Instant kills: {Config.InstantKills}",
+            
+            // Window settings
+            nameof(Config.DebugWindowFontSize) => $"Debug window font size: {Config.DebugWindowFontSize}",
+            nameof(Config.DebugWindowSize) => $"Debug window size: {Config.DebugWindowSize}",
+            nameof(Config.DebugWindowPosition) => $"Debug window position: {Config.DebugWindowPosition}",
+            
+            // Default for unknown properties
+            _ => $"Setting '{propertyName}' changed"
+        };
+        
+        Logger.Log(LogLevel.Information, LogCategory.Developer, $"Debug setting changed: {message}");
+    }
+    
+    /// <summary>
+    /// Saves the current configuration to the resource file for persistence.
+    /// Called automatically when configuration changes to maintain state across sessions.
+    /// </summary>
+    /// <param name="propertyName">Name of the property that changed (optional, for logging)</param>
+    private void SaveConfiguration(string? propertyName = null)
+    {
+        const string configPath = "res://debug_config.tres";
+        
+        var result = ResourceSaver.Save(Config, configPath);
+        if (result == Error.Ok)
+        {
+            var message = propertyName != null 
+                ? $"Debug configuration saved: {propertyName} persisted"
+                : "Debug configuration saved successfully";
+            Logger.Log(LogLevel.Debug, LogCategory.Developer, message);
+        }
+        else
+        {
+            Logger.Log(LogLevel.Warning, LogCategory.Developer, $"Failed to save debug configuration: {result}");
+        }
     }
 }

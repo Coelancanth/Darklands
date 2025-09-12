@@ -1,7 +1,7 @@
 using LanguageExt;
 using LanguageExt.Common;
 using MediatR;
-using Serilog;
+using Darklands.Core.Domain.Debug;
 using System.Threading;
 using System.Threading.Tasks;
 using Darklands.Core.Domain.Grid;
@@ -16,23 +16,23 @@ namespace Darklands.Core.Application.Grid.Queries
     /// </summary>
     public class CalculatePathQueryHandler : IRequestHandler<CalculatePathQuery, Fin<Seq<Position>>>
     {
-        private readonly ILogger _logger;
+        private readonly ICategoryLogger _logger;
 
-        public CalculatePathQueryHandler(ILogger logger)
+        public CalculatePathQueryHandler(ICategoryLogger logger)
         {
             _logger = logger;
         }
 
         public Task<Fin<Seq<Position>>> Handle(CalculatePathQuery request, CancellationToken cancellationToken)
         {
-            _logger?.Debug("Processing CalculatePathQuery from {FromPosition} to {ToPosition}",
+            _logger.Log(LogLevel.Debug, LogCategory.Pathfinding, "Processing CalculatePathQuery from {FromPosition} to {ToPosition}",
                 request.FromPosition, request.ToPosition);
 
             // Simple path calculation for Phase 2 - direct line
             // TODO: Implement proper A* pathfinding in Phase 3
             var path = CalculateSimplePath(request.FromPosition, request.ToPosition);
 
-            _logger?.Debug("Calculated path with {PathLength} positions", path.Count);
+            _logger.Log(LogLevel.Debug, LogCategory.Pathfinding, "Calculated path with {PathLength} positions", path.Count);
             return Task.FromResult(FinSucc(path));
         }
 

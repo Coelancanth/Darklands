@@ -6,7 +6,7 @@ using LanguageExt;
 using LanguageExt.Common;
 using MediatR;
 using Moq;
-using Serilog;
+using Darklands.Core.Domain.Debug;
 using Xunit;
 using Darklands.Core.Application.Combat.Coordination;
 using Darklands.Core.Application.Combat.Commands;
@@ -25,13 +25,13 @@ namespace Darklands.Core.Tests.Application.Combat.Coordination
     public class GameLoopCoordinatorTests
     {
         private readonly Mock<IMediator> _mockMediator;
-        private readonly Mock<ILogger> _mockLogger;
+        private readonly Mock<ICategoryLogger> _mockLogger;
         private readonly GameLoopCoordinator _coordinator;
 
         public GameLoopCoordinatorTests()
         {
             _mockMediator = new Mock<IMediator>();
-            _mockLogger = new Mock<ILogger>();
+            _mockLogger = new Mock<ICategoryLogger>();
             _coordinator = new GameLoopCoordinator(_mockMediator.Object, _mockLogger.Object);
         }
 

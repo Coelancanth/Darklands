@@ -11,6 +11,7 @@ using Darklands.Core.Application.Combat.Services;
 using Darklands.Core.Application.Combat.Common;
 using Darklands.Core.Domain.Combat;
 using Darklands.Core.Domain.Grid;
+using Darklands.Core.Tests.TestUtilities;
 using static LanguageExt.Prelude;
 
 namespace Darklands.Core.Tests.Application.Combat.Queries
@@ -54,7 +55,7 @@ namespace Darklands.Core.Tests.Application.Combat.Queries
             };
 
             var service = new TestCombatSchedulerService(FinSucc((IReadOnlyList<ISchedulable>)entities));
-            var handler = new GetSchedulerQueryHandler(service, null!);
+            var handler = new GetSchedulerQueryHandler(service, new NullCategoryLogger());
             var query = GetSchedulerQuery.Create();
 
             // Act
@@ -82,7 +83,7 @@ namespace Darklands.Core.Tests.Application.Combat.Queries
             // Arrange
             var emptyList = new List<ISchedulable>();
             var service = new TestCombatSchedulerService(FinSucc((IReadOnlyList<ISchedulable>)emptyList));
-            var handler = new GetSchedulerQueryHandler(service, null!);
+            var handler = new GetSchedulerQueryHandler(service, new NullCategoryLogger());
             var query = GetSchedulerQuery.Create();
 
             // Act
@@ -104,7 +105,7 @@ namespace Darklands.Core.Tests.Application.Combat.Queries
             // Arrange
             var error = Error.New("Test query error");
             var service = new TestCombatSchedulerService(FinFail<IReadOnlyList<ISchedulable>>(error));
-            var handler = new GetSchedulerQueryHandler(service, null!);
+            var handler = new GetSchedulerQueryHandler(service, new NullCategoryLogger());
             var query = GetSchedulerQuery.Create();
 
             // Act
@@ -133,7 +134,7 @@ namespace Darklands.Core.Tests.Application.Combat.Queries
             }
 
             var service = new TestCombatSchedulerService(FinSucc((IReadOnlyList<ISchedulable>)entities));
-            var handler = new GetSchedulerQueryHandler(service, null!);
+            var handler = new GetSchedulerQueryHandler(service, new NullCategoryLogger());
             var query = GetSchedulerQuery.Create();
 
             // Act
@@ -168,7 +169,7 @@ namespace Darklands.Core.Tests.Application.Combat.Queries
             // Verify it can be handled
             var emptyList = new List<ISchedulable>();
             var service = new TestCombatSchedulerService(FinSucc((IReadOnlyList<ISchedulable>)emptyList));
-            var handler = new GetSchedulerQueryHandler(service, null!);
+            var handler = new GetSchedulerQueryHandler(service, new NullCategoryLogger());
             var result = await handler.Handle(query, CancellationToken.None);
             result.IsSucc.Should().BeTrue();
         }
@@ -183,7 +184,7 @@ namespace Darklands.Core.Tests.Application.Combat.Queries
             };
 
             var service = new TestCombatSchedulerService(FinSucc((IReadOnlyList<ISchedulable>)entities));
-            var handler = new GetSchedulerQueryHandler(service, null!);
+            var handler = new GetSchedulerQueryHandler(service, new NullCategoryLogger());
             var query = GetSchedulerQuery.Create();
 
             // Act
@@ -207,7 +208,7 @@ namespace Darklands.Core.Tests.Application.Combat.Queries
         public async Task Handle_MultipleSequentialQueries_EachCallsService()
         {
             // Arrange
-            var handler = new GetSchedulerQueryHandler(null!, null!);
+            var handler = new GetSchedulerQueryHandler(null!, new NullCategoryLogger());
             var query = GetSchedulerQuery.Create();
 
             // Act & Assert - Simulate multiple sequential queries
@@ -219,7 +220,7 @@ namespace Darklands.Core.Tests.Application.Combat.Queries
                 };
 
                 var service = new TestCombatSchedulerService(FinSucc((IReadOnlyList<ISchedulable>)entities));
-                var testHandler = new GetSchedulerQueryHandler(service, null!);
+                var testHandler = new GetSchedulerQueryHandler(service, new NullCategoryLogger());
 
                 var result = await testHandler.Handle(query, CancellationToken.None);
 

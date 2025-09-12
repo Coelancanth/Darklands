@@ -5,7 +5,8 @@ using System.Threading.Tasks;
 using LanguageExt;
 using LanguageExt.Common;
 using MediatR;
-using Serilog;
+using Darklands.Core.Domain.Debug;
+using Darklands.Core.Infrastructure.Debug;
 using Darklands.Core.Application.Combat.Common;
 using Darklands.Core.Application.Combat.Commands;
 using Darklands.Core.Application.Combat.Queries;
@@ -25,12 +26,12 @@ namespace Darklands.Core.Application.Combat.Coordination
     public class GameLoopCoordinator
     {
         private readonly IMediator _mediator;
-        private readonly ILogger _logger;
+        private readonly ICategoryLogger _logger;
 
         /// <summary>
         /// Creates a game loop coordinator for sequential turn processing
         /// </summary>
-        public GameLoopCoordinator(IMediator mediator, ILogger logger)
+        public GameLoopCoordinator(IMediator mediator, ICategoryLogger logger)
         {
             _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -49,7 +50,7 @@ namespace Darklands.Core.Application.Combat.Coordination
         {
             try
             {
-                _logger.Debug("Processing next turn in game loop");
+                _logger.Log(LogLevel.Debug, LogCategory.System, "Processing next turn in game loop");
 
                 // Step 1: Get next actor from scheduler (synchronously)
                 var nextTurnResult = await _mediator.Send(new ProcessNextTurnCommand());
@@ -61,10 +62,10 @@ namespace Darklands.Core.Application.Combat.Coordination
                 // Side effects for logging
                 result.Match(
                     Succ: turnOption => turnOption.Match(
-                        Some: actorId => _logger.Information("Turn processed for actor {ActorId}", actorId),
-                        None: () => _logger.Debug("No actors scheduled for processing")
+                        Some: actorId => _logger.Log(LogCategory.System, "Turn processed for actor {ActorId}", actorId),
+                        None: () => _logger.Log(LogLevel.Debug, LogCategory.System, "No actors scheduled for processing")
                     ),
-                    Fail: error => _logger.Warning("Failed to process next turn: {Error}", error.Message)
+                    Fail: error => _logger.Log(LogLevel.Warning, LogCategory.System, "Failed to process next turn: {Error}", error.Message)
                 );
 
                 return result;
@@ -72,7 +73,7 @@ namespace Darklands.Core.Application.Combat.Coordination
             catch (Exception ex)
             {
                 var error = Error.New("TURN_PROCESSING_ERROR", ex);
-                _logger.Error(ex, "Unexpected error during turn processing");
+                _logger.Log(LogLevel.Error, LogCategory.System, "Unexpected error during turn processing" + ": " + ex.Message);
                 return FinFail<Option<ActorId>>(error);
             }
         }
@@ -87,7 +88,7 @@ namespace Darklands.Core.Application.Combat.Coordination
         {
             try
             {
-                _logger.Information("Initializing game loop with {ActorCount} actors", initialActors.Length);
+                _logger.Log(LogCategory.System, "Initializing game loop with {ActorCount} actors", initialActors.Length);
 
                 var errors = new List<Error>();
 
@@ -100,11 +101,11 @@ namespace Darklands.Core.Application.Combat.Coordination
                     var scheduleResult = await _mediator.Send(scheduleCommand);
 
                     scheduleResult.Match(
-                        Succ: _ => _logger.Debug("Scheduled actor {ActorId} for turn {NextTurn}",
+                        Succ: _ => _logger.Log(LogLevel.Debug, LogCategory.System, "Scheduled actor {ActorId} for turn {NextTurn}",
                             actor.Id, actor.NextTurn),
                         Fail: error =>
                         {
-                            _logger.Warning("Failed to schedule actor {ActorId}: {Error}",
+                            _logger.Log(LogLevel.Warning, LogCategory.System, "Failed to schedule actor {ActorId}: {Error}",
                                 actor.Id, error.Message);
                             errors.Add(error);
                         }
@@ -114,7 +115,7 @@ namespace Darklands.Core.Application.Combat.Coordination
                 // Return success if all actors scheduled, otherwise aggregate errors  
                 if (errors.Count == 0)
                 {
-                    _logger.Information("Game loop initialized successfully");
+                    _logger.Log(LogCategory.System, "Game loop initialized successfully");
                     return FinSucc(LanguageExt.Unit.Default);
                 }
                 else
@@ -127,7 +128,7 @@ namespace Darklands.Core.Application.Combat.Coordination
             catch (Exception ex)
             {
                 var error = Error.New("INITIALIZATION_ERROR", ex);
-                _logger.Error(ex, "Unexpected error during game loop initialization");
+                _logger.Log(LogLevel.Error, LogCategory.System, "Unexpected error during game loop initialization" + ": " + ex.Message);
                 return FinFail<LanguageExt.Unit>(error);
             }
         }
@@ -147,7 +148,7 @@ namespace Darklands.Core.Application.Combat.Coordination
                     Succ: turnOrder => FinSucc(turnOrder),
                     Fail: error =>
                     {
-                        _logger.Warning("Failed to get scheduler for turn order: {Error}", error.Message);
+                        _logger.Log(LogLevel.Warning, LogCategory.System, "Failed to get scheduler for turn order: {Error}", error.Message);
                         return FinFail<IReadOnlyList<ISchedulable>>(error);
                     }
                 );
@@ -155,7 +156,7 @@ namespace Darklands.Core.Application.Combat.Coordination
             catch (Exception ex)
             {
                 var error = Error.New("TURN_ORDER_QUERY_ERROR", ex);
-                _logger.Error(ex, "Unexpected error getting turn order");
+                _logger.Log(LogLevel.Error, LogCategory.System, "Unexpected error getting turn order" + ": " + ex.Message);
                 return FinFail<IReadOnlyList<ISchedulable>>(error);
             }
         }

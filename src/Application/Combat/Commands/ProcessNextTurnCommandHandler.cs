@@ -2,7 +2,7 @@ using System;
 using LanguageExt;
 using LanguageExt.Common;
 using MediatR;
-using Serilog;
+using Darklands.Core.Domain.Debug;
 using System.Threading;
 using System.Threading.Tasks;
 using Darklands.Core.Application.Combat.Services;
@@ -19,11 +19,11 @@ namespace Darklands.Core.Application.Combat.Commands
     public class ProcessNextTurnCommandHandler : IRequestHandler<ProcessNextTurnCommand, Fin<Option<Guid>>>
     {
         private readonly ICombatSchedulerService _combatSchedulerService;
-        private readonly ILogger _logger;
+        private readonly ICategoryLogger _logger;
 
         public ProcessNextTurnCommandHandler(
             ICombatSchedulerService combatSchedulerService,
-            ILogger logger)
+            ICategoryLogger logger)
         {
             _combatSchedulerService = combatSchedulerService;
             _logger = logger;
@@ -31,7 +31,7 @@ namespace Darklands.Core.Application.Combat.Commands
 
         public Task<Fin<Option<Guid>>> Handle(ProcessNextTurnCommand request, CancellationToken cancellationToken)
         {
-            _logger?.Debug("Processing ProcessNextTurnCommand to get next scheduled actor");
+            _logger.Log(LogLevel.Debug, LogCategory.Combat, "Processing ProcessNextTurnCommand to get next scheduled actor");
 
             var result = _combatSchedulerService.ProcessNextTurn();
 
@@ -39,14 +39,14 @@ namespace Darklands.Core.Application.Combat.Commands
                 Succ: actorOption =>
                 {
                     actorOption.Match(
-                        Some: actorId => _logger?.Debug("Next turn processed: Actor {ActorId} is up", actorId),
-                        None: () => _logger?.Debug("Next turn processed: No actors scheduled")
+                        Some: actorId => _logger.Log(LogLevel.Debug, LogCategory.Combat, "Next turn processed: Actor {ActorId} is up", actorId),
+                        None: () => _logger.Log(LogLevel.Debug, LogCategory.Combat, "Next turn processed: No actors scheduled")
                     );
                     return Task.FromResult(FinSucc(actorOption));
                 },
                 Fail: error =>
                 {
-                    _logger?.Error("Failed to process next turn: {Error}", error.Message);
+                    _logger.Log(LogLevel.Error, LogCategory.Combat, "Failed to process next turn: {Error}", error.Message);
                     return Task.FromResult(FinFail<Option<Guid>>(error));
                 }
             );

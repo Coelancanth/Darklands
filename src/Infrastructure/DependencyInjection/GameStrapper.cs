@@ -2,12 +2,16 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
 using Serilog.Extensions.Logging;
+using System;
 using System.Reflection;
 using MediatR;
 using LanguageExt;
 using LanguageExt.Common;
 using static LanguageExt.Prelude;
 using Serilog.Core;
+using Darklands.Core.Domain.Debug;
+using Darklands.Core.Infrastructure.Debug;
+using Darklands.Core.Infrastructure.Logging;
 
 namespace Darklands.Core.Infrastructure.DependencyInjection;
 
@@ -126,6 +130,12 @@ public static class GameStrapper
     }
 
     /// <summary>
+    /// Global logging level switch that can be updated at runtime.
+    /// Allows dynamic control of log verbosity from the debug configuration.
+    /// </summary>
+    public static readonly LoggingLevelSwitch GlobalLevelSwitch = new(Serilog.Events.LogEventLevel.Information);
+
+    /// <summary>
     /// Configures Serilog with fallback-safe configuration.
     /// Even if logging configuration fails, the application continues to work.
     /// </summary>
@@ -133,9 +143,12 @@ public static class GameStrapper
     {
         try
         {
-            // Create fallback-safe Serilog configuration
+            // Set initial level
+            GlobalLevelSwitch.MinimumLevel = config.LogLevel;
+
+            // Create fallback-safe Serilog configuration with dynamic level control
             var loggerConfiguration = new LoggerConfiguration()
-                .MinimumLevel.Is(config.LogLevel)
+                .MinimumLevel.ControlledBy(GlobalLevelSwitch)
                 .Enrich.FromLogContext()
                 .WriteTo.Console(
                     outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {SourceContext}: {Message:lj}{NewLine}{Exception}")
@@ -162,6 +175,18 @@ public static class GameStrapper
             services.AddSingleton<Serilog.ILogger>(Log.Logger);
             services.AddSingleton<ILoggerFactory>(provider => new SerilogLoggerFactory(Log.Logger));
             services.AddLogging(builder => builder.AddSerilog(Log.Logger));
+
+            // Register debug configuration and unified logging per ADR-007
+            services.AddSingleton<IDebugConfiguration, DefaultDebugConfiguration>();
+
+            // Register empty composite output - GameManager will add GodotConsoleOutput and FileLogOutput
+            services.AddSingleton<ILogOutput>(sp => new CompositeLogOutput());
+
+            // Register unified category logger
+            services.AddSingleton<ICategoryLogger, UnifiedCategoryLogger>();
+
+            // Compatibility: allow resolving ILogger<T> via adapter
+            services.AddSingleton(typeof(Microsoft.Extensions.Logging.ILogger<>), typeof(Darklands.Core.Infrastructure.Logging.CategoryLoggerAdapter<>));
 
             return FinSucc(LanguageExt.Unit.Default);
         }
@@ -384,6 +409,21 @@ public record GameStrapperConfiguration(
     public static GameStrapperConfiguration Development => new(
         LogLevel: Serilog.Events.LogEventLevel.Debug,
         ValidateScopes: true);
+
+    /// <summary>
+    /// Configuration for Godot Editor runs that overwrites log file for easy reading.
+    /// Uses a fixed filename without rolling to ensure each editor run gets a fresh log.
+    /// </summary>
+    public static GameStrapperConfiguration DevelopmentEditor => new(
+        LogLevel: Serilog.Events.LogEventLevel.Debug,
+        LogFilePath: "logs/darklands-current.log",
+        CustomLoggerConfiguration: config => config
+            .WriteTo.File(
+                path: "logs/darklands-current.log",
+                rollOnFileSizeLimit: false,
+                retainedFileCountLimit: 1,
+                shared: true,  // Allow live tailing
+                flushToDiskInterval: TimeSpan.FromSeconds(1)));
 
     public static GameStrapperConfiguration Testing => new(
         LogLevel: Serilog.Events.LogEventLevel.Warning,

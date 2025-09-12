@@ -1,6 +1,8 @@
 using System;
 using Godot;
 using Microsoft.Extensions.DependencyInjection;
+using Darklands.Core.Domain.Debug;
+using Darklands.Core.Infrastructure.Logging;
 using Darklands.Core.Application.Events;
 using Darklands.Core.Infrastructure.DependencyInjection;
 using MediatR;
@@ -57,19 +59,24 @@ public abstract partial class EventAwareNode : Node2D
                     // Allow subclass to subscribe to specific events
                     SubscribeToEvents();
 
-                    GD.Print($"[{GetType().Name}] Successfully subscribed to domain events");
+                    var categoryLogger = serviceProvider.GetService<ICategoryLogger>();
+                    categoryLogger?.Log(LogLevel.Information, LogCategory.System, "{0} successfully subscribed to domain events", GetType().Name);
                 },
                 Fail: error =>
                 {
-                    GD.PrintErr($"[{GetType().Name}] Failed to get UI Event Bus: {error.Message}");
-                    GD.PrintErr("Event subscriptions will not work - check DI container configuration");
+                    var categoryLogger = GameStrapper.GetServices().Match(
+                        Succ: sp => sp.GetService<ICategoryLogger>(),
+                        Fail: _ => null);
+                    categoryLogger?.Log(LogLevel.Error, LogCategory.System, "{0} failed to get UI Event Bus: {1}", GetType().Name, error.Message);
                 }
             );
         }
         catch (Exception ex)
         {
-            GD.PrintErr($"[{GetType().Name}] Exception during event bus initialization: {ex.Message}");
-            GD.PrintErr("Event subscriptions will not work - check service registration");
+            var categoryLogger = GameStrapper.GetServices().Match(
+                Succ: sp => sp.GetService<ICategoryLogger>(),
+                Fail: _ => null);
+            categoryLogger?.Log(LogLevel.Error, LogCategory.System, "{0} exception during event bus initialization: {1}", GetType().Name, ex.Message);
         }
     }
 
@@ -87,12 +94,18 @@ public abstract partial class EventAwareNode : Node2D
             if (EventBus != null)
             {
                 EventBus.UnsubscribeAll(this);
-                GD.Print($"[{GetType().Name}] Unsubscribed from all events on exit");
+                var categoryLogger = GameStrapper.GetServices().Match(
+                    Succ: sp => sp.GetService<ICategoryLogger>(),
+                    Fail: _ => null);
+                categoryLogger?.Log(LogLevel.Information, LogCategory.System, "{0} unsubscribed from all events on exit", GetType().Name);
             }
         }
         catch (Exception ex)
         {
-            GD.PrintErr($"[{GetType().Name}] Error during event unsubscription: {ex.Message}");
+            var categoryLogger = GameStrapper.GetServices().Match(
+                Succ: sp => sp.GetService<ICategoryLogger>(),
+                Fail: _ => null);
+            categoryLogger?.Log(LogLevel.Error, LogCategory.System, "{0} error during event unsubscription: {1}", GetType().Name, ex.Message);
         }
         finally
         {
@@ -132,18 +145,27 @@ public abstract partial class EventAwareNode : Node2D
     {
         if (EventBus == null)
         {
-            GD.PrintErr($"[{GetType().Name}] Cannot subscribe to {typeof(TEvent).Name} - EventBus is null");
+            var logger = GameStrapper.GetServices().Match(
+                Succ: sp => sp.GetService<ICategoryLogger>(),
+                Fail: _ => null);
+            logger?.Log(LogLevel.Error, LogCategory.System, "{0} cannot subscribe to {1} - EventBus is null", GetType().Name, typeof(TEvent).Name);
             return;
         }
 
         try
         {
             EventBus.Subscribe<TEvent>(this, handler);
-            GD.Print($"[{GetType().Name}] Subscribed to {typeof(TEvent).Name}");
+            var logger = GameStrapper.GetServices().Match(
+                Succ: sp => sp.GetService<ICategoryLogger>(),
+                Fail: _ => null);
+            logger?.Log(LogLevel.Information, LogCategory.System, "{0} subscribed to {1}", GetType().Name, typeof(TEvent).Name);
         }
         catch (Exception ex)
         {
-            GD.PrintErr($"[{GetType().Name}] Failed to subscribe to {typeof(TEvent).Name}: {ex.Message}");
+            var logger = GameStrapper.GetServices().Match(
+                Succ: sp => sp.GetService<ICategoryLogger>(),
+                Fail: _ => null);
+            logger?.Log(LogLevel.Error, LogCategory.System, "{0} failed to subscribe to {1}: {2}", GetType().Name, typeof(TEvent).Name, ex.Message);
         }
     }
 
@@ -156,18 +178,27 @@ public abstract partial class EventAwareNode : Node2D
     {
         if (EventBus == null)
         {
-            GD.PrintErr($"[{GetType().Name}] Cannot unsubscribe from {typeof(TEvent).Name} - EventBus is null");
+            var logger = GameStrapper.GetServices().Match(
+                Succ: sp => sp.GetService<ICategoryLogger>(),
+                Fail: _ => null);
+            logger?.Log(LogLevel.Error, LogCategory.System, "{0} cannot unsubscribe from {1} - EventBus is null", GetType().Name, typeof(TEvent).Name);
             return;
         }
 
         try
         {
             EventBus.Unsubscribe<TEvent>(this);
-            GD.Print($"[{GetType().Name}] Unsubscribed from {typeof(TEvent).Name}");
+            var logger = GameStrapper.GetServices().Match(
+                Succ: sp => sp.GetService<ICategoryLogger>(),
+                Fail: _ => null);
+            logger?.Log(LogLevel.Information, LogCategory.System, "{0} unsubscribed from {1}", GetType().Name, typeof(TEvent).Name);
         }
         catch (Exception ex)
         {
-            GD.PrintErr($"[{GetType().Name}] Failed to unsubscribe from {typeof(TEvent).Name}: {ex.Message}");
+            var logger = GameStrapper.GetServices().Match(
+                Succ: sp => sp.GetService<ICategoryLogger>(),
+                Fail: _ => null);
+            logger?.Log(LogLevel.Error, LogCategory.System, "{0} failed to unsubscribe from {1}: {2}", GetType().Name, typeof(TEvent).Name, ex.Message);
         }
     }
 }

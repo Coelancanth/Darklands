@@ -1,6 +1,6 @@
 using MediatR;
-using Microsoft.Extensions.Logging;
 using System.Diagnostics;
+using Darklands.Core.Domain.Debug;
 
 namespace Darklands.Core.Infrastructure.DependencyInjection;
 
@@ -11,9 +11,9 @@ namespace Darklands.Core.Infrastructure.DependencyInjection;
 public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
     where TRequest : notnull
 {
-    private readonly ILogger<LoggingBehavior<TRequest, TResponse>> _logger;
+    private readonly ICategoryLogger _logger;
 
-    public LoggingBehavior(ILogger<LoggingBehavior<TRequest, TResponse>> logger)
+    public LoggingBehavior(ICategoryLogger logger)
     {
         _logger = logger;
     }
@@ -26,23 +26,21 @@ public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, 
         var requestName = typeof(TRequest).Name;
         var stopwatch = Stopwatch.StartNew();
 
-        _logger.LogDebug("Executing {RequestName}", requestName);
+        _logger.Log(LogLevel.Debug, LogCategory.Command, "Executing {0}", requestName);
 
         try
         {
             var response = await next();
 
             stopwatch.Stop();
-            _logger.LogDebug("Completed {RequestName} in {ElapsedMs}ms",
-                requestName, stopwatch.ElapsedMilliseconds);
+            _logger.Log(LogLevel.Debug, LogCategory.Command, "Completed {0} in {1}ms", requestName, stopwatch.ElapsedMilliseconds);
 
             return response;
         }
         catch (Exception ex)
         {
             stopwatch.Stop();
-            _logger.LogError(ex, "Failed {RequestName} after {ElapsedMs}ms",
-                requestName, stopwatch.ElapsedMilliseconds);
+            _logger.Log(LogLevel.Error, LogCategory.Command, "Failed {0} after {1}ms: {2}", requestName, stopwatch.ElapsedMilliseconds, ex.Message);
             throw;
         }
     }

@@ -220,7 +220,13 @@
       "Bash(./scripts/core/build.ps1 test --filter \"*ExecuteAttackCommandHandlerIntegrationTests*\")",
       "Bash(./scripts/core/build.ps1 test --filter \"ExecuteAttackCommandHandlerIntegrationTests\")",
       "Bash(./scripts/core/build.ps1 test --filter \"FullyQualifiedName~ShadowcastingFOVTests.CalculateFOV_CornerPeeking|FullyQualifiedName~ShadowcastingFOVTests.CalculateFOV_PillarScenario\")",
-      "Bash(./scripts/core/build.ps1 test --filter \"FullyQualifiedName~ShadowcastingFOVTests\")"
+      "Bash(./scripts/core/build.ps1 test --filter \"FullyQualifiedName~ShadowcastingFOVTests\")",
+      "Bash(./scripts/core/build.ps1 test --filter \"*BR_005*\")",
+      "Bash(./scripts/core/build.ps1 test --filter \"*Log*\")",
+      "Bash(./scripts/core/build.ps1 test --filter \"*UIEventBus*\")",
+      "Bash(./scripts/core/build.ps1 test --filter \"*Combat*Commands*\")",
+      "Bash(./scripts/core/build.ps1 test --filter \"*Category*Logger*\")",
+      "Bash(./scripts/core/build.ps1 test --filter \"HealActorCommandHandlerTests.Handle_ZeroHealing_ReturnsSuccess\")"
     ],
     "deny": [],
     "ask": [],

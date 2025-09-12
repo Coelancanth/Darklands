@@ -4,7 +4,7 @@
 
 **Purpose**: Completed and rejected work items for historical reference and lessons learned.
 
-**Last Updated**: 2025-09-11 19:03 (Added TD_036 - Global Debug System completed) 
+**Last Updated**: 2025-09-11 20:03 (Added BR_005 - Debug log level filtering fixed) 
 
 ## Archive Protocol
 
@@ -3009,3 +3009,34 @@ res://
 - [ ] HANDBOOK update: Category-based logging system design
 - [ ] Test pattern: Runtime UI testing approaches for debug systems
 - [ ] Technical debt: Address log level dropdown minor issue separately
+### BR_005: Debug Window Log Level Filtering Not Working
+**Extraction Status**: NOT EXTRACTED ⚠️
+**Completed**: 2025-09-11 20:15
+**Archive Note**: Fixed logging SSOT violation - synchronized DebugSystem.Logger with Serilog using LoggingLevelSwitch
+---
+**Status**: Fixed
+**Owner**: Debugger Expert  
+**Size**: XS (<1h)
+**Priority**: Critical
+**Created**: 2025-09-11 19:05
+**Fixed**: 2025-09-11 20:15
+
+**What**: Debug window log level dropdown shows "Information" but Debug level messages still appear in console
+**Why**: User experience issue - log filtering not working as expected, undermining debug system usability
+**How**: Investigate and fix log level filtering logic in GodotCategoryLogger and DebugConfig integration
+
+**Root Cause**: Two separate logging systems (DebugSystem.Logger and Microsoft.Extensions.Logging/Serilog) weren't synchronized
+**Solution**: Implemented elegant SSOT - Added LoggingLevelSwitch to GameStrapper that dynamically updates when DebugConfig changes
+
+**Fix Applied**:
+- Added `GlobalLevelSwitch` to GameStrapper for runtime log level control
+- Updated DebugSystem to sync Serilog minimum level when config changes
+- All logging now respects the single debug configuration source
+
+**Done When**:
+- Debug level messages are properly filtered when log level set to Information or higher
+---
+**Extraction Targets**:
+- [ ] HANDBOOK update: Document dual logging system architecture
+- [ ] ADR consideration: Logging strategy and SSOT principle
+- [ ] Test pattern: Configuration change integration testing

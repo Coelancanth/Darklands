@@ -72,7 +72,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
 
             var command = DamageActorCommand.Create(_validActorId, 25, "Sword Attack");
             var actorService = new TestActorStateService(actorExists: true, actor: testActor, damageSucceeds: true);
-            var handler = new DamageActorCommandHandler(actorService, null!);
+            var handler = new DamageActorCommandHandler(actorService, new NullCategoryLogger());
 
             // Act
             var result = await handler.Handle(command, CancellationToken.None);
@@ -87,7 +87,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
             // Arrange
             var command = DamageActorCommand.Create(_validActorId, 25);
             var actorService = new TestActorStateService(actorExists: false);
-            var handler = new DamageActorCommandHandler(actorService, null!);
+            var handler = new DamageActorCommandHandler(actorService, new NullCategoryLogger());
 
             // Act
             var result = await handler.Handle(command, CancellationToken.None);
@@ -111,7 +111,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
 
             var command = DamageActorCommand.Create(_validActorId, -10);
             var actorService = new TestActorStateService(actorExists: true, actor: testActor);
-            var handler = new DamageActorCommandHandler(actorService, null!);
+            var handler = new DamageActorCommandHandler(actorService, new NullCategoryLogger());
 
             // Act
             var result = await handler.Handle(command, CancellationToken.None);
@@ -135,7 +135,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
 
             var command = DamageActorCommand.Create(_validActorId, 25);
             var actorService = new TestActorStateService(actorExists: true, actor: testActor, damageSucceeds: false);
-            var handler = new DamageActorCommandHandler(actorService, null!);
+            var handler = new DamageActorCommandHandler(actorService, new NullCategoryLogger());
 
             // Act
             var result = await handler.Handle(command, CancellationToken.None);
@@ -159,7 +159,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
 
             var command = DamageActorCommand.Create(_validActorId, 0, "No Damage");
             var actorService = new TestActorStateService(actorExists: true, actor: testActor);
-            var handler = new DamageActorCommandHandler(actorService, null!);
+            var handler = new DamageActorCommandHandler(actorService, new NullCategoryLogger());
 
             // Act
             var result = await handler.Handle(command, CancellationToken.None);
@@ -179,7 +179,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
 
             var command = DamageActorCommand.Create(_validActorId, 15, "Death Blow"); // More than current health
             var actorService = new TestActorStateService(actorExists: true, actor: lowHealthActor);
-            var handler = new DamageActorCommandHandler(actorService, null!);
+            var handler = new DamageActorCommandHandler(actorService, new NullCategoryLogger());
 
             // Act
             var result = await handler.Handle(command, CancellationToken.None);
@@ -199,7 +199,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
 
             var command = DamageActorCommand.Create(_validActorId, 30, "Fire Spell");
             var actorService = new TestActorStateService(actorExists: true, actor: testActor);
-            var handler = new DamageActorCommandHandler(actorService, null!);
+            var handler = new DamageActorCommandHandler(actorService, new NullCategoryLogger());
 
             // Act
             var result = await handler.Handle(command, CancellationToken.None);
