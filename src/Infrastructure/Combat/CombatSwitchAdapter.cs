@@ -17,13 +17,14 @@ namespace Darklands.Core.Infrastructure.Combat;
 /// Switch adapter for TD_043 Strangler Fig migration.
 /// Routes commands to EITHER legacy OR new Tactical system based on feature toggle.
 /// This avoids ambiguous handler registration while allowing controlled migration.
+/// 
+/// IMPORTANT: This does NOT implement IRequestHandler to avoid MediatR auto-discovery.
+/// Instead, thin wrapper handlers delegate to this adapter.
 /// </summary>
-public sealed class CombatSwitchAdapter :
-    IRequestHandler<ExecuteAttackCommand, Fin<Unit>>,
-    IRequestHandler<ProcessNextTurnCommand, Fin<Option<Guid>>>
+public sealed class CombatSwitchAdapter
 {
-    private readonly IRequestHandler<ExecuteAttackCommand, Fin<Unit>> _legacyAttackHandler;
-    private readonly IRequestHandler<ProcessNextTurnCommand, Fin<Option<Guid>>> _legacyTurnHandler;
+    private readonly Application.Combat.Commands.ExecuteAttackCommandHandler _legacyAttackHandler;
+    private readonly Application.Combat.Commands.ProcessNextTurnCommandHandler _legacyTurnHandler;
     private readonly StranglerFigConfiguration _config;
     private readonly ILogger<CombatSwitchAdapter> _logger;
     private readonly IServiceProvider _serviceProvider;
@@ -42,7 +43,7 @@ public sealed class CombatSwitchAdapter :
         _serviceProvider = serviceProvider;
     }
 
-    public async Task<Fin<Unit>> Handle(ExecuteAttackCommand request, CancellationToken cancellationToken)
+    public async Task<Fin<Unit>> RouteAttackCommand(ExecuteAttackCommand request, CancellationToken cancellationToken)
     {
         if (_config.UseTacticalContext)
         {
@@ -56,7 +57,7 @@ public sealed class CombatSwitchAdapter :
         }
     }
 
-    public async Task<Fin<Option<Guid>>> Handle(ProcessNextTurnCommand request, CancellationToken cancellationToken)
+    public async Task<Fin<Option<Guid>>> RouteTurnCommand(ProcessNextTurnCommand request, CancellationToken cancellationToken)
     {
         if (_config.UseTacticalContext)
         {

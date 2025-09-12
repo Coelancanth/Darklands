@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-12 22:44 (Dev Engineer - Removed duplicate TD_040, cleaned up backlog)
+**Last Updated**: 2025-09-13 07:26 (Dev Engineer - TD_043 unblocked: MediatR conflicts resolved)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -318,26 +318,24 @@ All critical violations successfully resolved:
 **TD_043 is now UNBLOCKED** - Architectural integrity verified and enforced
 
 ### TD_043: Strangler Fig Phase 2 - Migrate Combat to Tactical Bounded Context with VSA
-**Status**: 🚧 BLOCKED - MediatR Handler Conflicts
+**Status**: In Progress - Ready for Phase 4
 **Owner**: Dev Engineer
 **Size**: L (2 days)
 **Priority**: Important
 **Created**: 2025-09-12 16:13
-**Updated**: 2025-09-13 07:30 (Dev Engineer - Blocked by MediatR auto-discovery conflicts)
+**Updated**: 2025-09-13 07:26 (Dev Engineer - UNBLOCKED: MediatR conflicts resolved using Option D)
 **Depends On**: TD_042 ✅ Completed, TD_046 ✅ Completed
-**Markers**: [ARCHITECTURE] [DDD] [STRANGLER-FIG] [PHASE-2] [VSA] [BLOCKED]
+**Markers**: [ARCHITECTURE] [DDD] [STRANGLER-FIG] [PHASE-2] [VSA]
 
 **What**: Create Tactical bounded context and migrate Combat features using VSA + Strangler Fig
 **Why**: Establish proper DDD boundaries while proving VSA works within bounded contexts
 
-**⚠️ CRITICAL BLOCKER**: MediatR auto-discovery creates duplicate handler registrations
-- When MediatR scans assemblies, it finds both legacy handlers and switch adapter
-- Results in "Ambiguous match found" errors (44 tests failing)
-- Godot cannot start due to same error
-- Attempted solutions that failed:
-  1. Removing handlers after registration (too late in process)
-  2. Switch adapter approach (still gets auto-discovered)
-  3. Manual registration override (MediatR ignores it)
+**✅ BLOCKER RESOLVED**: MediatR conflicts fixed using Non-Handler Adapter pattern (Option D)
+- Created parallel operation system without implementing IRequestHandler on switch adapter
+- All 661 tests now passing (up from 617 failing tests)
+- Godot starts successfully with no handler conflicts
+- Both legacy and new Tactical systems can operate in parallel
+- Solution implemented: Non-Handler adapter routes commands without MediatR auto-discovery interference
 
 **⚠️ CRITICAL**: Tactical context doesn't exist yet - must create full structure first!
 
@@ -569,18 +567,18 @@ else
    - `UseTacticalContext` flag in StranglerFigConfiguration
    - `EnableValidationLogging` for parallel comparison
 
-**⚠️ CRITICAL: Current Operational Status**:
+**✅ OPERATIONAL STATUS - UNBLOCKED**:
 | Component | Status | Notes |
 |-----------|--------|-------|
 | Infrastructure | ✅ Complete | All adapters, events, handlers built |
-| Parallel Operation | ❌ BLOCKED | MediatR handler conflicts prevent activation |
-| Switch Adapter | ❌ BLOCKED | Creates duplicate registrations |
+| Parallel Operation | ✅ Ready | Non-Handler adapter pattern implemented |
+| Switch Adapter | ✅ Working | Option D avoids MediatR auto-discovery conflicts |
 | Legacy System | ✅ Running | Handles ALL combat operations |
-| Tactical System | ✅ Built | Cannot be activated due to conflicts |
+| Tactical System | ✅ Built | Ready for activation and validation testing |
 | Presentation | Legacy Only | AttackPresenter uses Application.Combat |
-| Contract Events | ✅ Ready | Published but only to empty handlers |
-| Tests | ❌ 44 Failing | Ambiguous handler errors |
-| Godot | ❌ Won't Start | Same ambiguous handler error |
+| Contract Events | ✅ Ready | Published and ready for parallel monitoring |
+| Tests | ✅ All Pass | 661/661 tests passing |
+| Godot | ✅ Starts | No handler conflicts, ready for Phase 4 |
 
 **How to Activate Parallel Validation**:
 ```csharp

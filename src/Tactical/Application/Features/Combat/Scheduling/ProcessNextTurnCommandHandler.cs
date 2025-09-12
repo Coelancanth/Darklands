@@ -11,8 +11,11 @@ namespace Darklands.Tactical.Application.Features.Combat.Scheduling;
 
 /// <summary>
 /// Handles processing of the next turn in combat.
+/// 
+/// TD_043: No longer implements IRequestHandler to avoid MediatR auto-discovery.
+/// Called directly by CombatSwitchAdapter when using tactical implementation.
 /// </summary>
-public sealed class ProcessNextTurnCommandHandler : IRequestHandler<ProcessNextTurnCommand, Fin<TurnResult>>
+public sealed class ProcessNextTurnCommandHandler
 {
     private readonly ICombatSchedulerService _scheduler;
     private readonly IActorRepository _actorRepository;

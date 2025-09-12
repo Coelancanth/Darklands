@@ -15,8 +15,11 @@ namespace Darklands.Core.Application.Combat.Commands
     /// Processes the next turn by removing and returning the next scheduled actor.
     /// 
     /// Following TDD+VSA Comprehensive Development Workflow.
+    /// 
+    /// TD_043: No longer implements IRequestHandler to avoid MediatR auto-discovery.
+    /// Called directly by CombatSwitchAdapter when using legacy implementation.
     /// </summary>
-    public class ProcessNextTurnCommandHandler : IRequestHandler<ProcessNextTurnCommand, Fin<Option<Guid>>>
+    public class ProcessNextTurnCommandHandler
     {
         private readonly ICombatSchedulerService _combatSchedulerService;
         private readonly ICategoryLogger _logger;

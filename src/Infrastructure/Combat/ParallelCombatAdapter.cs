@@ -18,20 +18,21 @@ namespace Darklands.Core.Infrastructure.Combat;
 /// Parallel operation adapter for TD_043 Strangler Fig validation.
 /// Sends commands to BOTH legacy and new Tactical systems simultaneously,
 /// allowing comparison of results and behavior.
+/// 
+/// TD_043: No longer implements IRequestHandler to avoid MediatR auto-discovery.
+/// This adapter is for parallel validation only, not primary routing.
 /// </summary>
-public sealed class ParallelCombatAdapter :
-    IRequestHandler<ExecuteAttackCommand, Fin<Unit>>,
-    IRequestHandler<ProcessNextTurnCommand, Fin<Option<Guid>>>
+public sealed class ParallelCombatAdapter
 {
-    private readonly IRequestHandler<ExecuteAttackCommand, Fin<Unit>> _legacyAttackHandler;
-    private readonly IRequestHandler<ProcessNextTurnCommand, Fin<Option<Guid>>> _legacyTurnHandler;
+    private readonly Application.Combat.Commands.ExecuteAttackCommandHandler _legacyAttackHandler;
+    private readonly Application.Combat.Commands.ProcessNextTurnCommandHandler _legacyTurnHandler;
     private readonly TacticalContractAdapter _tacticalAdapter;
     private readonly ILogger<ParallelCombatAdapter> _logger;
     private readonly bool _validateResults;
 
     public ParallelCombatAdapter(
-        IRequestHandler<ExecuteAttackCommand, Fin<Unit>> legacyAttackHandler,
-        IRequestHandler<ProcessNextTurnCommand, Fin<Option<Guid>>> legacyTurnHandler,
+        Application.Combat.Commands.ExecuteAttackCommandHandler legacyAttackHandler,
+        Application.Combat.Commands.ProcessNextTurnCommandHandler legacyTurnHandler,
         TacticalContractAdapter tacticalAdapter,
         ILogger<ParallelCombatAdapter> logger,
         bool validateResults = true)

@@ -9,8 +9,11 @@ namespace Darklands.Tactical.Application.Features.Combat.Attack;
 
 /// <summary>
 /// Handles the execution of attack commands in the tactical combat system.
+/// 
+/// TD_043: No longer implements IRequestHandler to avoid MediatR auto-discovery.
+/// Called directly by CombatSwitchAdapter when using tactical implementation.
 /// </summary>
-public sealed class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand, Fin<AttackResult>>
+public sealed class ExecuteAttackCommandHandler
 {
     private readonly IActorRepository _actorRepository;
     private readonly IMediator _mediator;

@@ -26,8 +26,11 @@ namespace Darklands.Core.Application.Combat.Commands;
 /// 4. Remove dead actors from scheduler
 /// 
 /// Following TDD+VSA Comprehensive Development Workflow.
+/// 
+/// TD_043: No longer implements IRequestHandler to avoid MediatR auto-discovery.
+/// Called directly by CombatSwitchAdapter when using legacy implementation.
 /// </summary>
-public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand, Fin<LanguageExt.Unit>>
+public class ExecuteAttackCommandHandler
 {
     private readonly IGridStateService _gridStateService;
     private readonly IActorStateService _actorStateService;
