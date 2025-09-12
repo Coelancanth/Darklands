@@ -154,24 +154,19 @@ public class NetArchitectureTests
     [Trait("Category", "Architecture")]
     [Trait("ADR", "ADR-006")]
     [Trait("Tool", "NetArchTest")]
-    public void Application_Should_Only_Depend_On_Abstractions()
+    public void Application_Should_Not_Reference_Infrastructure()
     {
-        // Verify dependency inversion principle
+        // TD_039: Enforce Application→Infrastructure boundary violations
+        // Application layer must only depend on Domain interfaces, never Infrastructure concrete types
         var result = Types.InAssembly(_coreAssembly)
             .That().ResideInNamespace("Darklands.Core.Application")
             .And().AreClasses()
             .Should().NotHaveDependencyOn("Darklands.Core.Infrastructure")
             .GetResult();
 
-        // Note: This might be too strict initially - Application can depend on Infrastructure interfaces
-        // We may need to refine this rule based on actual architecture
-        if (!result.IsSuccessful)
-        {
-            // Log failing types for analysis but don't fail the test yet
-            var failingTypes = string.Join(", ", result.FailingTypeNames ?? new string[0]);
-            // For now, just document the finding
-            Assert.True(true, $"INFO: Application layer references Infrastructure: {failingTypes}");
-        }
+        result.IsSuccessful.Should().BeTrue(
+            $"Application layer violates Clean Architecture by referencing Infrastructure layer. " +
+            $"Use Domain interfaces instead. Failing types: {string.Join(", ", result.FailingTypeNames ?? new string[0])}");
     }
 
     [Fact]

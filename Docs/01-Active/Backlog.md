@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-12 10:07 (Tech Lead created ADR-007 for logger architecture, added future analytics ideas)
+**Last Updated**: 2025-09-12 15:45 (Tech Lead revised ADR-017 based on architectural review, updated TD_040 for assembly boundaries)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 008
-- **Next TD**: 039
+- **Next TD**: 041
 - **Next VS**: 015 
 
 
@@ -77,6 +77,81 @@
 
 ## 🔥 Critical (Do First)
 *Blockers preventing other work, production bugs, dependencies for other features*
+
+### TD_040: Extract Diagnostics Bounded Context (Assembly-Based)
+**Status**: Approved
+**Owner**: Dev Engineer
+**Size**: L (8h)
+**Priority**: Critical
+**Created**: 2025-09-12 14:52
+**Updated**: 2025-09-12 15:45
+**Markers**: [ARCHITECTURE] [DDD]
+
+**What**: Create separate Diagnostics bounded context with assembly boundaries
+**Why**: Enables non-deterministic types without violating ADR-004, enforces true isolation
+
+**Problem**: 
+- Performance monitoring needs DateTime/double (non-deterministic)
+- Namespace-only separation allows accidental coupling
+- Using ActorId in Diagnostics violates context isolation
+- Need compile-time enforcement of boundaries
+
+**Solution - Assembly-Based Bounded Contexts**:
+
+1. **Phase 1: Create Assembly Structure** (2h)
+   ```xml
+   <!-- Create separate projects -->
+   src/Diagnostics/Darklands.Diagnostics.Domain.csproj
+   src/Diagnostics/Darklands.Diagnostics.Application.csproj  
+   src/Diagnostics/Darklands.Diagnostics.Infrastructure.csproj
+   ```
+
+2. **Phase 2: Use Shared Identity Types** (2h)
+   ```csharp
+   // SharedKernel - EntityId (NOT ActorId!)
+   public readonly record struct EntityId(Guid Value);
+   
+   // Diagnostics uses EntityId, never ActorId
+   public record VisionPerformanceReport(
+       DateTime Timestamp,
+       Dictionary<EntityId, double> Metrics  // ✅ EntityId not ActorId
+   );
+   ```
+
+3. **Phase 3: Integration Event Bus** (2h)
+   - Separate bus for cross-context events
+   - Integration events use primitives only
+   - Versioning and correlation IDs
+
+4. **Phase 4: Main Thread Dispatcher** (2h)
+   - Implement IMainThreadDispatcher
+   - Ensure Godot calls on main thread
+   - Update presenters to use dispatcher
+
+**Assembly References**:
+```
+Darklands.csproj (Main)
+├─> Tactical.Application
+├─> Diagnostics.Application
+├─> Platform.Infrastructure.Godot
+└─> SharedKernel
+
+NO cross-context references!
+```
+
+**Done When**:
+- [ ] Separate assemblies created for Diagnostics
+- [ ] Using EntityId instead of ActorId
+- [ ] Integration event bus implemented
+- [ ] Main thread dispatcher working
+- [ ] Architecture tests enforce assembly boundaries
+- [ ] No direct references between contexts
+
+**Tech Lead Decision**:
+- Assembly boundaries provide compile-time safety
+- Dual event bus strategy (MediatR + Integration)
+- NO scoped services (Singleton or Transient only)
+- See ADR-017 (revised) for complete strategy
 
 ### VS_012: Vision-Based Movement System
 **Status**: Approved  
@@ -317,6 +392,52 @@ Animation: Gentle pulse on destination tile
 
 
 
+
+
+### TD_039: Fix Application→Infrastructure Boundary Violations
+**Status**: ✅ COMPLETED  
+**Owner**: Dev Engineer → Completed
+**Size**: S (2h) → Actual: 2.5h
+**Priority**: Important
+**Created**: 2025-09-12 13:59
+**Updated**: 2025-09-12 14:52
+**Complexity**: 2/10
+**Markers**: [ARCHITECTURE]
+
+**What**: Fix inverted dependencies where Application layer references Infrastructure
+**Why**: Violates Clean Architecture - dependencies should flow inward, not outward
+
+**✅ Implementation Complete** (Dev Engineer 2025-09-12):
+
+**Fixed Violations** (4/5):
+1. ✅ `ActorFactory.cs` → Removed `Infrastructure.Debug`, uses `Domain.Debug.ICategoryLogger`
+2. ✅ `InMemoryGridStateService.cs` → Removed `Infrastructure.Identity`, refactored to use DI for `IStableIdGenerator`
+3. ✅ `GameLoopCoordinator.cs` → Removed `Infrastructure.Debug`, uses `Domain.Debug.ICategoryLogger`
+4. ✅ `UIEventForwarder.cs` → Removed `Infrastructure.Debug`, uses `Domain.Debug.ICategoryLogger`
+
+**Key Fixes Implemented**:
+- **Service Locator Fix**: Refactored `InMemoryGridStateService` constructor to receive `IStableIdGenerator` via dependency injection instead of using `GuidIdGenerator.Instance`
+- **Architecture Test Enhancement**: Updated `Application_Should_Not_Reference_Infrastructure` test to actively fail on violations (was previously just logging)
+- **Clean Import Removal**: Eliminated all redundant Infrastructure imports where Domain interfaces were available
+
+**⚡ Tech Lead Decision** (2025-09-12 14:52):
+**REJECTED Option B (Domain Interface Pattern)** - Violates ADR-004 Deterministic Simulation!
+
+The real issue isn't the boundary violation - it's that `VisionPerformanceReport` contains:
+- `DateTime` (wall clock time) 
+- `double` for timing measurements
+- Non-deterministic performance metrics
+
+Per ADR-004, these CANNOT exist in Domain layer as they break determinism.
+
+**Solution**: Move the shared types to Domain BUT refactor them first:
+1. Replace `DateTime` with turn/action counts
+2. Replace `double` timings with integer microseconds  
+3. Make metrics deterministic (tile counts, cache hits as integers)
+
+This maintains Clean Architecture AND determinism. The types belong in Domain as they're shared contracts, but must be deterministic.
+
+**Follow-up**: Create TD_040 to refactor VisionPerformanceReport for determinism, then move to Domain.
 
 
 ### TD_035: Standardize Error Handling in Infrastructure Services

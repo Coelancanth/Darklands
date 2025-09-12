@@ -1,10 +1,11 @@
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using LanguageExt;
 using LanguageExt.Common;
 using Darklands.Core.Application.Grid.Services;
 using Darklands.Core.Domain.Grid;
-using Darklands.Core.Infrastructure.Identity;
+using Darklands.Core.Domain.Common;
 using static LanguageExt.Prelude;
 
 namespace Darklands.Core.Application.Grid.Services
@@ -18,10 +19,12 @@ namespace Darklands.Core.Application.Grid.Services
     {
         private readonly object _stateLock = new();
         private readonly ConcurrentDictionary<ActorId, Position> _actorPositions = new();
+        private readonly IStableIdGenerator _idGenerator;
         private Domain.Grid.Grid? _currentGrid;
 
-        public InMemoryGridStateService()
+        public InMemoryGridStateService(IStableIdGenerator idGenerator)
         {
+            _idGenerator = idGenerator ?? throw new ArgumentNullException(nameof(idGenerator));
             // Initialize with a default 10x10 grid for Phase 2
             InitializeDefaultGrid();
         }
@@ -176,7 +179,7 @@ namespace Darklands.Core.Application.Grid.Services
             {
                 // Create strategic 30x20 test grid for Phase 4 fog of war testing
                 // Strategic layout with walls, pillars, and corridors for comprehensive vision testing
-                _currentGrid = CreateStrategicTestGrid(GuidIdGenerator.Instance);
+                _currentGrid = CreateStrategicTestGrid(_idGenerator);
             }
         }
 
@@ -186,7 +189,7 @@ namespace Darklands.Core.Application.Grid.Services
         /// Features: Long walls, pillar formations, corridors, and room structures for shadowcasting validation.
         /// </summary>
         /// <returns>Strategic test grid with player at center (15,10) and complex terrain</returns>
-        private static Domain.Grid.Grid CreateStrategicTestGrid(Core.Domain.Common.IStableIdGenerator idGenerator)
+        private static Domain.Grid.Grid CreateStrategicTestGrid(IStableIdGenerator idGenerator)
         {
             const int width = 30;
             const int height = 20;
