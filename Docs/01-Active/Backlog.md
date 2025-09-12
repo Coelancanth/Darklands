@@ -318,12 +318,12 @@ All critical violations successfully resolved:
 **TD_043 is now UNBLOCKED** - Architectural integrity verified and enforced
 
 ### TD_043: Strangler Fig Phase 2 - Migrate Combat to Tactical Bounded Context with VSA
-**Status**: In Progress - Phase 1/4 Complete
+**Status**: In Progress - Phase 2/4 Complete
 **Owner**: Dev Engineer
 **Size**: L (2 days)
 **Priority**: Important
 **Created**: 2025-09-12 16:13
-**Updated**: 2025-09-13 05:44 (Dev Engineer - Phase 1 Domain layer complete)
+**Updated**: 2025-09-13 06:05 (Dev Engineer - Phase 2 Application layer complete, build errors fixed)
 **Depends On**: TD_042 ✅ Completed, TD_046 ✅ Completed
 **Markers**: [ARCHITECTURE] [DDD] [STRANGLER-FIG] [PHASE-2] [VSA]
 
@@ -489,6 +489,28 @@ else
 - [x] All handlers use Fin<T> for error handling
 - [x] Build issues resolved, 661 tests still passing
 
+**🔧 Build Fixes Applied (Dev Engineer 2025-09-13 06:05)**:
+- [x] Fixed LanguageExt v5 async patterns (MatchAsync not available for Fin<T>)
+- [x] Simplified error handling with direct pattern matching
+- [x] Resolved Unit type ambiguity between LanguageExt and MediatR
+- [x] Fixed project file exclusions for proper layer isolation
+
+**⚠️ Technical Trade-offs Made**:
+1. **Logging Temporarily Removed**: Removed ILogger dependencies to focus on core functionality
+   - **Rationale**: Microsoft.Extensions.Logging.Abstractions package issues
+   - **Impact**: No runtime logging in handlers currently
+   - **Resolution**: Can be re-added in Phase 3 with proper DI setup
+2. **Simplified Async Pattern Matching**: Using IsFail checks instead of MatchAsync
+   - **Rationale**: MatchAsync not available for Fin<T> in LanguageExt v5
+   - **Impact**: Less elegant but functionally equivalent
+   - **Resolution**: Works correctly, maintains functional error handling
+
+**📊 Current Progress Summary**:
+- **Phase 1 (Domain)**: ✅ COMPLETE - Pure domain with Actor aggregate, TimeUnit, business rules
+- **Phase 2 (Application)**: ✅ COMPLETE - CQRS with MediatR, VSA structure, functional error handling
+- **Phase 3 (Infrastructure)**: 🔲 PENDING - Need to implement repositories and scheduler service
+- **Phase 4 (Presentation)**: 🔲 PENDING - Wire up parallel operation with old system
+
 **Success Criteria**:
 - [x] Tactical context created with proper assembly boundaries ✅
 - [ ] Old Combat code still runs (Strangler Fig pattern)
@@ -497,8 +519,27 @@ else
 - [ ] Contract events work for cross-context communication
 - [ ] Both paths produce identical results
 - [x] No DateTime/Random/float in Tactical.Domain ✅
+- [x] Application layer builds successfully with functional patterns ✅
 - [ ] Contracts only use SharedKernel types (EntityId, not ActorId)
 - [ ] Contract adapter bridges domain events to public API
+
+**🚧 Remaining Work for TD_043**:
+1. **Phase 3 - Infrastructure Layer**:
+   - Implement ActorRepository (in-memory for now)
+   - Implement CombatSchedulerService with priority queue
+   - Wire up dependency injection in GameStrapper
+   
+2. **Phase 4 - Presentation/Integration**:
+   - Create TacticalContractAdapter for domain→contract events
+   - Wire up parallel operation (old and new systems)
+   - Add feature toggle for switching implementations
+   - Verify both systems produce identical results
+
+3. **Testing & Validation**:
+   - Add unit tests for Domain layer
+   - Add integration tests for Application layer
+   - Add architecture tests for determinism and isolation
+   - Performance comparison between old and new
 
 **Tech Lead Critical Notes**:
 **ADR-017 Alignment**:
