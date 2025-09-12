@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(Select-Object Name)",
-      "Bash(Get-ChildItem -Path \"src\" -Directory)"
+      "Bash(Get-ChildItem -Path \"src\" -Directory)",
+      "Bash(dotnet clean:*)"
     ],
     "deny": [],
     "ask": [],
