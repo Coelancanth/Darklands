@@ -349,23 +349,42 @@ public class AttackPresenter  // Presentation layer
 
 ## Implementation Guidelines
 
-### 1. Service Registration in GameStrapper
+### 1. Service Registration in Bootstrapper (ADR-017)
 
 ```csharp
-public static class GameStrapper
+public sealed partial class Bootstrapper : Node
 {
-    public static void ConfigureServices(IServiceCollection services)
+    public static IServiceProvider Services { get; private set; }
+    
+    public override void _EnterTree()
+    {
+        var services = new ServiceCollection();
+        
+        // Add bounded contexts with their own service registrations
+        services.AddTacticalContext();
+        services.AddPlatformContext();
+        services.AddDiagnosticsContext();
+        
+        Services = services.BuildServiceProvider();
+    }
+}
+
+// Platform context handles Godot-specific abstractions
+public static class PlatformContextExtensions
+{
+    public static IServiceCollection AddPlatformContext(this IServiceCollection services)
     {
         // ✅ Register high-value abstractions
         services.AddSingleton<IAudioService, GodotAudioService>();
         services.AddSingleton<IInputService, GodotInputService>();
         services.AddSingleton<ISaveService, SaveService>();
-        services.AddSingleton<IDeterministicRandom, DeterministicRandom>();
         services.AddSingleton<ILocalizationService, GodotLocalizationService>();
         services.AddSingleton<ISettingsService, GodotSettingsService>();
         
         // ❌ DON'T register low-value wrappers
         // No ILabelService, ITweenService, IParticleService, etc.
+        
+        return services;
     }
 }
 ```
@@ -380,9 +399,9 @@ public partial class CombatView : Control
     
     public override void _Ready()
     {
-        // Get injected services
-        _mediator = GameStrapper.GetService<IMediator>();
-        _audio = GameStrapper.GetService<IAudioService>();
+        // Get injected services - using Bootstrapper pattern from ADR-017
+        _mediator = Bootstrapper.Services.GetRequiredService<IMediator>();
+        _audio = Bootstrapper.Services.GetRequiredService<IAudioService>();
         
         // Use Godot directly for UI
         var damageLabel = GetNode<Label>("DamagePopup");  // ✅ Direct
@@ -453,7 +472,7 @@ When a service locator is unavoidable in Godot views, enforce strict usage rules
 // Anti-pattern: hidden resolution per frame
 public override void _Process(double delta)
 {
-    var audio = GameStrapper.GetService<IAudioService>(); // ❌ Don't do this
+    var audio = Bootstrapper.Services.GetRequiredService<IAudioService>(); // ❌ Don't do this
     audio.PlaySound(SoundId.Tick);
 }
 
@@ -461,7 +480,7 @@ public override void _Process(double delta)
 private IAudioService? _audio;
 public override void _Ready()
 {
-    _audio = GameStrapper.GetService<IAudioService>(); // ✅ Resolve at init
+    _audio = Bootstrapper.Services.GetRequiredService<IAudioService>(); // ✅ Resolve at init
 }
 public override void _Process(double delta)
 {
@@ -591,6 +610,12 @@ public interface IWorldHydrator
 }
 // ✅ Prefer small role interfaces + a thin coordinator (see guidelines)
 ```
+
+## Cross-References
+
+### Related ADRs
+- **[ADR-017: DDD Bounded Contexts Architecture](./ADR-017-ddd-bounded-contexts-architecture.md)** - Defines Bootstrapper pattern used here
+- **[ADR-010: UI Event Bus Architecture](./ADR-010-ui-event-bus-architecture.md)** - Uses same service resolution pattern
 
 ## References
 

@@ -15,7 +15,7 @@
 
 ### Foundation (VS_001 - Phase 1 COMPLETE)
 - **3-Project Architecture**: Core, Tests, Godot properly separated
-- **DI Container**: GameStrapper with MediatR pipeline configured
+- **DI Container**: Transitioning from GameStrapper to Bootstrapper pattern (ADR-017)
 - **Domain Model**:
   - TimeUnit value objects with full arithmetic/comparison
   - CombatAction records (dagger=500ms, sword=800ms, axe=1200ms)

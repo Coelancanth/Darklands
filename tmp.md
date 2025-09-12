@@ -1,191 +1,197 @@
-### [Overall Assessment]
-A strong, well-reasoned ADR that correctly applies DDD bounded contexts to resolve current determinism and coupling issues, with pragmatic patterns for MediatR, DI, and Godot isolation. The intent is solid and feasible; a few important execution details need tightening (assembly boundaries, DI scope semantics in Godot, main-thread marshaling, and ensuring context isolation in examples).
+[Overall Assessment]:
+A strong, pragmatic ADR that thoughtfully applies DDD bounded contexts to a single-player Godot/C# game. It balances modular isolation, determinism, and UI/event concerns well. However, it contains several internal inconsistencies (notably around event buses, determinism vs timestamps, contracts identity types, and domain dependency on MediatR) and a few code-level pitfalls that should be corrected to avoid maintenance and performance issues.
 
-### [Strengths]
-- **Clear problem framing**: Identifies determinism conflicts, mixed concerns, and testing constraints precisely.
-- **Correct DDD direction**: Sensible separation into Tactical, Diagnostics, Platform, SharedKernel, and Presentation.
-- **Integration events discipline**: Distinguishes domain vs. integration events and avoids domain types at boundaries.
-- **Godot isolation**: Maintains a clean presenter/view split and keeps Tactical unaware of Godot.
-- **Per-context DI registration**: Encourages modular composition roots over a single monolithic container.
-- **Architecture tests**: Enforces determinism and dependency boundaries per context.
-- **Incremental rollout plan**: Phased migration acknowledges complexity and risk.
-- **Shared kernel minimalism**: Limits shared types to identities, math, and results.
-- **Context mapping patterns**: Uses customer-supplier and ACL appropriately for Diagnostics and Platform.
-- **Realistic MediatR usage**: Places handlers in the right layers and shows bridging patterns.
+[Strengths]:
+- Clear module boundaries: Contracts assemblies, isolation tests, and context mapping are well-articulated and enforceable.
+- Determinism-first: Concrete test strategy to ban non-deterministic constructs in core gameplay.
+- Event taxonomy: Sensible separation of Domain, Contract, and Application notifications.
+- Practical Godot guidance: Main-thread marshaling and DI bootstrap patterns fit Godot’s scene lifecycle.
+- VSA + DDD alignment: Good guidance for feature placement and vertical slice structure.
+- Performance awareness: Explicit “no MediatR in hot paths” guidance and batch/coarse-grained events.
+- Implementation protocol: Phased steps, architecture tests, and versioning discipline are production-friendly.
 
-### [Potential Risks & Areas for Improvement]
-1) **Problem Description**: Context isolation violation in example  
-   **Reasoning**: `Diagnostics.Domain` uses `Dictionary<ActorId, double>`. `ActorId` is Tactical domain. This breaks the “no direct references” rule and undermines context independence.
+[Potential Risks & Areas for Improvement]:
+- Problem Description: Contradiction between “single MediatR” vs adding a separate integration event bus.
+  Reasoning: The ADR states a single bus with interface differentiation, but later registers `IIntegrationEventBus` and uses it for tick events, and the “Benefits” explicitly say “single event bus.” This ambiguity will cause duplicated patterns and confusion for handlers and testing.
 
-2) **Problem Description**: Namespaces-only vs. assemblies  
-   **Reasoning**: Relying on namespaces without separate assemblies weakens enforcement (the compiler can’t prevent cross-references). Architecture tests help but are not sufficient to stop accidental dependencies.
+- Problem Description: Determinism conflict: domain events use DateTime in a domain that bans DateTime.
+  Reasoning: Domain event example includes `DateTime OccurredAt` while determinism tests forbid DateTime in Tactical domain.
+```174:181:Docs/03-Reference/ADR/ADR-017-ddd-bounded-contexts-architecture.md
+public record ActorDamagedEvent(ActorId Actor, int Damage) : IDomainEvent
+{
+    public DateTime OccurredAt { get; } = DateTime.UtcNow;
+}
+```
+```714:737:Docs/03-Reference/ADR/ADR-017-ddd-bounded-contexts-architecture.md
+Types.InAssembly(tacticalAssembly)
+    .Should()
+    .NotHaveDependencyOn("System.DateTime")
+```
 
-3) **Problem Description**: MediatR used for both domain and integration events on the same bus  
-   **Reasoning**: Sharing a single publish pipeline couples concerns and makes it easier to accidentally handle integration events inside Tactical, complicating behaviors and performance tuning.
+- Problem Description: Domain dependency on MediatR via `IDomainEvent : INotification`.
+  Reasoning: This couples the domain to a transport library, reducing purity and testability. It also conflicts with the stated goal of strong isolation.
 
-4) **Problem Description**: Godot main-thread constraints  
-   **Reasoning**: Handlers may run on thread pool threads. Any Godot API access must occur on the main thread; otherwise crashes or undefined behavior can occur.
+- Problem Description: Strongly-typed ID equality and default value hazards.
+  Reasoning: `TypedIdValueBase` equality compares any `TypedIdValueBase` by value, enabling cross-type equality. `record struct ActorId(EntityId Value)` allows a default `ActorId` with null `EntityId`, risking null refs and bypassing invariants.
 
-5) **Problem Description**: DI Scoped lifetime semantics in a non-HTTP game loop  
-   **Reasoning**: `AddScoped` requires explicit scope creation and disposal. Without a clear “request scope” (e.g., per-tick, per-command), services can leak or be misused.
+- Problem Description: Contracts identity inconsistency (Guid vs EntityId).
+  Reasoning: The ADR alternates between `Guid` and `EntityId` for cross-context identity. This inconsistency will multiply mapping code and create subtle bugs when migrating.
 
-6) **Problem Description**: Per-frame performance with MediatR/event storms  
-   **Reasoning**: Publishing fine-grained domain events every frame can create allocations, GC pressure, and latency. MediatR is best for app-level workflows, not tight hot loops.
+- Problem Description: MainThreadDispatcher sample has non-existent Godot API and weak main-thread detection.
+  Reasoning: `GetProcessThread()` doesn’t exist; main thread checks should be based on captured managed thread ID or always-queue pattern. Current example risks misuse and confusion.
 
-7) **Problem Description**: Determinism enforcement unspecified details  
-   **Reasoning**: “NotUseFloatingPoint()” and “No DateTime/Random” rules are outlined but not concretely implemented. LINQ ordering, culture/formatting, and concurrency can also break determinism.
+- Problem Description: `Entity.DomainEvents` can be null.
+  Reasoning: Returning null for a collection property is error-prone. Consumers must null-check; iterating will crash.
 
-8) **Problem Description**: Integration event versioning and backpressure  
-   **Reasoning**: Integration events lack versioning and QoS. As the system evolves, events may need schema changes; bursts of events can overwhelm consumers.
+- Problem Description: MediatR handler lifetimes set to Singleton globally.
+  Reasoning: Singletons are fine for stateless handlers, but pipeline behaviors and handlers that use transient dependencies (e.g., per-operation context) may break assumptions or capture unintended state.
 
-9) **Problem Description**: Composition root timing and storage in Godot  
-   **Reasoning**: Building the container in a Node `_Ready()` risks order-of-initialization issues. Access patterns for services across Nodes are unspecified, inviting a Service Locator anti-pattern.
+- Problem Description: Over-segmentation risk with many csproj.
+  Reasoning: For a single-player game, too many assemblies can slow iteration and create config overhead. The ADR partially mitigates this but could be more incremental.
 
-10) **Problem Description**: Presentation depending on domain events  
-    **Reasoning**: Presenter’s `OnActorMoved(ActorMovedEvent evt)` ties UI to Tactical’s domain event types. While Presentation is a layer (not a context), app-level notifications or view models provide better decoupling.
+- Problem Description: Architecture test examples depend on unspecified tooling and fragile pattern-matching.
+  Reasoning: NetArchTest/ArchUnit.NET assumptions aren’t explicitly stated; reflection-based float bans might false-positive or miss nested generics; excluding `INotificationHandler<>` broadly may also hide legitimate violations.
 
-11) **Problem Description**: Platform feature detection and environment branching  
-    **Reasoning**: `Engine.IsEditorHint()` is fine, but run-time platform differences (tools, headless, mobile) may require broader feature flags and a single place to decide.
+[Specific Suggestions & Alternatives]:
+- Unify event bus story:
+  - Option A (simpler): Single MediatR for Domain and Contract events; no separate bus. Keep “no hot-path” guidance; for per-frame events, use direct service calls and batch notifications at frame end.
+  - Option B (performant): Clearly define two buses:
+    - MediatR: Domain and Contract events only (non-hot-path).
+    - Lightweight in-process bus for high-frequency/coarse tick events (no DI, struct payloads, lock-free queue).
+```csharp
+public interface IFrameEventBus {
+    void Publish(in TickCompletedEvent evt);
+    IDisposable Subscribe(Action<TickCompletedEvent> handler);
+}
 
-12) **Problem Description**: LanguageExt in SharedKernel  
-    **Reasoning**: `Fin<T>` is fine, but SharedKernel becomes a transitive dependency for every context. Ensure this is intentional and acceptable for build size and allocations.
+public sealed class FrameEventBus : IFrameEventBus {
+    private readonly ConcurrentBag<Action<TickCompletedEvent>> _subscribers = new();
+    public void Publish(in TickCompletedEvent evt) { foreach (var s in _subscribers) s(evt); }
+    public IDisposable Subscribe(Action<TickCompletedEvent> handler) { _subscribers.Add(handler); return new Unsubscriber(_subscribers, handler); }
+}
+```
+  - Document the division explicitly and remove “single bus” claims if choosing Option B.
 
-### [Specific Suggestions & Alternatives]
-1) **Fix Diagnostics identity coupling**  
-   Use shared identity types in SharedKernel and keep Tactical’s `ActorId` internal to Tactical.  
-   ```csharp
-   // SharedKernel.Identity
-   public readonly record struct EntityId(string Value);
-   
-   // Diagnostics.Domain
-   public record VisionPerformanceReport(
-       DateTime Timestamp,
-       double CalculationTimeMs,
-       Dictionary<EntityId, double> Metrics);
-   ```
+- Remove DateTime from domain events:
+  - Replace with deterministic time markers:
+    - Use `int TickNumber`, `long SimulationTimeUs`, or a `readonly struct GameTime { public int Tick; }`.
+  - Keep timestamps for Application/Contract events only, added at the adapter stage.
+```csharp
+public readonly record struct GameTick(int Value);
+public readonly record ActorDamagedEvent(ActorId Actor, int Damage, GameTick Tick) : IDomainEvent;
+```
 
-2) **Enforce assembly boundaries**  
-   Split contexts into separate class libraries and reference them from the Godot game project. Keep all Godot-facing Nodes in the Godot project.  
-   ```xml
-   <!-- Darklands.csproj -->
-   <ItemGroup>
-     <ProjectReference Include="src/Tactical/Darklands.Tactical.Domain.csproj" />
-     <ProjectReference Include="src/Tactical/Darklands.Tactical.Application.csproj" />
-     <ProjectReference Include="src/Diagnostics/Darklands.Diagnostics.Domain.csproj" />
-     <ProjectReference Include="src/Diagnostics/Darklands.Diagnostics.Application.csproj" />
-     <ProjectReference Include="src/Platform/Darklands.Platform.Domain.csproj" />
-     <ProjectReference Include="src/Platform/Darklands.Platform.Infrastructure.Godot.csproj" />
-     <ProjectReference Include="src/SharedKernel/Darklands.SharedKernel.csproj" />
-   </ItemGroup>
-   ```
+- Decouple domain from MediatR:
+  - Define `IDomainEvent` in SharedKernel with no external inheritance.
+  - Application publishes domain events via a publisher/adapter that bridges to MediatR.
+```csharp
+// SharedKernel.Domain
+public interface IDomainEvent { }
 
-3) **Separate integration event bus**  
-   Keep domain events on MediatR; wrap integration events in a dedicated bus so you can add policies (versioning, buffering, logging) without affecting domain events.  
-   ```csharp
-   public interface IIntegrationEvent { int Version { get; } }
-   public interface IIntegrationEventBus { Task Publish(IIntegrationEvent evt, CancellationToken ct); }
-   public sealed class MediatRIntegrationEventBus : IIntegrationEventBus {
-     private readonly IPublisher _publisher;
-     public MediatRIntegrationEventBus(IPublisher publisher) => _publisher = publisher;
-     public Task Publish(IIntegrationEvent evt, CancellationToken ct) => _publisher.Publish(evt, ct);
-   }
-   ```
+// Application adapter
+public interface IDomainEventPublisher { Task PublishAsync(IDomainEvent evt, CancellationToken ct); }
 
-4) **Main-thread dispatcher for Godot**  
-   Ensure all Godot API calls are marshaled to the main thread.  
-   ```csharp
-   public interface IMainThreadDispatcher { void Enqueue(Action action); }
-   
-   public sealed partial class MainThreadDispatcher : Node, IMainThreadDispatcher {
-     private readonly System.Collections.Concurrent.ConcurrentQueue<Action> _queue = new();
-     public override void _Process(double delta) {
-       while (_queue.TryDequeue(out var a)) a();
-     }
-     public void Enqueue(Action action) => _queue.Enqueue(action);
-   }
-   
-   // Usage in handlers/presenters
-   _dispatcher.Enqueue(() => _view.SetPosition(x, y));
-   ```
+public sealed class MediatRDomainEventPublisher(IMediator mediator) : IDomainEventPublisher {
+    public Task PublishAsync(IDomainEvent evt, CancellationToken ct) =>
+        mediator.Publish(evt, ct); // With a wrapper/marker if needed
+}
+```
 
-5) **Define DI scope policy**  
-   Create scopes explicitly per “application operation” (e.g., per command) or avoid `Scoped` entirely.  
-   ```csharp
-   // Per-command scope
-   using var scope = _provider.CreateScope();
-   var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
-   await mediator.Send(command, ct);
-   ```
+- Fix strongly-typed IDs:
+  - Make base equality type-safe and prevent cross-type equality:
+```csharp
+public abstract class TypedId<TSelf> : IEquatable<TSelf>
+    where TSelf : TypedId<TSelf>
+{
+    public Guid Value { get; }
+    protected TypedId(Guid value) { if (value == Guid.Empty) throw new InvalidOperationException("Empty"); Value = value; }
+    public bool Equals(TSelf? other) => other is not null && other.Value == Value;
+    public override bool Equals(object? obj) => obj is TSelf other && Equals(other);
+    public override int GetHashCode() => HashCode.Combine(typeof(TSelf), Value);
+    public override string ToString() => Value.ToString("N")[..8];
+}
+public sealed class EntityId : TypedId<EntityId> { public EntityId(Guid v) : base(v) {} public static EntityId New() => new(Guid.NewGuid()); }
+```
+  - For `ActorId`, avoid nested class-in-class wrapping that can be null by default. Prefer:
+```csharp
+public readonly record struct ActorId(Guid Value) {
+    public static ActorId New() => new(Guid.NewGuid());
+    public bool IsEmpty => Value == Guid.Empty;
+}
+```
+  - Or adopt a battle-tested source generator (e.g., StronglyTypedId) for consistency and analyzer support.
 
-6) **Avoid MediatR in hot paths**  
-   - Use direct service calls for per-frame simulation.  
-   - Batch domain changes and publish a single coarse-grained event per tick.  
-   ```csharp
-   // Tactical.Application game loop
-   public void SimulateTick(GameTick tick) {
-     _combatScheduler.Advance(tick);
-     _visionSystem.UpdateForAllActors();
-     // at end: _eventPublisher.Publish(new TickCompleted(...))
-   }
-   ```
+- Standardize contracts identity:
+  - Prefer using `EntityId` (from SharedKernel) across Contract events for type-safety and consistency with Diagnostics, or commit to `Guid` everywhere. Pick one and document it. If `EntityId`, ensure Contracts reference only SharedKernel and not domain.
+```csharp
+public sealed record ActorDamagedContractEvent(EntityId EntityId, int Damage, string ActorName) : IContractEvent { /* Id, OccurredAt, Version */ }
+```
 
-7) **Concrete determinism guards**  
-   - Architecture tests: ban `System.Double`, `System.Single`, `System.DateTime`, `System.Random`.  
-   - Roslyn analyzer or NetArchTest custom conditions checking IL references.  
-   ```csharp
-   Types.InAssembly(typeof(Darklands.Tactical.Domain.Marker).Assembly)
-     .Should().NotHaveDependencyOn("System.Double")
-     .And().NotHaveDependencyOn("System.Single")
-     .And().NotHaveDependencyOn("System.DateTime")
-     .And().NotHaveDependencyOn("System.Random")
-     .GetResult().IsSuccessful.Should().BeTrue();
-   ```
-   - Enforce deterministic collections and explicit ordering; avoid culture-sensitive APIs.
+- Correct MainThreadDispatcher:
+  - Remove invalid API usage and use captured main thread ID, or always enqueue and accept a one-frame delay.
+```csharp
+public sealed partial class MainThreadDispatcher : Node, IMainThreadDispatcher {
+    private readonly ConcurrentQueue<Action> _queue = new();
+    private int _mainThreadId;
 
-8) **Version and buffer integration events**  
-   Add version and optional metadata; consider bounded queues for Diagnostics.  
-   ```csharp
-   public sealed record CombatMetricRecordedEvent(
-     string ActorId, long TimestampTicks, string MetricType, int Version = 1) : IIntegrationEvent;
-   ```
+    public override void _EnterTree() {
+        _mainThreadId = Environment.CurrentManagedThreadId;
+        ProcessMode = ProcessModeEnum.Always;
+    }
 
-9) **Robust composition root**  
-   - Initialize DI in an Autoload (Singleton) Node before scenes load.  
-   - Expose factories instead of a service locator; pass presenters into views via setup methods.  
-   ```csharp
-   public sealed partial class Bootstrapper : Node {
-     public static IServiceProvider Services { get; private set; } = default!;
-     public override void _EnterTree() {
-       var sc = new ServiceCollection();
-       sc.AddTacticalContext().AddDiagnosticsContext().AddPlatformContext();
-       sc.AddSingleton<IMainThreadDispatcher>(GetNode<MainThreadDispatcher>("/root/Dispatcher"));
-       Services = sc.BuildServiceProvider();
-     }
-   }
-   ```
+    public override void _Process(double delta) {
+        for (int i = 0; i < 10 && _queue.TryDequeue(out var action); i++) {
+            try { action(); } catch (Exception ex) { GD.PrintErr(ex.ToString()); }
+        }
+    }
 
-10) **UI decoupling from domain events**  
-   Prefer application-level notifications or view models over direct domain events in Presentation.  
-   ```csharp
-   public sealed record ActorMovedNotification(EntityId Actor, Position NewPosition) : INotification; // Application
-   ```
+    private bool IsOnMainThread() => Environment.CurrentManagedThreadId == _mainThreadId;
 
-11) **Centralize platform feature detection**  
-   Provide a `IRuntimeEnvironment` with `IsEditor`, `IsHeadless`, `Platform` to drive DI choices consistently.
+    public void Enqueue(Action action) {
+        if (IsOnMainThread()) action();
+        else _queue.Enqueue(action);
+    }
+}
+```
 
-12) **SharedKernel dependency policy**  
-   If LanguageExt is retained, document it explicitly as a deliberate dependency. Alternatively, wrap `Fin<T>` behind your own `Result<T>` to limit transitive impact.
+- Make `Entity.DomainEvents` safe to consume:
+```csharp
+public IReadOnlyCollection<IDomainEvent> DomainEvents =>
+    (IReadOnlyCollection<IDomainEvent>?)_domainEvents ?? Array.Empty<IDomainEvent>();
+```
 
-### [Questions for Clarification]
-- Should contexts be enforced as separate assemblies, or remain namespaces within one assembly during Phase 1? If assemblies, which project boundaries do you want first?
-- Is it acceptable to move all Godot-facing classes into the main game project and keep contexts as pure .NET libraries?
-- What is the intended scope lifetime? Per command, per tick, or avoided entirely?
-- Do you want a dedicated integration event bus abstraction, or keep MediatR for both with conventions?
-- Can we switch Diagnostics to shared identity types now (replacing `ActorId`), or do you prefer a transitional mapping layer first?
-- Are we targeting deterministic builds across platforms (Windows/Linux/macOS), and do we need to pin culture and threading behavior for replays?
-- How hot is the Tactical loop (target FPS/actors/events)? This influences whether MediatR appears in any hot path.
-- Should integration events include versioning and metadata (trace IDs) out of the gate?
-- Where do you want the composition root to live (Autoload Bootstrapper) and how should presenters be constructed/connected to Nodes?
-- Are we comfortable with LanguageExt in SharedKernel for the long term, or should we plan a lightweight internal `Result<T>`?
+- Review MediatR lifetimes:
+  - Keep handlers stateless; if any handler relies on transient state, register those specific handlers/transforms as Transient. Pipeline behaviors are commonly Transient; confirm and document.
+  - Consider `ValueTask` in handlers to reduce allocations for hot-ish paths.
 
-- I can draft the initial assembly split and the Godot bootstrapper next; confirm preferences on assemblies and DI scope and I’ll implement accordingly.
+- Incremental assembly rollout:
+  - Start by splitting only SharedKernel and Contracts assemblies; keep Tactical and Diagnostics as folders in a single Core assembly with namespace separation plus analyzers/ArchTests to enforce isolation.
+  - Split into separate assemblies once boundaries stabilize. This reduces churn without sacrificing discipline.
+
+- Clarify and harden architecture tests:
+  - Specify tool (NetArchTest or ArchUnitNET) and add build script integration.
+  - For float/double bans, check fields and properties recursively; allow `[DeterministicAllowed]` attribute on whitelisted types.
+  - Narrow the `INotificationHandler<>` exclusion to only contract-event handlers, or exclude by namespace or attribute (e.g., `[IntegrationAdapter]`) to avoid hiding real violations.
+
+- Document exception policy with Fin<T>:
+  - If domain guard clauses throw `BusinessRuleValidationException`, show the application-layer translation to `Fin<T>` to uphold “no exceptions across boundaries.”
+```csharp
+try {
+    aggregate.DoWork();
+    return FinSucc(Unit.Default);
+}
+catch (BusinessRuleValidationException ex) {
+    return FinFail<Unit>(Error.New(ex.Message));
+}
+```
+
+[Questions for Clarification]:
+- Should the architecture use a single event bus (MediatR) or two buses (MediatR + lightweight frame bus)? If two, which events go where? Please confirm and update the ADR to remove ambiguity.
+- Do you want `EntityId` in Contracts, or plain `Guid`? Diagnostics examples use `EntityId`. Let’s standardize.
+- Is it acceptable for the domain to reference MediatR? If not, we should remove `INotification` inheritance from `IDomainEvent` and bridge in the application layer.
+- Confirm desired time representation for domain events: `TickNumber`/`GameTime` instead of `DateTime` to pass determinism tests?
+- Which architecture test framework will be used (NetArchTest or ArchUnitNET), and do you want attributes (e.g., `[IntegrationAdapter]`) to control exclusions more precisely?
+- Which Godot version (4.2/4.3/4.4)? This affects recommended threading APIs and minor DI/SDK guidance.
+- Are there performance targets for per-frame GC allocations? If so, we can propose `struct` event payloads and `ValueTask` use where appropriate.
+
+- Key doc excerpts indicating contradictions were cited above to speed fixes.

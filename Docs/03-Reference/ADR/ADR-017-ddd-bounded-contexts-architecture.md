@@ -70,7 +70,7 @@ src/
 │
 ├── SharedKernel/                               # Minimal shared types
 │   ├── Darklands.SharedKernel.Domain.csproj   # Entity, ValueObject, IBusinessRule, IDomainEvent
-│   ├── Darklands.SharedKernel.Application.csproj # ICommand, IQuery
+│   ├── Darklands.SharedKernel.Application.csproj # ICommand, IQuery, IApplicationNotification
 │   └── Darklands.SharedKernel.Infrastructure.csproj # IIntegrationEvent
 │
 └── Darklands.csproj                           # Main Godot project
@@ -114,43 +114,61 @@ Different contexts must NOT reference each other's domain types. Using `ActorId`
 
 ### Solution: Strongly-Typed Identity Pattern
 ```csharp
-// SharedKernel/Domain/TypedIdValueBase.cs
+// SharedKernel/Domain/TypedId.cs - Type-safe implementation
 namespace Darklands.SharedKernel.Domain
 {
-    public abstract class TypedIdValueBase : IEquatable<TypedIdValueBase>
+    public abstract class TypedId<TSelf> : IEquatable<TSelf>
+        where TSelf : TypedId<TSelf>
     {
         public Guid Value { get; }
         
-        protected TypedIdValueBase(Guid value)
+        protected TypedId(Guid value)
         {
             if (value == Guid.Empty)
                 throw new InvalidOperationException("Id value cannot be empty");
             Value = value;
         }
         
-        public override bool Equals(object obj) => 
-            obj is TypedIdValueBase other && Value == other.Value;
-        public override int GetHashCode() => Value.GetHashCode();
+        public bool Equals(TSelf? other) => 
+            other is not null && other.Value == Value;
+        
+        public override bool Equals(object? obj) => 
+            obj is TSelf other && Equals(other);
+        
+        public override int GetHashCode() => 
+            HashCode.Combine(typeof(TSelf), Value);
+        
         public override string ToString() => Value.ToString("N")[..8];
+        
+        public static bool operator ==(TypedId<TSelf>? left, TypedId<TSelf>? right) => 
+            EqualityComparer<TypedId<TSelf>>.Default.Equals(left, right);
+        
+        public static bool operator !=(TypedId<TSelf>? left, TypedId<TSelf>? right) => 
+            !(left == right);
     }
 }
 
 // SharedKernel/Identity/EntityId.cs - For cross-context communication
 namespace Darklands.SharedKernel.Identity
 {
-    public sealed class EntityId : TypedIdValueBase
+    public sealed class EntityId : TypedId<EntityId>
     {
         public EntityId(Guid value) : base(value) { }
         public static EntityId NewId() => new(Guid.NewGuid());
     }
 }
 
-// Tactical.Domain uses internal ActorId that wraps EntityId
+// Tactical.Domain uses internal ActorId 
 namespace Darklands.Tactical.Domain.Entities
 {
-    internal readonly record struct ActorId(EntityId Value)
+    public readonly record struct ActorId(Guid Value)
     {
-        public static implicit operator EntityId(ActorId id) => id.Value;
+        public static ActorId New() => new(Guid.NewGuid());
+        public bool IsEmpty => Value == Guid.Empty;
+        
+        // Convert to cross-context EntityId when needed
+        public EntityId ToEntityId() => new(Value);
+        public static ActorId FromEntityId(EntityId entityId) => new(entityId.Value);
     }
 }
 
@@ -165,19 +183,22 @@ namespace Darklands.Diagnostics.Domain.Performance
 }
 ```
 
-## Event Architecture - Single MediatR + Interfaces
+## Event Architecture - Single MediatR + Interfaces (CLARIFIED)
 
-### Single MediatR with Interface Differentiation
-We use a SINGLE MediatR instance with different interfaces to distinguish event types:
+### Single MediatR Instance with Multiple Event Types
+**DECISION**: We use ONE MediatR instance for ALL event types, distinguished by interfaces:
+
+- **Domain Events** (`IDomainEvent`) - Internal to bounded contexts
+- **Contract Events** (`IContractEvent`) - Cross-context communication  
+- **Application Notifications** (`IApplicationNotification`) - UI updates
+
+**NO separate Integration Event Bus** - MediatR handles all event types through different interfaces.
 
 ```csharp
 // 1. Domain Events (Internal) - Stay within context
 namespace Darklands.Tactical.Domain.Events
 {
-    public record ActorDamagedEvent(ActorId Actor, int Damage) : IDomainEvent
-    {
-        public DateTime OccurredAt { get; } = DateTime.UtcNow;
-    }
+    public record ActorDamagedEvent(ActorId Actor, int Damage, GameTick OccurredAt) : IDomainEvent;
     // Published via IMediator, handled within Tactical context only
 }
 
@@ -185,7 +206,7 @@ namespace Darklands.Tactical.Domain.Events
 namespace Darklands.Tactical.Contracts.Events
 {
     public sealed record ActorDamagedContractEvent(
-        Guid EntityId,           // Guid, not ActorId (public type)
+        EntityId EntityId,       // SharedKernel type for consistency
         int Damage,
         string ActorName         // Additional context for other modules
     ) : IContractEvent
@@ -197,12 +218,20 @@ namespace Darklands.Tactical.Contracts.Events
     // Also published via IMediator, but in Contracts assembly
 }
 
-// SharedKernel defines the interfaces
+// SharedKernel defines the interfaces  
 namespace Darklands.SharedKernel.Domain
 {
-    public interface IDomainEvent : INotification
+    // Deterministic time marker for domain events
+    public readonly record struct GameTick(int Value)
     {
-        DateTime OccurredAt { get; }
+        public static GameTick Zero => new(0);
+        public static GameTick operator +(GameTick left, int right) => new(left.Value + right);
+        public static GameTick operator -(GameTick left, int right) => new(left.Value - right);
+    }
+    
+    public interface IDomainEvent
+    {
+        GameTick OccurredAt { get; }
     }
 }
 
@@ -215,41 +244,92 @@ namespace Darklands.SharedKernel.Contracts
         int Version { get; }
     }
 }
+
+namespace Darklands.SharedKernel.Application
+{
+    public interface IApplicationNotification : INotification
+    {
+        DateTime OccurredAt { get; }
+    }
+    
+    // Decouple domain from MediatR
+    public interface IDomainEventPublisher
+    {
+        Task PublishAsync(IDomainEvent evt, CancellationToken ct = default);
+    }
+    
+    // Deterministic time source for domain events
+    public interface IGameClock
+    {
+        GameTick CurrentTick { get; }
+        void AdvanceTick();
+    }
+}
 ```
 
 ### Event Flow Pattern
 ```csharp
-// 1. Tactical publishes domain event
+// Application layer MediatR adapter (Infrastructure)
+public sealed class MediatRDomainEventPublisher : IDomainEventPublisher
+{
+    private readonly IMediator _mediator;
+    
+    public MediatRDomainEventPublisher(IMediator mediator)
+    {
+        _mediator = mediator;
+    }
+    
+    public Task PublishAsync(IDomainEvent evt, CancellationToken ct = default)
+    {
+        // Wrap domain event to make it MediatR compatible
+        var wrapper = new DomainEventWrapper(evt);
+        return _mediator.Publish(wrapper, ct);
+    }
+}
+
+private record DomainEventWrapper(IDomainEvent DomainEvent) : INotification;
+
+// 1. Tactical publishes domain event (no MediatR coupling)
 public class ExecuteAttackCommandHandler
 {
+    private readonly IDomainEventPublisher _eventPublisher;
+    private readonly IGameClock _clock;
+    
     public async Task<Fin<AttackResult>> Handle(ExecuteAttackCommand cmd)
     {
         // ... execute attack ...
-        await _mediator.Publish(new ActorDamagedEvent(target, damage)); // Domain event
+        var evt = new ActorDamagedEvent(target, damage, _clock.CurrentTick);
+        await _eventPublisher.PublishAsync(evt); // Pure domain event
         return result;
     }
 }
 
 // 2. Contract adapter bridges domain to public API
-public class TacticalContractAdapter : INotificationHandler<ActorDamagedEvent>
+public class TacticalContractAdapter : INotificationHandler<DomainEventWrapper>
 {
     private readonly IMediator _mediator;
     private readonly IActorRepository _actors;
     
-    public async Task Handle(ActorDamagedEvent evt, CancellationToken ct)
+    public async Task Handle(DomainEventWrapper wrapper, CancellationToken ct)
     {
-        // Get additional context for contract event
-        var actor = await _actors.GetByIdAsync(evt.Actor);
-        
-        // Convert to contract event (public API)
-        var contractEvent = new ActorDamagedContractEvent(
-            EntityId: evt.Actor.Value,
-            Damage: evt.Damage,
-            ActorName: actor.Name
-        );
-        
-        // Publish through same MediatR (but different interface)
-        await _mediator.Publish(contractEvent, ct);
+        // Pattern match on domain event types
+        switch (wrapper.DomainEvent)
+        {
+            case ActorDamagedEvent evt:
+                // Get additional context for contract event
+                var actor = await _actors.GetByIdAsync(evt.Actor);
+                
+                // Convert to contract event (public API) 
+                var contractEvent = new ActorDamagedContractEvent(
+                    EntityId: evt.Actor.ToEntityId(),
+                    Damage: evt.Damage,
+                    ActorName: actor.Name
+                );
+                
+                // Publish through MediatR (contract event)
+                await _mediator.Publish(contractEvent, ct);
+                break;
+        }
     }
 }
 
@@ -293,14 +373,11 @@ namespace Darklands.SharedKernel.Infrastructure
 }
 
 // Domain event - stays within context
-public record ActorDamagedEvent(ActorId ActorId, int Damage) : IDomainEvent
-{
-    public DateTime OccurredAt { get; } = DateTime.UtcNow;
-}
+public record ActorDamagedEvent(ActorId ActorId, int Damage, GameTick OccurredAt) : IDomainEvent;
 
 // Contract event - can cross contexts (in Contracts assembly)
 public record ActorDamagedContractEvent(
-    Guid EntityId,     // Uses shared types only
+    EntityId EntityId, // Uses SharedKernel types only
     int Damage,
     string ActorName   // Public API can include context
 ) : IContractEvent
@@ -377,7 +454,7 @@ namespace Darklands.SharedKernel.Domain
         private List<IDomainEvent> _domainEvents;
         
         public IReadOnlyCollection<IDomainEvent> DomainEvents => 
-            _domainEvents?.AsReadOnly();
+            _domainEvents?.AsReadOnly() ?? Array.Empty<IDomainEvent>();
         
         protected void AddDomainEvent(IDomainEvent domainEvent)
         {
@@ -505,11 +582,11 @@ public interface IMainThreadDispatcher
 public sealed partial class MainThreadDispatcher : Node, IMainThreadDispatcher
 {
     private readonly ConcurrentQueue<Action> _queue = new();
-    private static MainThreadDispatcher? _instance;
+    private int _mainThreadId;
     
     public override void _EnterTree()
     {
-        _instance = this;
+        _mainThreadId = Environment.CurrentManagedThreadId;
         ProcessMode = ProcessModeEnum.Always;
     }
     
@@ -559,8 +636,8 @@ public sealed partial class MainThreadDispatcher : Node, IMainThreadDispatcher
         return tcs.Task;
     }
     
-    private static bool IsOnMainThread() => 
-        Thread.CurrentThread == _instance?.GetProcessThread();
+    private bool IsOnMainThread() => 
+        Environment.CurrentManagedThreadId == _mainThreadId;
 }
 
 // Usage in Presenters
@@ -578,6 +655,9 @@ public class ActorPresenter
         });
     }
 }
+
+// Also used by UIEventBus from ADR-010
+// UIEventBus uses this dispatcher for thread-safe UI updates
 ```
 
 ## Dependency Injection Strategy
@@ -605,15 +685,13 @@ public sealed partial class Bootstrapper : Node
         services.AddDiagnosticsContext();  
         services.AddPlatformContext(Engine.IsEditorHint());
         
-        // Integration event bus (separate from MediatR)
-        services.AddSingleton<IIntegrationEventBus, IntegrationEventBus>();
+        // NOTE: No separate integration bus - MediatR handles all events
         
         // Build container
         _services = services.BuildServiceProvider();
         
-        // Initialize integration adapters
-        _services.GetRequiredService<TacticalIntegrationAdapter>();
-        _services.GetRequiredService<DiagnosticsIntegrationAdapter>();
+        // Contract adapters registered as MediatR handlers automatically
+        // No need to initialize - MediatR discovers them via DI
     }
     
     public override void _ExitTree()
@@ -642,8 +720,8 @@ public static class TacticalContextExtensions
             cfg.Lifetime = ServiceLifetime.Singleton; // Handlers are stateless
         });
         
-        // Integration adapter
-        services.AddSingleton<TacticalIntegrationAdapter>();
+        // Contract adapter (registered as MediatR handler) 
+        services.AddTransient<INotificationHandler<DomainEventWrapper>, TacticalContractAdapter>();
         
         return services;
     }
@@ -673,7 +751,7 @@ public class GameLoop
 {
     private readonly ICombatScheduler _scheduler;
     private readonly IVisionSystem _vision;
-    private readonly IIntegrationEventBus _eventBus;
+    private readonly IMediator _mediator; // Single MediatR for all events
     private readonly List<IGameEvent> _frameEvents = new();
     
     public void SimulateTick(int tickNumber)
@@ -689,7 +767,7 @@ public class GameLoop
         if (_frameEvents.Count > 0)
         {
             var tickEvent = new TickCompletedEvent(tickNumber, _frameEvents.ToArray());
-            _ = _eventBus.PublishAsync(tickEvent); // Fire and forget
+            _ = _mediator.Publish(tickEvent); // Fire and forget via single MediatR
             _frameEvents.Clear();
         }
     }
@@ -817,7 +895,10 @@ namespace Darklands.Tactical.Application.Notifications
         EntityId ActorId,        // Shared kernel type
         int FromX, int FromY,    // Primitive types
         int ToX, int ToY
-    ) : INotification;
+    ) : IApplicationNotification    // Uses SharedKernel.Application interface
+    {
+        public DateTime OccurredAt { get; } = DateTime.UtcNow; // OK for Application notifications
+    }
 }
 
 // Application handler converts domain to notification
@@ -1031,6 +1112,25 @@ We will implement assembly-based bounded contexts with enhanced patterns from mo
 13. **Architecture tests per module** - With ContractEventHandler exclusions
 14. **Contract versioning** - Version property from day one for evolution
 15. **Determinism enforcement** - Concrete tests for Tactical context
+
+## Cross-References
+
+### Related ADRs
+- **[ADR-010: UI Event Bus Architecture](./ADR-010-ui-event-bus-architecture.md)** - Uses MainThreadDispatcher from this ADR
+- **[ADR-006: Selective Abstraction Strategy](./ADR-006-selective-abstraction-strategy.md)** - Aligned service resolution patterns
+
+### Event Architecture Overview
+This ADR defines the complete event architecture with multiple event types using **SINGLE MediatR**:
+
+1. **Domain Events** (`IDomainEvent`): Internal to bounded contexts, use `GameTick` for determinism
+2. **Contract Events** (`IContractEvent`): Cross-context integration via adapters, use `DateTime`
+3. **Application Notifications** (`IApplicationNotification`): UI updates (see ADR-010), use `DateTime`
+
+**Key Design Decisions**:
+- **Single MediatR instance** handles all event types via different interfaces  
+- **Domain events decoupled** from MediatR via `IDomainEventPublisher` adapter
+- **Type-safe IDs** prevent cross-type equality bugs with `TypedId<TSelf>`
+- **Thread-safe main thread dispatcher** uses `Environment.CurrentManagedThreadId`
 
 ## References
 - [Domain-Driven Design by Eric Evans](https://www.domainlanguage.com/ddd/)
