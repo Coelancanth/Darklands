@@ -32,6 +32,9 @@ public partial class DebugConfig : Resource, IDebugConfiguration
     [Export] public bool ShowHitChances { get; set; } = false;
     [Export] public bool ShowTurnOrder { get; set; } = true;
     [Export] public bool ShowAttackRanges { get; set; } = false;
+    
+    // TD_043: Strangler Fig Combat System Toggle
+    [Export] public bool UseTacticalCombatSystem { get; set; } = false;
 
     // AI & Behavior Debug Settings
     [ExportGroup("🤖 AI & Behavior")]
