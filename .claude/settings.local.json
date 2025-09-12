@@ -15,7 +15,14 @@
       "Bash(./scripts/core/build.ps1 build)",
       "Bash(Select-String -Path \"C:\\Users\\Coel\\Documents\\Godot\\darklands\\Docs\\01-Active\\Backlog.md\" -Pattern \"TD_040\" -Context 0,50)",
       "Bash(Select-Object -First 1)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git push:*)",
+      "Bash(./scripts/persona/embody.ps1 tech-lead)",
+      "Bash(./scripts/git/branch-status-check.ps1)",
+      "Bash(powershell:*)",
+      "Bash(./scripts/persona/embody.ps1 dev-engineer)",
+      "Bash(Select-String -Path \"C:\\Users\\Coel\\Documents\\Godot\\darklands\\Docs\\01-Active\\Backlog.md\" -Pattern \"TD_043\" -Context 0,80)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": [],

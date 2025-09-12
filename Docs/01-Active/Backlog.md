@@ -317,79 +317,178 @@ All critical violations successfully resolved:
 
 **TD_043 is now UNBLOCKED** - Architectural integrity verified and enforced
 
-### TD_043: Strangler Fig Phase 2 - Migrate Combat to VSA Structure
+### TD_043: Strangler Fig Phase 2 - Migrate Combat to Tactical Bounded Context with VSA
 **Status**: Approved (Ready to implement)
 **Owner**: Dev Engineer
 **Size**: L (2 days)
 **Priority**: Important
 **Created**: 2025-09-12 16:13
-**Updated**: 2025-09-12 22:41 (Dev Engineer - Unblocked, TD_046 complete)
+**Updated**: 2025-09-12 23:00 (Tech Lead - Detailed implementation plan aligned with ADR-017)
 **Depends On**: TD_042 ✅ Completed, TD_046 ✅ Completed
-**Markers**: [ARCHITECTURE] [DDD] [STRANGLER-FIG] [PHASE-2]
+**Markers**: [ARCHITECTURE] [DDD] [STRANGLER-FIG] [PHASE-2] [VSA]
 
-**What**: Reorganize Combat features into VSA structure (second strangler vine)
-**Why**: Prove VSA pattern works within bounded contexts before full migration
+**What**: Create Tactical bounded context and migrate Combat features using VSA + Strangler Fig
+**Why**: Establish proper DDD boundaries while proving VSA works within bounded contexts
 
-**Dependency TD_042 completed** - Proven Strangler Fig pattern ready for Combat system migration
+**⚠️ CRITICAL**: Tactical context doesn't exist yet - must create full structure first!
 
-**Incremental Migration** (preserve working code):
-1. **Create Tactical Context Structure** (2h):
-   ```
-   src/Tactical/
-   ├── Darklands.Tactical.Domain.csproj
-   ├── Darklands.Tactical.Application.csproj
-   ├── Darklands.Tactical.Infrastructure.csproj
-   ├── Features/
-   │   └── Attack/  (NEW VSA structure)
-   │       ├── Domain/
-   │       ├── Application/
-   │       └── Infrastructure/
-   └── Domain/
-       └── Aggregates/
-           └── Actors/  (shared aggregate, plural!)
-   ```
+**Implementation Plan** (Strangler Fig - preserve working code):
+**Phase 1: Create Tactical Context Structure** (2h):
+```
+src/Tactical/
+├── Darklands.Tactical.Domain/
+│   ├── Darklands.Tactical.Domain.csproj
+│   ├── TacticalMarker.cs                    # For assembly references
+│   ├── Aggregates/
+│   │   └── Actors/                          # Plural to avoid namespace collision!
+│   │       ├── Actor.cs
+│   │       └── Rules/
+│   │           ├── ActorMustBeAliveRule.cs
+│   │           └── ActorCanActRule.cs
+│   ├── ValueObjects/
+│   │   ├── TimeUnit.cs                     # Deterministic time units
+│   │   └── CombatAction.cs
+│   └── Events/
+│       ├── ActorDamagedEvent.cs            # IDomainEvent (internal)
+│       └── ActorDiedEvent.cs
+├── Darklands.Tactical.Application/
+│   ├── Darklands.Tactical.Application.csproj
+│   ├── TacticalMarker.cs
+│   └── Features/                           # VSA structure within context
+│       └── Combat/
+│           ├── Attack/
+│           │   ├── ExecuteAttackCommand.cs
+│           │   └── ExecuteAttackCommandHandler.cs
+│           ├── Scheduling/
+│           │   ├── ScheduleActorCommand.cs
+│           │   └── ProcessNextTurnCommandHandler.cs
+│           ├── Adapters/
+│           │   └── TacticalContractAdapter.cs  # Domain→Contract bridge
+│           └── Services/
+│               └── ICombatSchedulerService.cs
+└── Darklands.Tactical.Infrastructure/
+    ├── Darklands.Tactical.Infrastructure.csproj
+    └── Features/Combat/Services/
+        ├── CombatSchedulerService.cs
+        └── TimeComparer.cs
+```
 
-2. **Copy Attack Feature to VSA** (4h):
-   - COPY ExecuteAttackCommand/Handler to new location
-   - COPY attack validation logic
-   - Keep old code working in parallel
+**Phase 2: Configure Assembly References** (30min):
+```xml
+<!-- Darklands.Tactical.Domain.csproj -->
+<ItemGroup>
+  <!-- ONLY SharedKernel - no other contexts! -->
+  <ProjectReference Include="../../SharedKernel/Darklands.SharedKernel.csproj" />
+  <PackageReference Include="languageext.core" Version="5.0.0-beta-48" />
+</ItemGroup>
 
-3. **Create Contract Events** (2h):
-   ```csharp
-   // Darklands.Tactical.Contracts
-   public record ActorDamagedContractEvent(
-       EntityId ActorId,
-       int Damage,
-       string ActorName
-   ) : IContractEvent;
-   ```
+<!-- Darklands.Tactical.Application.csproj -->
+<ItemGroup>
+  <ProjectReference Include="../Darklands.Tactical.Domain.csproj" />
+  <ProjectReference Include="../../Contracts/Darklands.Diagnostics.Contracts/Darklands.Diagnostics.Contracts.csproj" />
+  <PackageReference Include="MediatR" Version="13.0" />
+</ItemGroup>
+```
 
-4. **Add Routing Logic** (3h):
-   ```csharp
-   // Feature toggle per command
-   if (UseNewAttackHandler)
-       services.AddTransient<IRequestHandler<ExecuteAttackCommand>>(newHandler);
-   else
-       services.AddTransient<IRequestHandler<ExecuteAttackCommand>>(oldHandler);
-   ```
+**Phase 3: Migrate with Parallel Operation** (3h):
+**⚠️ DO NOT DELETE OLD CODE - Both run in parallel!**
 
-5. **Parallel Testing** (3h):
-   - Run both implementations
-   - Compare results
-   - Performance benchmarks
+```csharp
+// Domain Layer (COPY, don't move)
+public readonly record struct TimeUnit(int Value) : IComparable<TimeUnit>
+{
+    // NO DateTime, NO Random, NO float/double!
+    public static TimeUnit OneTurn => new(100);
+}
 
-**Done When**:
-- [ ] New Tactical context structure exists
-- [ ] Attack feature works in BOTH locations
-- [ ] Feature toggle switches implementations
-- [ ] Contract events published from new structure
-- [ ] Performance metrics show no regression
-- [ ] Architecture tests validate VSA structure
+// Domain events use GameTick for determinism
+public record ActorDamagedEvent(
+    ActorId ActorId,
+    int Damage,
+    GameTick OccurredAt  // NOT DateTime!
+) : IDomainEvent;
 
-**Tech Lead Notes**:
-- Each feature gets its own toggle (granular control)
-- Old code stays until new is battle-tested
-- Can roll back feature-by-feature if issues
+// Contract events (cross-context API)
+public sealed record ActorDamagedContractEvent(
+    EntityId EntityId,    // SharedKernel type, NOT ActorId!
+    int Damage,
+    string ActorName
+) : IContractEvent
+{
+    public Guid Id { get; } = Guid.NewGuid();
+    public DateTime OccurredAt { get; } = DateTime.UtcNow;  // OK in contracts
+    public int Version { get; } = 1;
+}
+```
+
+**Phase 4: Architecture Tests** (1h):
+```csharp
+[Fact]
+public void TacticalDomain_MustBeDeterministic()
+{
+    Types.InAssembly(typeof(TacticalMarker).Assembly)
+        .Should()
+        .NotHaveDependencyOn("System.DateTime")
+        .And().NotHaveDependencyOn("System.Random")
+        .And().NotHaveDependencyOn("Darklands.Diagnostics")  // No cross-refs!
+        .GetResult().IsSuccessful.Should().BeTrue();
+}
+
+[Fact]
+public void TacticalContracts_OnlyUseSharedTypes()
+{
+    Types.InAssembly(typeof(Darklands.Tactical.Contracts.TacticalMarker).Assembly)
+        .Should()
+        .NotHaveDependencyOn("Darklands.Tactical.Domain")  // No internal types!
+        .GetResult().IsSuccessful.Should().BeTrue();
+}
+```
+
+**Phase 5: Feature Toggle for Gradual Migration** (2h):
+```csharp
+public class CombatFeatureToggle
+{
+    public static bool UseNewTacticalContext => 
+        Environment.GetEnvironmentVariable("USE_NEW_TACTICAL") == "true";
+}
+
+// In Bootstrapper.cs
+if (CombatFeatureToggle.UseNewTacticalContext)
+    services.AddTacticalContext();     // New path
+else
+    services.AddLegacyCombatServices(); // Old path (still works!)
+```
+
+**Success Criteria**:
+- [ ] Tactical context created with proper assembly boundaries
+- [ ] Old Combat code still runs (Strangler Fig pattern)
+- [ ] Feature toggle allows instant switching between old/new
+- [ ] Architecture tests pass (determinism, isolation)
+- [ ] Contract events work for cross-context communication
+- [ ] Both paths produce identical results
+- [ ] No DateTime/Random/float in Tactical.Domain
+- [ ] Contracts only use SharedKernel types (EntityId, not ActorId)
+- [ ] Contract adapter bridges domain events to public API
+
+**Tech Lead Critical Notes**:
+**ADR-017 Alignment**:
+- Assembly isolation enforced - Tactical can't reference other contexts
+- Contract events use EntityId from SharedKernel, never ActorId
+- Single MediatR with IDomainEvent/IContractEvent interfaces
+- VSA structure WITHIN bounded context (Features/Combat/)
+
+**Strangler Fig Principles**:
+- Old code remains untouched and functional
+- Feature toggles per command for granular control
+- Both paths must produce identical results
+- Delete old code only after production validation
+
+**Common Pitfalls to Avoid**:
+- ❌ Don't delete old code during migration
+- ❌ Don't use ActorId in Contract events
+- ❌ Don't reference other contexts directly
+- ❌ Don't use DateTime/Random in Domain
+- ❌ Don't skip architecture tests
 
 <!-- TD_040 REMOVED (2025-09-12): Duplicate of TD_042 which already extracted Diagnostics context -->
 
