@@ -21,6 +21,15 @@
     <PackageReference Include="System.Reactive" Version="6.0.1" />
   </ItemGroup>
   
+  <ItemGroup>
+    <!-- TD_042: Bounded Context references for Strangler Fig migration -->
+    <ProjectReference Include="..\SharedKernel\Darklands.SharedKernel.csproj" />
+    <ProjectReference Include="..\Contracts\Darklands.Tactical.Contracts\Darklands.Tactical.Contracts.csproj" />
+    <ProjectReference Include="..\Contracts\Darklands.Diagnostics.Contracts\Darklands.Diagnostics.Contracts.csproj" />
+    <ProjectReference Include="Diagnostics\Darklands.Diagnostics.Domain.csproj" />
+    <ProjectReference Include="Diagnostics\Darklands.Diagnostics.Infrastructure.csproj" />
+  </ItemGroup>
+  
   <!-- CRITICAL: Husky.NET auto-installation in src/Darklands.Core.csproj -->
   <Target Name="husky" BeforeTargets="Restore;CollectPackageReferences" Condition="'$(HUSKY)' != '0'">
     <Exec Command="dotnet tool restore" StandardOutputImportance="Low" StandardErrorImportance="High" />

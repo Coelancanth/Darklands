@@ -33,6 +33,9 @@
     <Compile Remove="SharedKernel\**" />
     <EmbeddedResource Remove="SharedKernel\**" />
     <None Remove="SharedKernel\**" />
+    <Compile Remove="src\Diagnostics\**" />
+    <EmbeddedResource Remove="src\Diagnostics\**" />
+    <None Remove="src\Diagnostics\**" />
     <Compile Remove="Darklands.Architecture.Tests\**" />
     <EmbeddedResource Remove="Darklands.Architecture.Tests\**" />
     <None Remove="Darklands.Architecture.Tests\**" />
