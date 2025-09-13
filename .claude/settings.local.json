@@ -25,7 +25,9 @@
       "Bash(git commit:*)",
       "Bash(Get-ChildItem -Path \"C:\\Users\\Coel\\Documents\\Godot\\darklands\\src\\Tactical\" -Directory)",
       "Bash(Get-ChildItem -Path \"src/Tactical\" -Directory)",
-      "Bash(Select-String -Pattern \"error\")"
+      "Bash(Select-String -Pattern \"error\")",
+      "Bash(Select-String:*)",
+      "Bash(Select-Object -First 20)"
     ],
     "deny": [],
     "ask": [],
