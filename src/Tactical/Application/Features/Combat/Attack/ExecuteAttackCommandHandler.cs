@@ -3,6 +3,7 @@ using Darklands.Tactical.Domain.Aggregates.Actors;
 using LanguageExt;
 using LanguageExt.Common;
 using MediatR;
+using Microsoft.Extensions.Logging;
 using static LanguageExt.Prelude;
 
 namespace Darklands.Tactical.Application.Features.Combat.Attack;
@@ -17,18 +18,22 @@ public sealed class ExecuteAttackCommandHandler
 {
     private readonly IActorRepository _actorRepository;
     private readonly IMediator _mediator;
+    private readonly ILogger<ExecuteAttackCommandHandler> _logger;
 
     public ExecuteAttackCommandHandler(
         IActorRepository actorRepository,
-        IMediator mediator)
+        IMediator mediator,
+        ILogger<ExecuteAttackCommandHandler> logger)
     {
         _actorRepository = actorRepository;
         _mediator = mediator;
+        _logger = logger;
     }
 
     public async Task<Fin<AttackResult>> Handle(ExecuteAttackCommand command, CancellationToken cancellationToken)
     {
-        // Execute attack from attacker to target
+        _logger.LogDebug("Executing attack command: {AttackerId} -> {TargetId} for {Damage} damage", 
+            command.AttackerId, command.TargetId, command.BaseDamage);
 
         // Retrieve actors
         var getAttacker = await _actorRepository.GetByIdAsync(command.AttackerId);
@@ -40,10 +45,13 @@ public sealed class ExecuteAttackCommandHandler
                          select (attacker, target);
 
         if (validation.IsFail)
+        {
+            _logger.LogWarning("Attack validation failed: one or both actors not found");
             return validation.Match<Fin<AttackResult>>(
                 Succ: _ => throw new InvalidOperationException(),
                 Fail: err => FinFail<AttackResult>(err)
             );
+        }
 
         var actors = validation.Match(
             Succ: x => x,
@@ -61,6 +69,7 @@ public sealed class ExecuteAttackCommandHandler
         // Validate attacker can act
         if (!attacker.CanAct)
         {
+            _logger.LogWarning("Attack failed: {AttackerName} cannot act", attacker.Name);
             return FinFail<AttackResult>(Error.New($"Attacker {attacker.Name} cannot act"));
         }
 
@@ -68,10 +77,13 @@ public sealed class ExecuteAttackCommandHandler
         var damageResult = target.TakeDamage(command.BaseDamage, command.OccurredAt);
 
         if (damageResult.IsFail)
+        {
+            _logger.LogWarning("Damage application failed for target {TargetName}", target.Name);
             return damageResult.Match<Fin<AttackResult>>(
                 Succ: _ => throw new InvalidOperationException(),
                 Fail: err => FinFail<AttackResult>(err)
             );
+        }
 
         var actualDamage = damageResult.Match(
             Succ: x => x,
@@ -94,7 +106,11 @@ public sealed class ExecuteAttackCommandHandler
         if (target.Health == 0)
         {
             effects.Add($"{target.Name} was killed!");
+            _logger.LogInformation("Actor {ActorName} was killed in combat", target.Name);
         }
+        
+        _logger.LogInformation("Attack executed successfully: {AttackerName} dealt {Damage} damage to {TargetName}", 
+            attacker.Name, actualDamage, target.Name);
 
         return FinSucc(new AttackResult(
             actualDamage,
@@ -106,10 +122,8 @@ public sealed class ExecuteAttackCommandHandler
 
     private async Task PublishDomainEvent(object domainEvent, CancellationToken cancellationToken)
     {
-        // This will be enhanced in Phase 3 to publish contract events
-        // For now, just log the domain event
-        // Domain event occurred
-
+        _logger.LogDebug("Publishing domain event: {EventType}", domainEvent.GetType().Name);
+        
         // TODO: In Phase 3, add TacticalContractAdapter to convert domain events to contract events
         await Task.CompletedTask;
     }

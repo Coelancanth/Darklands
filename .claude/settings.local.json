@@ -28,7 +28,9 @@
       "Bash(Select-String -Pattern \"error\")",
       "Bash(Select-String:*)",
       "Bash(Select-Object -First 20)",
-      "Bash(git rm:*)"
+      "Bash(git rm:*)",
+      "Bash(Select-Object -First 5)",
+      "WebFetch(domain:github.com)"
     ],
     "deny": [],
     "ask": [],
