@@ -9,7 +9,7 @@
 ## 🔢 Next Item Numbers by Type
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
-- **Next BR**: 008
+- **Next BR**: 009
 - **Next TD**: 049
 - **Next VS**: 015 
 
@@ -77,6 +77,52 @@
 
 ## 🔥 Critical (Do First)
 *Blockers preventing other work, production bugs, dependencies for other features*
+
+### BR_008: CI Build Failure - Tactical Projects Logging Namespace Resolution
+**Status**: New
+**Owner**: DevOps Engineer
+**Size**: S (1h)
+**Priority**: Critical
+**Created**: 2025-09-13 (Dev Engineer)
+**Markers**: [CI/CD] [BUILD-INFRASTRUCTURE] [TACTICAL-PROJECTS]
+
+**What**: CI build fails on PR #50 with Microsoft.Extensions.Logging namespace resolution errors
+**Why**: Prevents merging TD_048 logging improvements, blocks development workflow
+
+**Problem**: 
+PR #50 (feat/td-048-tactical-logging) fails CI with compilation errors:
+- "The type or namespace name 'Logging' does not exist in the namespace 'Microsoft.Extensions'"
+- Affects ExecuteAttackCommandHandler.cs and ProcessNextTurnCommandHandler.cs
+- Local builds pass completely (all 663 tests), CI environment fails
+
+**Technical Details**:
+- Local: `dotnet build src/Darklands.Core.csproj` succeeds, builds all Tactical dependencies
+- CI: Same command fails with namespace resolution issues
+- Package reference exists: Microsoft.Extensions.Logging.Abstractions v8.0.0 in Tactical.Application.csproj
+- Project references correct: Core → Tactical.Application → has logging package
+
+**Root Cause Investigation Needed**:
+1. CI cache/restore behavior different from local environment
+2. Project dependency resolution order in CI vs local
+3. MSBuild behavior differences between Ubuntu (CI) and Windows (local)
+4. Potential timing issue with multi-project builds in CI
+
+**Suggested Fixes**:
+1. Add explicit `dotnet clean` step before build in CI workflow
+2. Update CI to use `dotnet build` without specific project (build everything)
+3. Add explicit `dotnet restore` for all Tactical projects
+4. Investigate MSBuild verbosity in CI for better diagnostics
+
+**Impact**: 
+- Blocks PR #50 merge (TD_048 completion)
+- Prevents Tactical system logging improvements 
+- Creates development workflow friction
+
+**Done When**:
+- [ ] PR #50 CI builds pass successfully
+- [ ] All projects (including new Tactical bounded context) build in CI
+- [ ] CI workflow updated to handle multi-project dependencies
+- [ ] Root cause documented to prevent recurrence
 
 ### TD_041: Strangler Fig Phase 0 - Foundation Layer (Non-Breaking)
 **Status**: ✅ COMPLETED
