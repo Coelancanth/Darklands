@@ -15,6 +15,14 @@ public sealed class StranglerFigConfiguration
     public bool UseDiagnosticsContext { get; set; } = false;
 
     /// <summary>
+    /// Whether to use the new Tactical context for combat operations.
+    /// When true: Uses new Tactical.Application handlers
+    /// When false: Uses legacy Application.Combat handlers
+    /// During TD_043: Both run in parallel regardless of this setting for validation
+    /// </summary>
+    public bool UseTacticalContext { get; set; } = false;
+
+    /// <summary>
     /// Whether to log parallel operation comparisons for validation.
     /// Should be true during migration phases for debugging.
     /// </summary>

@@ -6,19 +6,21 @@
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <WarningsNotAsErrors>CS1591</WarningsNotAsErrors>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- ONLY SharedKernel - no other contexts! Domain must be pure -->
     <ProjectReference Include="..\..\SharedKernel\Darklands.SharedKernel.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="LanguageExt.Core" Version="5.0.0-beta-54" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.0" />
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Exclude Infrastructure files from Domain project -->
+    <!-- Exclude Application and Infrastructure files from Domain project -->
+    <Compile Remove="Application\**\*.cs" />
     <Compile Remove="Infrastructure\**\*.cs" />
   </ItemGroup>
 

@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Serilog;
 using Serilog.Extensions.Logging;
 using System;
+using System.Linq;
 using System.Reflection;
 using MediatR;
 using LanguageExt;
@@ -209,10 +210,19 @@ public static class GameStrapper
         {
             var coreAssembly = Assembly.GetExecutingAssembly();
 
+            // TD_043: Load Tactical bounded context assemblies for Strangler Fig
+            var tacticalApplicationAssembly = Assembly.Load("Darklands.Tactical.Application");
+
             // Register MediatR with assembly scanning
             services.AddMediatR(config =>
             {
+                // TD_043: Register from core assembly - will auto-discover our wrapper handlers
                 config.RegisterServicesFromAssembly(coreAssembly);
+
+                // TD_043: DON'T auto-scan Tactical assembly to avoid duplicate handlers
+                // The Tactical handlers are for different command types (Tactical namespace)
+                // and will be manually wired through the switch adapter
+                // config.RegisterServicesFromAssembly(tacticalApplicationAssembly);
 
                 // Add logging pipeline behavior
                 config.AddOpenBehavior(typeof(LoggingBehavior<,>));
@@ -220,6 +230,21 @@ public static class GameStrapper
                 // Add error handling pipeline behavior
                 config.AddOpenBehavior(typeof(ErrorHandlingBehavior<,>));
             });
+
+            // TD_043: Register combat routing components (Option D - Non-Handler Adapter)
+            // The wrapper handlers in Infrastructure.Combat.Handlers will be auto-discovered by MediatR
+            // They delegate to the switch adapter which routes to legacy or tactical implementations
+
+            // Register the legacy handlers (not as IRequestHandler to avoid MediatR picking them up)
+            services.AddTransient<Application.Combat.Commands.ExecuteAttackCommandHandler>();
+            services.AddTransient<Application.Combat.Commands.ProcessNextTurnCommandHandler>();
+
+            // Register the Tactical handlers (also not as IRequestHandler)
+            services.AddTransient<Tactical.Application.Features.Combat.Attack.ExecuteAttackCommandHandler>();
+            services.AddTransient<Tactical.Application.Features.Combat.Scheduling.ProcessNextTurnCommandHandler>();
+
+            // Register the switch adapter (not as IRequestHandler)
+            services.AddTransient<Infrastructure.Combat.CombatSwitchAdapter>();
 
             return FinSucc(LanguageExt.Unit.Default);
         }
@@ -259,6 +284,9 @@ public static class GameStrapper
             services.AddVisionPerformanceMonitoring(stranglerFigConfig);
 
             services.AddSingleton<Application.Vision.Services.IVisionStateService, Infrastructure.Vision.PersistentVisionStateService>();
+
+            // TD_043: Register combat services with Strangler Fig parallel operation
+            services.AddCombatServices(stranglerFigConfig);
 
             // TD_009: Composite query service (coordinates ActorState + Grid services)
             services.AddSingleton<Application.Combat.Services.ICombatQueryService, Application.Combat.Services.CombatQueryService>();
@@ -326,6 +354,15 @@ public static class GameStrapper
             // Actor Factory (TD_013) - Clean separation of test data from presenters
             // Singleton to maintain player ID state across the application
             services.AddSingleton<Application.Common.IActorFactory, Application.Common.ActorFactory>();
+
+            // TD_043: Tactical Bounded Context (Strangler Fig Phase 2)
+            // These services run in parallel with legacy combat system during migration
+            // NOTE: Different namespace from legacy Application.Combat.Services
+            services.AddSingleton<Tactical.Application.Features.Combat.Services.IActorRepository,
+                                 Tactical.Infrastructure.Repositories.ActorRepository>();
+
+            services.AddSingleton<Tactical.Application.Features.Combat.Services.ICombatSchedulerService,
+                                 Tactical.Infrastructure.Services.CombatSchedulerService>();
 
             return FinSucc(LanguageExt.Unit.Default);
         }

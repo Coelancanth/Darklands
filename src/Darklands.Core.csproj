@@ -6,6 +6,8 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <ValidateOnBuild>true</ValidateOnBuild>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
   </PropertyGroup>
   
   <ItemGroup>
@@ -28,6 +30,10 @@
     <ProjectReference Include="..\Contracts\Darklands.Diagnostics.Contracts\Darklands.Diagnostics.Contracts.csproj" />
     <ProjectReference Include="Diagnostics\Darklands.Diagnostics.Domain.csproj" />
     <ProjectReference Include="Diagnostics\Darklands.Diagnostics.Infrastructure.csproj" />
+    <!-- TD_043: Tactical Bounded Context for Strangler Fig migration -->
+    <ProjectReference Include="Tactical\Darklands.Tactical.Domain.csproj" />
+    <ProjectReference Include="Tactical\Darklands.Tactical.Application.csproj" />
+    <ProjectReference Include="Tactical\Darklands.Tactical.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -36,6 +42,10 @@
     <Compile Remove="Diagnostics\**\*.cs" />
     <EmbeddedResource Remove="Diagnostics\**\*" />
     <None Remove="Diagnostics\**\*" />
+    <!-- TD_043: Exclude Tactical source files to prevent duplicate type errors -->
+    <Compile Remove="Tactical\**\*.cs" />
+    <EmbeddedResource Remove="Tactical\**\*" />
+    <None Remove="Tactical\**\*" />
   </ItemGroup>
   
   <!-- CRITICAL: Husky.NET auto-installation in src/Darklands.Core.csproj -->

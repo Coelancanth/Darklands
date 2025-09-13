@@ -233,6 +233,13 @@ public partial class DebugSystem : Node
                     $"Updated global log level to {Config.CurrentLogLevel} (Serilog: {serilogLevel})");
             }
         }
+        else if (propertyName == nameof(Config.UseTacticalCombatSystem))
+        {
+            // TD_043: Update Strangler Fig configuration for combat system switching
+            UpdateStranglerFigConfiguration();
+            Logger.Log(LogLevel.Warning, LogCategory.Combat, 
+                $"[TD_043] Combat system switched to: {(Config.UseTacticalCombatSystem ? "TACTICAL" : "LEGACY")}");
+        }
         else
         {
             // Log specific setting changes with current value
@@ -300,6 +307,42 @@ public partial class DebugSystem : Node
         };
         
         Logger.Log(LogLevel.Information, LogCategory.Developer, $"Debug setting changed: {message}");
+    }
+    
+    /// <summary>
+    /// TD_043: Updates the StranglerFigConfiguration when the debug toggle is changed.
+    /// Allows runtime switching between legacy and tactical combat systems.
+    /// </summary>
+    private void UpdateStranglerFigConfiguration()
+    {
+        // Get the StranglerFigConfiguration from dependency injection
+        var servicesResult = GameStrapper.GetServices();
+        if (servicesResult.IsSucc)
+        {
+            servicesResult.Match(
+                Succ: provider =>
+                {
+                    var stranglerConfig = provider.GetService<Core.Infrastructure.Configuration.StranglerFigConfiguration>();
+                    if (stranglerConfig != null)
+                    {
+                        stranglerConfig.UseTacticalContext = Config.UseTacticalCombatSystem;
+                        Logger.Log(LogLevel.Information, LogCategory.Combat, 
+                            $"[TD_043] StranglerFigConfiguration.UseTacticalContext set to: {stranglerConfig.UseTacticalContext}");
+                    }
+                    else
+                    {
+                        Logger.Log(LogLevel.Warning, LogCategory.Combat, 
+                            "[TD_043] StranglerFigConfiguration not found in DI container");
+                    }
+                    return provider;
+                },
+                Fail: error =>
+                {
+                    Logger.Log(LogLevel.Error, LogCategory.Combat, 
+                        $"[TD_043] Failed to get services for StranglerFig update: {error.Message}");
+                    return (ServiceProvider?)null;
+                });
+        }
     }
     
     /// <summary>

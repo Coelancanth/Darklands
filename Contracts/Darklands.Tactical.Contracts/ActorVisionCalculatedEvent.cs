@@ -8,7 +8,7 @@ namespace Darklands.Tactical.Contracts;
 /// Contract event published when an actor's vision/FOV is calculated.
 /// Used for cross-context communication to Diagnostics context.
 /// Uses deterministic integer types to comply with ADR-004.
-/// Implements INotification for MediatR integration.
+/// Version 1 of this contract.
 /// </summary>
 public sealed record ActorVisionCalculatedEvent(
     EntityId ActorId,           // SharedKernel EntityId for cross-context compatibility
@@ -16,12 +16,18 @@ public sealed record ActorVisionCalculatedEvent(
     int CalculationTimeMs,      // Integer milliseconds (converted from double)
     int TilesChecked,           // Total tiles checked during calculation
     bool WasFromCache,          // Whether result came from cache
+    Guid Id,                    // Required by IContractEvent (renamed from EventId)
     DateTime OccurredAt,        // Required by IContractEvent
-    Guid EventId                // Required by IContractEvent
-) : IContractEvent, INotification
+    int Version                 // Required by IContractEvent for contract evolution
+) : IContractEvent
 {
     /// <summary>
-    /// Factory method to create event with current timestamp and new ID.
+    /// Current version of this contract event.
+    /// </summary>
+    public const int CurrentVersion = 1;
+    
+    /// <summary>
+    /// Factory method to create event with current timestamp, new ID, and current version.
     /// </summary>
     /// <param name="actorId">Actor the calculation was for</param>
     /// <param name="tilesVisible">Number of tiles made visible</param>
@@ -35,5 +41,5 @@ public sealed record ActorVisionCalculatedEvent(
         int tilesChecked, 
         bool wasFromCache) => 
         new(actorId, tilesVisible, calculationTimeMs, tilesChecked, wasFromCache, 
-            DateTime.UtcNow, Guid.NewGuid());
+            Guid.NewGuid(), DateTime.UtcNow, CurrentVersion);
 }

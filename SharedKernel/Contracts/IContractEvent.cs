@@ -1,19 +1,28 @@
+using MediatR;
+
 namespace Darklands.SharedKernel.Contracts;
 
 /// <summary>
-/// Marker interface for events that cross bounded context boundaries.
+/// Base interface for events that cross bounded context boundaries.
 /// These are integration events used for communication between contexts.
 /// Contract events should only contain primitive types and EntityIds.
+/// Implements INotification for MediatR pipeline integration.
 /// </summary>
-public interface IContractEvent
+public interface IContractEvent : INotification
 {
+    /// <summary>
+    /// Unique identifier for this specific event instance.
+    /// </summary>
+    Guid Id { get; }
+    
     /// <summary>
     /// The time when this event occurred (in simulation time).
     /// </summary>
     DateTime OccurredAt { get; }
     
     /// <summary>
-    /// Unique identifier for this specific event instance.
+    /// Version of the contract for evolution support.
+    /// Allows backward compatibility when contract changes.
     /// </summary>
-    Guid EventId { get; }
+    int Version { get; }
 }
