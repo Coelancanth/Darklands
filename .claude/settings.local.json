@@ -27,7 +27,8 @@
       "Bash(Get-ChildItem -Path \"src/Tactical\" -Directory)",
       "Bash(Select-String -Pattern \"error\")",
       "Bash(Select-String:*)",
-      "Bash(Select-Object -First 20)"
+      "Bash(Select-Object -First 20)",
+      "Bash(git rm:*)"
     ],
     "deny": [],
     "ask": [],

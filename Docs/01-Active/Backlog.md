@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 008
-- **Next TD**: 048
+- **Next TD**: 049
 - **Next VS**: 015 
 
 
@@ -318,14 +318,14 @@ All critical violations successfully resolved:
 **TD_043 is now UNBLOCKED** - Architectural integrity verified and enforced
 
 ### TD_047: Phase 4 Validation - Test Harness for Combat System Comparison
-**Status**: ✅ COMPLETED
-**Owner**: Dev Engineer → Completed
+**Status**: Blocked
+**Owner**: Dev Engineer
 **Size**: S (4h)
 **Priority**: Important
 **Dependencies**: TD_043 (must be complete)
 **Created**: 2025-09-13 (Dev Engineer)
-**Updated**: 2025-09-13 08:00 (Dev Engineer - Test harness completed)
-**Completed**: 2025-09-13
+**Updated**: 2025-09-13 08:25 (Dev Engineer - Validation tests removed due to compilation errors)
+**Blocked By**: Compilation errors in test harness, needs proper implementation
 
 **Problem**: 
 The tactical and legacy combat systems use separate data stores (IActorRepository vs IActorStateService), making runtime validation difficult. Actors created in one system aren't visible to the other.
@@ -338,24 +338,31 @@ Create a controlled test harness that:
 - Validates algorithmic correctness without production data sync
 
 **Progress**:
-- [x] Test harness structure created (CombatSystemValidationTests.cs)
-- [x] Three test cases defined: basic attack, multiple attacks, lethal damage
-- [x] Validation approach proven - no runtime sync needed
-- [x] SimpleCombatValidationTests demonstrates the concept
-- [x] TD_047 approach validated - YAGNI principle successfully applied
+- [x] Validation approach researched and designed
+- [x] YAGNI principle successfully applied (no runtime sync needed)
+- [ ] Test harness implementation (removed due to compilation errors)
+- [ ] Working validation tests that actually compile
 
-**Result**: 
-- Validation approach proven without complex synchronization
-- Test harness demonstrates independent testing of both systems
-- Can validate algorithmic equivalence with integration tests
-- No E2E complexity or runtime sync required
+**Current Issue**: 
+Initial test harness implementation had 40+ compilation errors due to:
+- Namespace conflicts between legacy and tactical systems
+- Missing infrastructure implementations in Tactical context
+- API signature mismatches between old and new command structures
+- Incomplete error handling and imports
+
+**Next Steps**:
+- Fix namespace conflicts with proper using aliases
+- Implement missing Tactical infrastructure pieces
+- Align command signatures between systems
+- Add proper LanguageExt error handling
 
 **Acceptance Criteria**:
-- [x] Test harness can create identical actors in both systems
-- [x] Can execute same attack sequence in both systems
-- [x] Produces comparison report of results
-- [x] No production runtime sync required (YAGNI)
-- [x] Tests prove mathematical equivalence of combat calculations
+- [ ] Test harness compiles without errors
+- [ ] Can create identical actors in both systems
+- [ ] Can execute same attack sequence in both systems
+- [ ] Produces comparison report of results
+- [ ] No production runtime sync required (YAGNI)
+- [ ] Tests prove mathematical equivalence of combat calculations
 
 **Why Not Sync?**:
 - Temporary code that will be deleted after migration
@@ -739,6 +746,51 @@ if (config.EnableValidationLogging)
 - [ ] Toggle switches between implementations
 - [ ] Architecture tests enforce Godot isolation
 - [ ] All platform tests pass
+
+### TD_048: Fix LanguageExt v5 Logging Package Conflicts
+**Status**: Proposed
+**Owner**: Dev Engineer  
+**Size**: S (2h)
+**Priority**: Important
+**Created**: 2025-09-13 (Dev Engineer)
+**Markers**: [TECHNICAL-DEBT] [LANGUAGEEXT-V5]
+
+**What**: Resolve logging package conflicts preventing ILogger usage in Tactical handlers
+**Why**: Current Tactical handlers have no logging due to package conflicts, affecting debugging/monitoring
+
+**Problem**: 
+During TD_043 implementation, ILogger was temporarily removed from Tactical handlers due to package conflicts. This leaves no runtime logging for the new Tactical system, making debugging and monitoring difficult.
+
+**Root Cause Analysis Needed**:
+- Identify which logging packages conflict with LanguageExt v5.0.0-beta-54
+- Determine if issue is with Microsoft.Extensions.Logging, Serilog, or custom logging
+- Check if LanguageExt v5 changed logging integration patterns
+
+**Implementation Steps**:
+1. **Isolate Conflict** (30min):
+   - Create minimal test project with LanguageExt v5 + logging packages
+   - Identify exact package version conflicts
+   - Document specific error messages
+
+2. **Research Solution** (30min):
+   - Check LanguageExt v5 documentation for logging patterns
+   - Review breaking changes in beta-54 release notes  
+   - Find community solutions or workarounds
+
+3. **Fix Implementation** (1h):
+   - Update package references to compatible versions
+   - Add proper ILogger integration to Tactical handlers
+   - Ensure logging works in both Development and Production
+
+**Done When**:
+- [ ] ILogger works in all Tactical handlers without package conflicts
+- [ ] Logging configuration compatible with LanguageExt v5
+- [ ] All tests pass with logging enabled
+- [ ] No build warnings related to logging packages
+- [ ] Debug information available for Tactical system operations
+
+**Impact**: 
+Tactical system currently runs "blind" without logging - this is a monitoring and debugging issue that needs resolution before production deployment.
 
 ### TD_045: Strangler Fig Phase 4 - Remove Old Structure (Final)
 **Status**: Proposed
