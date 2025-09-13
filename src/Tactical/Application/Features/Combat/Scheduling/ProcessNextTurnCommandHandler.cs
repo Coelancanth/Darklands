@@ -5,6 +5,7 @@ using Darklands.Tactical.Domain.ValueObjects;
 using LanguageExt;
 using LanguageExt.Common;
 using MediatR;
+using Microsoft.Extensions.Logging;
 using static LanguageExt.Prelude;
 
 namespace Darklands.Tactical.Application.Features.Combat.Scheduling;
@@ -19,27 +20,33 @@ public sealed class ProcessNextTurnCommandHandler
 {
     private readonly ICombatSchedulerService _scheduler;
     private readonly IActorRepository _actorRepository;
+    private readonly ILogger<ProcessNextTurnCommandHandler> _logger;
 
     public ProcessNextTurnCommandHandler(
         ICombatSchedulerService scheduler,
-        IActorRepository actorRepository)
+        IActorRepository actorRepository,
+        ILogger<ProcessNextTurnCommandHandler> logger)
     {
         _scheduler = scheduler;
         _actorRepository = actorRepository;
+        _logger = logger;
     }
 
     public async Task<Fin<TurnResult>> Handle(ProcessNextTurnCommand command, CancellationToken cancellationToken)
     {
-        // Process next turn
+        _logger.LogDebug("Processing next turn at time {CurrentTime}", command.CurrentTime);
 
         // Get the next actor to act
         var nextActorResult = await _scheduler.GetNextActorAsync(command.CurrentTime);
 
         if (nextActorResult.IsFail)
+        {
+            _logger.LogWarning("Failed to get next actor from scheduler");
             return nextActorResult.Match<Fin<TurnResult>>(
                 Succ: _ => throw new InvalidOperationException(),
                 Fail: err => FinFail<TurnResult>(err)
             );
+        }
 
         var actorId = nextActorResult.Match(
             Succ: x => x,
@@ -51,13 +58,17 @@ public sealed class ProcessNextTurnCommandHandler
 
     private async Task<Fin<TurnResult>> PrepareActorTurn(EntityId actorId, TimeUnit currentTime)
     {
+        _logger.LogDebug("Preparing turn for actor {ActorId}", actorId);
         var actorResult = await _actorRepository.GetByIdAsync(actorId);
 
         if (actorResult.IsFail)
+        {
+            _logger.LogWarning("Failed to retrieve actor {ActorId}", actorId);
             return actorResult.Match<Fin<TurnResult>>(
                 Succ: _ => throw new InvalidOperationException(),
                 Fail: err => FinFail<TurnResult>(err)
             );
+        }
 
         var actor = actorResult.Match(
             Succ: x => x,
@@ -66,7 +77,7 @@ public sealed class ProcessNextTurnCommandHandler
 
         if (!actor.CanAct)
         {
-            // Actor cannot act, skip turn
+            _logger.LogDebug("Actor {ActorName} cannot act, skipping turn", actor.Name);
             // Schedule next turn for this actor and process next
             await _scheduler.ScheduleActorAsync(actor.Id, currentTime + TimeUnit.QuickAction);
 
@@ -88,6 +99,8 @@ public sealed class ProcessNextTurnCommandHandler
 
         // Generate available actions for the actor
         var availableActions = GenerateAvailableActions(actor);
+        _logger.LogInformation("Turn prepared for {ActorName} with {ActionCount} available actions", 
+            actor.Name, availableActions.Count);
 
         // Calculate round number (every 10 turns = 1 round)
         var roundNumber = currentTime.ToTurns() / 10 + 1;
