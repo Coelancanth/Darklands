@@ -2,6 +2,7 @@ using Darklands.Core.Infrastructure.DependencyInjection;
 using Darklands.Core.Infrastructure.Events;
 using Darklands.Core.Presentation.Presenters;
 using Darklands.Presentation.UI;
+using Darklands.Presentation.Infrastructure;
 using Darklands.Views;
 using Darklands.Core.Infrastructure.Logging;
 using Darklands.Core.Domain.Combat;
@@ -173,6 +174,9 @@ namespace Darklands
                     DebugSystem.Instance.SetLogger(_logger);
                 }
 
+                // TD_052: Initialize the real GodotScopeManager and ServiceLocator
+                InitializeScopeManager();
+
                 _logger.Log(LogLevel.Information, LogCategory.System, "DI container initialized successfully - unified logging active");
             }
             catch (Exception ex)
@@ -180,6 +184,56 @@ namespace Darklands
                 // Use GD.PrintErr as fallback since structured logging may not be available yet
                 GD.PrintErr($"DI container initialization error: {ex.Message}");
                 throw;
+            }
+        }
+
+        /// <summary>
+        /// TD_052: Initializes the real GodotScopeManager and configures the ServiceLocator autoload.
+        /// This replaces the stub implementation with the actual scope management infrastructure.
+        /// </summary>
+        private void InitializeScopeManager()
+        {
+            try
+            {
+                // Create the real GodotScopeManager
+                var logger = _serviceProvider?.GetService<Microsoft.Extensions.Logging.ILogger<Darklands.Presentation.Infrastructure.GodotScopeManager>>();
+                var godotScopeManager = new Darklands.Presentation.Infrastructure.GodotScopeManager(_serviceProvider!, logger);
+
+                // Get the ServiceLocator autoload
+                var serviceLocator = GetNode<ServiceLocator>("/root/ServiceLocator");
+                if (serviceLocator == null)
+                {
+                    _logger?.Log(LogLevel.Error, LogCategory.System, "ServiceLocator autoload not found - scope management will fall back to GameStrapper");
+                    return;
+                }
+
+                // Initialize ServiceLocator with the real scope manager
+                var serviceLocatorLogger = _serviceProvider?.GetService<Microsoft.Extensions.Logging.ILogger<ServiceLocator>>();
+                var initialized = serviceLocator.Initialize(godotScopeManager, serviceLocatorLogger);
+                if (initialized)
+                {
+                    _logger?.Log(LogLevel.Information, LogCategory.System, "ServiceLocator initialized with GodotScopeManager - scope-aware services active");
+
+                    // Create a scope for the GameManager (scene root)
+                    var scopeCreated = this.CreateScope();
+                    if (scopeCreated)
+                    {
+                        _logger?.Log(LogLevel.Information, LogCategory.System, "Created DI scope for GameManager scene root");
+                    }
+                    else
+                    {
+                        _logger?.Log(LogLevel.Warning, LogCategory.System, "Failed to create DI scope for GameManager - services will use fallback");
+                    }
+                }
+                else
+                {
+                    _logger?.Log(LogLevel.Error, LogCategory.System, "ServiceLocator initialization failed - scope management unavailable");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Log(LogLevel.Error, LogCategory.System, "Error initializing scope manager: {0}", ex.Message);
+                GD.PrintErr($"Scope manager initialization failed: {ex.Message}");
             }
         }
 
@@ -243,12 +297,13 @@ namespace Darklands
                     _actorView?.SetLogger(_logger);
                 }
 
-                // Create presenters manually (they need view interfaces which are Godot-specific)
-                var mediator = _serviceProvider.GetRequiredService<IMediator>();
-                var gridStateService = _serviceProvider.GetRequiredService<Darklands.Core.Application.Grid.Services.IGridStateService>();
-                var actorStateService = _serviceProvider.GetRequiredService<Darklands.Core.Application.Actor.Services.IActorStateService>();
-                var combatQueryService = _serviceProvider.GetRequiredService<Darklands.Core.Application.Combat.Services.ICombatQueryService>();
-                var actorFactory = _serviceProvider.GetRequiredService<Darklands.Core.Application.Common.IActorFactory>();
+                // TD_052: Use scope-aware service resolution instead of root provider
+                // GameManager inherits from EventAwareNode, so we can use the scoped service pattern
+                var mediator = this.GetService<IMediator>();
+                var gridStateService = this.GetService<Darklands.Core.Application.Grid.Services.IGridStateService>();
+                var actorStateService = this.GetService<Darklands.Core.Application.Actor.Services.IActorStateService>();
+                var combatQueryService = this.GetService<Darklands.Core.Application.Combat.Services.ICombatQueryService>();
+                var actorFactory = this.GetService<Darklands.Core.Application.Common.IActorFactory>();
 
                 _gridPresenter = new GridPresenter(_gridView!, mediator, _logger!, gridStateService, combatQueryService, actorFactory);
                 _actorPresenter = new ActorPresenter(_actorView!, mediator, _logger!, actorFactory, actorStateService, combatQueryService);
