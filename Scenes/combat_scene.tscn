@@ -1,8 +1,8 @@
 [gd_scene load_steps=4 format=3 uid="uid://coxy82oj87fjb"]
 
-[ext_resource type="Script" uid="uid://c65ytrn2klxjg" path="res://GameManager.cs" id="1_kv618"]
-[ext_resource type="Script" uid="uid://beno1aqs3xqou" path="res://Views/ActorView.cs" id="2_qumoa"]
-[ext_resource type="Script" uid="uid://clqly8e0s1jox" path="res://Views/GridView.cs" id="4_gridview"]
+[ext_resource type="Script" uid="uid://dlsquwmy1qxo5" path="res://GameManager.cs" id="1_kv618"]
+[ext_resource type="Script" uid="uid://umtdiuyv1ifi" path="res://Views/ActorView.cs" id="2_qumoa"]
+[ext_resource type="Script" uid="uid://d17tgsg3d33q2" path="res://Views/GridView.cs" id="4_gridview"]
 
 [node name="CombatScene" type="Node2D"]
 script = ExtResource("1_kv618")
