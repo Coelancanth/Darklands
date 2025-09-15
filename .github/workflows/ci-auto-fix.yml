@@ -98,6 +98,11 @@ jobs:
 
     - name: 🏗️ Build projects
       run: |
+        echo "🧹 Cleaning previous build artifacts..."
+        dotnet clean src/Darklands.Core.csproj --configuration Release
+        dotnet clean tests/Darklands.Core.Tests.csproj --configuration Release
+        echo "✅ Clean completed"
+
         echo "🏗️ Building Core and all dependencies..."
         # Build Core project which will also build all its project references (Tactical, etc.)
         dotnet build src/Darklands.Core.csproj --configuration Release --no-restore
