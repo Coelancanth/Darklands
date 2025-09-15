@@ -77,22 +77,31 @@ namespace Darklands.Core.Presentation.Presenters
                     playerResult.Match(
                         Succ: playerId =>
                         {
-                            // Display the actor visually (health bar is created as child)
-                            _ = Task.Run(async () =>
+                            // Display the actor visually (health bar is created as child) - Sequential per ADR-009
+                            try
                             {
-                                await View.DisplayActorAsync(playerId, new Domain.Grid.Position(15, 10), ActorType.Player);
-
-                                // Initialize health bar with correct values immediately after display
-                                await InitializeActorHealthBar(playerId);
-                            });
+                                View.DisplayActorAsync(playerId, new Domain.Grid.Position(15, 10), ActorType.Player).GetAwaiter().GetResult();
+                                InitializeActorHealthBar(playerId).GetAwaiter().GetResult();
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.Log(LogLevel.Error, LogCategory.System, "Error displaying player actor: {Error}", ex.Message);
+                            }
 
                             _logger.Log(LogLevel.Debug, LogCategory.System, "Player created at strategic center (15,10) with ID {0}", playerId);
 
-                            // Trigger initial vision update after player creation
+                            // Trigger initial vision update after player creation - Sequential per ADR-009
                             if (_gridPresenter != null)
                             {
-                                _ = Task.Run(async () => await _gridPresenter.UpdatePlayerVisionAsync(1));
-                                _logger.Log(LogLevel.Debug, LogCategory.System, "Triggered initial vision update after player creation");
+                                try
+                                {
+                                    _gridPresenter.UpdatePlayerVisionAsync(1).GetAwaiter().GetResult();
+                                    _logger.Log(LogLevel.Debug, LogCategory.System, "Triggered initial vision update after player creation");
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger.Log(LogLevel.Error, LogCategory.System, "Error updating player vision: {Error}", ex.Message);
+                                }
                             }
                             else
                             {
@@ -107,14 +116,16 @@ namespace Darklands.Core.Presentation.Presenters
                     dummyResult.Match(
                         Succ: dummyId =>
                         {
-                            // Display the dummy visually (health bar is created as child)
-                            _ = Task.Run(async () =>
+                            // Display the dummy visually (health bar is created as child) - Sequential per ADR-009
+                            try
                             {
-                                await View.DisplayActorAsync(dummyId, new Domain.Grid.Position(5, 5), ActorType.Enemy);
-
-                                // Initialize health bar with correct values immediately after display
-                                await InitializeActorHealthBar(dummyId);
-                            });
+                                View.DisplayActorAsync(dummyId, new Domain.Grid.Position(5, 5), ActorType.Enemy).GetAwaiter().GetResult();
+                                InitializeActorHealthBar(dummyId).GetAwaiter().GetResult();
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.Log(LogLevel.Error, LogCategory.System, "Error displaying dummy actor: {Error}", ex.Message);
+                            }
 
                             _logger.Log(LogLevel.Debug, LogCategory.System, "Dummy target created at position (5,5) with ID {0}", dummyId);
                         },
