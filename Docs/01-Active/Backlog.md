@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-15 20:07 (Tech Lead - Clean Architecture approach: detailed critical fixes for pre-DDD state)
+**Last Updated**: 2025-09-15 22:00 (Tech Lead - Added TD_042 to replace over-engineered DDD main with focused implementations)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 008
-- **Next TD**: 042
+- **Next TD**: 043
 - **Next VS**: 015 
 
 
@@ -78,7 +78,86 @@
 ## 🔥 Critical (Do First)
 *Blockers preventing other work, production bugs, dependencies for other features*
 
-### TD_042: Enforce Clean Architecture via Project Separation
+### TD_042: Replace Over-Engineered DDD Main with Focused Implementation Approach
+**Status**: Approved
+**Owner**: Tech Lead → DevOps Engineer (Git operations)
+**Size**: S (30min) - Git force-push operation with backup
+**Priority**: Critical - Remove architectural complexity blocking development
+**Created**: 2025-09-15 22:00 (Tech Lead)
+**Markers**: [ARCHITECTURE] [ANTI-PATTERN] [SIMPLIFICATION] [CRITICAL]
+
+**What**: Replace main branch with refactor/clean-architecture-from-pre-ddd branch containing focused TD_040/TD_041 implementations
+
+**Why**: Current main branch contains over-engineered DDD architecture (bounded contexts, Strangler Fig pattern, excessive layers) that adds complexity without proportional value. Our branch has clean, focused implementations that solve actual problems (determinism, DI lifecycle) without architectural overhead.
+
+**📋 Implementation Plan**:
+
+**Phase 1: Safety Backup** (5min):
+```bash
+git checkout main
+git checkout -b backup/main-ddd-implementation-2025-09-15
+git push origin backup/main-ddd-implementation-2025-09-15
+```
+
+**Phase 2: Replace Main Branch** (10min):
+```bash
+git checkout main
+git reset --hard refactor/clean-architecture-from-pre-ddd
+git push --force-with-lease origin main
+```
+
+**Phase 3: Verification** (10min):
+```bash
+# Verify build still works on new main
+dotnet build
+# Verify tests pass
+dotnet test
+# Verify Godot can still build the project
+```
+
+**Phase 4: Communication** (5min):
+- Notify team of main branch update
+- Document decision in session log
+- Update any CI/CD that references old commits
+
+**✅ Benefits of Replacement**:
+- **Eliminates over-engineering**: Removes complex DDD patterns that add cognitive overhead
+- **Preserves working solutions**: TD_040 (Fixed-point determinism) and TD_041 (DI lifecycle) are production-ready
+- **Reduces maintenance burden**: Simpler code is easier to understand and maintain
+- **Focuses on actual problems**: Our implementations solve real technical debt vs theoretical architecture
+- **All tests pass**: 664 tests passing, builds work in both .NET CLI and Godot
+
+**🚨 What's Being Replaced**:
+- Complex bounded contexts (Tactical, Diagnostics, Platform)
+- Strangler Fig pattern implementation
+- Extensive architectural layers and abstractions
+- Over-engineered DDD patterns that don't fit game development
+
+**What's Being Kept**:
+- All working functionality from before DDD implementation
+- Clean TD_040 Fixed-point determinism implementation
+- Focused TD_041 DI lifecycle management (without DDD complexity)
+- Proven architectural patterns that actually add value
+
+**Rollback Plan**:
+If issues arise, restore from backup:
+```bash
+git reset --hard backup/main-ddd-implementation-2025-09-15
+git push --force-with-lease origin main
+```
+
+**Success Criteria**:
+- [ ] Backup branch created and pushed
+- [ ] Main branch successfully replaced with clean architecture
+- [ ] All builds pass (both .NET CLI and Godot editor)
+- [ ] All 664 tests still passing
+- [ ] No functionality lost from pre-DDD state
+- [ ] Team notified of the change
+
+**Tech Lead Decision Rationale**:
+The DDD implementation represents a classic case of over-engineering - adding architectural complexity that doesn't align with game development needs. Our focused approach solves the same core problems (determinism, DI lifecycle) with significantly less cognitive overhead and maintenance burden.
+
+### TD_043: Enforce Clean Architecture via Project Separation
 **Status**: Proposed
 **Owner**: Tech Lead → Dev Engineer (after critical fixes)
 **Size**: M (6-8h)
@@ -510,7 +589,7 @@ private static void CastShadow(
 **Created**: 2025-09-15 20:07 (Tech Lead)
 **Reference Implementation**: Commit 92c3e93 (TD_052 equivalent)
 **Markers**: [INFRASTRUCTURE] [DI] [MEMORY-MANAGEMENT] [CLEAN-ARCHITECTURE]
-
+/
 **What**: Implement proper DI scope management for Godot nodes without memory leaks
 **Why**: Current GameStrapper approach causes memory leaks and improper service lifetimes
 
