@@ -135,27 +135,39 @@ public class GodotScopeManager : IScopeManager
 ```
 
 ```csharp
-public static class NodeServiceExtensions
+// Better approach: Use Godot's autoload system to avoid static state
+public partial class ServiceLocator : Node
 {
-    private static IScopeManager? _scopeManager;
+    private IScopeManager? _scopeManager;
 
-    /// <summary>
-    /// Initialize once from GameStrapper after DI setup
-    /// </summary>
-    public static void Initialize(IScopeManager scopeManager)
+    // Singleton pattern using Godot's autoload
+    private static ServiceLocator? _instance;
+    public static ServiceLocator Instance => _instance ?? throw new InvalidOperationException("ServiceLocator not initialized");
+
+    public override void _Ready()
+    {
+        _instance = this;
+        // ScopeManager injected via constructor or property
+    }
+
+    public void Initialize(IScopeManager scopeManager)
     {
         _scopeManager = scopeManager ?? throw new ArgumentNullException(nameof(scopeManager));
     }
 
+    public IScopeManager ScopeManager => _scopeManager ?? throw new InvalidOperationException("ScopeManager not initialized");
+}
+
+public static class NodeServiceExtensions
+{
     /// <summary>
-    /// Extension method to get services for any node
+    /// Extension method to get services for any node using Godot's autoload
     /// </summary>
     public static T GetService<T>(this Node node) where T : class
     {
-        if (_scopeManager == null)
-            throw new InvalidOperationException("Call NodeServiceExtensions.Initialize first");
-
-        var provider = _scopeManager.GetProviderForNode(node);
+        // Access through Godot's autoload system - no static state in extension class
+        var scopeManager = node.GetNode<ServiceLocator>("/root/ServiceLocator").ScopeManager;
+        var provider = scopeManager.GetProviderForNode(node);
         return provider.GetRequiredService<T>();
     }
 
@@ -164,10 +176,11 @@ public static class NodeServiceExtensions
     /// </summary>
     public static T? TryGetService<T>(this Node node) where T : class
     {
-        if (_scopeManager == null)
+        var serviceLocator = node.GetNodeOrNull<ServiceLocator>("/root/ServiceLocator");
+        if (serviceLocator?.ScopeManager == null)
             return null;
 
-        var provider = _scopeManager.GetProviderForNode(node);
+        var provider = serviceLocator.ScopeManager.GetProviderForNode(node);
         return provider.GetService<T>();
     }
 
@@ -176,10 +189,8 @@ public static class NodeServiceExtensions
     /// </summary>
     public static IServiceScope CreateScope(this Node node)
     {
-        if (_scopeManager == null)
-            throw new InvalidOperationException("Call NodeServiceExtensions.Initialize first");
-
-        return _scopeManager.CreateScope(node);
+        var scopeManager = node.GetNode<ServiceLocator>("/root/ServiceLocator").ScopeManager;
+        return scopeManager.CreateScope(node);
     }
 }
 ```
@@ -351,6 +362,9 @@ public class CombatTests
 - **No Attribute Injection**: More verbose than [Inject] patterns
 - **Dictionary Overhead**: Small memory cost for scope tracking
 - **Tree Walking**: GetProviderForNode walks up tree (usually shallow)
+- **Thread Safety Overhead**: Lock contention possible with many concurrent scope operations
+- **Memory Leak Risk**: If TreeExiting doesn't fire (e.g., node freed directly), scope won't be disposed
+  - Mitigation: Consider WeakReference for node tracking or periodic cleanup
 
 ### Neutral
 - **Explicit Over Magic**: Clear dependency flow, no hidden injection
