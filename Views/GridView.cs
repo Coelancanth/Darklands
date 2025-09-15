@@ -318,23 +318,33 @@ namespace Darklands.Views
 
                     _logger?.Log(LogLevel.Debug, LogCategory.Gameplay, "User clicked tile ({X},{Y})", tileX, tileY);
 
-                    // Notify the presenter about the tile click
-                    _ = Task.Run(async () =>
-                    {
-                        try
-                        {
-                            await _presenter.HandleTileClickAsync(gridPosition);
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger?.Log(LogLevel.Error, LogCategory.Gameplay, "Error handling tile click at ({X},{Y}): {Error}", tileX, tileY, ex.Message);
-                        }
-                    });
+                    // Notify the presenter about the tile click on the main thread
+                    // Convert Position to Godot-compatible parameters
+                    CallDeferred(nameof(HandleTileClickDeferred), gridPosition.X, gridPosition.Y);
                 }
             }
             catch (Exception ex)
             {
                 _logger?.Log(LogLevel.Error, LogCategory.Gameplay, "HandleMouseClick error: {Error}", ex.Message);
+            }
+        }
+
+
+        /// <summary>
+        /// Deferred handler to process tile click on the main thread and synchronously wait for completion.
+        /// </summary>
+        /// <param name="x">The X coordinate of the clicked position</param>
+        /// <param name="y">The Y coordinate of the clicked position</param>
+        private void HandleTileClickDeferred(int x, int y)
+        {
+            try
+            {
+                var gridPosition = new Darklands.Core.Domain.Grid.Position(x, y);
+                _presenter?.HandleTileClickAsync(gridPosition).GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                _logger?.Log(LogLevel.Error, LogCategory.Gameplay, "Error handling tile click at ({X},{Y}): {Error}", x, y, ex.Message);
             }
         }
 

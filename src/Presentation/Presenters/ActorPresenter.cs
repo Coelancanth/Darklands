@@ -78,21 +78,33 @@ namespace Darklands.Core.Presentation.Presenters
                         Succ: playerId =>
                         {
                             // Display the actor visually (health bar is created as child)
-                            _ = Task.Run(async () =>
+                            try
                             {
-                                await View.DisplayActorAsync(playerId, new Domain.Grid.Position(15, 10), ActorType.Player);
+                                View.DisplayActorAsync(playerId, new Domain.Grid.Position(15, 10), ActorType.Player)
+                                    .GetAwaiter().GetResult();
 
                                 // Initialize health bar with correct values immediately after display
-                                await InitializeActorHealthBar(playerId);
-                            });
+                                InitializeActorHealthBar(playerId).GetAwaiter().GetResult();
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.Log(LogLevel.Error, LogCategory.System, "Display player failed: {0}", ex.Message);
+                            }
 
                             _logger.Log(LogLevel.Debug, LogCategory.System, "Player created at strategic center (15,10) with ID {0}", playerId);
 
                             // Trigger initial vision update after player creation
                             if (_gridPresenter != null)
                             {
-                                _ = Task.Run(async () => await _gridPresenter.UpdatePlayerVisionAsync(1));
-                                _logger.Log(LogLevel.Debug, LogCategory.System, "Triggered initial vision update after player creation");
+                                try
+                                {
+                                    _gridPresenter.UpdatePlayerVisionAsync(1).GetAwaiter().GetResult();
+                                    _logger.Log(LogLevel.Debug, LogCategory.System, "Triggered initial vision update after player creation");
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger.Log(LogLevel.Error, LogCategory.System, "Initial vision update failed: {0}", ex.Message);
+                                }
                             }
                             else
                             {
@@ -108,13 +120,18 @@ namespace Darklands.Core.Presentation.Presenters
                         Succ: dummyId =>
                         {
                             // Display the dummy visually (health bar is created as child)
-                            _ = Task.Run(async () =>
+                            try
                             {
-                                await View.DisplayActorAsync(dummyId, new Domain.Grid.Position(5, 5), ActorType.Enemy);
+                                View.DisplayActorAsync(dummyId, new Domain.Grid.Position(5, 5), ActorType.Enemy)
+                                    .GetAwaiter().GetResult();
 
                                 // Initialize health bar with correct values immediately after display
-                                await InitializeActorHealthBar(dummyId);
-                            });
+                                InitializeActorHealthBar(dummyId).GetAwaiter().GetResult();
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.Log(LogLevel.Error, LogCategory.System, "Display dummy failed: {0}", ex.Message);
+                            }
 
                             _logger.Log(LogLevel.Debug, LogCategory.System, "Dummy target created at position (5,5) with ID {0}", dummyId);
                         },

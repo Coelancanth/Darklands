@@ -78,6 +78,71 @@
 ## 🔥 Critical (Do First)
 *Blockers preventing other work, production bugs, dependencies for other features*
 
+### TD_042: Enforce Clean Architecture via Project Separation
+**Status**: Proposed
+**Owner**: Tech Lead → Dev Engineer (after critical fixes)
+**Size**: M (6-8h)
+**Priority**: Important - Architectural integrity enforcement
+**Created**: 2025-09-15 20:40 (Tech Lead)
+**Markers**: [ARCHITECTURE] [CLEAN-ARCHITECTURE] [BUILD-SYSTEM]
+
+**What**: Separate monolithic Darklands.Core.csproj into layer-specific projects to enforce architectural boundaries at compile-time
+
+**Why**: Current single project allows architectural violations (e.g., Domain referencing Infrastructure). Project separation makes violations impossible, not just discouraged.
+
+**📋 Implementation Plan**:
+
+**Phase 1: Create Layer Projects** (2h):
+```
+src/
+├── Core/
+│   ├── Darklands.Domain/         (NO dependencies)
+│   ├── Darklands.Application/    (→ Domain only)
+│   ├── Darklands.Infrastructure/ (→ Application, Domain)
+│   └── Darklands.Presentation/   (→ Application, Domain)
+```
+
+**Phase 2: Migrate Code by Layer** (3h):
+- Move domain entities/value objects → `Darklands.Domain`
+- Move commands/handlers/services → `Darklands.Application`
+- Move repositories/external services → `Darklands.Infrastructure`
+- Move MVP presenters/view models → `Darklands.Presentation`
+- Keep VSA Features/ as-is initially (gradual migration)
+
+**Phase 3: Update References** (2h):
+```xml
+<!-- Example: Darklands.Application.csproj -->
+<ProjectReference Include="..\Darklands.Domain\Darklands.Domain.csproj" />
+<!-- CANNOT reference Infrastructure - compile error if violated -->
+```
+
+**Phase 4: Update Build & Tests** (1h):
+- Update Darklands.sln with new projects
+- Update test projects to reference appropriate layers
+- Update CI/CD scripts for new structure
+- Validate all 662 tests still pass
+
+**✅ Benefits**:
+- **Compile-time enforcement**: Domain can't accidentally use Godot types
+- **Clear boundaries**: Each layer's dependencies explicit in .csproj
+- **Better testability**: Domain/Application tests don't need Godot runtime
+- **Parallel builds**: Separate projects can build in parallel
+- **Cleaner namespaces**: `Darklands.Domain.Entities` vs mixed paths
+
+**⚠️ Migration Notes**:
+- Do AFTER critical fixes (TD_039, TD_040, TD_041) to avoid disruption
+- Each step reversible if issues arise
+- Keep Features/ folder initially, migrate gradually
+- Update imports/namespaces as files move
+
+**Done When**:
+- [ ] 4-5 separate layer projects created
+- [ ] All code moved to appropriate layer
+- [ ] Solution builds successfully
+- [ ] All 662 tests pass
+- [ ] Architecture tests validate layer dependencies
+- [ ] No circular dependencies between projects
+
 ### VS_012: Vision-Based Movement System
 **Status**: Approved  
 **Owner**: Dev Engineer
@@ -272,7 +337,7 @@ Animation: Gentle pulse on destination tile
 **Blocks**: VS_012 (Movement System)
 
 ### TD_039: Remove Task.Run Violations (Pre-DDD Critical Fix)
-**Status**: Proposed
+**Status**: Done
 **Owner**: Tech Lead → Dev Engineer (for implementation)
 **Size**: S (2h) - Based on commit 65a22c1 implementation
 **Priority**: Critical - ADR-009 violations causing race conditions
@@ -337,13 +402,21 @@ try {
 ```
 
 **Success Criteria**:
-- [ ] No Task.Run calls in GameManager.cs, GridView.cs, ActorPresenter.cs
-- [ ] All async operations use .GetAwaiter().GetResult() pattern
-- [ ] Godot main-thread safety preserved with CallDeferred
-- [ ] All existing tests still pass
-- [ ] No new race conditions introduced
+- [x] No Task.Run calls in GameManager.cs, GridView.cs, ActorPresenter.cs
+- [x] All async operations use .GetAwaiter().GetResult() pattern
+- [x] Godot main-thread safety preserved with CallDeferred
+- [x] All existing tests still pass
+- [x] No new race conditions introduced
 
 **Tech Lead Notes**: This fix eliminates the BR_007 race condition root cause and enforces ADR-009 sequential processing.
+
+**Dev Engineer Decision** (2025-09-15):
+- Implementation mirrored remote commit 65a22c1 pattern (sequentializing async and deferring to Godot main thread).
+- Replaced Task.Run with synchronous `.GetAwaiter().GetResult()` in `GameManager.cs` and `ActorPresenter.cs`.
+- Replaced Task.Run with `CallDeferred(nameof(HandleTileClickDeferred), position)` in `Views/GridView.cs`, executing handler synchronously on the main thread.
+- Verified no remaining Task.Run in production code via search; remaining usages are confined to tests and mock services.
+- Build succeeded; tests passed (664 passed, 2 skipped).
+- Risk of deadlock mitigated by invoking from the main thread and using Godot deferred calls where UI is involved.
 
 ### TD_040: Replace Double Math with Fixed-Point for Determinism (Pre-DDD Critical Fix)
 **Status**: Proposed

@@ -52,21 +52,18 @@ namespace Darklands
                 // This will work because GameStrapper is now initialized
                 base._Ready();
 
-                // Continue with async initialization for the rest
-                _ = Task.Run(async () =>
+                // Continue with initialization sequentially (ADR-009): avoid background concurrency
+                try
                 {
-                    try
-                    {
-                        await CompleteInitializationAsync();
-                        _logger?.Log(LogLevel.Information, LogCategory.System, "GameManager initialization completed successfully");
-                    }
-                    catch (Exception ex)
-                    {
-                        // Use GD.PrintErr as fallback since structured logging may not be available yet
-                        GD.PrintErr($"GameManager initialization failed: {ex.Message}");
-                        _logger?.Log(LogLevel.Error, LogCategory.System, "GameManager initialization failed: {0}", ex.Message);
-                    }
-                });
+                    CompleteInitializationAsync().GetAwaiter().GetResult();
+                    _logger?.Log(LogLevel.Information, LogCategory.System, "GameManager initialization completed successfully");
+                }
+                catch (Exception ex)
+                {
+                    // Use GD.PrintErr as fallback since structured logging may not be available yet
+                    GD.PrintErr($"GameManager initialization failed: {ex.Message}");
+                    _logger?.Log(LogLevel.Error, LogCategory.System, "GameManager initialization failed: {0}", ex.Message);
+                }
             }
             catch (Exception ex)
             {
