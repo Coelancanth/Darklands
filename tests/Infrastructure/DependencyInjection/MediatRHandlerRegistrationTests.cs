@@ -20,21 +20,29 @@ namespace Darklands.Core.Tests.Infrastructure.DependencyInjection;
 /// 3. MediatR can discover and instantiate all handlers
 ///
 /// Prevents runtime MediatR resolution failures by catching registration issues at test time.
+///
+/// TD_052 Phase 3: Uses scope-aware testing infrastructure to handle scoped services.
 /// </summary>
 [Collection("GameStrapper")]
-public class MediatRHandlerRegistrationTests
+public class MediatRHandlerRegistrationTests : IDisposable
 {
+    private readonly ServiceProvider _rootServiceProvider;
+    private readonly IServiceScope _testScope;
     private readonly IServiceProvider _serviceProvider;
     private readonly Assembly _coreAssembly;
 
     public MediatRHandlerRegistrationTests()
     {
-        // Initialize test DI container
-        var config = GameStrapperConfiguration.Testing;
+        // TD_052 Phase 3: Initialize root DI container with scope validation enabled
+        var config = GameStrapperConfiguration.Testing with { ValidateScopes = true };
         var result = GameStrapper.Initialize(config);
-        _serviceProvider = result.Match(
+        _rootServiceProvider = result.Match(
             Succ: provider => provider,
             Fail: error => throw new InvalidOperationException($"Test setup failed: {error}"));
+
+        // Create test scope for scoped service resolution
+        _testScope = _rootServiceProvider.CreateScope();
+        _serviceProvider = _testScope.ServiceProvider;
         _coreAssembly = typeof(GameStrapper).Assembly;
     }
 
@@ -227,6 +235,10 @@ public class MediatRHandlerRegistrationTests
             "ErrorHandlingBehavior should be registered in MediatR pipeline");
     }
 
-    // Note: GameStrapper uses singleton pattern - no per-test cleanup needed
-    // Disposal handled globally at application termination
+    public void Dispose()
+    {
+        // TD_052 Phase 3: Proper scope disposal to prevent memory leaks in tests
+        _testScope?.Dispose();
+        // Note: _rootServiceProvider disposal handled by GameStrapper singleton pattern
+    }
 }

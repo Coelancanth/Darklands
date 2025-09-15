@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 009
-- **Next TD**: 053
+- **Next TD**: 054
 - **Next VS**: 015 
 
 
@@ -121,45 +121,6 @@ Reorganized based on risk assessment - promoting architectural violations and pr
 
 
 
-### TD_052: Implement Godot DI Lifecycle Alignment (ADR-018)
-**Status**: Proposed → **APPROVED BY TECH LEAD**
-**Owner**: Tech Lead → Dev Engineer (approved for implementation)
-**Size**: M (7h)
-**Priority**: Critical - Memory leaks and blocked testing parallelization
-**Created**: 2025-09-15 (Tech Lead)
-**Markers**: [ARCHITECTURE] [ADR-018] [DEPENDENCY-INJECTION] [MEMORY-LEAKS]
-
-**What**: Implement instance-based IScopeManager for MS.DI + Godot lifecycle alignment
-**Why**: Prevent memory leaks, enable scene-scoped services, support parallel testing
-
-**Tech Lead Approval Rationale**: Memory leaks are production issues. Blocked test parallelization affects development velocity. Foundation needed for proper DI lifecycle management.
-
-**Implementation Plan** (from ADR-018):
-1. **Phase 1: Core (3h)**:
-   - Create IScopeManager interface and GodotScopeManager
-   - Register as singleton in GameStrapper
-   - Create NodeServiceExtensions with GetService methods
-   - Initialize after DI setup
-
-2. **Phase 2: Migration (2h)**:
-   - Categorize services by lifetime (singleton/scoped/transient)
-   - Update nodes to use this.GetService<T>()
-   - Add scope creation to SceneManager
-   - Verify disposal on scene transitions
-
-3. **Phase 3: Testing (2h)**:
-   - Parallel test suite for no static interference
-   - Integration tests for nested scopes
-   - Performance test tree walking
-   - Debug window for active scopes
-
-**Done When**:
-- [ ] IScopeManager implemented and registered
-- [ ] Extension methods working (this.GetService<T>())
-- [ ] Scene scopes created/disposed properly
-- [ ] Tests can run in parallel
-- [ ] Memory leaks eliminated
-- [ ] Supports nested scopes (overlays, modals)
 
 ### TD_049: Complete ADR-017 DDD Bounded Contexts Architecture Alignment
 **Status**: Proposed → **APPROVED BY TECH LEAD**
@@ -1227,6 +1188,27 @@ This maintains Clean Architecture AND determinism. The types belong in Domain as
 
 ## 💡 Future Ideas (Not Current Priority)
 *Features and systems to consider when foundational work is complete*
+
+### TD_053: Move IScopeManager to Proper Architectural Layer
+**Status**: Proposed
+**Owner**: Tech Lead (architectural cleanup)
+**Size**: S (1h) - Simple refactoring with clear path
+**Priority**: Ideas - Minor architectural improvement
+**Created**: 2025-09-15 15:18 (Tech Lead)
+**Markers**: [ARCHITECTURE] [CLEANUP]
+
+**What**: Move IScopeManager interface from Core.Domain to Core.Infrastructure
+**Why**: Domain layer should be pure business logic, not infrastructure concerns
+**How**:
+- Move `IScopeManager.cs` from `src/Core/Domain/Services/` to `src/Core/Infrastructure/Services/`
+- Update all using statements in GodotScopeManager, StubScopeManager, and GameStrapper
+- Update namespace from `Darklands.Core.Domain.Services` to `Darklands.Core.Infrastructure.Services`
+**Done When**:
+- IScopeManager in proper architectural layer
+- All references updated, solution builds
+- No architectural boundary violations
+
+**Tech Lead Notes**: Minor issue identified during TD_052 review. IScopeManager is infrastructure abstraction, not domain concept. Non-urgent but architecturally correct.
 
 
 ## 📋 Quick Reference

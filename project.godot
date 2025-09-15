@@ -17,6 +17,7 @@ config/icon="res://icon.svg"
 
 [autoload]
 
+ServiceLocator="*res://ServiceLocator.cs"
 DebugSystem="*res://DebugSystem.cs"
 
 [dotnet]
