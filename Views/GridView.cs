@@ -318,18 +318,8 @@ namespace Darklands.Views
 
                     _logger?.Log(LogLevel.Debug, LogCategory.Gameplay, "User clicked tile ({X},{Y})", tileX, tileY);
 
-                    // Notify the presenter about the tile click
-                    _ = Task.Run(async () =>
-                    {
-                        try
-                        {
-                            await _presenter.HandleTileClickAsync(gridPosition);
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger?.Log(LogLevel.Error, LogCategory.Gameplay, "Error handling tile click at ({X},{Y}): {Error}", tileX, tileY, ex.Message);
-                        }
-                    });
+                    // Notify the presenter about the tile click - Use CallDeferred for main-thread safety
+                    CallDeferred(nameof(HandleTileClickDeferred), gridPosition.X, gridPosition.Y);
                 }
             }
             catch (Exception ex)
@@ -338,6 +328,24 @@ namespace Darklands.Views
             }
         }
 
+        /// <summary>
+        /// Deferred handler for tile clicks to ensure main-thread execution and sequential processing.
+        /// Converts async presenter call to synchronous per ADR-009.
+        /// </summary>
+        private void HandleTileClickDeferred(int x, int y)
+        {
+            try
+            {
+                var gridPosition = new Darklands.Core.Domain.Grid.Position(x, y);
+                // Convert async call to synchronous per ADR-009 Sequential Turn Processing
+                _presenter?.HandleTileClickAsync(gridPosition).GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                _logger?.Log(LogLevel.Error, LogCategory.Gameplay, "Error handling deferred tile click at ({X},{Y}): {Error}",
+                    x, y, ex.Message);
+            }
+        }
 
         /// <summary>
         /// Creates a ColorRect tile at the specified position with the given color.

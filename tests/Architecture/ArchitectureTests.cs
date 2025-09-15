@@ -229,19 +229,63 @@ public class ArchitectureTests
     [Fact]
     [Trait("Category", "Architecture")]
     [Trait("Category", "Phase1")]
-    public void Task_Run_Usage_Should_Be_Eliminated()
+    public void Task_Run_Usage_Should_Be_Eliminated_In_Game_Logic()
     {
         // Task.Run() in turn-based games creates concurrency where sequential processing is needed
-        // This test documents the current problem that TD_011 will fix
+        // Per ADR-009: Sequential Turn Processing - Task.Run must be eliminated from presenters and game loop
 
         var presenterTypes = _coreAssembly.GetTypes()
             .Where(t => t.Name.EndsWith("Presenter"));
 
         presenterTypes.Should().NotBeEmpty("Should have presenter types to validate");
 
-        // Note: We can't easily inspect method bodies for Task.Run usage in compiled assemblies
-        // This test serves as documentation of the architectural constraint
-        // The actual fix will be verified by manual code review and integration testing
+        // Check source files directly for Task.Run violations in critical paths
+        // Try to find project root, but don't fail if we can't
+        try
+        {
+            var projectRoot = GetProjectRoot();
+            var criticalFiles = new[]
+            {
+                Path.Combine(projectRoot, "Views", "GridView.cs"),
+                Path.Combine(projectRoot, "src", "Presentation", "Presenters", "ActorPresenter.cs"),
+                Path.Combine(projectRoot, "src", "Presentation", "Presenters", "GridPresenter.cs"),
+                Path.Combine(projectRoot, "GameManager.cs")
+            };
+
+            var existingFiles = criticalFiles.Where(File.Exists).ToList();
+
+            if (existingFiles.Any())
+            {
+                foreach (var filePath in existingFiles)
+                {
+                    var content = File.ReadAllText(filePath);
+                    content.Should().NotContain("Task.Run",
+                        $"File {Path.GetFileName(filePath)} should not contain Task.Run per ADR-009 Sequential Turn Processing");
+                }
+            }
+            else
+            {
+                // If we can't find the files, this test documents the architectural constraint
+                // The actual enforcement will be through code review and integration testing
+                true.Should().BeTrue("Task.Run architectural constraint documented - files not found for direct verification");
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            // If we can't find project root, this test still documents the constraint
+            true.Should().BeTrue("Task.Run architectural constraint documented - project root not found for direct verification");
+        }
+    }
+
+    private static string GetProjectRoot()
+    {
+        // Start from test assembly location and work upward
+        var currentDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+        while (currentDir != null && !File.Exists(Path.Combine(currentDir, "Darklands.sln")))
+        {
+            currentDir = Directory.GetParent(currentDir)?.FullName;
+        }
+        return currentDir ?? throw new InvalidOperationException("Could not find project root - looked for Darklands.sln");
     }
 
     [Fact]

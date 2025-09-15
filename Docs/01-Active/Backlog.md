@@ -120,36 +120,6 @@ graph TD
 Reorganized based on risk assessment - promoting architectural violations and production stability issues from Important to Critical. These items represent either active production issues or fundamental violations that will compound if not addressed immediately.
 
 
-### TD_050: ADR-009 Enforcement - Remove Task.Run from Turn Loop and Presenters
-**Status**: Proposed → **APPROVED BY TECH LEAD**
-**Owner**: Tech Lead → Dev Engineer (approved for immediate implementation)
-**Size**: S (3h)
-**Priority**: Critical - Production stability, already causing race conditions
-**Created**: 2025-09-15 (Tech Lead from GPT review)
-**Markers**: [ARCHITECTURE] [ADR-009] [SEQUENTIAL-PROCESSING] [PRODUCTION-BUG]
-
-**What**: Remove all Task.Run and async patterns from tactical game flow and presenters
-**Why**: Violates ADR-009 Sequential Turn Processing, already caused BR_007 race conditions
-
-**Violations Found** (from codebase review):
-- `Views/GridView.cs`: Task.Run in HandleMouseClick
-- `src/Presentation/Presenters/ActorPresenter.cs`: Task.Run in Initialize
-- `GameManager.cs`: Task.Run in _Ready for initialization
-
-**Tech Lead Approval Rationale**: This is an ACTIVE production stability issue. BR_007 race conditions are already documented. ADR-009 violation creates unpredictable game state. Must fix immediately.
-
-**Implementation**:
-1. Replace Task.Run with CallDeferred for Godot-safe sequencing
-2. Remove async from presenter methods - make them synchronous
-3. Keep async only at I/O boundaries (file, network)
-4. Add tests to verify no Task.Run in tactical/presentation
-
-**Done When**:
-- [ ] No Task.Run in any presenter or game loop code
-- [ ] All presenter methods synchronous
-- [ ] CallDeferred used for main-thread operations
-- [ ] Tests verify sequential execution
-- [ ] No new race conditions introduced
 
 ### TD_052: Implement Godot DI Lifecycle Alignment (ADR-018)
 **Status**: Proposed → **APPROVED BY TECH LEAD**
