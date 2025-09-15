@@ -337,6 +337,7 @@ Animation: Gentle pulse on destination tile
 **Blocks**: VS_012 (Movement System)
 
 ### TD_039: Remove Task.Run Violations (Pre-DDD Critical Fix)
+
 **Status**: Done
 **Owner**: Tech Lead → Dev Engineer (for implementation)
 **Size**: S (2h) - Based on commit 65a22c1 implementation
@@ -419,7 +420,7 @@ try {
 - Risk of deadlock mitigated by invoking from the main thread and using Godot deferred calls where UI is involved.
 
 ### TD_040: Replace Double Math with Fixed-Point for Determinism (Pre-DDD Critical Fix)
-**Status**: Proposed
+**Status**: Done
 **Owner**: Tech Lead → Dev Engineer (for implementation)
 **Size**: S (3h) - Based on commit 63746e3 implementation
 **Priority**: Critical - ADR-004 violations breaking save compatibility
@@ -487,13 +488,19 @@ private static void CastShadow(
 ```
 
 **Success Criteria**:
-- [ ] No double/float arithmetic in ShadowcastingFOV.cs
-- [ ] Fixed-point arithmetic maintains identical algorithmic behavior
-- [ ] All vision tests still pass with identical results
-- [ ] Cross-platform determinism verified (integer math only)
-- [ ] Save/load compatibility preserved
+- [x] No double/float arithmetic in ShadowcastingFOV.cs
+- [x] Fixed-point arithmetic maintains identical algorithmic behavior
+- [x] All vision tests still pass with identical results
+- [x] Cross-platform determinism verified (integer math only)
+- [x] Save/load compatibility preserved
 
 **Tech Lead Notes**: This ensures FOV calculations are identical across all platforms and compiler optimizations.
+
+**Dev Engineer Decision** (2025-09-15):
+- Added `src/Domain/Determinism/Fixed.cs` implementing 16.16 fixed-point with Abs, Clamp, Lerp, Sqrt.
+- Refactored `src/Domain/Vision/ShadowcastingFOV.cs` to use `Fixed` for all slope calculations.
+- Removed all double-based slope math; start slopes now use `Fixed.One`/`Fixed.Zero` and tile slopes use integer-only ops.
+- Build succeeded, all tests passed (664 total, 2 skipped). Behavior preserved per test suite.
 
 ### TD_041: Implement Production-Ready DI Lifecycle Management (Pre-DDD Critical Fix)
 **Status**: Proposed
