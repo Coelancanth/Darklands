@@ -71,12 +71,46 @@ jobs:
         dotnet-version: '8.0.x'
         
     - name: 🏗️ Restore dependencies
-      run: dotnet restore
-      
+      run: |
+        echo "🔄 Restoring all project dependencies..."
+
+        # Explicitly restore Tactical projects first (they have the NuGet packages)
+        echo "📦 Restoring Tactical bounded context packages..."
+        if [ -f "src/Tactical/Darklands.Tactical.Domain.csproj" ]; then
+          dotnet restore src/Tactical/Darklands.Tactical.Domain.csproj
+        fi
+        if [ -f "src/Tactical/Darklands.Tactical.Application.csproj" ]; then
+          dotnet restore src/Tactical/Darklands.Tactical.Application.csproj
+        fi
+        if [ -f "src/Tactical/Darklands.Tactical.Infrastructure.csproj" ]; then
+          dotnet restore src/Tactical/Darklands.Tactical.Infrastructure.csproj
+        fi
+
+        # Restore Core project which references Tactical
+        echo "📦 Restoring Core project..."
+        dotnet restore src/Darklands.Core.csproj
+        echo "✅ Core project dependencies restored"
+
+        # Also restore test project dependencies
+        echo "📦 Restoring test project..."
+        dotnet restore tests/Darklands.Core.Tests.csproj
+        echo "✅ All dependencies restored"
+
     - name: 🏗️ Build projects
       run: |
-        dotnet build src/Darklands.Core.csproj --configuration Release
-        dotnet build tests/Darklands.Core.Tests.csproj --configuration Release
+        echo "🧹 Cleaning previous build artifacts..."
+        dotnet clean src/Darklands.Core.csproj --configuration Release
+        dotnet clean tests/Darklands.Core.Tests.csproj --configuration Release
+        echo "✅ Clean completed"
+
+        echo "🏗️ Building Core and all dependencies..."
+        # Build Core project which will also build all its project references (Tactical, etc.)
+        dotnet build src/Darklands.Core.csproj --configuration Release --no-restore
+        echo "✅ Core project and dependencies built"
+
+        echo "🏗️ Building test project..."
+        dotnet build tests/Darklands.Core.Tests.csproj --configuration Release --no-restore
+        echo "✅ Test project built"
         
         # Godot project (optional - may need Godot runtime)
         dotnet build Darklands.csproj --configuration Release || {
