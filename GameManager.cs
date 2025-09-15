@@ -10,10 +10,15 @@ using Darklands.Core.Infrastructure.Debug;
 using Godot;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+
+// Alias to resolve LogLevel namespace collision
+using DomainLogLevel = Darklands.Core.Domain.Debug.LogLevel;
+using MsLogLevel = Microsoft.Extensions.Logging.LogLevel;
 
 namespace Darklands
 {
@@ -48,6 +53,9 @@ namespace Darklands
                 // Initialize the DI container FIRST (synchronously for initial setup)
                 InitializeDIContainer();
 
+                // Initialize ServiceLocator autoload with scope manager so nodes can resolve scoped services
+                TryInitializeServiceLocator();
+
                 // NOW call base implementation to initialize EventBus from EventAwareNode
                 // This will work because GameStrapper is now initialized
                 base._Ready();
@@ -56,20 +64,20 @@ namespace Darklands
                 try
                 {
                     CompleteInitializationAsync().GetAwaiter().GetResult();
-                    _logger?.Log(LogLevel.Information, LogCategory.System, "GameManager initialization completed successfully");
+                    _logger?.Log(DomainLogLevel.Information, LogCategory.System, "GameManager initialization completed successfully");
                 }
                 catch (Exception ex)
                 {
                     // Use GD.PrintErr as fallback since structured logging may not be available yet
                     GD.PrintErr($"GameManager initialization failed: {ex.Message}");
-                    _logger?.Log(LogLevel.Error, LogCategory.System, "GameManager initialization failed: {0}", ex.Message);
+                    _logger?.Log(DomainLogLevel.Error, LogCategory.System, "GameManager initialization failed: {0}", ex.Message);
                 }
             }
             catch (Exception ex)
             {
                 // Use GD.PrintErr as fallback since structured logging may not be available yet
                 GD.PrintErr($"GameManager._Ready error: {ex.Message}");
-                _logger?.Log(LogLevel.Error, LogCategory.System, "GameManager._Ready error: {0}", ex.Message);
+                _logger?.Log(DomainLogLevel.Error, LogCategory.System, "GameManager._Ready error: {0}", ex.Message);
             }
         }
 
@@ -81,13 +89,13 @@ namespace Darklands
         {
             try
             {
-                _logger?.Log(LogLevel.Information, LogCategory.System, "GameManager cleaning up resources...");
+                _logger?.Log(DomainLogLevel.Information, LogCategory.System, "GameManager cleaning up resources...");
 
                 // Dispose presenters
                 _gridPresenter?.Dispose();
                 _actorPresenter?.Dispose();
 
-                _logger?.Log(LogLevel.Information, LogCategory.System, "Presenters disposed successfully");
+                _logger?.Log(DomainLogLevel.Information, LogCategory.System, "Presenters disposed successfully");
 
                 // Dispose DI container
                 GameStrapper.Dispose();
@@ -99,7 +107,7 @@ namespace Darklands
             {
                 // Use GD.PrintErr as fallback since logger may be disposed
                 GD.PrintErr($"GameManager cleanup error: {ex.Message}");
-                _logger?.Log(LogLevel.Error, LogCategory.System, "GameManager cleanup error: {0}", ex.Message);
+                _logger?.Log(DomainLogLevel.Error, LogCategory.System, "GameManager cleanup error: {0}", ex.Message);
             }
             finally
             {
@@ -173,7 +181,7 @@ namespace Darklands
                     DebugSystem.Instance.SetLogger(_logger);
                 }
 
-                _logger.Log(LogLevel.Information, LogCategory.System, "DI container initialized successfully - unified logging active");
+                _logger.Log(DomainLogLevel.Information, LogCategory.System, "DI container initialized successfully - unified logging active");
             }
             catch (Exception ex)
             {
@@ -199,8 +207,44 @@ namespace Darklands
             {
                 // Use GD.PrintErr as fallback since structured logging may not be available yet
                 GD.PrintErr($"Application initialization error: {ex.Message}");
-                _logger?.Log(LogLevel.Error, LogCategory.System, "Application initialization error: {0}", ex.Message);
+                _logger?.Log(DomainLogLevel.Error, LogCategory.System, "Application initialization error: {0}", ex.Message);
                 throw;
+            }
+        }
+
+        /// <summary>
+        /// Initializes the ServiceLocator autoload with the real GodotScopeManager using the root provider.
+        /// Falls back gracefully if autoload is missing.
+        /// </summary>
+        private void TryInitializeServiceLocator()
+        {
+            try
+            {
+                var serviceLocator = GetNodeOrNull<ServiceLocator>("/root/ServiceLocator");
+                if (serviceLocator == null)
+                {
+                    GD.PrintRich("[color=yellow][GameManager] ServiceLocator autoload not found; scope-aware DI will fall back to GameStrapper[/color]");
+                    return;
+                }
+
+                // Build GodotScopeManager with the root service provider
+                var loggerFactory = _serviceProvider?.GetService<ILoggerFactory>();
+                var logger = loggerFactory?.CreateLogger<Darklands.Presentation.Infrastructure.GodotScopeManager>();
+                var scopeManager = new Darklands.Presentation.Infrastructure.GodotScopeManager(_serviceProvider!, logger);
+
+                var autoloadLogger = loggerFactory?.CreateLogger<ServiceLocator>();
+                if (!serviceLocator.Initialize(scopeManager, autoloadLogger))
+                {
+                    GD.PrintRich("[color=yellow][GameManager] ServiceLocator.Initialize returned false; falling back to GameStrapper-only resolution[/color]");
+                }
+                else
+                {
+                    _logger?.Log(DomainLogLevel.Information, LogCategory.System, "ServiceLocator initialized with GodotScopeManager");
+                }
+            }
+            catch (Exception ex)
+            {
+                GD.PrintErr($"[GameManager] ServiceLocator initialization failed: {ex.Message}");
             }
         }
 
@@ -212,7 +256,7 @@ namespace Darklands
         {
             try
             {
-                _logger?.Log(LogLevel.Information, LogCategory.System, "Setting up MVP architecture...");
+                _logger?.Log(DomainLogLevel.Information, LogCategory.System, "Setting up MVP architecture...");
 
                 if (_serviceProvider == null)
                 {
@@ -233,7 +277,7 @@ namespace Darklands
                     throw new InvalidOperationException("ActorView node not found. Expected child node named 'Actors'");
                 }
 
-                _logger?.Log(LogLevel.Information, LogCategory.System, "Views found successfully - Grid: \"{0}\", Actor: \"{1}\" (health consolidated into ActorView)",
+                _logger?.Log(DomainLogLevel.Information, LogCategory.System, "Views found successfully - Grid: \"{0}\", Actor: \"{1}\" (health consolidated into ActorView)",
                     _gridView?.Name ?? "null", _actorView?.Name ?? "null");
 
                 // Inject logger into views for proper architectural logging
@@ -267,19 +311,19 @@ namespace Darklands
 
                 // Event subscription is now handled automatically by EventAwareNode base class
                 // SubscribeToEvents() will be called after EventBus is initialized
-                _logger?.Log(LogLevel.Information, LogCategory.System, "GameManager will subscribe to domain events via UI Event Bus - modern architecture replaces static router");
+                _logger?.Log(DomainLogLevel.Information, LogCategory.System, "GameManager will subscribe to domain events via UI Event Bus - modern architecture replaces static router");
 
-                _logger?.Log(LogLevel.Information, LogCategory.System, "Presenters created and connected - GridPresenter and ActorPresenter (with consolidated health functionality) initialized with cross-presenter coordination");
+                _logger?.Log(DomainLogLevel.Information, LogCategory.System, "Presenters created and connected - GridPresenter and ActorPresenter (with consolidated health functionality) initialized with cross-presenter coordination");
 
                 // Initialize presenters (this will set up initial state)
                 _gridPresenter.Initialize();
                 _actorPresenter.Initialize();
 
-                _logger?.Log(LogLevel.Information, LogCategory.System, "MVP architecture setup completed - application ready for interaction");
+                _logger?.Log(DomainLogLevel.Information, LogCategory.System, "MVP architecture setup completed - application ready for interaction");
             }
             catch (Exception ex)
             {
-                _logger?.Log(LogLevel.Error, LogCategory.System, "MVP setup error - failed to initialize presenters and views: {0}", ex.Message);
+                _logger?.Log(DomainLogLevel.Error, LogCategory.System, "MVP setup error - failed to initialize presenters and views: {0}", ex.Message);
                 // Fallback to GD.PrintErr for critical startup errors
                 GD.PrintErr($"MVP setup error: {ex.Message}");
             }
@@ -291,7 +335,7 @@ namespace Darklands
         /// </summary>
         private void HandleUnhandledException(Exception ex)
         {
-            _logger?.Log(LogLevel.Error, LogCategory.System, "Unhandled exception in GameManager - application may be unstable: {0}", ex.Message);
+            _logger?.Log(DomainLogLevel.Error, LogCategory.System, "Unhandled exception in GameManager - application may be unstable: {0}", ex.Message);
             // Fallback to GD.PrintErr for critical errors
             GD.PrintErr($"Unhandled exception in GameManager: {ex.Message}");
 
@@ -310,7 +354,7 @@ namespace Darklands
         {
             if (EventBus == null)
             {
-                _logger?.Log(LogLevel.Error, LogCategory.System, "Cannot subscribe to events - EventBus is null");
+                _logger?.Log(DomainLogLevel.Error, LogCategory.System, "Cannot subscribe to events - EventBus is null");
                 return;
             }
 
@@ -320,12 +364,12 @@ namespace Darklands
                 EventBus.Subscribe<ActorDiedEvent>(this, HandleActorDiedEvent);
                 EventBus.Subscribe<ActorDamagedEvent>(this, HandleActorDamagedEvent);
 
-                _logger?.Log(LogLevel.Information, LogCategory.System, "Successfully subscribed to domain events via UI Event Bus");
-                _logger?.Log(LogLevel.Information, LogCategory.System, "Modern event architecture active - static router fully replaced");
+                _logger?.Log(DomainLogLevel.Information, LogCategory.System, "Successfully subscribed to domain events via UI Event Bus");
+                _logger?.Log(DomainLogLevel.Information, LogCategory.System, "Modern event architecture active - static router fully replaced");
             }
             catch (Exception ex)
             {
-                _logger?.Log(LogLevel.Error, LogCategory.System, "Failed to subscribe to domain events: {0}", ex.Message);
+                _logger?.Log(DomainLogLevel.Error, LogCategory.System, "Failed to subscribe to domain events: {0}", ex.Message);
                 GD.PrintErr($"GameManager event subscription failed: {ex.Message}");
             }
         }
@@ -337,7 +381,7 @@ namespace Darklands
         {
             try
             {
-                _logger?.Log(LogLevel.Debug, LogCategory.System, "UpdateHealthBarDeferred called for {0}: {1}/{2} → {3}/{4}",
+                _logger?.Log(DomainLogLevel.Debug, LogCategory.System, "UpdateHealthBarDeferred called for {0}: {1}/{2} → {3}/{4}",
                     actorIdStr, oldCurrent, oldMaximum, newCurrent, newMaximum);
 
                 var actorId = Darklands.Core.Domain.Grid.ActorId.FromGuid(Guid.Parse(actorIdStr));
@@ -352,31 +396,31 @@ namespace Darklands
                         {
                             if (_actorPresenter != null)
                             {
-                                _logger?.Log(LogLevel.Debug, LogCategory.System, "Calling ActorPresenter.HandleHealthChangedAsync (consolidated functionality)");
+                                _logger?.Log(DomainLogLevel.Debug, LogCategory.System, "Calling ActorPresenter.HandleHealthChangedAsync (consolidated functionality)");
                                 await _actorPresenter.HandleHealthChangedAsync(actorId, oldHealth, newHealth);
-                                _logger?.Log(LogLevel.Debug, LogCategory.System, "Updated health bar for {0}", actorId);
+                                _logger?.Log(DomainLogLevel.Debug, LogCategory.System, "Updated health bar for {0}", actorId);
                             }
                             else
                             {
-                                _logger?.Log(LogLevel.Error, LogCategory.System, "ActorPresenter is NULL in deferred health update!");
+                                _logger?.Log(DomainLogLevel.Error, LogCategory.System, "ActorPresenter is NULL in deferred health update!");
                             }
                         },
                         Fail: error =>
                         {
-                            _logger?.Log(LogLevel.Error, LogCategory.System, "Failed to create new health object: {0}", error.Message);
+                            _logger?.Log(DomainLogLevel.Error, LogCategory.System, "Failed to create new health object: {0}", error.Message);
                             return Task.CompletedTask;
                         }
                     ),
                     Fail: error =>
                     {
-                        _logger?.Log(LogLevel.Error, LogCategory.System, "Failed to create old health object: {0}", error.Message);
+                        _logger?.Log(DomainLogLevel.Error, LogCategory.System, "Failed to create old health object: {0}", error.Message);
                         return Task.CompletedTask;
                     }
                 );
             }
             catch (Exception ex)
             {
-                _logger?.Log(LogLevel.Error, LogCategory.System, "Error in deferred health bar update for {0}: {1}", actorIdStr, ex.Message);
+                _logger?.Log(DomainLogLevel.Error, LogCategory.System, "Error in deferred health bar update for {0}: {1}", actorIdStr, ex.Message);
             }
         }
 
@@ -387,7 +431,7 @@ namespace Darklands
         {
             try
             {
-                _logger?.Log(LogLevel.Debug, LogCategory.System, "RemoveActorDeferred called for {0} at ({1},{2})", actorIdStr, x, y);
+                _logger?.Log(DomainLogLevel.Debug, LogCategory.System, "RemoveActorDeferred called for {0} at ({1},{2})", actorIdStr, x, y);
 
                 var actorId = Darklands.Core.Domain.Grid.ActorId.FromGuid(Guid.Parse(actorIdStr));
                 var position = new Darklands.Core.Domain.Grid.Position(x, y);
@@ -395,23 +439,23 @@ namespace Darklands
                 // Remove actor sprite
                 if (_actorPresenter != null)
                 {
-                    _logger?.Log(LogLevel.Debug, LogCategory.System, "Removing actor sprite via presenter");
+                    _logger?.Log(DomainLogLevel.Debug, LogCategory.System, "Removing actor sprite via presenter");
                     await _actorPresenter.RemoveActorAsync(actorId, position);
-                    _logger?.Log(LogLevel.Debug, LogCategory.System, "Removed dead actor {0} sprite", actorId);
+                    _logger?.Log(DomainLogLevel.Debug, LogCategory.System, "Removed dead actor {0} sprite", actorId);
                 }
                 else
                 {
-                    _logger?.Log(LogLevel.Error, LogCategory.System, "ActorPresenter is NULL in deferred removal!");
+                    _logger?.Log(DomainLogLevel.Error, LogCategory.System, "ActorPresenter is NULL in deferred removal!");
                 }
 
                 // Health bar removal is now handled automatically by ActorView when actor is removed
-                _logger?.Log(LogLevel.Debug, LogCategory.System, "Health bar removal handled automatically via parent-child node relationship");
+                _logger?.Log(DomainLogLevel.Debug, LogCategory.System, "Health bar removal handled automatically via parent-child node relationship");
 
-                _logger?.Log(LogLevel.Debug, LogCategory.System, "Visual cleanup complete for dead actor {0} at {1}", actorId, position);
+                _logger?.Log(DomainLogLevel.Debug, LogCategory.System, "Visual cleanup complete for dead actor {0} at {1}", actorId, position);
             }
             catch (Exception ex)
             {
-                _logger?.Log(LogLevel.Error, LogCategory.System, "Error in deferred actor removal for {0}: {1}", actorIdStr, ex.Message);
+                _logger?.Log(DomainLogLevel.Error, LogCategory.System, "Error in deferred actor removal for {0}: {1}", actorIdStr, ex.Message);
             }
         }
     }

@@ -5,6 +5,7 @@ using Darklands.Core.Domain.Debug;
 using Darklands.Core.Infrastructure.Logging;
 using Darklands.Core.Application.Events;
 using Darklands.Core.Infrastructure.DependencyInjection;
+using Darklands.Presentation.Infrastructure;
 using MediatR;
 
 namespace Darklands.Presentation.UI;
@@ -48,34 +49,18 @@ public abstract partial class EventAwareNode : Node2D
     {
         try
         {
-            // Get the service provider from the GameStrapper
-            var serviceProviderResult = GameStrapper.GetServices();
+            // Prefer scope-aware resolution; falls back to GameStrapper if ServiceLocator unavailable
+            EventBus = this.GetService<IUIEventBus>();
 
-            serviceProviderResult.Match(
-                Succ: serviceProvider =>
-                {
-                    EventBus = serviceProvider.GetRequiredService<IUIEventBus>();
+            // Allow subclass to subscribe to specific events
+            SubscribeToEvents();
 
-                    // Allow subclass to subscribe to specific events
-                    SubscribeToEvents();
-
-                    var categoryLogger = serviceProvider.GetService<ICategoryLogger>();
-                    categoryLogger?.Log(LogLevel.Information, LogCategory.System, "{0} successfully subscribed to domain events", GetType().Name);
-                },
-                Fail: error =>
-                {
-                    var categoryLogger = GameStrapper.GetServices().Match(
-                        Succ: sp => sp.GetService<ICategoryLogger>(),
-                        Fail: _ => null);
-                    categoryLogger?.Log(LogLevel.Error, LogCategory.System, "{0} failed to get UI Event Bus: {1}", GetType().Name, error.Message);
-                }
-            );
+            var categoryLogger = this.GetOptionalService<ICategoryLogger>();
+            categoryLogger?.Log(LogLevel.Information, LogCategory.System, "{0} successfully subscribed to domain events", GetType().Name);
         }
         catch (Exception ex)
         {
-            var categoryLogger = GameStrapper.GetServices().Match(
-                Succ: sp => sp.GetService<ICategoryLogger>(),
-                Fail: _ => null);
+            var categoryLogger = this.GetOptionalService<ICategoryLogger>();
             categoryLogger?.Log(LogLevel.Error, LogCategory.System, "{0} exception during event bus initialization: {1}", GetType().Name, ex.Message);
         }
     }
@@ -94,17 +79,13 @@ public abstract partial class EventAwareNode : Node2D
             if (EventBus != null)
             {
                 EventBus.UnsubscribeAll(this);
-                var categoryLogger = GameStrapper.GetServices().Match(
-                    Succ: sp => sp.GetService<ICategoryLogger>(),
-                    Fail: _ => null);
+                var categoryLogger = this.GetOptionalService<ICategoryLogger>();
                 categoryLogger?.Log(LogLevel.Information, LogCategory.System, "{0} unsubscribed from all events on exit", GetType().Name);
             }
         }
         catch (Exception ex)
         {
-            var categoryLogger = GameStrapper.GetServices().Match(
-                Succ: sp => sp.GetService<ICategoryLogger>(),
-                Fail: _ => null);
+            var categoryLogger = this.GetOptionalService<ICategoryLogger>();
             categoryLogger?.Log(LogLevel.Error, LogCategory.System, "{0} error during event unsubscription: {1}", GetType().Name, ex.Message);
         }
         finally

@@ -503,7 +503,7 @@ private static void CastShadow(
 - Build succeeded, all tests passed (664 total, 2 skipped). Behavior preserved per test suite.
 
 ### TD_041: Implement Production-Ready DI Lifecycle Management (Pre-DDD Critical Fix)
-**Status**: Proposed
+**Status**: Done
 **Owner**: Tech Lead → Dev Engineer (for implementation)
 **Size**: M (4h) - Based on commit 92c3e93 implementation
 **Priority**: Important - Memory leaks and scope management issues
@@ -557,13 +557,19 @@ public class ServiceLocator : Node
 ```
 
 **Success Criteria**:
-- [ ] No memory leaks from orphaned node scopes
-- [ ] O(1) service resolution performance
-- [ ] Graceful fallback to GameStrapper when scope unavailable
-- [ ] Thread-safe scope management
-- [ ] Automatic cleanup when nodes are freed
+- [x] No memory leaks from orphaned node scopes
+- [x] O(1) service resolution performance
+- [x] Graceful fallback to GameStrapper when scope unavailable
+- [x] Thread-safe scope management
+- [x] Automatic cleanup when nodes are freed
 
 **Tech Lead Notes**: This provides production-ready scope management without the complexity of full DDD bounded contexts.
+
+**Dev Engineer Decision** (2025-09-15):
+- Added wiring to register `IScopeManager` stub in `GameStrapper` and initialize real `GodotScopeManager` via `ServiceLocator` autoload in `GameManager._Ready()`.
+- Implemented `Presentation/Infrastructure/GodotScopeManager.cs` (ConditionalWeakTable, cache, RWL) and `Presentation/Infrastructure/NodeServiceExtensions.cs` for `GetService<T>()`, `GetOptionalService<T>()`, and `CreateScope()` with fallback to `GameStrapper`.
+- Updated `Presentation/UI/EventAwareNode.cs` to use scope-aware `GetService<T>()` instead of direct `GameStrapper` resolution.
+- Build and tests pass (664 total, 2 skipped); behavior unchanged; ADR-018 alignment verified.
 
 
 ## 📈 Important (Do Next)

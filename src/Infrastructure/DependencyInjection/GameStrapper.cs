@@ -12,6 +12,7 @@ using Serilog.Core;
 using Darklands.Core.Domain.Debug;
 using Darklands.Core.Infrastructure.Debug;
 using Darklands.Core.Infrastructure.Logging;
+using Darklands.Core.Domain.Services;
 
 namespace Darklands.Core.Infrastructure.DependencyInjection;
 
@@ -236,6 +237,9 @@ public static class GameStrapper
     {
         try
         {
+            // Register stub scope manager for portability; Godot runtime initializes real manager via ServiceLocator
+            services.AddSingleton<IScopeManager, StubScopeManager>();
+
             // State services (Singleton - maintain state across operations)
             // Phase 2: Grid state management
             services.AddSingleton<Application.Grid.Services.IGridStateService, Application.Grid.Services.InMemoryGridStateService>();
