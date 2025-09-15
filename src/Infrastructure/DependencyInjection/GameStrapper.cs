@@ -213,9 +213,12 @@ public static class GameStrapper
             // TD_043: Load Tactical bounded context assemblies for Strangler Fig
             var tacticalApplicationAssembly = Assembly.Load("Darklands.Tactical.Application");
 
-            // Register MediatR with assembly scanning
+            // Register MediatR with assembly scanning and license key
             services.AddMediatR(config =>
             {
+                // Configure license key for MediatR v13
+                config.LicenseKey = "eyJhbGciOiJSUzI1NiIsImtpZCI6Ikx1Y2t5UGVubnlTb2Z0d2FyZUxpY2Vuc2VLZXkvYmJiMTNhY2I1OTkwNGQ4OWI0Y2IxYzg1ZjA4OGNjZjkiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL2x1Y2t5cGVubnlzb2Z0d2FyZS5jb20iLCJhdWQiOiJMdWNreVBlbm55U29mdHdhcmUiLCJleHAiOiIxNzg2MTQ3MjAwIiwiaWF0IjoiMTc1NDYzNTU2NCIsImFjY291bnRfaWQiOiIwMTk4ODg2ZDE4NTE3MzUxYmEwZDhmMjg1YThlOGUzNCIsImN1c3RvbWVyX2lkIjoiY3RtXzAxazI0NnZ4MHc1YXBiZmIxbnF4dDByc25jIiwic3ViX2lkIjoiLSIsImVkaXRpb24iOiIwIiwidHlwZSI6IjIifQ.nHF67-YsKXolauWvhF6ZlBwl0x2-YgdWr1Fp6WTScpIOmJ5rUwgXLWkYtROiA3tCOqW9bejL0EzfHIfx4Z0e-dOkH4wXNnpXbyoe-vYug2TUK8Me5ZlheUb17Js3iOlWcltN7cxFtt0uP6xWtFgTIXSRqJUSRr3YfF15bg71Yz9KPvbcutL_TntSaoQMCxj46z4QepbjvbBTCKggxAmrdLnDnVnH9co2tfjfh1pGJ9nQcBZLEmZgicK54ajXVHD6iLRPwh5B-lTx-Ilr8dfsCsSXgSPNjVYXEvZoVqbbQaPFOzKxa0UffBmdDrlwaAWfar2VTRGVKVogixvNoYjAyQ";
+
                 // TD_043: Register from core assembly - will auto-discover our wrapper handlers
                 config.RegisterServicesFromAssembly(coreAssembly);
 
