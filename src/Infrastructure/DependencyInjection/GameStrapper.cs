@@ -270,6 +270,16 @@ public static class GameStrapper
     {
         try
         {
+            // TD_052: Register IScopeManager as singleton for DI lifecycle management
+            // NOTE: Implementation will be registered by Presentation layer via callback
+            // This allows Core to remain platform-agnostic while providing the abstraction
+            services.AddSingleton<Core.Domain.Services.IScopeManager>(provider =>
+            {
+                // For now, return a stub implementation that logs warnings
+                // This will be replaced by presentation layer initialization
+                return new StubScopeManager(provider.GetService<ILogger<StubScopeManager>>());
+            });
+
             // State services (Singleton - maintain state across operations)
             // Phase 2: Grid state management
             services.AddSingleton<Application.Grid.Services.IGridStateService, Application.Grid.Services.InMemoryGridStateService>();
@@ -419,6 +429,7 @@ public static class GameStrapper
                 Error.New($"Container build failed: {ex.Message}", ex));
         }
     }
+
 
     /// <summary>
     /// Disposes the DI container and cleans up resources in a thread-safe manner.

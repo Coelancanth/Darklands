@@ -11,7 +11,10 @@
       "Bash(./scripts/git/branch-status-check.ps1)",
       "Bash(dotnet build:*)",
       "Bash(git add:*)",
-      "Bash(gh pr view:*)"
+      "Bash(gh pr view:*)",
+      "Bash(git checkout:*)",
+      "Bash(./scripts/core/build.ps1 test)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": [],
