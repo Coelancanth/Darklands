@@ -6,7 +6,11 @@
     "allow": [
       "Bash(./scripts/persona/embody.ps1 tech-lead)",
       "Bash(Get-ChildItem -Path \"C:\\Users\\Coel\\Documents\\Godot\\darklands\\Docs\\01-Active\\GPT\" -Name)",
-      "Read(//c/Users/Coel/Documents/Godot/Fluentish.Godot.DependencyInjection/**)"
+      "Read(//c/Users/Coel/Documents/Godot/Fluentish.Godot.DependencyInjection/**)",
+      "Bash(./scripts/persona/embody.ps1 dev-engineer)",
+      "Bash(./scripts/git/branch-status-check.ps1)",
+      "Bash(dotnet build:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": [],

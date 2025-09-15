@@ -3,7 +3,7 @@ using Darklands.Tactical.Domain.Aggregates.Actors;
 using LanguageExt;
 using LanguageExt.Common;
 using MediatR;
-using Microsoft.Extensions.Logging;
+// using Microsoft.Extensions.Logging; // TODO: Re-enable after logging package issues resolved
 using static LanguageExt.Prelude;
 
 namespace Darklands.Tactical.Application.Features.Combat.Attack;
@@ -18,22 +18,22 @@ public sealed class ExecuteAttackCommandHandler
 {
     private readonly IActorRepository _actorRepository;
     private readonly IMediator _mediator;
-    private readonly ILogger<ExecuteAttackCommandHandler> _logger;
+    // private readonly ILogger<ExecuteAttackCommandHandler> _logger; // TODO: Re-enable after logging package issues resolved
 
     public ExecuteAttackCommandHandler(
         IActorRepository actorRepository,
-        IMediator mediator,
-        ILogger<ExecuteAttackCommandHandler> logger)
+        IMediator mediator)
+        // ILogger<ExecuteAttackCommandHandler> logger) // TODO: Re-enable after logging package issues resolved
     {
         _actorRepository = actorRepository;
         _mediator = mediator;
-        _logger = logger;
+        // _logger = logger; // TODO: Re-enable after logging package issues resolved
     }
 
     public async Task<Fin<AttackResult>> Handle(ExecuteAttackCommand command, CancellationToken cancellationToken)
     {
-        _logger.LogDebug("Executing attack command: {AttackerId} -> {TargetId} for {Damage} damage", 
-            command.AttackerId, command.TargetId, command.BaseDamage);
+        // _logger.LogDebug("Executing attack command: {AttackerId} -> {TargetId} for {Damage} damage",
+        //     command.AttackerId, command.TargetId, command.BaseDamage); // TODO: Re-enable after logging package issues resolved
 
         // Retrieve actors
         var getAttacker = await _actorRepository.GetByIdAsync(command.AttackerId);
@@ -46,7 +46,7 @@ public sealed class ExecuteAttackCommandHandler
 
         if (validation.IsFail)
         {
-            _logger.LogWarning("Attack validation failed: one or both actors not found");
+            // _logger.LogWarning("Attack validation failed: one or both actors not found"); // TODO: Re-enable after logging package issues resolved
             return validation.Match<Fin<AttackResult>>(
                 Succ: _ => throw new InvalidOperationException(),
                 Fail: err => FinFail<AttackResult>(err)
@@ -69,7 +69,7 @@ public sealed class ExecuteAttackCommandHandler
         // Validate attacker can act
         if (!attacker.CanAct)
         {
-            _logger.LogWarning("Attack failed: {AttackerName} cannot act", attacker.Name);
+            // _logger.LogWarning("Attack failed: {AttackerName} cannot act", attacker.Name); // TODO: Re-enable after logging package issues resolved
             return FinFail<AttackResult>(Error.New($"Attacker {attacker.Name} cannot act"));
         }
 
@@ -78,7 +78,7 @@ public sealed class ExecuteAttackCommandHandler
 
         if (damageResult.IsFail)
         {
-            _logger.LogWarning("Damage application failed for target {TargetName}", target.Name);
+            // _logger.LogWarning("Damage application failed for target {TargetName}", target.Name); // TODO: Re-enable after logging package issues resolved
             return damageResult.Match<Fin<AttackResult>>(
                 Succ: _ => throw new InvalidOperationException(),
                 Fail: err => FinFail<AttackResult>(err)
@@ -106,11 +106,11 @@ public sealed class ExecuteAttackCommandHandler
         if (target.Health == 0)
         {
             effects.Add($"{target.Name} was killed!");
-            _logger.LogInformation("Actor {ActorName} was killed in combat", target.Name);
+            // _logger.LogInformation("Actor {ActorName} was killed in combat", target.Name); // TODO: Re-enable after logging package issues resolved
         }
         
-        _logger.LogInformation("Attack executed successfully: {AttackerName} dealt {Damage} damage to {TargetName}", 
-            attacker.Name, actualDamage, target.Name);
+        // _logger.LogInformation("Attack executed successfully: {AttackerName} dealt {Damage} damage to {TargetName}",
+        //     attacker.Name, actualDamage, target.Name); // TODO: Re-enable after logging package issues resolved
 
         return FinSucc(new AttackResult(
             actualDamage,
@@ -122,7 +122,7 @@ public sealed class ExecuteAttackCommandHandler
 
     private async Task PublishDomainEvent(object domainEvent, CancellationToken cancellationToken)
     {
-        _logger.LogDebug("Publishing domain event: {EventType}", domainEvent.GetType().Name);
+        // _logger.LogDebug("Publishing domain event: {EventType}", domainEvent.GetType().Name); // TODO: Re-enable after logging package issues resolved
         
         // TODO: In Phase 3, add TacticalContractAdapter to convert domain events to contract events
         await Task.CompletedTask;

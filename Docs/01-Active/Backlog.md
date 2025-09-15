@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-15 (Tech Lead - TD_050-052 created from ADR reviews)
+**Last Updated**: 2025-09-15 (Tech Lead - Backlog reorganized: promoted TD_050-052 to Critical based on risk analysis)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -44,6 +44,44 @@
 
 **Rule**: Start inline. Only extract to separate doc if it grows beyond 30 lines or needs diagrams.
 
+## 🔗 Dependency Chain Analysis
+**Tech Lead Analysis (2025-09-15): Validated against actual codebase**
+
+### Critical Path Dependencies
+```mermaid
+graph TD
+    A[TD_051: FOV Double Math - 1h] --> E[Phase 1 Complete]
+    B[TD_050: Remove Task.Run - 3h] --> E
+    C[TD_052: DI Lifecycle - 7h] --> F[Infrastructure Ready]
+    D[TD_049: Complete DDD - 8h] --> G[TD_044: Platform Services - 8h]
+    E --> H[Stability Achieved]
+    F --> I[Memory/Testing Improved]
+    G --> J[TD_045: Final Cleanup - 6h]
+```
+
+### Execution Strategy
+**Parallel Phase 1** (4h total):
+- TD_051 + TD_050 can run simultaneously (different devs or serial)
+- Fixes active production issues and ADR violations
+
+**Parallel Phase 2** (7h):
+- TD_052 (DI Lifecycle) - Independent infrastructure work
+
+**Sequential Phase 3** (Must wait for TD_049):
+- TD_049 → TD_044 → TD_045 (architectural foundation chain)
+
+### Risk Assessment (Validated)
+✅ **ADR-004 Violations Confirmed**: `double tileSlopeHigh/tileSlopeLow` in ShadowcastingFOV.cs:98-100
+✅ **ADR-009 Violations Confirmed**: 6 files with Task.Run in game logic (GridView.cs, ActorPresenter.cs, etc.)
+✅ **SharedKernel Incomplete**: Only 1 project, missing Application/Infrastructure layers
+✅ **Diagnostics Missing Application**: Only Domain + Infrastructure projects exist
+
+### Impact Analysis
+- **TD_051**: Blocks save compatibility across platforms
+- **TD_050**: Already causing BR_007 race conditions in production
+- **TD_052**: Blocks test parallelization, causes memory leaks
+- **TD_049**: Blocks all future bounded context work (architectural foundation)
+
 ### Adding New Items
 ```markdown
 ### [Type]_[Number]: Short Name
@@ -78,51 +116,214 @@
 ## 🔥 Critical (Do First)
 *Blockers preventing other work, production bugs, dependencies for other features*
 
-### BR_008: CI Build Failure - Tactical Projects Logging Namespace Resolution
-**Status**: New
-**Owner**: DevOps Engineer
+**🎯 Tech Lead Priority Analysis (2025-09-15):**
+Reorganized based on risk assessment - promoting architectural violations and production stability issues from Important to Critical. These items represent either active production issues or fundamental violations that will compound if not addressed immediately.
+
+### TD_051: Fix FOV Double Math for Determinism (ADR-004)
+**Status**: Proposed → **APPROVED BY TECH LEAD**
+**Owner**: Tech Lead → Dev Engineer (approved for immediate implementation)
 **Size**: S (1h)
-**Priority**: Critical
-**Created**: 2025-09-13 (Dev Engineer)
-**Markers**: [CI/CD] [BUILD-INFRASTRUCTURE] [TACTICAL-PROJECTS]
+**Priority**: Critical - Cross-platform determinism at risk
+**Created**: 2025-09-15 (Tech Lead from GPT review)
+**Markers**: [ARCHITECTURE] [ADR-004] [DETERMINISM] [IMMEDIATE]
 
-**What**: CI build fails on PR #50 with Microsoft.Extensions.Logging namespace resolution errors
-**Why**: Prevents merging TD_048 logging improvements, blocks development workflow
+**What**: Replace double math in ShadowcastingFOV with Fixed or integer math
+**Why**: Floating point behavior varies across platforms, breaks saves/replay
 
-**Problem**: 
-PR #50 (feat/td-048-tactical-logging) fails CI with compilation errors:
-- "The type or namespace name 'Logging' does not exist in the namespace 'Microsoft.Extensions'"
-- Affects ExecuteAttackCommandHandler.cs and ProcessNextTurnCommandHandler.cs
-- Local builds pass completely (all 663 tests), CI environment fails
+**Problem Code** (`src/Domain/Vision/ShadowcastingFOV.cs`):
+```csharp
+double tileSlopeHigh = distance == 0 ? 1.0 : (angle + 0.5) / (distance - 0.5);
+double tileSlopeLow = (angle - 0.5) / (distance + 0.5);
+```
 
-**Technical Details**:
-- Local: `dotnet build src/Darklands.Core.csproj` succeeds, builds all Tactical dependencies
-- CI: Same command fails with namespace resolution issues
-- Package reference exists: Microsoft.Extensions.Logging.Abstractions v8.0.0 in Tactical.Application.csproj
-- Project references correct: Core → Tactical.Application → has logging package
+**Solution Options**:
+- **Option A**: Use Fixed type for slope calculations
+- **Option B**: Scale to integers and compare products (cross-multiply)
 
-**Root Cause Investigation Needed**:
-1. CI cache/restore behavior different from local environment
-2. Project dependency resolution order in CI vs local
-3. MSBuild behavior differences between Ubuntu (CI) and Windows (local)
-4. Potential timing issue with multi-project builds in CI
-
-**Suggested Fixes**:
-1. Add explicit `dotnet clean` step before build in CI workflow
-2. Update CI to use `dotnet build` without specific project (build everything)
-3. Add explicit `dotnet restore` for all Tactical projects
-4. Investigate MSBuild verbosity in CI for better diagnostics
-
-**Impact**: 
-- Blocks PR #50 merge (TD_048 completion)
-- Prevents Tactical system logging improvements 
-- Creates development workflow friction
+**Tech Lead Approval Rationale**: ADR-004 determinism is non-negotiable. This violation affects save compatibility across platforms and multiplayer-readiness. Quick 1h fix with high architectural value.
 
 **Done When**:
-- [ ] PR #50 CI builds pass successfully
-- [ ] All projects (including new Tactical bounded context) build in CI
-- [ ] CI workflow updated to handle multi-project dependencies
-- [ ] Root cause documented to prevent recurrence
+- [ ] No double/float in ShadowcastingFOV
+- [ ] Property tests verify identical results across 1000+ seeds
+- [ ] Performance comparable to current implementation
+- [ ] All vision tests still pass
+
+### TD_050: ADR-009 Enforcement - Remove Task.Run from Turn Loop and Presenters
+**Status**: Proposed → **APPROVED BY TECH LEAD**
+**Owner**: Tech Lead → Dev Engineer (approved for immediate implementation)
+**Size**: S (3h)
+**Priority**: Critical - Production stability, already causing race conditions
+**Created**: 2025-09-15 (Tech Lead from GPT review)
+**Markers**: [ARCHITECTURE] [ADR-009] [SEQUENTIAL-PROCESSING] [PRODUCTION-BUG]
+
+**What**: Remove all Task.Run and async patterns from tactical game flow and presenters
+**Why**: Violates ADR-009 Sequential Turn Processing, already caused BR_007 race conditions
+
+**Violations Found** (from codebase review):
+- `Views/GridView.cs`: Task.Run in HandleMouseClick
+- `src/Presentation/Presenters/ActorPresenter.cs`: Task.Run in Initialize
+- `GameManager.cs`: Task.Run in _Ready for initialization
+
+**Tech Lead Approval Rationale**: This is an ACTIVE production stability issue. BR_007 race conditions are already documented. ADR-009 violation creates unpredictable game state. Must fix immediately.
+
+**Implementation**:
+1. Replace Task.Run with CallDeferred for Godot-safe sequencing
+2. Remove async from presenter methods - make them synchronous
+3. Keep async only at I/O boundaries (file, network)
+4. Add tests to verify no Task.Run in tactical/presentation
+
+**Done When**:
+- [ ] No Task.Run in any presenter or game loop code
+- [ ] All presenter methods synchronous
+- [ ] CallDeferred used for main-thread operations
+- [ ] Tests verify sequential execution
+- [ ] No new race conditions introduced
+
+### TD_052: Implement Godot DI Lifecycle Alignment (ADR-018)
+**Status**: Proposed → **APPROVED BY TECH LEAD**
+**Owner**: Tech Lead → Dev Engineer (approved for implementation)
+**Size**: M (7h)
+**Priority**: Critical - Memory leaks and blocked testing parallelization
+**Created**: 2025-09-15 (Tech Lead)
+**Markers**: [ARCHITECTURE] [ADR-018] [DEPENDENCY-INJECTION] [MEMORY-LEAKS]
+
+**What**: Implement instance-based IScopeManager for MS.DI + Godot lifecycle alignment
+**Why**: Prevent memory leaks, enable scene-scoped services, support parallel testing
+
+**Tech Lead Approval Rationale**: Memory leaks are production issues. Blocked test parallelization affects development velocity. Foundation needed for proper DI lifecycle management.
+
+**Implementation Plan** (from ADR-018):
+1. **Phase 1: Core (3h)**:
+   - Create IScopeManager interface and GodotScopeManager
+   - Register as singleton in GameStrapper
+   - Create NodeServiceExtensions with GetService methods
+   - Initialize after DI setup
+
+2. **Phase 2: Migration (2h)**:
+   - Categorize services by lifetime (singleton/scoped/transient)
+   - Update nodes to use this.GetService<T>()
+   - Add scope creation to SceneManager
+   - Verify disposal on scene transitions
+
+3. **Phase 3: Testing (2h)**:
+   - Parallel test suite for no static interference
+   - Integration tests for nested scopes
+   - Performance test tree walking
+   - Debug window for active scopes
+
+**Done When**:
+- [ ] IScopeManager implemented and registered
+- [ ] Extension methods working (this.GetService<T>())
+- [ ] Scene scopes created/disposed properly
+- [ ] Tests can run in parallel
+- [ ] Memory leaks eliminated
+- [ ] Supports nested scopes (overlays, modals)
+
+### TD_049: Complete ADR-017 DDD Bounded Contexts Architecture Alignment
+**Status**: Proposed → **APPROVED BY TECH LEAD**
+**Owner**: Tech Lead → Dev Engineer (approved for implementation)
+**Size**: M (8h) - Critical items 4h, Important items 4h
+**Priority**: Critical - Architectural debt that compounds, blocks future DDD work
+**Created**: 2025-09-13 12:17 (Tech Lead)
+**Depends On**: TD_043 ✅ Completed (but incomplete relative to ADR-017)
+**Markers**: [ARCHITECTURE] [DDD] [CRITICAL-FIX] [ADR-017] [FOUNDATION]
+
+**What**: Complete the partial ADR-017 implementation from TD_043 to achieve true bounded context isolation
+**Why**: Current implementation doesn't achieve the core architectural goals of module isolation and proper cross-context communication
+
+**Tech Lead Approval Rationale**: This is foundational architectural debt. The current "partial Strangler Fig" creates false progress while missing core DDD benefits. Without proper isolation, contexts will accidentally couple over time, defeating the entire purpose. This BLOCKS all future bounded context work.
+
+**🚨 Critical Gaps Found in TD_043 Implementation**:
+1. **Incomplete SharedKernel** - Only 1 project instead of 3 layers (Domain/Application/Infrastructure)
+2. **Missing Module Isolation Tests** - No enforcement of context boundaries
+3. **No Contract Adapters** - Domain→Contract event conversion not implemented
+4. **Missing Critical Patterns** - No TypedId<TSelf>, no Entity base class with events
+5. **Incomplete Contexts** - Diagnostics missing Application layer, Platform context absent
+
+**📋 Implementation Plan**:
+
+**Phase 1: Complete SharedKernel Structure** (2h) - CRITICAL
+```
+SharedKernel/
+├── Darklands.SharedKernel.Domain.csproj
+│   ├── TypedId<TSelf>.cs (strongly-typed IDs)
+│   ├── Entity.cs (base with domain events collection)
+│   ├── IBusinessRule.cs (already exists, move here)
+│   ├── IDomainEvent.cs (already exists, move here)
+│   └── GameTick.cs (deterministic time)
+├── Darklands.SharedKernel.Application.csproj
+│   ├── IApplicationNotification.cs
+│   ├── IDomainEventPublisher.cs
+│   ├── IGameClock.cs
+│   └── ICommand.cs, IQuery.cs
+└── Darklands.SharedKernel.Infrastructure.csproj
+    └── IIntegrationEvent.cs (rename from IContractEvent)
+```
+
+**Phase 2: Add Module Isolation Tests** (1h) - CRITICAL
+```csharp
+[Fact]
+public void Contexts_MustNotDirectlyReference_EachOther()
+{
+    // Tactical must not reference Diagnostics/Platform directly
+    // Only through Contracts assemblies
+}
+
+[Fact]
+public void ModuleIsolation_WithSmartExclusions()
+{
+    // Allow INotificationHandler but enforce other boundaries
+}
+
+[Fact]
+public void ContractEvents_OnlyUseSharedTypes()
+{
+    // Contracts can only use primitives and SharedKernel types
+}
+```
+
+**Phase 3: Implement Contract Adapters** (2h) - CRITICAL
+```csharp
+// Tactical.Infrastructure/Adapters/TacticalContractAdapter.cs
+public class TacticalContractAdapter : INotificationHandler<DomainEventWrapper>
+{
+    // Convert ActorDamagedEvent → ActorDamagedContractEvent
+    // Publish through MediatR for cross-context communication
+}
+```
+
+**Phase 4: Complete Diagnostics Context** (1h) - IMPORTANT
+```
+src/Diagnostics/
+├── Darklands.Diagnostics.Application.csproj (NEW)
+│   ├── Commands/
+│   └── Handlers/
+```
+
+**Phase 5: Fix Project References** (1h) - IMPORTANT
+- Update all .csproj files to reference correct SharedKernel layers
+- Ensure Contracts only reference SharedKernel.Domain
+- Application layers reference appropriate Contracts
+
+**Phase 6: Implement Core Patterns** (1h) - IMPORTANT
+- TypedId<TSelf> pattern for type-safe IDs
+- Entity base class with AddDomainEvent/ClearDomainEvents
+- ActorId.ToEntityId() conversion methods
+
+**Success Criteria**:
+- [ ] SharedKernel split into 3 proper layers
+- [ ] Module isolation tests pass (5+ new tests)
+- [ ] Contract adapters wire domain→contract events
+- [ ] No direct references between bounded contexts
+- [ ] Architecture tests enforce all boundaries
+- [ ] Existing 661 tests still pass
+
+**Rollback Plan**: Git revert if issues arise (no production impact)
+
+**Recommended Approach**:
+1. Do Phase 1-3 first (4h) - These are CRITICAL for architectural integrity
+2. Then Phase 4-6 (4h) - Important but system functions without them
+3. Platform context (TD_044) should wait until this is complete
 
 ### TD_041: Strangler Fig Phase 0 - Foundation Layer (Non-Breaking)
 **Status**: ✅ COMPLETED
@@ -844,99 +1045,8 @@ This is **architectural debt that will compound** if not addressed. The current 
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*
 
-### TD_050: ADR-009 Enforcement - Remove Task.Run from Turn Loop and Presenters
-**Status**: Proposed
-**Owner**: Tech Lead → Dev Engineer (upon approval)
-**Size**: S (3h)
-**Priority**: Important - Race conditions waiting to happen
-**Created**: 2025-09-15 (Tech Lead from GPT review)
-**Markers**: [ARCHITECTURE] [ADR-009] [SEQUENTIAL-PROCESSING]
-
-**What**: Remove all Task.Run and async patterns from tactical game flow and presenters
-**Why**: Violates ADR-009 Sequential Turn Processing, already caused BR_007 race conditions
-
-**Violations Found** (from codebase review):
-- `Views/GridView.cs`: Task.Run in HandleMouseClick
-- `src/Presentation/Presenters/ActorPresenter.cs`: Task.Run in Initialize
-- `GameManager.cs`: Task.Run in _Ready for initialization
-
-**Implementation**:
-1. Replace Task.Run with CallDeferred for Godot-safe sequencing
-2. Remove async from presenter methods - make them synchronous
-3. Keep async only at I/O boundaries (file, network)
-4. Add tests to verify no Task.Run in tactical/presentation
-
-**Done When**:
-- [ ] No Task.Run in any presenter or game loop code
-- [ ] All presenter methods synchronous
-- [ ] CallDeferred used for main-thread operations
-- [ ] Tests verify sequential execution
-- [ ] No new race conditions introduced
-
-### TD_051: Fix FOV Double Math for Determinism (ADR-004)
-**Status**: Proposed
-**Owner**: Tech Lead → Dev Engineer (upon approval)
-**Size**: S (1h)
-**Priority**: Important - Cross-platform determinism at risk
-**Created**: 2025-09-15 (Tech Lead from GPT review)
-**Markers**: [ARCHITECTURE] [ADR-004] [DETERMINISM]
-
-**What**: Replace double math in ShadowcastingFOV with Fixed or integer math
-**Why**: Floating point behavior varies across platforms, breaks saves/replay
-
-**Problem Code** (`src/Domain/Vision/ShadowcastingFOV.cs`):
-```csharp
-double tileSlopeHigh = distance == 0 ? 1.0 : (angle + 0.5) / (distance - 0.5);
-double tileSlopeLow = (angle - 0.5) / (distance + 0.5);
-```
-
-**Solution Options**:
-- **Option A**: Use Fixed type for slope calculations
-- **Option B**: Scale to integers and compare products (cross-multiply)
-
-**Done When**:
-- [ ] No double/float in ShadowcastingFOV
-- [ ] Property tests verify identical results across 1000+ seeds
-- [ ] Performance comparable to current implementation
-- [ ] All vision tests still pass
-
-### TD_052: Implement Godot DI Lifecycle Alignment (ADR-018)
-**Status**: Proposed
-**Owner**: Tech Lead → Dev Engineer (upon approval)
-**Size**: M (7h)
-**Priority**: Important - Memory leaks and state pollution
-**Created**: 2025-09-15 (Tech Lead)
-**Markers**: [ARCHITECTURE] [ADR-018] [DEPENDENCY-INJECTION]
-
-**What**: Implement instance-based IScopeManager for MS.DI + Godot lifecycle alignment
-**Why**: Prevent memory leaks, enable scene-scoped services, support parallel testing
-
-**Implementation Plan** (from ADR-018):
-1. **Phase 1: Core (3h)**:
-   - Create IScopeManager interface and GodotScopeManager
-   - Register as singleton in GameStrapper
-   - Create NodeServiceExtensions with GetService methods
-   - Initialize after DI setup
-
-2. **Phase 2: Migration (2h)**:
-   - Categorize services by lifetime (singleton/scoped/transient)
-   - Update nodes to use this.GetService<T>()
-   - Add scope creation to SceneManager
-   - Verify disposal on scene transitions
-
-3. **Phase 3: Testing (2h)**:
-   - Parallel test suite for no static interference
-   - Integration tests for nested scopes
-   - Performance test tree walking
-   - Debug window for active scopes
-
-**Done When**:
-- [ ] IScopeManager implemented and registered
-- [ ] Extension methods working (this.GetService<T>())
-- [ ] Scene scopes created/disposed properly
-- [ ] Tests can run in parallel
-- [ ] Memory leaks eliminated
-- [ ] Supports nested scopes (overlays, modals)
+**🎯 Reordered by Tech Lead (2025-09-15):**
+Items below depend on Critical section completion. TD_044 requires TD_049 completion for proper SharedKernel foundation.
 
 ### TD_044: Strangler Fig Phase 3 - Extract Platform Services
 **Status**: Ready for Dev
