@@ -213,9 +213,17 @@ public static class GameStrapper
             // TD_043: Load Tactical bounded context assemblies for Strangler Fig
             var tacticalApplicationAssembly = Assembly.Load("Darklands.Tactical.Application");
 
-            // Register MediatR with assembly scanning
+            // Register MediatR with assembly scanning and secure license configuration
             services.AddMediatR(config =>
             {
+                // Configure license key for MediatR v13 from environment variable (secure)
+                var licenseKey = Environment.GetEnvironmentVariable("MEDIATR_LICENSE_KEY");
+                if (!string.IsNullOrEmpty(licenseKey))
+                {
+                    config.LicenseKey = licenseKey;
+                }
+                // Note: If no license key is provided, MediatR will run in development mode with warnings
+
                 // TD_043: Register from core assembly - will auto-discover our wrapper handlers
                 config.RegisterServicesFromAssembly(coreAssembly);
 

@@ -10,7 +10,8 @@
       "Bash(./scripts/persona/embody.ps1 dev-engineer)",
       "Bash(./scripts/git/branch-status-check.ps1)",
       "Bash(dotnet build:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(gh pr view:*)"
     ],
     "deny": [],
     "ask": [],
