@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-13 07:26 (Dev Engineer - TD_043 unblocked: MediatR conflicts resolved)
+**Last Updated**: 2025-09-15 (Tech Lead - TD_050-052 created from ADR reviews)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 009
-- **Next TD**: 049
+- **Next TD**: 053
 - **Next VS**: 015 
 
 
@@ -731,67 +731,289 @@ if (config.EnableValidationLogging)
 - ❌ Don't use DateTime/Random in Domain
 - ❌ Don't skip architecture tests
 
+### TD_049: Complete ADR-017 DDD Bounded Contexts Architecture Alignment
+**Status**: Proposed
+**Owner**: Tech Lead → Dev Engineer (upon approval)
+**Size**: M (8h) - Critical items 4h, Important items 4h
+**Priority**: Critical - Architectural integrity at risk
+**Created**: 2025-09-13 12:17 (Tech Lead)
+**Depends On**: TD_043 ✅ Completed (but incomplete relative to ADR-017)
+**Markers**: [ARCHITECTURE] [DDD] [CRITICAL-FIX] [ADR-017]
+
+**What**: Complete the partial ADR-017 implementation from TD_043 to achieve true bounded context isolation
+**Why**: Current implementation doesn't achieve the core architectural goals of module isolation and proper cross-context communication
+
+**🚨 Critical Gaps Found in TD_043 Implementation**:
+1. **Incomplete SharedKernel** - Only 1 project instead of 3 layers (Domain/Application/Infrastructure)
+2. **Missing Module Isolation Tests** - No enforcement of context boundaries
+3. **No Contract Adapters** - Domain→Contract event conversion not implemented
+4. **Missing Critical Patterns** - No TypedId<TSelf>, no Entity base class with events
+5. **Incomplete Contexts** - Diagnostics missing Application layer, Platform context absent
+
+**📋 Implementation Plan**:
+
+**Phase 1: Complete SharedKernel Structure** (2h) - CRITICAL
+```
+SharedKernel/
+├── Darklands.SharedKernel.Domain.csproj
+│   ├── TypedId<TSelf>.cs (strongly-typed IDs)
+│   ├── Entity.cs (base with domain events collection)
+│   ├── IBusinessRule.cs (already exists, move here)
+│   ├── IDomainEvent.cs (already exists, move here)
+│   └── GameTick.cs (deterministic time)
+├── Darklands.SharedKernel.Application.csproj
+│   ├── IApplicationNotification.cs
+│   ├── IDomainEventPublisher.cs
+│   ├── IGameClock.cs
+│   └── ICommand.cs, IQuery.cs
+└── Darklands.SharedKernel.Infrastructure.csproj
+    └── IIntegrationEvent.cs (rename from IContractEvent)
+```
+
+**Phase 2: Add Module Isolation Tests** (1h) - CRITICAL
+```csharp
+[Fact]
+public void Contexts_MustNotDirectlyReference_EachOther()
+{
+    // Tactical must not reference Diagnostics/Platform directly
+    // Only through Contracts assemblies
+}
+
+[Fact]
+public void ModuleIsolation_WithSmartExclusions()
+{
+    // Allow INotificationHandler but enforce other boundaries
+}
+
+[Fact]
+public void ContractEvents_OnlyUseSharedTypes()
+{
+    // Contracts can only use primitives and SharedKernel types
+}
+```
+
+**Phase 3: Implement Contract Adapters** (2h) - CRITICAL
+```csharp
+// Tactical.Infrastructure/Adapters/TacticalContractAdapter.cs
+public class TacticalContractAdapter : INotificationHandler<DomainEventWrapper>
+{
+    // Convert ActorDamagedEvent → ActorDamagedContractEvent
+    // Publish through MediatR for cross-context communication
+}
+```
+
+**Phase 4: Complete Diagnostics Context** (1h) - IMPORTANT
+```
+src/Diagnostics/
+├── Darklands.Diagnostics.Application.csproj (NEW)
+│   ├── Commands/
+│   └── Handlers/
+```
+
+**Phase 5: Fix Project References** (1h) - IMPORTANT
+- Update all .csproj files to reference correct SharedKernel layers
+- Ensure Contracts only reference SharedKernel.Domain
+- Application layers reference appropriate Contracts
+
+**Phase 6: Implement Core Patterns** (1h) - IMPORTANT
+- TypedId<TSelf> pattern for type-safe IDs
+- Entity base class with AddDomainEvent/ClearDomainEvents
+- ActorId.ToEntityId() conversion methods
+
+**Success Criteria**:
+- [ ] SharedKernel split into 3 proper layers
+- [ ] Module isolation tests pass (5+ new tests)
+- [ ] Contract adapters wire domain→contract events
+- [ ] No direct references between bounded contexts
+- [ ] Architecture tests enforce all boundaries
+- [ ] Existing 661 tests still pass
+
+**Rollback Plan**: Git revert if issues arise (no production impact)
+
+**Tech Lead Assessment**:
+This is **architectural debt that will compound** if not addressed. The current "partial Strangler Fig" creates a false sense of progress while missing the core architectural benefits. Without proper isolation, contexts will accidentally couple over time, defeating the entire purpose of DDD bounded contexts.
+
+**Recommended Approach**:
+1. Do Phase 1-3 first (4h) - These are CRITICAL for architectural integrity
+2. Then Phase 4-6 (4h) - Important but system functions without them
+3. Platform context (TD_044) should wait until this is complete
+
 <!-- TD_040 REMOVED (2025-09-12): Duplicate of TD_042 which already extracted Diagnostics context -->
 
 
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*
 
-### TD_044: Strangler Fig Phase 3 - Extract Platform Services
+### TD_050: ADR-009 Enforcement - Remove Task.Run from Turn Loop and Presenters
 **Status**: Proposed
-**Owner**: Tech Lead → Dev Engineer
-**Size**: M (8h)
+**Owner**: Tech Lead → Dev Engineer (upon approval)
+**Size**: S (3h)
+**Priority**: Important - Race conditions waiting to happen
+**Created**: 2025-09-15 (Tech Lead from GPT review)
+**Markers**: [ARCHITECTURE] [ADR-009] [SEQUENTIAL-PROCESSING]
+
+**What**: Remove all Task.Run and async patterns from tactical game flow and presenters
+**Why**: Violates ADR-009 Sequential Turn Processing, already caused BR_007 race conditions
+
+**Violations Found** (from codebase review):
+- `Views/GridView.cs`: Task.Run in HandleMouseClick
+- `src/Presentation/Presenters/ActorPresenter.cs`: Task.Run in Initialize
+- `GameManager.cs`: Task.Run in _Ready for initialization
+
+**Implementation**:
+1. Replace Task.Run with CallDeferred for Godot-safe sequencing
+2. Remove async from presenter methods - make them synchronous
+3. Keep async only at I/O boundaries (file, network)
+4. Add tests to verify no Task.Run in tactical/presentation
+
+**Done When**:
+- [ ] No Task.Run in any presenter or game loop code
+- [ ] All presenter methods synchronous
+- [ ] CallDeferred used for main-thread operations
+- [ ] Tests verify sequential execution
+- [ ] No new race conditions introduced
+
+### TD_051: Fix FOV Double Math for Determinism (ADR-004)
+**Status**: Proposed
+**Owner**: Tech Lead → Dev Engineer (upon approval)
+**Size**: S (1h)
+**Priority**: Important - Cross-platform determinism at risk
+**Created**: 2025-09-15 (Tech Lead from GPT review)
+**Markers**: [ARCHITECTURE] [ADR-004] [DETERMINISM]
+
+**What**: Replace double math in ShadowcastingFOV with Fixed or integer math
+**Why**: Floating point behavior varies across platforms, breaks saves/replay
+
+**Problem Code** (`src/Domain/Vision/ShadowcastingFOV.cs`):
+```csharp
+double tileSlopeHigh = distance == 0 ? 1.0 : (angle + 0.5) / (distance - 0.5);
+double tileSlopeLow = (angle - 0.5) / (distance + 0.5);
+```
+
+**Solution Options**:
+- **Option A**: Use Fixed type for slope calculations
+- **Option B**: Scale to integers and compare products (cross-multiply)
+
+**Done When**:
+- [ ] No double/float in ShadowcastingFOV
+- [ ] Property tests verify identical results across 1000+ seeds
+- [ ] Performance comparable to current implementation
+- [ ] All vision tests still pass
+
+### TD_052: Implement Godot DI Lifecycle Alignment (ADR-018)
+**Status**: Proposed
+**Owner**: Tech Lead → Dev Engineer (upon approval)
+**Size**: M (7h)
+**Priority**: Important - Memory leaks and state pollution
+**Created**: 2025-09-15 (Tech Lead)
+**Markers**: [ARCHITECTURE] [ADR-018] [DEPENDENCY-INJECTION]
+
+**What**: Implement instance-based IScopeManager for MS.DI + Godot lifecycle alignment
+**Why**: Prevent memory leaks, enable scene-scoped services, support parallel testing
+
+**Implementation Plan** (from ADR-018):
+1. **Phase 1: Core (3h)**:
+   - Create IScopeManager interface and GodotScopeManager
+   - Register as singleton in GameStrapper
+   - Create NodeServiceExtensions with GetService methods
+   - Initialize after DI setup
+
+2. **Phase 2: Migration (2h)**:
+   - Categorize services by lifetime (singleton/scoped/transient)
+   - Update nodes to use this.GetService<T>()
+   - Add scope creation to SceneManager
+   - Verify disposal on scene transitions
+
+3. **Phase 3: Testing (2h)**:
+   - Parallel test suite for no static interference
+   - Integration tests for nested scopes
+   - Performance test tree walking
+   - Debug window for active scopes
+
+**Done When**:
+- [ ] IScopeManager implemented and registered
+- [ ] Extension methods working (this.GetService<T>())
+- [ ] Scene scopes created/disposed properly
+- [ ] Tests can run in parallel
+- [ ] Memory leaks eliminated
+- [ ] Supports nested scopes (overlays, modals)
+
+### TD_044: Strangler Fig Phase 3 - Extract Platform Services
+**Status**: Ready for Dev
+**Owner**: Tech Lead → Dev Engineer  
+**Size**: M (8h) - Can split across 2 days
 **Priority**: Important
 **Created**: 2025-09-12 16:13
-**Updated**: 2025-09-12 17:35 (Tech Lead - Strangler Fig approach)
-**Depends On**: TD_043
+**Updated**: 2025-09-13 09:14 (Tech Lead - Detailed implementation plan created)
+**Depends On**: TD_043 ✅ Completed
 **Markers**: [ARCHITECTURE] [DDD] [STRANGLER-FIG] [PHASE-3]
 
-**What**: Extract Audio/Input/Settings to Platform context (third strangler vine)
+**What**: Extract Audio/Input/Settings to Platform bounded context (third strangler vine)
 **Why**: Clear abstraction boundary - these are external integrations not game logic
 
-**Parallel Migration Steps**:
-1. **Create Platform Context** (1h):
+**🎯 Tech Lead Implementation Plan (2025-09-13)**:
+**CRITICAL**: Follow Strangler Fig pattern - COPY services, don't move. Old code must keep working.
+
+**Phase Breakdown**:
+1. **Create Context Structure** (1h):
    ```
    src/Platform/
-   ├── Darklands.Platform.Domain.csproj
-   ├── Darklands.Platform.Infrastructure.csproj
-   └── Darklands.Platform.Infrastructure.Godot.csproj
+   ├── Darklands.Platform.Domain/ (pure abstractions)
+   ├── Darklands.Platform.Infrastructure/ (test implementations)  
+   └── Darklands.Platform.Infrastructure.Godot/ (Godot implementations)
    ```
 
 2. **Copy Service Abstractions** (2h):
-   - COPY IAudioService, IInputService, ISettingsService
-   - Create contract DTOs for cross-context data
-   - Keep old interfaces working
+   - COPY IAudioService, IInputService, ISettingsService to Platform.Domain
+   - Create Platform-specific value types (avoid Core.Domain coupling)
+   - Build adapter layer for interface compatibility during migration
 
 3. **Implement Godot Adapters** (3h):
-   ```csharp
-   // Platform.Infrastructure.Godot
-   public class GodotAudioService : IAudioService {
-       // Real Godot implementation
-   }
-   ```
+   - GodotAudioService with positional audio + resource caching
+   - GodotInputService with reactive input streams + action mapping
+   - GodotSettingsService with Godot project settings integration
+   - All implementations isolated in Platform.Infrastructure.Godot
 
-4. **Add Service Resolution Switch** (1h):
+4. **Define Contract Events** (1h):
+   - SoundPlayedEvent for cross-context audio awareness (AI reactions)
+   - PlayerInputEvent for input recording/replay systems
+   - SettingsChangedEvent for context behavior updates
+
+5. **Service Resolution Switch** (1h):
    ```csharp
-   if (UsePlatformContext) {
+   if (config.UsePlatformContext) {
        services.AddPlatformContext(); // New
    } else {
        services.AddLegacyServices(); // Old
    }
    ```
 
-5. **Verify with Tests** (1h):
-   - Mock implementations work
-   - Godot implementations work
-   - No Godot references leak to Domain
+6. **Testing & Verification** (1h):
+   - Unit tests for all Platform services (50+ new tests)
+   - Architecture boundary tests enforce isolation
+   - Parallel validation adapters for confidence
+   - Integration tests verify legacy/platform equivalence
 
-**Done When**:
-- [ ] Platform context isolates all Godot dependencies
-- [ ] Service interfaces work from both locations
-- [ ] Toggle switches between implementations
-- [ ] Architecture tests enforce Godot isolation
-- [ ] All platform tests pass
+**Implementation Order** (Risk-based):
+1. Settings Service (lowest risk - simple interface)
+2. Audio Service (medium - contract events valuable)  
+3. Input Service (highest risk - critical for gameplay)
+
+**Success Criteria**:
+- [ ] Platform context compiles with proper isolation
+- [ ] All 3 services copied and Godot implementations created
+- [ ] Feature toggle enables switching between old/new
+- [ ] Parallel validation shows identical behavior
+- [ ] Architecture tests enforce no Godot leakage outside .Godot project
+- [ ] All existing tests pass (661/661 + ~50 new Platform tests)
+
+**Rollback Plan**: Set `UsePlatformContext = false` to instantly revert
+
+**Key Insights from Analysis**:
+- Services already well-abstracted per ADR-006 (low migration risk)
+- Strong typing throughout prevents integration issues  
+- Contract events enable future features (AI hearing combat, input replay)
+- Three-project structure provides clean separation of concerns
 
 ### TD_048: Fix LanguageExt v5 Logging Package Conflicts
 **Status**: ✅ COMPLETED
@@ -845,7 +1067,7 @@ Always try `dotnet clean` before assuming package conflicts. The build cache can
 **Priority**: Important
 **Created**: 2025-09-12 16:13
 **Updated**: 2025-09-12 18:02 (Backlog Assistant - Added clarification note)
-**Depends On**: TD_044
+**Depends On**: TD_044 (Platform context)
 **Markers**: [ARCHITECTURE] [DDD] [STRANGLER-FIG] [PHASE-4]
 
 **What**: Remove old monolithic structure after new is proven

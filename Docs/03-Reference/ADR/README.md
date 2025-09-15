@@ -43,6 +43,9 @@ This directory contains Architecture Decision Records (ADRs) - documents that ca
 - [ADR-017: DDD Bounded Contexts Architecture](ADR-017-ddd-bounded-contexts-architecture.md) - **Proposed**
   - Separates codebase into proper bounded contexts (Tactical, Diagnostics, Platform) with different rules per context
 
+- [ADR-018: Godot-Aligned Dependency Injection Lifecycle](ADR-018-godot-di-lifecycle-alignment.md) - **Proposed**
+  - Aligns MS.DI scopes with Godot scene lifecycle for proper memory management and state isolation
+
 ## Critical Foundation ADRs
 
 - [ADR-004: Deterministic Simulation](ADR-004-deterministic-simulation.md) - **Approved**

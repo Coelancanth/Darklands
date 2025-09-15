@@ -1,197 +1,81 @@
-[Overall Assessment]:
-A strong, pragmatic ADR that thoughtfully applies DDD bounded contexts to a single-player Godot/C# game. It balances modular isolation, determinism, and UI/event concerns well. However, it contains several internal inconsistencies (notably around event buses, determinism vs timestamps, contracts identity types, and domain dependency on MediatR) and a few code-level pitfalls that should be corrected to avoid maintenance and performance issues.
+好的。已审阅此架构决策记录 (ADR, Architecture Decision Record)。
 
-[Strengths]:
-- Clear module boundaries: Contracts assemblies, isolation tests, and context mapping are well-articulated and enforceable.
-- Determinism-first: Concrete test strategy to ban non-deterministic constructs in core gameplay.
-- Event taxonomy: Sensible separation of Domain, Contract, and Application notifications.
-- Practical Godot guidance: Main-thread marshaling and DI bootstrap patterns fit Godot’s scene lifecycle.
-- VSA + DDD alignment: Good guidance for feature placement and vertical slice structure.
-- Performance awareness: Explicit “no MediatR in hot paths” guidance and batch/coarse-grained events.
-- Implementation protocol: Phased steps, architecture tests, and versioning discipline are production-friendly.
+这是一份考虑周全的文档，准确地识别了 `Microsoft.Extensions.DependencyInjection` (MS.DI) 与 Godot 节点 (Node) 生命周期集成的核心痛点。文档结构清晰，对问题、决策和后果的分析非常透彻。
 
-[Potential Risks & Areas for Improvement]:
-- Problem Description: Contradiction between “single MediatR” vs adding a separate integration event bus.
-  Reasoning: The ADR states a single bus with interface differentiation, but later registers `IIntegrationEventBus` and uses it for tick events, and the “Benefits” explicitly say “single event bus.” This ambiguity will cause duplicated patterns and confusion for handlers and testing.
+以下是基于技术负责人角色的中立、严格的评估。
 
-- Problem Description: Determinism conflict: domain events use DateTime in a domain that bans DateTime.
-  Reasoning: Domain event example includes `DateTime OccurredAt` while determinism tests forbid DateTime in Tactical domain.
-```174:181:Docs/03-Reference/ADR/ADR-017-ddd-bounded-contexts-architecture.md
-public record ActorDamagedEvent(ActorId Actor, int Damage) : IDomainEvent
-{
-    public DateTime OccurredAt { get; } = DateTime.UtcNow;
-}
-```
-```714:737:Docs/03-Reference/ADR/ADR-017-ddd-bounded-contexts-architecture.md
-Types.InAssembly(tacticalAssembly)
-    .Should()
-    .NotHaveDependencyOn("System.DateTime")
-```
+---
 
-- Problem Description: Domain dependency on MediatR via `IDomainEvent : INotification`.
-  Reasoning: This couples the domain to a transport library, reducing purity and testability. It also conflicts with the stated goal of strong isolation.
+### **总体评估 (Overall Assessment)**
 
-- Problem Description: Strongly-typed ID equality and default value hazards.
-  Reasoning: `TypedIdValueBase` equality compares any `TypedIdValueBase` by value, enabling cross-type equality. `record struct ActorId(EntityId Value)` allows a default `ActorId` with null `EntityId`, risking null refs and bypassing invariants.
+该 ADR 是一次务实的尝试，旨在用最小的代价解决一个真实存在的问题。它正确地优先考虑了状态隔离 (State Isolation) 和内存管理 (Memory Management)。选择方案 A (Option A) 体现了 “YAGNI” (You Ain't Gonna Need It) 的原则，避免了过度工程化 (Over-engineering)。
 
-- Problem Description: Contracts identity inconsistency (Guid vs EntityId).
-  Reasoning: The ADR alternates between `Guid` and `EntityId` for cross-context identity. This inconsistency will multiply mapping code and create subtle bugs when migrating.
+然而，该决策引入了几个显著的架构约束和风险，这些风险可能会在项目生命周期的后期带来更高的重构成本。核心问题围绕着对全局静态状态 (Global Static State) 的依赖和由此产生的架构僵化 (Architectural Rigidity)。
 
-- Problem Description: MainThreadDispatcher sample has non-existent Godot API and weak main-thread detection.
-  Reasoning: `GetProcessThread()` doesn’t exist; main thread checks should be based on captured managed thread ID or always-queue pattern. Current example risks misuse and confusion.
+### **关键架构问题分析 (Key Architectural Concerns)**
 
-- Problem Description: `Entity.DomainEvents` can be null.
-  Reasoning: Returning null for a collection property is error-prone. Consumers must null-check; iterating will crash.
+#### **1. 对静态类 `GodotScopeManager` 的依赖 (Dependency on Static `GodotScopeManager`)**
 
-- Problem Description: MediatR handler lifetimes set to Singleton globally.
-  Reasoning: Singletons are fine for stateless handlers, but pipeline behaviors and handlers that use transient dependencies (e.g., per-operation context) may break assumptions or capture unintended state.
+这是该设计中最需要关注的薄弱环节。
 
-- Problem Description: Over-segmentation risk with many csproj.
-  Reasoning: For a single-player game, too many assemblies can slow iteration and create config overhead. The ADR partially mitigates this but could be more incremental.
+*   **问题根源 (Root Cause)**: 静态类本质上是全局状态 (Global State)。它将 DI 容器 (DI Container) 的作用域管理 (Scope Management) 逻辑与应用程序的任何部分都紧密耦合 (Tightly Coupled) 在一起。
+*   **后果 (Consequences)**:
+    *   **可测试性受损 (Impaired Testability)**: 虽然 ADR 中提供了一个测试示例，但该示例无法并行运行。任何依赖 `GodotScopeManager` 的测试都共享同一个静态状态，这意味着测试之间会相互影响。在一个大型项目中，无法并行运行测试会严重拖慢持续集成 (CI, Continuous Integration) 的速度。
+    *   **推理困难 (Difficult to Reason About)**: 任何代码都可以随时调用 `GodotScopeManager.EndSceneScope()`，从而意外地销毁当前场景的所有作用域服务 (Scoped Services)。这种“幽灵般”的远距离操作 (Spooky Action at a Distance) 会使调试变得极其困难。
+    *   **违反依赖倒置原则 (Violation of Dependency Inversion)**: 节点 (Node) 现在直接依赖于一个具体的静态类 `GodotScopeManager`，而不是依赖于一个抽象。这使得在未来替换或装饰 (Decorate) 作用域管理逻辑变得不可能。
 
-- Problem Description: Architecture test examples depend on unspecified tooling and fragile pattern-matching.
-  Reasoning: NetArchTest/ArchUnit.NET assumptions aren’t explicitly stated; reflection-based float bans might false-positive or miss nested generics; excluding `INotificationHandler<>` broadly may also hide legitimate violations.
+*   **建议 (Recommendation)**:
+    *   将 `GodotScopeManager` 重构为一个实例类。
+    *   在 `GameStrapper` 中创建该实例，并将其注册为 DI 容器中的一个单例 (Singleton) 服务 (`IScopeManager`)。
+    *   节点需要作用域管理时，应从根服务提供者 (Root Service Provider) 中解析出 `IScopeManager` 实例。这虽然在初始化时增加了一步，但它打破了对静态全局状态的硬编码依赖，极大地提升了系统的模块化和可测试性。
 
-[Specific Suggestions & Alternatives]:
-- Unify event bus story:
-  - Option A (simpler): Single MediatR for Domain and Contract events; no separate bus. Keep “no hot-path” guidance; for per-frame events, use direct service calls and batch notifications at frame end.
-  - Option B (performant): Clearly define two buses:
-    - MediatR: Domain and Contract events only (non-hot-path).
-    - Lightweight in-process bus for high-frequency/coarse tick events (no DI, struct payloads, lock-free queue).
-```csharp
-public interface IFrameEventBus {
-    void Publish(in TickCompletedEvent evt);
-    IDisposable Subscribe(Action<TickCompletedEvent> handler);
-}
+#### **2. 对“单一场景作用域”的严格限制 (The Strict "Single Scene Scope" Limitation)**
 
-public sealed class FrameEventBus : IFrameEventBus {
-    private readonly ConcurrentBag<Action<TickCompletedEvent>> _subscribers = new();
-    public void Publish(in TickCompletedEvent evt) { foreach (var s in _subscribers) s(evt); }
-    public IDisposable Subscribe(Action<TickCompletedEvent> handler) { _subscribers.Add(handler); return new Unsubscriber(_subscribers, handler); }
-}
-```
-  - Document the division explicitly and remove “single bus” claims if choosing Option B.
+ADR 明确指出了这一限制，但可能低估了其对未来功能开发的阻碍。
 
-- Remove DateTime from domain events:
-  - Replace with deterministic time markers:
-    - Use `int TickNumber`, `long SimulationTimeUs`, or a `readonly struct GameTime { public int Tick; }`.
-  - Keep timestamps for Application/Contract events only, added at the adapter stage.
-```csharp
-public readonly record struct GameTick(int Value);
-public readonly record ActorDamagedEvent(ActorId Actor, int Damage, GameTick Tick) : IDomainEvent;
-```
+*   **问题根源 (Root Cause)**: 方案 A 的设计在架构层面上强制执行了“同一时间只能有一个场景作用域”的规则。
+*   **后果 (Consequences)**:
+    *   **UI 架构受限**: 常见的 UI 模式，如需要独立服务和状态的模态弹窗 (Modal Dialogs) 或复杂的 HUD 叠加层 (HUD Overlays)，如果作为独立的场景加载，将无法拥有自己的 DI 作用域。它们将被迫依赖于主场景的作用域，造成状态污染。
+    *   **功能扩展困难**: 诸如画中画 (Picture-in-Picture)、小地图 (Minimap) 或任何需要以加法方式加载 (Additively Loaded) 且需要隔离服务的场景，都无法实现。
+    *   **迁移成本高昂**: ADR 提到“如果需要可以迁移到方案 B”，但这种迁移的成本是巨大的。它需要修改每一个节点的依赖解析逻辑以及场景加载逻辑。从一个有严格限制的模式迁移到一个更灵活的模式，通常比一开始就采用一个稍微复杂但更具扩展性的模式成本更高。
 
-- Decouple domain from MediatR:
-  - Define `IDomainEvent` in SharedKernel with no external inheritance.
-  - Application publishes domain events via a publisher/adapter that bridges to MediatR.
-```csharp
-// SharedKernel.Domain
-public interface IDomainEvent { }
+*   **建议 (Recommendation)**:
+    *   重新评估方案 B (Option B) 的复杂性。方案 B 提出的 `Dictionary<Node, IServiceScope>` 和向上遍历树查找 `Provider` 的模式，与 Godot 自身的节点工作方式在哲学上是高度一致的。其实现复杂度并不比方案 A 高出一个数量级，但其提供的灵活性是方案 A 无法比拟的。
+    *   可以考虑实现一个“简化版”的方案 B，默认行为是根节点作用域 (Root Node Scope)，但保留了为特定子树创建嵌套作用域 (Nested Scope) 的能力。
 
-// Application adapter
-public interface IDomainEventPublisher { Task PublishAsync(IDomainEvent evt, CancellationToken ct); }
+#### **3. `ServiceNode` 基类引入的继承耦合 (Inheritance Coupling from `ServiceNode` Base Class)**
 
-public sealed class MediatRDomainEventPublisher(IMediator mediator) : IDomainEventPublisher {
-    public Task PublishAsync(IDomainEvent evt, CancellationToken ct) =>
-        mediator.Publish(evt, ct); // With a wrapper/marker if needed
-}
-```
+ADR 正确地将此类标记为“可选”，并指出了继承的限制。
 
-- Fix strongly-typed IDs:
-  - Make base equality type-safe and prevent cross-type equality:
-```csharp
-public abstract class TypedId<TSelf> : IEquatable<TSelf>
-    where TSelf : TypedId<TSelf>
-{
-    public Guid Value { get; }
-    protected TypedId(Guid value) { if (value == Guid.Empty) throw new InvalidOperationException("Empty"); Value = value; }
-    public bool Equals(TSelf? other) => other is not null && other.Value == Value;
-    public override bool Equals(object? obj) => obj is TSelf other && Equals(other);
-    public override int GetHashCode() => HashCode.Combine(typeof(TSelf), Value);
-    public override string ToString() => Value.ToString("N")[..8];
-}
-public sealed class EntityId : TypedId<EntityId> { public EntityId(Guid v) : base(v) {} public static EntityId New() => new(Guid.NewGuid()); }
-```
-  - For `ActorId`, avoid nested class-in-class wrapping that can be null by default. Prefer:
-```csharp
-public readonly record struct ActorId(Guid Value) {
-    public static ActorId New() => new(Guid.NewGuid());
-    public bool IsEmpty => Value == Guid.Empty;
-}
-```
-  - Or adopt a battle-tested source generator (e.g., StronglyTypedId) for consistency and analyzer support.
+*   **问题根源 (Root Cause)**: 为了减少样板代码 (Boilerplate Code) 而采用继承。
+*   **后果 (Consequences)**: C# 不支持多重继承。如果一个节点已经需要从 `CharacterBody3D` 或其他特定类型继承，它就无法再继承 `ServiceNode`。这使得该便利性工具的适用范围非常有限。
+*   **建议 (Recommendation)**:
+    *   **优先考虑组合优于继承 (Favor Composition over Inheritance)**。可以创建一个 `ServiceResolverComponent` 节点。任何需要解析服务的节点，只需将这个 `ServiceResolverComponent` 作为其子节点。父节点可以在 `_Ready()` 中获取这个子节点并使用其功能。
+    *   **使用扩展方法 (Extension Methods)**。可以创建 `public static T GetService<T>(this Node node)` 这样的扩展方法，它内部封装了访问 `GodotScopeManager` 的逻辑。这可以减少样板代码，同时不引入继承的限制。
 
-- Standardize contracts identity:
-  - Prefer using `EntityId` (from SharedKernel) across Contract events for type-safety and consistency with Diagnostics, or commit to `Guid` everywhere. Pick one and document it. If `EntityId`, ensure Contracts reference only SharedKernel and not domain.
-```csharp
-public sealed record ActorDamagedContractEvent(EntityId EntityId, int Damage, string ActorName) : IContractEvent { /* Id, OccurredAt, Version */ }
-```
+### **对 ADR 各部分的具体反馈**
 
-- Correct MainThreadDispatcher:
-  - Remove invalid API usage and use captured main thread ID, or always enqueue and accept a one-frame delay.
-```csharp
-public sealed partial class MainThreadDispatcher : Node, IMainThreadDispatcher {
-    private readonly ConcurrentQueue<Action> _queue = new();
-    private int _mainThreadId;
+*   **决策 (Decision)**: 选择方案 A 的理由“更简单的心理模型”是有争议的。一个全局静态管理器的心理模型在小范围内简单，但在大范围内会因其副作用而变得复杂。方案 B 的“基于树的作用域”模型与 Godot 开发者已有的心智模型更加吻合。
 
-    public override void _EnterTree() {
-        _mainThreadId = Environment.CurrentManagedThreadId;
-        ProcessMode = ProcessModeEnum.Always;
-    }
+*   **后果 (Consequences)**:
+    *   **负面 - 样板代码 (Negative - Boilerplate)**: ADR 估计“200+ 节点，意味着 1000+ 行的样板代码”。这个成本不应被低估。这些重复的代码是潜在错误的温床。
+    *   **负面 - 脆弱的集成契约 (Negative - Fragile Integration Contract)**: 这个问题非常现实。依赖团队纪律而不是技术约束来保证系统的正确性，是一种高风险策略。
 
-    public override void _Process(double delta) {
-        for (int i = 0; i < 10 && _queue.TryDequeue(out var action); i++) {
-            try { action(); } catch (Exception ex) { GD.PrintErr(ex.ToString()); }
-        }
-    }
+*   **所需团队共识 (Required Team Consensus)**:
+    *   这是 ADR 中最出色的部分。它强制团队直面决策的负面影响。
+    *   在第 2 点“接受样板代码成本”上，团队需要意识到这不仅仅是工作量，更是长期的维护负担和代码质量风险。
+    *   在第 5 点“未来迁移路径”上，团队应将“接受重构成本”理解为一项几乎肯定会发生的技术债务 (Technical Debt)。
 
-    private bool IsOnMainThread() => Environment.CurrentManagedThreadId == _mainThreadId;
+### **最终结论**
 
-    public void Enqueue(Action action) {
-        if (IsOnMainThread()) action();
-        else _queue.Enqueue(action);
-    }
-}
-```
+此 ADR 是一个良好的开端，但其核心决策（选择方案 A 并使用静态管理器）为了追求眼前的简单性而牺牲了长期的架构健康度 (Architectural Health) 和可扩展性 (Scalability)。
 
-- Make `Entity.DomainEvents` safe to consume:
-```csharp
-public IReadOnlyCollection<IDomainEvent> DomainEvents =>
-    (IReadOnlyCollection<IDomainEvent>?)_domainEvents ?? Array.Empty<IDomainEvent>();
-```
+**批准建议 (Approval Recommendation): 有条件批准 (Conditional Approval)**
 
-- Review MediatR lifetimes:
-  - Keep handlers stateless; if any handler relies on transient state, register those specific handlers/transforms as Transient. Pipeline behaviors are commonly Transient; confirm and document.
-  - Consider `ValueTask` in handlers to reduce allocations for hot-ish paths.
+我建议批准此 ADR，但必须满足以下条件：
 
-- Incremental assembly rollout:
-  - Start by splitting only SharedKernel and Contracts assemblies; keep Tactical and Diagnostics as folders in a single Core assembly with namespace separation plus analyzers/ArchTests to enforce isolation.
-  - Split into separate assemblies once boundaries stabilize. This reduces churn without sacrificing discipline.
+1.  **重构 `GodotScopeManager` 为实例服务**，并由根 DI 容器管理。这是消除全局状态和提高可测试性的关键。
+2.  **重新进行方案 A vs. 方案 B 的评估**。团队应实现一个方案 B 的最小原型 (Prototype)，以实际评估其复杂性是否真的过高。强烈建议采用方案 B 的思路，因为它从根本上解决了作用域与 Godot 场景树对齐的问题，而不是用一个全局单例来绕过它。
+3.  **废弃 `ServiceNode` 基类**，转而提供基于组合 (Composition) 或扩展方法 (Extension Methods) 的样板代码减少方案。
 
-- Clarify and harden architecture tests:
-  - Specify tool (NetArchTest or ArchUnitNET) and add build script integration.
-  - For float/double bans, check fields and properties recursively; allow `[DeterministicAllowed]` attribute on whitelisted types.
-  - Narrow the `INotificationHandler<>` exclusion to only contract-event handlers, or exclude by namespace or attribute (e.g., `[IntegrationAdapter]`) to avoid hiding real violations.
-
-- Document exception policy with Fin<T>:
-  - If domain guard clauses throw `BusinessRuleValidationException`, show the application-layer translation to `Fin<T>` to uphold “no exceptions across boundaries.”
-```csharp
-try {
-    aggregate.DoWork();
-    return FinSucc(Unit.Default);
-}
-catch (BusinessRuleValidationException ex) {
-    return FinFail<Unit>(Error.New(ex.Message));
-}
-```
-
-[Questions for Clarification]:
-- Should the architecture use a single event bus (MediatR) or two buses (MediatR + lightweight frame bus)? If two, which events go where? Please confirm and update the ADR to remove ambiguity.
-- Do you want `EntityId` in Contracts, or plain `Guid`? Diagnostics examples use `EntityId`. Let’s standardize.
-- Is it acceptable for the domain to reference MediatR? If not, we should remove `INotification` inheritance from `IDomainEvent` and bridge in the application layer.
-- Confirm desired time representation for domain events: `TickNumber`/`GameTime` instead of `DateTime` to pass determinism tests?
-- Which architecture test framework will be used (NetArchTest or ArchUnitNET), and do you want attributes (e.g., `[IntegrationAdapter]`) to control exclusions more precisely?
-- Which Godot version (4.2/4.3/4.4)? This affects recommended threading APIs and minor DI/SDK guidance.
-- Are there performance targets for per-frame GC allocations? If so, we can propose `struct` event payloads and `ValueTask` use where appropriate.
-
-- Key doc excerpts indicating contradictions were cited above to speed fixes.
+遵循这些建议将产生一个更健壮、可扩展且与 Godot 设计哲学更一致的依赖注入生命周期管理系统。它将在前期增加少量（约 1-2 天）的开发成本，但能避免未来数周甚至数月的重构工作。
