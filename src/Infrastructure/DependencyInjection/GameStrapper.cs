@@ -280,15 +280,20 @@ public static class GameStrapper
                 return new StubScopeManager(provider.GetService<ILogger<StubScopeManager>>());
             });
 
-            // State services (Singleton - maintain state across operations)
-            // Phase 2: Grid state management
-            services.AddSingleton<Application.Grid.Services.IGridStateService, Application.Grid.Services.InMemoryGridStateService>();
+            // TD_052: Register SceneManager as singleton for scene lifecycle management
+            // NOTE: This will be replaced by the actual Presentation.SceneManager when available
+            // For now, register as interface if we have one, otherwise skip registration
+            // The actual SceneManager will be available from the Presentation layer
 
-            // Phase 2: Combat timeline scheduling
-            services.AddSingleton<Application.Combat.Services.ICombatSchedulerService, Application.Combat.Services.InMemoryCombatSchedulerService>();
+            // TD_052: State services (Scoped - reset per scene for isolation)
+            // Phase 2: Grid state management - Scoped for scene isolation
+            services.AddScoped<Application.Grid.Services.IGridStateService, Application.Grid.Services.InMemoryGridStateService>();
 
-            // Phase 3: Actor state management (including health)
-            services.AddSingleton<Application.Actor.Services.IActorStateService, Application.Actor.Services.InMemoryActorStateService>();
+            // Phase 2: Combat timeline scheduling - Scoped for scene isolation
+            services.AddScoped<Application.Combat.Services.ICombatSchedulerService, Application.Combat.Services.InMemoryCombatSchedulerService>();
+
+            // Phase 3: Actor state management (including health) - Scoped for scene isolation
+            services.AddScoped<Application.Actor.Services.IActorStateService, Application.Actor.Services.InMemoryActorStateService>();
 
             // Phase 2: Vision state management with fog of war
             // Phase 3: Enhanced persistence and performance monitoring
@@ -301,16 +306,17 @@ public static class GameStrapper
             // Register vision performance monitoring with feature toggle support
             services.AddVisionPerformanceMonitoring(stranglerFigConfig);
 
-            services.AddSingleton<Application.Vision.Services.IVisionStateService, Infrastructure.Vision.PersistentVisionStateService>();
+            // TD_052: Vision state service - Scoped for scene isolation
+            services.AddScoped<Application.Vision.Services.IVisionStateService, Infrastructure.Vision.PersistentVisionStateService>();
 
             // TD_043: Register combat services with Strangler Fig parallel operation
             services.AddCombatServices(stranglerFigConfig);
 
-            // TD_009: Composite query service (coordinates ActorState + Grid services)
-            services.AddSingleton<Application.Combat.Services.ICombatQueryService, Application.Combat.Services.CombatQueryService>();
+            // TD_009: Composite query service (coordinates ActorState + Grid services) - Scoped for scene isolation
+            services.AddScoped<Application.Combat.Services.ICombatQueryService, Application.Combat.Services.CombatQueryService>();
 
-            // TD_011: Game loop coordinator for sequential turn processing
-            services.AddSingleton<Application.Combat.Coordination.GameLoopCoordinator>();
+            // TD_011: Game loop coordinator for sequential turn processing - Scoped for scene isolation
+            services.AddScoped<Application.Combat.Coordination.GameLoopCoordinator>();
 
             // Repository interfaces (Singleton - typically wrap persistent state)
             // TODO: Register repositories here as they're implemented
@@ -370,16 +376,17 @@ public static class GameStrapper
             // No manual registration needed - MediatR finds all INotificationHandler<T> implementations
 
             // Actor Factory (TD_013) - Clean separation of test data from presenters
-            // Singleton to maintain player ID state across the application
-            services.AddSingleton<Application.Common.IActorFactory, Application.Common.ActorFactory>();
+            // TD_052: Scoped to maintain player ID state per scene (not across application)
+            services.AddScoped<Application.Common.IActorFactory, Application.Common.ActorFactory>();
 
             // TD_043: Tactical Bounded Context (Strangler Fig Phase 2)
-            // These services run in parallel with legacy combat system during migration
+            // TD_052: These services run in parallel with legacy combat system during migration
             // NOTE: Different namespace from legacy Application.Combat.Services
-            services.AddSingleton<Tactical.Application.Features.Combat.Services.IActorRepository,
+            // Scoped for scene isolation and proper lifecycle management
+            services.AddScoped<Tactical.Application.Features.Combat.Services.IActorRepository,
                                  Tactical.Infrastructure.Repositories.ActorRepository>();
 
-            services.AddSingleton<Tactical.Application.Features.Combat.Services.ICombatSchedulerService,
+            services.AddScoped<Tactical.Application.Features.Combat.Services.ICombatSchedulerService,
                                  Tactical.Infrastructure.Services.CombatSchedulerService>();
 
             return FinSucc(LanguageExt.Unit.Default);

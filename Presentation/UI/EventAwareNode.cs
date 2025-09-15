@@ -5,6 +5,7 @@ using Darklands.Core.Domain.Debug;
 using Darklands.Core.Infrastructure.Logging;
 using Darklands.Core.Application.Events;
 using Darklands.Core.Infrastructure.DependencyInjection;
+using Darklands.Presentation.Infrastructure;
 using MediatR;
 
 namespace Darklands.Presentation.UI;
@@ -37,55 +38,61 @@ public abstract partial class EventAwareNode : Node2D
     protected IUIEventBus? EventBus { get; private set; }
 
     /// <summary>
+    /// Category logger for diagnostic output.
+    /// Cached during _Ready() from the scoped service provider.
+    /// </summary>
+    protected ICategoryLogger? Logger { get; private set; }
+
+    /// <summary>
     /// Called when the node is added to the scene tree.
-    /// Retrieves IUIEventBus from DI container and calls SubscribeToEvents().
-    /// 
-    /// Service Locator Pattern:
-    /// This is one of the few places where service locator is acceptable,
-    /// as Godot instantiates nodes via scene loading, not dependency injection.
+    /// TD_052: Updated to use scope-aware service resolution instead of static GameStrapper pattern.
+    ///
+    /// Scope-Aware Pattern:
+    /// Uses NodeServiceExtensions to get services from the appropriate scope for this node.
+    /// Falls back to GameStrapper pattern if scope management fails.
+    /// Caches resolved services for performance.
     /// </summary>
     public override void _Ready()
     {
         try
         {
-            // Get the service provider from the GameStrapper
-            var serviceProviderResult = GameStrapper.GetServices();
+            // TD_052: Use scope-aware service resolution instead of static GameStrapper
+            // This will get services from the appropriate scope for this node's location in the tree
+            EventBus = this.GetService<IUIEventBus>();
+            Logger = this.GetService<ICategoryLogger>();
 
-            serviceProviderResult.Match(
-                Succ: serviceProvider =>
-                {
-                    EventBus = serviceProvider.GetRequiredService<IUIEventBus>();
+            // Allow subclass to subscribe to specific events
+            SubscribeToEvents();
 
-                    // Allow subclass to subscribe to specific events
-                    SubscribeToEvents();
-
-                    var categoryLogger = serviceProvider.GetService<ICategoryLogger>();
-                    categoryLogger?.Log(LogLevel.Information, LogCategory.System, "{0} successfully subscribed to domain events", GetType().Name);
-                },
-                Fail: error =>
-                {
-                    var categoryLogger = GameStrapper.GetServices().Match(
-                        Succ: sp => sp.GetService<ICategoryLogger>(),
-                        Fail: _ => null);
-                    categoryLogger?.Log(LogLevel.Error, LogCategory.System, "{0} failed to get UI Event Bus: {1}", GetType().Name, error.Message);
-                }
-            );
+            Logger?.Log(LogLevel.Information, LogCategory.System,
+                       "{0} successfully subscribed to domain events via scope-aware resolution",
+                       GetType().Name);
         }
         catch (Exception ex)
         {
-            var categoryLogger = GameStrapper.GetServices().Match(
+            // Fallback to GameStrapper pattern for error logging if scope resolution fails
+            var fallbackLogger = GameStrapper.GetServices().Match(
                 Succ: sp => sp.GetService<ICategoryLogger>(),
                 Fail: _ => null);
-            categoryLogger?.Log(LogLevel.Error, LogCategory.System, "{0} exception during event bus initialization: {1}", GetType().Name, ex.Message);
+
+            fallbackLogger?.Log(LogLevel.Error, LogCategory.System,
+                               "{0} exception during scope-aware event bus initialization: {1}. " +
+                               "Check ServiceLocator autoload and scope creation.",
+                               GetType().Name, ex.Message);
+
+            // Set EventBus to null so SafeSubscribe methods can handle gracefully
+            EventBus = null;
+            Logger = fallbackLogger;
         }
     }
 
     /// <summary>
     /// Called when the node is removed from the scene tree.
     /// Automatically unsubscribes from ALL events to prevent memory leaks.
-    /// 
+    ///
     /// This is critical for preventing memory leaks when nodes are destroyed
     /// or scenes are changed in Godot.
+    /// TD_052: Uses cached Logger instead of accessing GameStrapper.
     /// </summary>
     public override void _ExitTree()
     {
@@ -94,22 +101,22 @@ public abstract partial class EventAwareNode : Node2D
             if (EventBus != null)
             {
                 EventBus.UnsubscribeAll(this);
-                var categoryLogger = GameStrapper.GetServices().Match(
-                    Succ: sp => sp.GetService<ICategoryLogger>(),
-                    Fail: _ => null);
-                categoryLogger?.Log(LogLevel.Information, LogCategory.System, "{0} unsubscribed from all events on exit", GetType().Name);
+                Logger?.Log(LogLevel.Information, LogCategory.System,
+                           "{0} unsubscribed from all events on exit",
+                           GetType().Name);
             }
         }
         catch (Exception ex)
         {
-            var categoryLogger = GameStrapper.GetServices().Match(
-                Succ: sp => sp.GetService<ICategoryLogger>(),
-                Fail: _ => null);
-            categoryLogger?.Log(LogLevel.Error, LogCategory.System, "{0} error during event unsubscription: {1}", GetType().Name, ex.Message);
+            Logger?.Log(LogLevel.Error, LogCategory.System,
+                       "{0} error during event unsubscription: {1}",
+                       GetType().Name, ex.Message);
         }
         finally
         {
+            // Clear cached services
             EventBus = null;
+            Logger = null;
         }
     }
 
@@ -138,6 +145,7 @@ public abstract partial class EventAwareNode : Node2D
     /// <summary>
     /// Helper method for subclasses to safely subscribe to events.
     /// Provides null-safety checking and error handling.
+    /// TD_052: Uses cached Logger instead of accessing GameStrapper.
     /// </summary>
     /// <typeparam name="TEvent">The event type to subscribe to</typeparam>
     /// <param name="handler">The handler method to call when the event occurs</param>
@@ -145,60 +153,55 @@ public abstract partial class EventAwareNode : Node2D
     {
         if (EventBus == null)
         {
-            var logger = GameStrapper.GetServices().Match(
-                Succ: sp => sp.GetService<ICategoryLogger>(),
-                Fail: _ => null);
-            logger?.Log(LogLevel.Error, LogCategory.System, "{0} cannot subscribe to {1} - EventBus is null", GetType().Name, typeof(TEvent).Name);
+            Logger?.Log(LogLevel.Error, LogCategory.System,
+                       "{0} cannot subscribe to {1} - EventBus is null",
+                       GetType().Name, typeof(TEvent).Name);
             return;
         }
 
         try
         {
             EventBus.Subscribe<TEvent>(this, handler);
-            var logger = GameStrapper.GetServices().Match(
-                Succ: sp => sp.GetService<ICategoryLogger>(),
-                Fail: _ => null);
-            logger?.Log(LogLevel.Information, LogCategory.System, "{0} subscribed to {1}", GetType().Name, typeof(TEvent).Name);
+            Logger?.Log(LogLevel.Information, LogCategory.System,
+                       "{0} subscribed to {1}",
+                       GetType().Name, typeof(TEvent).Name);
         }
         catch (Exception ex)
         {
-            var logger = GameStrapper.GetServices().Match(
-                Succ: sp => sp.GetService<ICategoryLogger>(),
-                Fail: _ => null);
-            logger?.Log(LogLevel.Error, LogCategory.System, "{0} failed to subscribe to {1}: {2}", GetType().Name, typeof(TEvent).Name, ex.Message);
+            Logger?.Log(LogLevel.Error, LogCategory.System,
+                       "{0} failed to subscribe to {1}: {2}",
+                       GetType().Name, typeof(TEvent).Name, ex.Message);
         }
     }
 
     /// <summary>
     /// Helper method for subclasses to safely unsubscribe from specific events.
     /// Usually not needed as _ExitTree() unsubscribes from all events automatically.
+    /// TD_052: Uses cached Logger instead of accessing GameStrapper.
     /// </summary>
     /// <typeparam name="TEvent">The event type to unsubscribe from</typeparam>
     protected void SafeUnsubscribe<TEvent>() where TEvent : INotification
     {
         if (EventBus == null)
         {
-            var logger = GameStrapper.GetServices().Match(
-                Succ: sp => sp.GetService<ICategoryLogger>(),
-                Fail: _ => null);
-            logger?.Log(LogLevel.Error, LogCategory.System, "{0} cannot unsubscribe from {1} - EventBus is null", GetType().Name, typeof(TEvent).Name);
+            Logger?.Log(LogLevel.Error, LogCategory.System,
+                       "{0} cannot unsubscribe from {1} - EventBus is null",
+                       GetType().Name, typeof(TEvent).Name);
             return;
         }
 
         try
         {
             EventBus.Unsubscribe<TEvent>(this);
-            var logger = GameStrapper.GetServices().Match(
-                Succ: sp => sp.GetService<ICategoryLogger>(),
-                Fail: _ => null);
-            logger?.Log(LogLevel.Information, LogCategory.System, "{0} unsubscribed from {1}", GetType().Name, typeof(TEvent).Name);
+            Logger?.Log(LogLevel.Information, LogCategory.System,
+                       "{0} unsubscribed from {1}",
+                       GetType().Name, typeof(TEvent).Name);
         }
         catch (Exception ex)
         {
-            var logger = GameStrapper.GetServices().Match(
-                Succ: sp => sp.GetService<ICategoryLogger>(),
-                Fail: _ => null);
-            logger?.Log(LogLevel.Error, LogCategory.System, "{0} failed to unsubscribe from {1}: {2}", GetType().Name, typeof(TEvent).Name, ex.Message);
+            Logger?.Log(LogLevel.Error, LogCategory.System,
+                       "{0} failed to unsubscribe from {1}: {2}",
+                       GetType().Name, typeof(TEvent).Name, ex.Message);
         }
     }
 }
