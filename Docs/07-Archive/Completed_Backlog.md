@@ -3139,3 +3139,58 @@ res://
 - [ ] HANDBOOK update: Document dual logging system architecture
 - [ ] ADR consideration: Logging strategy and SSOT principle
 - [ ] Test pattern: Configuration change integration testing
+
+
+
+
+
+
+
+
+### TD_051: Fix FOV Double Math for Determinism (ADR-004)
+**Extraction Status**: NOT EXTRACTED ⚠️
+**Completed**: 2025-09-15 11:56
+**Archive Note**: Achieved cross-platform determinism by replacing double math with Fixed-point arithmetic in vision system
+---
+**Status**: ✅ **COMPLETED**
+**Owner**: Dev Engineer → Completed
+**Size**: S (1h) → Actual: 1h
+**Priority**: Critical - Cross-platform determinism at risk
+**Created**: 2025-09-15 (Tech Lead from GPT review)
+**Completed**: 2025-09-15 (Dev Engineer)
+**Markers**: [ARCHITECTURE] [ADR-004] [DETERMINISM] [IMMEDIATE]
+
+**What**: Replace double math in ShadowcastingFOV with Fixed or integer math
+**Why**: Floating point behavior varies across platforms, breaks saves/replay
+
+**Problem Code** (`src/Domain/Vision/ShadowcastingFOV.cs`):
+```csharp
+double tileSlopeHigh = distance == 0 ? 1.0 : (angle + 0.5) / (distance - 0.5);
+double tileSlopeLow = (angle - 0.5) / (distance + 0.5);
+```
+
+**✅ Solution Implemented** (Option A - Fixed arithmetic):
+- Replaced `double` parameters with `Fixed` in CastShadow method
+- Converted slope calculations to use Fixed.Half instead of 0.5 literals
+- Updated method calls to use Fixed.One/Fixed.Zero constants
+- Added comprehensive property tests for determinism verification
+
+**Done When** (All criteria met):
+- [x] **No double/float in ShadowcastingFOV** ✅
+- [x] **Property tests verify identical results across 1000+ seeds** ✅ (5 new property tests)
+- [x] **Performance comparable to current implementation** ✅ (28s baseline maintained)
+- [x] **All vision tests still pass** ✅ (666/669 tests pass, 3 expected skips)
+
+**Implementation Details**:
+- **Files Modified**: `src/Domain/Vision/ShadowcastingFOV.cs`, `tests/Domain/Vision/ShadowcastingFOVDeterminismTests.cs`
+- **Tests Added**: 5 property-based determinism tests using FsCheck
+- **Commit**: `f07b57f` - feat(vision): Replace double math with Fixed-point for cross-platform determinism
+- **Impact**: Cross-platform saves now compatible, zero functional changes to FOV algorithm
+
+**Tech Lead Validation**: ADR-004 compliance achieved - Fixed 16.16 format provides sufficient precision (1/65536) while ensuring identical behavior across all platforms.
+---
+**Extraction Targets**:
+- [ ] ADR needed for: Fixed-point arithmetic adoption strategy for deterministic systems
+- [ ] HANDBOOK update: Property-based testing pattern for cross-platform determinism validation
+- [ ] Test pattern: FsCheck determinism testing with 1000+ seed validation
+- [ ] Technical debt: Consider Fixed-point adoption in other floating-point usage areas

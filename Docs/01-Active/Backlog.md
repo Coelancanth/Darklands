@@ -119,34 +119,6 @@ graph TD
 **🎯 Tech Lead Priority Analysis (2025-09-15):**
 Reorganized based on risk assessment - promoting architectural violations and production stability issues from Important to Critical. These items represent either active production issues or fundamental violations that will compound if not addressed immediately.
 
-### TD_051: Fix FOV Double Math for Determinism (ADR-004)
-**Status**: Proposed → **APPROVED BY TECH LEAD**
-**Owner**: Tech Lead → Dev Engineer (approved for immediate implementation)
-**Size**: S (1h)
-**Priority**: Critical - Cross-platform determinism at risk
-**Created**: 2025-09-15 (Tech Lead from GPT review)
-**Markers**: [ARCHITECTURE] [ADR-004] [DETERMINISM] [IMMEDIATE]
-
-**What**: Replace double math in ShadowcastingFOV with Fixed or integer math
-**Why**: Floating point behavior varies across platforms, breaks saves/replay
-
-**Problem Code** (`src/Domain/Vision/ShadowcastingFOV.cs`):
-```csharp
-double tileSlopeHigh = distance == 0 ? 1.0 : (angle + 0.5) / (distance - 0.5);
-double tileSlopeLow = (angle - 0.5) / (distance + 0.5);
-```
-
-**Solution Options**:
-- **Option A**: Use Fixed type for slope calculations
-- **Option B**: Scale to integers and compare products (cross-multiply)
-
-**Tech Lead Approval Rationale**: ADR-004 determinism is non-negotiable. This violation affects save compatibility across platforms and multiplayer-readiness. Quick 1h fix with high architectural value.
-
-**Done When**:
-- [ ] No double/float in ShadowcastingFOV
-- [ ] Property tests verify identical results across 1000+ seeds
-- [ ] Performance comparable to current implementation
-- [ ] All vision tests still pass
 
 ### TD_050: ADR-009 Enforcement - Remove Task.Run from Turn Loop and Presenters
 **Status**: Proposed → **APPROVED BY TECH LEAD**
