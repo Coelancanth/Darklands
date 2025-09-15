@@ -5,7 +5,7 @@ using Darklands.Tactical.Domain.ValueObjects;
 using LanguageExt;
 using LanguageExt.Common;
 using MediatR;
-using Microsoft.Extensions.Logging;
+// using Microsoft.Extensions.Logging; // TODO: Re-enable after logging package issues resolved
 using static LanguageExt.Prelude;
 
 namespace Darklands.Tactical.Application.Features.Combat.Scheduling;
@@ -20,28 +20,28 @@ public sealed class ProcessNextTurnCommandHandler
 {
     private readonly ICombatSchedulerService _scheduler;
     private readonly IActorRepository _actorRepository;
-    private readonly ILogger<ProcessNextTurnCommandHandler> _logger;
+    // private readonly ILogger<ProcessNextTurnCommandHandler> _logger; // TODO: Re-enable after logging package issues resolved
 
     public ProcessNextTurnCommandHandler(
         ICombatSchedulerService scheduler,
-        IActorRepository actorRepository,
-        ILogger<ProcessNextTurnCommandHandler> logger)
+        IActorRepository actorRepository)
+        // ILogger<ProcessNextTurnCommandHandler> logger) // TODO: Re-enable after logging package issues resolved
     {
         _scheduler = scheduler;
         _actorRepository = actorRepository;
-        _logger = logger;
+        // _logger = logger; // TODO: Re-enable after logging package issues resolved
     }
 
     public async Task<Fin<TurnResult>> Handle(ProcessNextTurnCommand command, CancellationToken cancellationToken)
     {
-        _logger.LogDebug("Processing next turn at time {CurrentTime}", command.CurrentTime);
+        // _logger.LogDebug("Processing next turn at time {CurrentTime}", command.CurrentTime); // TODO: Re-enable after logging package issues resolved
 
         // Get the next actor to act
         var nextActorResult = await _scheduler.GetNextActorAsync(command.CurrentTime);
 
         if (nextActorResult.IsFail)
         {
-            _logger.LogWarning("Failed to get next actor from scheduler");
+            // _logger.LogWarning("Failed to get next actor from scheduler"); // TODO: Re-enable after logging package issues resolved
             return nextActorResult.Match<Fin<TurnResult>>(
                 Succ: _ => throw new InvalidOperationException(),
                 Fail: err => FinFail<TurnResult>(err)
@@ -58,12 +58,12 @@ public sealed class ProcessNextTurnCommandHandler
 
     private async Task<Fin<TurnResult>> PrepareActorTurn(EntityId actorId, TimeUnit currentTime)
     {
-        _logger.LogDebug("Preparing turn for actor {ActorId}", actorId);
+        // _logger.LogDebug("Preparing turn for actor {ActorId}", actorId); // TODO: Re-enable after logging package issues resolved
         var actorResult = await _actorRepository.GetByIdAsync(actorId);
 
         if (actorResult.IsFail)
         {
-            _logger.LogWarning("Failed to retrieve actor {ActorId}", actorId);
+            // _logger.LogWarning("Failed to retrieve actor {ActorId}", actorId); // TODO: Re-enable after logging package issues resolved
             return actorResult.Match<Fin<TurnResult>>(
                 Succ: _ => throw new InvalidOperationException(),
                 Fail: err => FinFail<TurnResult>(err)
@@ -77,7 +77,7 @@ public sealed class ProcessNextTurnCommandHandler
 
         if (!actor.CanAct)
         {
-            _logger.LogDebug("Actor {ActorName} cannot act, skipping turn", actor.Name);
+            // _logger.LogDebug("Actor {ActorName} cannot act, skipping turn", actor.Name); // TODO: Re-enable after logging package issues resolved
             // Schedule next turn for this actor and process next
             await _scheduler.ScheduleActorAsync(actor.Id, currentTime + TimeUnit.QuickAction);
 
@@ -99,8 +99,8 @@ public sealed class ProcessNextTurnCommandHandler
 
         // Generate available actions for the actor
         var availableActions = GenerateAvailableActions(actor);
-        _logger.LogInformation("Turn prepared for {ActorName} with {ActionCount} available actions", 
-            actor.Name, availableActions.Count);
+        // _logger.LogInformation("Turn prepared for {ActorName} with {ActionCount} available actions",
+        //     actor.Name, availableActions.Count); // TODO: Re-enable after logging package issues resolved
 
         // Calculate round number (every 10 turns = 1 round)
         var roundNumber = currentTime.ToTurns() / 10 + 1;

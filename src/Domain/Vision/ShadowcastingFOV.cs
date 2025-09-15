@@ -5,6 +5,7 @@ using LanguageExt;
 using LanguageExt.Common;
 using static LanguageExt.Prelude;
 using Darklands.Core.Domain.Grid;
+using Darklands.Core.Domain.Determinism;
 
 namespace Darklands.Core.Domain.Vision
 {
@@ -61,7 +62,7 @@ namespace Darklands.Core.Domain.Vision
             for (int octant = 0; octant < 8; octant++)
             {
                 // Start at distance 1 with full slope range (1.0 to 0.0)
-                CastShadow(origin, range, grid, octant, visible, 1, 1.0, 0.0);
+                CastShadow(origin, range, grid, octant, visible, 1, Fixed.One, Fixed.Zero);
             }
 
             return FinSucc(visible.ToImmutableHashSet());
@@ -78,8 +79,8 @@ namespace Darklands.Core.Domain.Vision
             int octant,
             System.Collections.Generic.HashSet<Position> visible,
             int distance,
-            double viewSlopeHigh,
-            double viewSlopeLow)
+            Fixed viewSlopeHigh,
+            Fixed viewSlopeLow)
         {
             if (viewSlopeHigh < viewSlopeLow)
                 return;
@@ -93,11 +94,12 @@ namespace Darklands.Core.Domain.Vision
             // This matches libtcod's approach for proper shadow propagation
             for (int angle = distance; angle >= 0; angle--)
             {
-                // Calculate slopes for this tile
+                // Calculate slopes for this tile using Fixed-point arithmetic for determinism
                 // Note: We need to be careful with division by zero when distance is 0 or 1
-                double tileSlopeHigh = distance == 0 ? 1.0 : (angle + 0.5) / (distance - 0.5);
-                double tileSlopeLow = (angle - 0.5) / (distance + 0.5);
-                double prevTileSlopeLow = (angle + 0.5) / (distance + 0.5);
+                Fixed tileSlopeHigh = distance == 0 ? Fixed.One :
+                    (Fixed.FromInt(angle) + Fixed.Half) / (Fixed.FromInt(distance) - Fixed.Half);
+                Fixed tileSlopeLow = (Fixed.FromInt(angle) - Fixed.Half) / (Fixed.FromInt(distance) + Fixed.Half);
+                Fixed prevTileSlopeLow = (Fixed.FromInt(angle) + Fixed.Half) / (Fixed.FromInt(distance) + Fixed.Half);
 
                 // Check if tile is within view slopes
                 if (tileSlopeLow > viewSlopeHigh)
