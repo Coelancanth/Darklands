@@ -1,7 +1,7 @@
 # ADR-018: Godot-Aligned Dependency Injection Lifecycle
 
 ## Status
-Proposed (Revised after architectural review)
+**ACCEPTED** - Implemented in TD_052 (2025-09-15)
 
 ## Context
 
@@ -340,6 +340,70 @@ public class CombatTests
     }
 }
 ```
+
+## Implementation Update (TD_052 - September 2025)
+
+The actual implementation exceeded the original design with several critical improvements:
+
+### Production Enhancements Added
+
+1. **Memory Safety (ConditionalWeakTable)**
+   ```csharp
+   private readonly ConditionalWeakTable<Node, IServiceScope> _nodeScopes = new();
+   ```
+   - Prevents memory leaks if nodes are freed without TreeExiting signal
+   - Allows garbage collection of orphaned node references
+
+2. **Performance Caching (WeakReference)**
+   ```csharp
+   private readonly ConcurrentDictionary<Node, WeakReference<IServiceProvider>> _providerCache = new();
+   ```
+   - O(1) service resolution after first lookup
+   - Prevents repeated tree walking for same nodes
+
+3. **Thread Safety (ReaderWriterLockSlim)**
+   ```csharp
+   private readonly ReaderWriterLockSlim _lock = new();
+   ```
+   - High-performance concurrent read access
+   - Exclusive locks only for write operations (create/dispose)
+
+4. **Performance Monitoring**
+   ```csharp
+   if (elapsedMs > 1.0)
+   {
+       _logger?.LogWarning("Slow scope resolution for {NodeName}: {ElapsedMs:F2}ms");
+   }
+   ```
+   - Automatic detection of performance issues
+   - Diagnostic information for troubleshooting
+
+5. **Comprehensive Error Handling**
+   - Graceful fallback to GameStrapper pattern
+   - Never crashes node initialization
+   - Detailed logging for troubleshooting
+
+### File Structure (Actual Implementation)
+```
+src/Core/Domain/Services/IScopeManager.cs           # Interface with diagnostics
+Presentation/Infrastructure/GodotScopeManager.cs    # Full implementation
+Presentation/Infrastructure/NodeServiceExtensions.cs # Extension methods
+ServiceLocator.cs                                   # Godot autoload
+tests/Infrastructure/.../ScopeLifecycleIntegrationTests.cs # Comprehensive tests
+```
+
+### Service Migration Results
+- **State Services → Scoped**: GridStateService, ActorStateService, CombatSchedulerService
+- **Infrastructure → Singleton**: Logger, Audio, Settings, DeterministicRandom
+- **EventAwareNode Updated**: Uses `this.GetService<T>()` with fallback
+- **Zero Build Warnings**: 673 tests passing
+
+### Key Achievements
+- ✅ Memory leak prevention verified
+- ✅ Test parallelization enabled
+- ✅ Production-ready error handling
+- ✅ Performance optimizations implemented
+- ✅ Comprehensive testing suite added
 
 ## Consequences
 
