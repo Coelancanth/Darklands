@@ -1,9 +1,10 @@
 # ADR-011: Godot Resource Bridge Pattern
 
-**Status**: Proposed  
-**Date**: 2025-09-08  
-**Author**: Tech Lead  
-**Deciders**: Tech Lead, Dev Engineer  
+**Status**: Proposed
+**Date**: 2025-09-08
+**Author**: Tech Lead
+**Deciders**: Tech Lead, Dev Engineer
+**Updated**: 2025-09-16 - Updated file paths for ADR-021 project separation  
 
 ## Context
 
@@ -40,7 +41,7 @@ We will implement a **Resource Bridge Pattern** where:
 
 ```csharp
 // Domain Layer - Pure C#, no Godot knowledge
-namespace Darklands.Core.Domain.Definitions
+namespace Darklands.Domain.Definitions
 {
     public interface IActorDefinitionRepository
     {
@@ -117,7 +118,7 @@ namespace Darklands.Core.Infrastructure.Resources
 }
 
 // Godot Resource Definition - Lives with Godot project
-namespace Darklands.Godot.Resources
+namespace Darklands.Resources
 {
     [Tool]
     public partial class ActorDefinitionResource : Resource
@@ -226,41 +227,50 @@ public sealed class DefinitionCache<T> : IDefinitionCache<T> where T : class
 
 ## Implementation Guidelines
 
-### 1. File Organization
+### 1. File Organization (Updated for ADR-021 Project Separation)
 
 ```
 darklands/
 ├── src/
-│   ├── Domain/
+│   ├── Darklands.Domain/
 │   │   └── Definitions/
 │   │       ├── IActorDefinitionRepository.cs
 │   │       ├── ActorDefinition.cs
 │   │       └── ItemDefinition.cs
 │   │
-│   ├── Application/
-│   │   └── Commands/
-│   │       └── CreateActorFromDefinitionCommand.cs
+│   ├── Darklands.Core/
+│   │   ├── Application/
+│   │   │   └── Commands/
+│   │   │       └── CreateActorFromDefinitionCommand.cs
+│   │   └── Infrastructure/
+│   │       └── Resources/
+│   │           ├── GodotActorDefinitionRepository.cs
+│   │           ├── GodotItemDefinitionRepository.cs
+│   │           ├── GodotResourceLoader.cs
+│   │           └── DefinitionCache.cs
 │   │
-│   └── Infrastructure/
-│       └── Resources/
-│           ├── GodotActorDefinitionRepository.cs
-│           ├── GodotItemDefinitionRepository.cs
-│           ├── GodotResourceLoader.cs
-│           └── DefinitionCache.cs
+│   └── Darklands.Presentation/
+│       └── Presenters/
+│           └── ActorPresenter.cs           # Uses definition repository
 │
-├── godot_project/
-│   └── Resources/
-│       ├── Definitions/
-│       │   ├── Actors/
-│       │   │   ├── player.tres
-│       │   │   ├── goblin.tres
-│       │   │   └── combat_dummy.tres
-│       │   └── Items/
-│       │       ├── sword.tres
-│       │       └── health_potion.tres
-│       └── ResourceTypes/
-│           ├── ActorDefinitionResource.cs
-│           └── ItemDefinitionResource.cs
+├── Resources/                              # Godot project root
+│   ├── Definitions/
+│   │   ├── Actors/
+│   │   │   ├── player.tres
+│   │   │   ├── goblin.tres
+│   │   │   └── combat_dummy.tres
+│   │   └── Items/
+│   │       ├── sword.tres
+│   │       └── health_potion.tres
+│   └── ResourceTypes/
+│       ├── ActorDefinitionResource.cs
+│       └── ItemDefinitionResource.cs
+│
+└── tests/
+    └── Darklands.Core.Tests/
+        └── Infrastructure/
+            └── Resources/
+                └── ResourceBridgeTests.cs
 ```
 
 ### 2. Usage in Application Layer
@@ -289,13 +299,30 @@ public sealed class CreateActorFromDefinitionCommandHandler : ICommandHandler<Cr
 }
 ```
 
-### 3. Dependency Injection Setup
+### 3. Dependency Injection Setup (Updated for Project Separation)
 
 ```csharp
-// In GameStrapper.cs (Infrastructure configuration)
-services.AddSingleton<IResourceLoader, GodotResourceLoader>();
-services.AddSingleton<IDefinitionCache<ActorDefinition>, DefinitionCache<ActorDefinition>>();
-services.AddSingleton<IActorDefinitionRepository, GodotActorDefinitionRepository>();
+// In Darklands.Presentation/ServiceConfiguration.cs
+public static class ServiceConfiguration
+{
+    public static IServiceProvider ConfigureServices()
+    {
+        var services = new ServiceCollection();
+
+        // Resource loading infrastructure
+        services.AddSingleton<IResourceLoader, GodotResourceLoader>();
+        services.AddSingleton<IDefinitionCache<ActorDefinition>, DefinitionCache<ActorDefinition>>();
+
+        // Repository implementations
+        services.AddSingleton<IActorDefinitionRepository, GodotActorDefinitionRepository>();
+        services.AddSingleton<IItemDefinitionRepository, GodotItemDefinitionRepository>();
+
+        // Presenters that use repositories
+        services.AddScoped<IActorPresenter, ActorPresenter>();
+
+        return services.BuildServiceProvider();
+    }
+}
 ```
 
 ## Consequences

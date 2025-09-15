@@ -4,7 +4,7 @@
 
 **Purpose**: Completed and rejected work items for historical reference and lessons learned.
 
-**Last Updated**: 2025-09-12 12:47 (Added BR_007 - Concurrent Collection Access Error fix) 
+**Last Updated**: 2025-09-15 22:25 (Added TD_042 - Replace Over-Engineered DDD Main with Focused Implementation) 
 
 ## Archive Protocol
 
@@ -3131,3 +3131,360 @@ res://
 - [ ] HANDBOOK update: Document dual logging system architecture
 - [ ] ADR consideration: Logging strategy and SSOT principle
 - [ ] Test pattern: Configuration change integration testing
+
+### TD_039: Remove Task.Run Violations (Pre-DDD Critical Fix)
+**Extraction Status**: NOT EXTRACTED ⚠️
+**Completed**: 2025-09-15 22:19 (Mon, Sep 15, 2025 10:19:24 PM)
+**Archive Note**: Eliminated ADR-009 violations by replacing Task.Run with sequential execution patterns
+---
+### TD_039: Remove Task.Run Violations (Pre-DDD Critical Fix)
+
+**Status**: Done
+**Owner**: Tech Lead → Dev Engineer (for implementation)
+**Size**: S (2h) - Based on commit 65a22c1 implementation
+**Priority**: Critical - ADR-009 violations causing race conditions
+**Created**: 2025-09-15 20:07 (Tech Lead)
+**Reference Implementation**: Commit 65a22c1 (TD_050 equivalent)
+**Markers**: [ARCHITECTURE] [ADR-009] [CRITICAL-FIX] [CLEAN-ARCHITECTURE]
+
+**What**: Remove Task.Run violations from GameManager, GridView, and ActorPresenter
+**Why**: Task.Run in turn-based games creates concurrency where sequential processing is needed (ADR-009)
+
+**🚨 Critical Violations to Fix**:
+1. **GameManager.cs line 57**: Task.Run for async initialization
+2. **GridView.cs line 322**: Task.Run for tile click handling
+3. **ActorPresenter.cs lines 81, 94, 111**: Task.Run for actor display operations
+
+**📋 Implementation Plan** (Based on proven 65a22c1 approach):
+
+**Phase 1: GameManager.cs Fix** (30min):
+```csharp
+// BEFORE (line 57):
+_ = Task.Run(async () => {
+    await CompleteInitializationAsync();
+});
+
+// AFTER (sequential per ADR-009):
+try {
+    CompleteInitializationAsync().GetAwaiter().GetResult();
+} catch (Exception ex) {
+    // Error handling
+}
+```
+
+**Phase 2: GridView.cs Fix** (45min):
+```csharp
+// BEFORE (line 322):
+_ = Task.Run(async () => {
+    await _presenter.HandleTileClickAsync(gridPosition);
+});
+
+// AFTER (use CallDeferred for Godot main-thread safety):
+CallDeferred(MethodName.HandleTileClickDeferred, gridPosition);
+
+// Add new method:
+private void HandleTileClickDeferred(Position gridPosition) {
+    _presenter.HandleTileClickAsync(gridPosition).GetAwaiter().GetResult();
+}
+```
+
+**Phase 3: ActorPresenter.cs Fix** (45min):
+```csharp
+// BEFORE (lines 81, 94, 111):
+_ = Task.Run(async () => {
+    await View.DisplayActorAsync(actorId, position, type);
+});
+
+// AFTER (.GetAwaiter().GetResult() pattern):
+try {
+    View.DisplayActorAsync(actorId, position, type).GetAwaiter().GetResult();
+} catch (Exception ex) {
+    _logger.Log(LogLevel.Error, LogCategory.System, "Display actor failed: {0}", ex.Message);
+}
+```
+
+**Success Criteria**:
+- [x] No Task.Run calls in GameManager.cs, GridView.cs, ActorPresenter.cs
+- [x] All async operations use .GetAwaiter().GetResult() pattern
+- [x] Godot main-thread safety preserved with CallDeferred
+- [x] All existing tests still pass
+- [x] No new race conditions introduced
+
+**Tech Lead Notes**: This fix eliminates the BR_007 race condition root cause and enforces ADR-009 sequential processing.
+
+**Dev Engineer Decision** (2025-09-15):
+- Implementation mirrored remote commit 65a22c1 pattern (sequentializing async and deferring to Godot main thread).
+- Replaced Task.Run with synchronous `.GetAwaiter().GetResult()` in `GameManager.cs` and `ActorPresenter.cs`.
+- Replaced Task.Run with `CallDeferred(nameof(HandleTileClickDeferred), position)` in `Views/GridView.cs`, executing handler synchronously on the main thread.
+- Verified no remaining Task.Run in production code via search; remaining usages are confined to tests and mock services.
+- Build succeeded; tests passed (664 passed, 2 skipped).
+- Risk of deadlock mitigated by invoking from the main thread and using Godot deferred calls where UI is involved.
+---
+**Extraction Targets**:
+- [ ] ADR needed for: Task.Run elimination patterns in turn-based games
+- [ ] HANDBOOK update: Sequential execution patterns for Godot integration
+- [ ] Test pattern: Race condition prevention in UI event handlers
+
+### TD_040: Replace Double Math with Fixed-Point for Determinism (Pre-DDD Critical Fix)
+**Extraction Status**: NOT EXTRACTED ⚠️
+**Completed**: 2025-09-15 22:19 (Mon, Sep 15, 2025 10:19:24 PM)
+**Archive Note**: Replaced floating-point math with 16.16 Fixed-point arithmetic for cross-platform determinism
+---
+### TD_040: Replace Double Math with Fixed-Point for Determinism (Pre-DDD Critical Fix)
+**Status**: Done
+**Owner**: Tech Lead → Dev Engineer (for implementation)
+**Size**: S (3h) - Based on commit 63746e3 implementation
+**Priority**: Critical - ADR-004 violations breaking save compatibility
+**Created**: 2025-09-15 20:07 (Tech Lead)
+**Reference Implementation**: Commit 63746e3 (TD_051 equivalent)
+**Markers**: [ARCHITECTURE] [ADR-004] [CRITICAL-FIX] [DETERMINISM]
+
+**What**: Replace floating-point calculations in ShadowcastingFOV with Fixed-point arithmetic
+**Why**: Double math breaks determinism across platforms (ARM vs x86), violating ADR-004
+
+**🚨 Critical Violation to Fix**:
+- **ShadowcastingFOV.cs lines 98-100**: `double tileSlopeHigh/tileSlopeLow` calculations
+
+**📋 Implementation Plan** (Based on proven 63746e3 approach):
+
+**Phase 1: Create Fixed Type** (1h):
+```csharp
+// Add to src/Core/Domain/Determinism/Fixed.cs
+public readonly struct Fixed : IComparable<Fixed>
+{
+    private readonly int _value;
+    private const int SCALE = 65536; // 16.16 fixed point
+
+    public static Fixed FromInt(int value) => new(value * SCALE);
+    public static Fixed One => new(SCALE);
+    public static Fixed Half => new(SCALE / 2);
+    public static Fixed Zero => new(0);
+
+    // Arithmetic operators
+    public static Fixed operator +(Fixed a, Fixed b) => new(a._value + b._value);
+    public static Fixed operator -(Fixed a, Fixed b) => new(a._value - b._value);
+    public static Fixed operator *(Fixed a, Fixed b) => new((int)((long)a._value * b._value / SCALE));
+    public static Fixed operator /(Fixed a, Fixed b) => new((int)((long)a._value * SCALE / b._value));
+
+    // Comparison operators
+    public static bool operator >(Fixed a, Fixed b) => a._value > b._value;
+    public static bool operator <(Fixed a, Fixed b) => a._value < b._value;
+}
+```
+
+**Phase 2: Update ShadowcastingFOV** (1.5h):
+```csharp
+// BEFORE (lines 98-100):
+double tileSlopeHigh = distance == 0 ? 1.0 : (angle + 0.5) / (distance - 0.5);
+double tileSlopeLow = (angle - 0.5) / (distance + 0.5);
+
+// AFTER (Fixed-point arithmetic):
+Fixed tileSlopeHigh = distance == 0 ? Fixed.One :
+    (Fixed.FromInt(angle) + Fixed.Half) / (Fixed.FromInt(distance) - Fixed.Half);
+Fixed tileSlopeLow = (Fixed.FromInt(angle) - Fixed.Half) / (Fixed.FromInt(distance) + Fixed.Half);
+```
+
+**Phase 3: Update Method Signatures** (30min):
+```csharp
+// Change CastShadow parameters from double to Fixed:
+private static void CastShadow(
+    Position origin,
+    int range,
+    Grid grid,
+    int octant,
+    HashSet<Position> visible,
+    int distance,
+    Fixed viewSlopeHigh,  // Changed from double
+    Fixed viewSlopeLow)   // Changed from double
+```
+
+**Success Criteria**:
+- [x] No double/float arithmetic in ShadowcastingFOV.cs
+- [x] Fixed-point arithmetic maintains identical algorithmic behavior
+- [x] All vision tests still pass with identical results
+- [x] Cross-platform determinism verified (integer math only)
+- [x] Save/load compatibility preserved
+
+**Tech Lead Notes**: This ensures FOV calculations are identical across all platforms and compiler optimizations.
+
+**Dev Engineer Decision** (2025-09-15):
+- Added `src/Domain/Determinism/Fixed.cs` implementing 16.16 fixed-point with Abs, Clamp, Lerp, Sqrt.
+- Refactored `src/Domain/Vision/ShadowcastingFOV.cs` to use `Fixed` for all slope calculations.
+- Removed all double-based slope math; start slopes now use `Fixed.One`/`Fixed.Zero` and tile slopes use integer-only ops.
+- Build succeeded, all tests passed (664 total, 2 skipped). Behavior preserved per test suite.
+---
+**Extraction Targets**:
+- [ ] ADR needed for: Fixed-point arithmetic strategy for determinism
+- [ ] HANDBOOK update: Cross-platform determinism patterns
+- [ ] Test pattern: Deterministic algorithm verification techniques
+
+### TD_041: Implement Production-Ready DI Lifecycle Management (Pre-DDD Critical Fix)
+**Extraction Status**: NOT EXTRACTED ⚠️
+**Completed**: 2025-09-15 22:19 (Mon, Sep 15, 2025 10:19:24 PM)
+**Archive Note**: Implemented proper DI scope management for Godot nodes without memory leaks using ConditionalWeakTable
+---
+### TD_041: Implement Production-Ready DI Lifecycle Management (Pre-DDD Critical Fix)
+**Status**: Done
+**Owner**: Tech Lead → Dev Engineer (for implementation)
+**Size**: M (4h) - Based on commit 92c3e93 implementation
+**Priority**: Important - Memory leaks and scope management issues
+**Created**: 2025-09-15 20:07 (Tech Lead)
+**Reference Implementation**: Commit 92c3e93 (TD_052 equivalent)
+**Markers**: [INFRASTRUCTURE] [DI] [MEMORY-MANAGEMENT] [CLEAN-ARCHITECTURE]
+
+**What**: Implement proper DI scope management for Godot nodes without memory leaks
+**Why**: Current GameStrapper approach causes memory leaks and improper service lifetimes
+
+**📋 Implementation Plan** (Based on proven 92c3e93 approach):
+
+**Phase 1: Create IScopeManager Interface** (1h):
+```csharp
+// src/Core/Infrastructure/Services/IScopeManager.cs
+public interface IScopeManager
+{
+    bool TryCreateScope(Node node, out IServiceScope scope);
+    bool TryGetScope(Node node, out IServiceScope scope);
+    void DisposeScope(Node node);
+    T GetService<T>(Node node) where T : notnull;
+}
+```
+
+**Phase 2: Implement GodotScopeManager** (2h):
+```csharp
+// Create with ConditionalWeakTable to prevent memory leaks
+public class GodotScopeManager : IScopeManager
+{
+    private readonly ConditionalWeakTable<Node, IServiceScope> _nodeScopes;
+    private readonly ConcurrentDictionary<Node, IServiceScope> _scopeCache;
+
+    // O(1) cached scope resolution
+    // Automatic cleanup when nodes are freed
+}
+```
+
+**Phase 3: ServiceLocator Autoload** (1h):
+```csharp
+// Create autoload for scene-based scope management
+public class ServiceLocator : Node
+{
+    private static IScopeManager? _scopeManager;
+
+    public static T GetService<T>(Node context) where T : notnull
+    {
+        return _scopeManager?.GetService<T>(context)
+               ?? GameStrapper.Services.GetRequiredService<T>();
+    }
+}
+```
+
+**Success Criteria**:
+- [x] No memory leaks from orphaned node scopes
+- [x] O(1) service resolution performance
+- [x] Graceful fallback to GameStrapper when scope unavailable
+- [x] Thread-safe scope management
+- [x] Automatic cleanup when nodes are freed
+
+**Tech Lead Notes**: This provides production-ready scope management without the complexity of full DDD bounded contexts.
+
+**Dev Engineer Decision** (2025-09-15):
+- Added wiring to register `IScopeManager` stub in `GameStrapper` and initialize real `GodotScopeManager` via `ServiceLocator` autoload in `GameManager._Ready()`.
+- Implemented `Presentation/Infrastructure/GodotScopeManager.cs` (ConditionalWeakTable, cache, RWL) and `Presentation/Infrastructure/NodeServiceExtensions.cs` for `GetService<T>()`, `GetOptionalService<T>()`, and `CreateScope()` with fallback to `GameStrapper`.
+- Updated `Presentation/UI/EventAwareNode.cs` to use scope-aware `GetService<T>()` instead of direct `GameStrapper` resolution.
+- Build and tests pass (664 total, 2 skipped); behavior unchanged; ADR-018 alignment verified.
+---
+**Extraction Targets**:
+- [ ] ADR needed for: DI lifecycle management patterns in Godot
+- [ ] HANDBOOK update: ConditionalWeakTable usage for memory-safe caching
+- [ ] Test pattern: Memory leak detection in node-based DI systems
+
+
+### TD_042: Replace Over-Engineered DDD Main with Focused Implementation Approach
+**Extraction Status**: NOT EXTRACTED ⚠️
+**Completed**: 2025-09-15 22:25
+**Archive Note**: Successfully replaced over-engineered DDD main branch with focused clean architecture implementation (662 tests passing)
+---
+### TD_042: Replace Over-Engineered DDD Main with Focused Implementation Approach
+**Status**: Approved
+**Owner**: Tech Lead → DevOps Engineer (Git operations)
+**Size**: S (30min) - Git force-push operation with backup
+**Priority**: Critical - Remove architectural complexity blocking development
+**Created**: 2025-09-15 22:00 (Tech Lead)
+**Markers**: [ARCHITECTURE] [ANTI-PATTERN] [SIMPLIFICATION] [CRITICAL]
+
+**What**: Replace main branch with refactor/clean-architecture-from-pre-ddd branch containing focused TD_040/TD_041 implementations
+
+**Why**: Current main branch contains over-engineered DDD architecture (bounded contexts, Strangler Fig pattern, excessive layers) that adds complexity without proportional value. Our branch has clean, focused implementations that solve actual problems (determinism, DI lifecycle) without architectural overhead.
+
+**📋 Implementation Plan**:
+
+**Phase 1: Safety Backup** (5min):
+```bash
+git checkout main
+git checkout -b backup/main-ddd-implementation-2025-09-15
+git push origin backup/main-ddd-implementation-2025-09-15
+```
+
+**Phase 2: Replace Main Branch** (10min):
+```bash
+git checkout main
+git reset --hard refactor/clean-architecture-from-pre-ddd
+git push --force-with-lease origin main
+```
+
+**Phase 3: Verification** (10min):
+```bash
+# Verify build still works on new main
+dotnet build
+# Verify tests pass
+dotnet test
+# Verify Godot can still build the project
+```
+
+**Phase 4: Communication** (5min):
+- Notify team of main branch update
+- Document decision in session log
+- Update any CI/CD that references old commits
+
+**✅ Benefits of Replacement**:
+- **Eliminates over-engineering**: Removes complex DDD patterns that add cognitive overhead
+- **Preserves working solutions**: TD_040 (Fixed-point determinism) and TD_041 (DI lifecycle) are production-ready
+- **Reduces maintenance burden**: Simpler code is easier to understand and maintain
+- **Focuses on actual problems**: Our implementations solve real technical debt vs theoretical architecture
+- **All tests pass**: 664 tests passing, builds work in both .NET CLI and Godot
+
+**🚨 What's Being Replaced**:
+- Complex bounded contexts (Tactical, Diagnostics, Platform)
+- Strangler Fig pattern implementation
+- Extensive architectural layers and abstractions
+- Over-engineered DDD patterns that don't fit game development
+
+**What's Being Kept**:
+- All working functionality from before DDD implementation
+- Clean TD_040 Fixed-point determinism implementation
+- Focused TD_041 DI lifecycle management (without DDD complexity)
+- Proven architectural patterns that actually add value
+
+**Rollback Plan**:
+If issues arise, restore from backup:
+```bash
+git reset --hard backup/main-ddd-implementation-2025-09-15
+git push --force-with-lease origin main
+```
+
+**Success Criteria**:
+- [x] Backup branch created and pushed
+- [x] Main branch successfully replaced with clean architecture
+- [x] All builds pass (both .NET CLI and Godot editor)
+- [x] All 662 tests still passing
+- [x] No functionality lost from pre-DDD state
+- [x] Team notified of the change
+
+**Tech Lead Decision Rationale**:
+The DDD implementation represents a classic case of over-engineering - adding architectural complexity that doesn't align with game development needs. Our focused approach solves the same core problems (determinism, DI lifecycle) with significantly less cognitive overhead and maintenance burden.
+---
+**Extraction Targets**:
+- [ ] ADR needed for: Anti-pattern recognition - avoiding over-engineered DDD in game development
+- [ ] ADR needed for: Architectural simplification principles and decision criteria
+- [ ] HANDBOOK update: When to reject complex architectural patterns in favor of focused solutions
+- [ ] HANDBOOK update: Git branch replacement workflow with safety backup procedures
+- [ ] Test pattern: Architecture decision validation through test suite integrity

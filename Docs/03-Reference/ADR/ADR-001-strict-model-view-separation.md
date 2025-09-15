@@ -1,8 +1,9 @@
 # ADR-001: Strict Model-View Separation
 
-**Status**: Approved  
-**Date**: 2025-08-29  
+**Status**: Approved
+**Date**: 2025-08-29
 **Decision Makers**: Product Owner (proposed), Tech Lead (approved 2025-08-28)
+**Updated**: 2025-09-16 - Updated for ADR-021 MVP enforcement with project separation
 
 ## Context
 
@@ -15,102 +16,193 @@ Darklands requires extensive modding support from day one. Modders should be abl
 
 Enforce STRICT separation between game logic and presentation using MVP (Model-View-Presenter) pattern:
 
-### Architecture Layers
+### Architecture Layers (Updated per ADR-021)
 
 ```
 src/
-└── Darklands.Core.csproj    (Pure C# - NO Godot dependencies)
-    ├── Domain/               (Game entities, value objects)
-    ├── Application/          (Commands, Queries, Handlers - MediatR)
-    ├── Features/             (Feature-based organization)
-    │   └── [Feature]/
-    │       ├── Commands/     (Feature commands)
-    │       ├── Presenters/   (MVP Presenters - orchestrate logic)
-    │       └── Views/        (View interfaces only)
-    └── Infrastructure/       (Services, repositories)
+├── Darklands.Domain.csproj     (Pure business logic - NO dependencies)
+│   ├── World/                  (Grid, Tile, Position)
+│   ├── Characters/             (Actor, Health, ActorState)
+│   ├── Combat/                 (Damage, TimeUnit, AttackAction)
+│   └── Vision/                 (VisionRange, ShadowcastingFOV)
+│
+├── Darklands.Core.csproj       (Application & Infrastructure)
+│   ├── Application/            (Commands, Queries, Handlers - MediatR)
+│   └── Infrastructure/         (Services, repositories)
+│
+└── Darklands.Presentation.csproj (MVP Presenters & View Interfaces)
+    ├── Views/                  (View interfaces: ICombatView, IGridView)
+    ├── Presenters/             (MVP Presenters - orchestrate logic)
+    └── ServiceConfiguration.cs (DI composition root)
 
 tests/
-└── Darklands.Core.Tests.csproj (Unit tests for Core)
-    
-Darklands.csproj              (Godot project - references Core)
-└── godot_project/
-    ├── scenes/               (Godot scenes)
-    ├── features/             (Feature-based views)
-    │   └── [feature]/
-    │       └── XxxView.cs    (Godot view implementations)
-    └── resources/            (Art, sounds, Godot assets)
+└── Darklands.Core.Tests.csproj (Unit tests for all projects)
+
+Darklands.csproj                (Godot project - references ONLY Presentation)
+├── Views/                      (Godot view implementations)
+│   ├── Combat/
+│   │   ├── CombatView.cs      (implements ICombatView)
+│   │   └── CombatView.tscn
+│   └── Grid/
+│       ├── GridView.cs        (implements IGridView)
+│       └── GridView.tscn
+├── Scenes/                     (Composed scenes)
+├── Resources/                  (Art, sounds, Godot assets)
+└── ServiceLocator.cs           (DI bridge autoload)
 ```
 
 ### MVP Pattern Implementation
 
-**Critical**: Presenters live in Core but NEVER reference Godot types directly
+**Critical**: Presenters live in Darklands.Presentation and coordinate between Views and Core services
 
 ```csharp
-// ✅ CORRECT - In Darklands.Core
-namespace Darklands.Core.Features.Combat.Presenters;
+// ✅ CORRECT - In Darklands.Presentation
+namespace Darklands.Presentation.Presenters;
 
-public class CombatPresenter : PresenterBase<ICombatView>
+public class CombatPresenter : IPresenter<ICombatView>
 {
     private readonly IMediator _mediator;
-    
+    private readonly ICombatStateService _combatState;
+    private ICombatView? _view;
+
+    public CombatPresenter(IMediator mediator, ICombatStateService combatState)
+    {
+        _mediator = mediator;
+        _combatState = combatState;
+    }
+
+    public void AttachView(ICombatView view)
+    {
+        _view = view;
+    }
+
+    public void Initialize()
+    {
+        // Subscribe to view events
+        if (_view != null)
+        {
+            // Handle view interactions by sending commands through MediatR
+        }
+    }
+
     public void ProcessAttack(GridCoordinates from, GridCoordinates to)
     {
-        // Pure C# logic, testable without Godot
-        var timeUnits = CalculateTimeUnits(from, to);
-        View.UpdateTimeDisplay(timeUnits);
+        // Presenter orchestrates: View → Commands → Domain → View updates
+        var command = new ExecuteAttackCommand(from, to);
+        _mediator.Send(command).ContinueWith(result =>
+        {
+            // Update view based on result
+            _view?.UpdateTimeDisplay(result.Result.TimeUnits);
+        });
     }
 }
 
-// View interface in Core
+// View interface in Darklands.Presentation
 public interface ICombatView
 {
     void UpdateTimeDisplay(int timeUnits);
-    IObservable<GridCoordinates> CellClicked { get; }
+    void ShowAttackAnimation();
+    event System.Action<GridCoordinates, GridCoordinates> AttackRequested;
 }
 
-// ✅ CORRECT - In Darklands.Godot
-namespace Darklands.Godot.Features.Combat;
+// ✅ CORRECT - In Darklands.csproj (Godot project)
+namespace Darklands.Views.Combat;
 
 public partial class CombatView : Control, ICombatView
 {
-    // Godot-specific implementation
+    private ICombatPresenter? _presenter;
+
+    public override void _Ready()
+    {
+        // View ONLY resolves its presenter
+        _presenter = this.GetService<ICombatPresenter>();
+        _presenter.AttachView(this);
+        _presenter.Initialize();
+    }
+
+    // ICombatView implementation - pure UI updates
     public void UpdateTimeDisplay(int timeUnits)
     {
         GetNode<Label>("TimeLabel").Text = $"Time: {timeUnits}";
     }
+
+    public void ShowAttackAnimation()
+    {
+        GetNode<AnimationPlayer>("AttackAnimation").Play("attack");
+    }
+
+    // UI events delegate to presenter
+    public event System.Action<GridCoordinates, GridCoordinates>? AttackRequested;
+
+    private void _on_AttackButton_pressed()
+    {
+        var from = GetSelectedFrom();
+        var to = GetSelectedTo();
+        AttackRequested?.Invoke(from, to);
+    }
 }
 ```
 
-### Enforcement via .csproj (Based on Proven Pattern)
+### Enforcement via Project Separation (Per ADR-021)
 
 ```xml
-<!-- src/Darklands.Core.csproj -->
+<!-- src/Darklands.Domain/Darklands.Domain.csproj -->
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <RootNamespace>Darklands.Domain</RootNamespace>
+  </PropertyGroup>
+  <!-- NO project references - Domain must be pure -->
+  <ItemGroup>
+    <!-- Only pure .NET packages allowed -->
+    <PackageReference Include="LanguageExt.Core" Version="4.4.9" />
+  </ItemGroup>
+</Project>
+
+<!-- src/Darklands.Core/Darklands.Core.csproj -->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>Darklands.Core</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <!-- Core dependencies only - NO Godot! -->
-    <PackageReference Include="LanguageExt.Core" Version="*" />
-    <PackageReference Include="MediatR" Version="*" />
+    <ProjectReference Include="..\Darklands.Domain\Darklands.Domain.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="LanguageExt.Core" Version="4.4.9" />
+    <PackageReference Include="MediatR" Version="12.4.1" />
+  </ItemGroup>
+</Project>
+
+<!-- src/Darklands.Presentation/Darklands.Presentation.csproj -->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>Darklands.Presentation</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Darklands.Domain\Darklands.Domain.csproj" />
+    <ProjectReference Include="..\Darklands.Core\Darklands.Core.csproj" />
   </ItemGroup>
 </Project>
 
 <!-- Darklands.csproj (Root Godot Project) -->
-<Project Sdk="Godot.NET.Sdk/4.4.1">
+<Project Sdk="Godot.NET.Sdk/4.3.0">
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <EnableDynamicLoading>true</EnableDynamicLoading>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="src\Darklands.Core.csproj" />
+    <!-- CRITICAL: Only reference Presentation, NOT Core -->
+    <ProjectReference Include="src\Darklands.Presentation\Darklands.Presentation.csproj" />
   </ItemGroup>
   <ItemGroup>
     <!-- Exclude src folder from Godot compilation -->

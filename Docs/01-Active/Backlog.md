@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-15 22:00 (Tech Lead - Added TD_042 to replace over-engineered DDD main with focused implementations)
+**Last Updated**: 2025-09-16 01:00 (Tech Lead - Reorganized with dependency chains after ADR consistency review)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 008
-- **Next TD**: 043
+- **Next TD**: 047
 - **Next VS**: 015 
 
 
@@ -75,99 +75,207 @@
 □ Testable: Can be tested without Godot runtime (ADR-006)
 ```
 
-## 🔥 Critical (Do First)
-*Blockers preventing other work, production bugs, dependencies for other features*
+## 🔗 Dependency Chain Analysis
 
-### TD_042: Replace Over-Engineered DDD Main with Focused Implementation Approach
-**Status**: Approved
-**Owner**: Tech Lead → DevOps Engineer (Git operations)
-**Size**: S (30min) - Git force-push operation with backup
-**Priority**: Critical - Remove architectural complexity blocking development
-**Created**: 2025-09-15 22:00 (Tech Lead)
-**Markers**: [ARCHITECTURE] [ANTI-PATTERN] [SIMPLIFICATION] [CRITICAL]
+**EXECUTION ORDER**: Following this sequence ensures no item is blocked by missing dependencies.
 
-**What**: Replace main branch with refactor/clean-architecture-from-pre-ddd branch containing focused TD_040/TD_041 implementations
-
-**Why**: Current main branch contains over-engineered DDD architecture (bounded contexts, Strangler Fig pattern, excessive layers) that adds complexity without proportional value. Our branch has clean, focused implementations that solve actual problems (determinism, DI lifecycle) without architectural overhead.
-
-**📋 Implementation Plan**:
-
-**Phase 1: Safety Backup** (5min):
-```bash
-git checkout main
-git checkout -b backup/main-ddd-implementation-2025-09-15
-git push origin backup/main-ddd-implementation-2025-09-15
+### Chain 1: Architecture Foundation (MUST be first)
+```
+TD_046 → (All other work depends on this)
+├─ Enables: Clean separation of concerns
+├─ Enables: Compile-time MVP enforcement
+└─ Blocks: All VS and complex TD items until complete
 ```
 
-**Phase 2: Replace Main Branch** (10min):
-```bash
-git checkout main
-git reset --hard refactor/clean-architecture-from-pre-ddd
-git push --force-with-lease origin main
+### Chain 2: Movement & Vision System
+```
+VS_014 (A* Pathfinding) → VS_012 (Vision-Based Movement) → VS_013 (Enemy AI)
+├─ VS_014: Foundation for all movement
+├─ VS_012: Tactical movement using pathfinding
+└─ VS_013: AI needs movement system to function
 ```
 
-**Phase 3: Verification** (10min):
-```bash
-# Verify build still works on new main
-dotnet build
-# Verify tests pass
-dotnet test
-# Verify Godot can still build the project
+### Chain 3: Technical Debt Cleanup
+```
+TD_035 (Error Handling) → TD_046 completion
+├─ Can be done in parallel with TD_046
+└─ Should be completed before new feature development
 ```
 
-**Phase 4: Communication** (5min):
-- Notify team of main branch update
-- Document decision in session log
-- Update any CI/CD that references old commits
-
-**✅ Benefits of Replacement**:
-- **Eliminates over-engineering**: Removes complex DDD patterns that add cognitive overhead
-- **Preserves working solutions**: TD_040 (Fixed-point determinism) and TD_041 (DI lifecycle) are production-ready
-- **Reduces maintenance burden**: Simpler code is easier to understand and maintain
-- **Focuses on actual problems**: Our implementations solve real technical debt vs theoretical architecture
-- **All tests pass**: 664 tests passing, builds work in both .NET CLI and Godot
-
-**🚨 What's Being Replaced**:
-- Complex bounded contexts (Tactical, Diagnostics, Platform)
-- Strangler Fig pattern implementation
-- Extensive architectural layers and abstractions
-- Over-engineered DDD patterns that don't fit game development
-
-**What's Being Kept**:
-- All working functionality from before DDD implementation
-- Clean TD_040 Fixed-point determinism implementation
-- Focused TD_041 DI lifecycle management (without DDD complexity)
-- Proven architectural patterns that actually add value
-
-**Rollback Plan**:
-If issues arise, restore from backup:
-```bash
-git reset --hard backup/main-ddd-implementation-2025-09-15
-git push --force-with-lease origin main
+### Chain 4: Future Features (After foundations)
+```
+All IDEA_* items depend on:
+├─ Chain 1 (Architecture) - COMPLETE
+├─ Chain 2 (Movement/Vision) - COMPLETE
+└─ Chain 3 (Technical Debt) - COMPLETE
 ```
 
-**Success Criteria**:
-- [ ] Backup branch created and pushed
-- [ ] Main branch successfully replaced with clean architecture
-- [ ] All builds pass (both .NET CLI and Godot editor)
-- [ ] All 664 tests still passing
-- [ ] No functionality lost from pre-DDD state
-- [ ] Team notified of the change
+## 🚀 Ready for Immediate Execution
 
-**Tech Lead Decision Rationale**:
-The DDD implementation represents a classic case of over-engineering - adding architectural complexity that doesn't align with game development needs. Our focused approach solves the same core problems (determinism, DI lifecycle) with significantly less cognitive overhead and maintenance burden.
+*Items with no blocking dependencies, approved and ready to start*
 
-### TD_043: Enforce Clean Architecture via Project Separation
-**Status**: Proposed
-**Owner**: Tech Lead → Dev Engineer (after critical fixes)
-**Size**: M (6-8h)
-**Priority**: Important - Architectural integrity enforcement
+### TD_046: Minimal Project Separation with Feature Namespaces
+**Status**: Approved - Ready for implementation
+**Owner**: Dev Engineer
+**Size**: L (8h total) - Project extraction (3h) + EventAwareNode refactor (1h) + Feature namespaces (4h)
+**Priority**: CRITICAL - Blocks all other development
+**Created**: 2025-09-15 23:15 (Tech Lead)
+**Updated**: 2025-09-16 01:00 (Tech Lead - Moved to immediate execution after dependency analysis)
+**Complexity**: 4/10 - Increased due to EventAwareNode refactoring
+**Markers**: [ARCHITECTURE] [CLEAN-ARCHITECTURE] [FEATURE-ORGANIZATION] [BREAKING-CHANGE] [CHAIN-1-FOUNDATION]
+**ADRs**: ADR-021 (minimal separation with MVP), ADR-018 (DI alignment updated)
+**Migration Plan**: Docs/01-Active/TD_046_Migration_Plan.md
+
+**What**: Extract Domain and Presentation to separate projects + reorganize into feature namespaces
+**Why**: Enforce architectural purity at compile-time while eliminating namespace collisions
+
+**DEPENDENCY CHAIN**: This is Chain 1 - MUST complete before any other development work
+- Blocks: VS_012, VS_013, VS_014, TD_035, all future features
+- Enables: Compile-time MVP enforcement, clean separation of concerns
+
+**Done When**:
+- [ ] Domain project created and referenced
+- [ ] Presentation project created with MVP enforcement
+- [ ] EventAwareNode converted to EventAwarePresenter pattern
+- [ ] Feature namespaces applied consistently across all layers
+- [ ] No namespace-class collisions exist
+- [ ] All 673 tests pass
+- [ ] Architecture test validates domain purity
+- [ ] IntelliSense shows clear, intuitive suggestions
+
+### TD_035: Standardize Error Handling in Infrastructure Services
+**Status**: Approved - Can run parallel with TD_046
+**Owner**: Dev Engineer
+**Size**: S (3h)
+**Priority**: Important - Technical debt cleanup
+**Created**: 2025-09-11 18:07
+**Updated**: 2025-09-16 01:00 (Tech Lead - Moved to immediate execution)
+**Complexity**: 3/10
+**Markers**: [TECHNICAL-DEBT] [ERROR-HANDLING] [CHAIN-3-CLEANUP]
+
+**What**: Replace remaining try-catch blocks with Fin<T> in infrastructure services
+**Why**: Inconsistent error handling breaks functional composition and makes debugging harder
+
+**DEPENDENCY CHAIN**: Chain 3 - Can run parallel with TD_046
+- Compatible with: TD_046 (different code areas)
+- Should complete: Before new VS development
+
+**Scope** (LIMITED TO):
+1. **PersistentVisionStateService** (7 try-catch blocks)
+2. **GridPresenter** (3 try-catch in event handlers)
+3. **ExecuteAttackCommandHandler** (mixed side effects)
+
+**Done When**:
+- [ ] Zero try-catch blocks in listed services
+- [ ] All errors flow through Fin<T> consistently
+- [ ] Side effects isolated into dedicated methods
+- [ ] Performance unchanged (measure before/after)
+- [ ] All existing tests still pass
+
+## 📋 Blocked - Waiting for Dependencies
+
+*Items that cannot start until blocking dependencies are resolved*
+
+### VS_014: A* Pathfinding Foundation
+**Status**: Approved - BLOCKED by TD_046
+**Owner**: Dev Engineer
+**Size**: S (3h)
+**Priority**: Critical - Foundation for movement system
+**Created**: 2025-09-11 18:12
+**Updated**: 2025-09-16 01:00 (Tech Lead - Moved to blocked section)
+**Markers**: [MOVEMENT] [PATHFINDING] [CHAIN-2-MOVEMENT] [BLOCKED]
+**Blocking Dependency**: TD_046 (project structure must be established first)
+
+**What**: Implement A* pathfinding algorithm with visual path display
+**Why**: Foundation for VS_012 movement system and all future tactical movement
+
+**DEPENDENCY CHAIN**: Chain 2 - Step 1 (Movement Foundation)
+- Blocked by: TD_046 (architectural foundation)
+- Enables: VS_012 (Vision-Based Movement)
+- Blocks: VS_013 (Enemy AI needs movement)
+
+**Done When**:
+- [ ] A* finds optimal paths deterministically
+- [ ] Diagonal movement works correctly (1.41x cost)
+- [ ] Path visualizes on grid before movement
+- [ ] Performance <10ms for typical paths (50 tiles)
+- [ ] Handles no-path-exists gracefully (returns None)
+- [ ] All tests pass including edge cases
+
+**Architectural Constraints**:
+☑ Deterministic: Consistent tie-breaking rules
+☑ Save-Ready: Paths are transient, not saved
+☑ Time-Independent: Pure algorithm
+☑ Integer Math: Use 100/141 for movement costs
+☑ Testable: Pure domain function
+
+### VS_012: Vision-Based Movement System
+**Status**: Approved - BLOCKED by VS_014
+**Owner**: Dev Engineer
+**Size**: S (2h)
+**Priority**: Critical
+**Created**: 2025-09-11 00:10
+**Updated**: 2025-09-16 01:00 (Tech Lead - Moved to blocked section)
+**Markers**: [MOVEMENT] [VISION] [CHAIN-2-MOVEMENT] [BLOCKED]
+**Blocking Dependency**: VS_014 (A* Pathfinding Foundation)
+
+**What**: Movement system where scheduler activates based on vision connections
+**Why**: Creates natural tactical combat without explicit modes
+
+**DEPENDENCY CHAIN**: Chain 2 - Step 2 (Vision-Based Movement)
+- Blocked by: VS_014 (needs pathfinding for non-adjacent movement)
+- Enables: VS_013 (Enemy AI needs movement system)
+
+**Architectural Constraints**:
+☑ Deterministic: Fixed TU costs
+☑ Save-Ready: Position state only
+☑ Time-Independent: Turn-based
+☑ Integer Math: Tile movement
+☑ Testable: Clear state transitions
+
+### VS_013: Basic Enemy AI
+**Status**: Proposed - BLOCKED by VS_012
+**Owner**: Product Owner → Tech Lead
+**Size**: M (4-8h)
+**Priority**: Important
+**Created**: 2025-09-10 19:03
+**Updated**: 2025-09-16 01:00 (Tech Lead - Moved to blocked section)
+**Markers**: [AI] [COMBAT] [CHAIN-2-MOVEMENT] [BLOCKED]
+**Blocking Dependency**: VS_012 (Vision-Based Movement System)
+
+**What**: Simple but effective enemy AI for combat testing
+**Why**: Need opponents to validate combat system and create gameplay loop
+
+**DEPENDENCY CHAIN**: Chain 2 - Step 3 (Enemy Intelligence)
+- Blocked by: VS_012 (AI needs movement system to function)
+- Enables: Complete tactical combat gameplay loop
+
+**Architectural Constraints**:
+☑ Deterministic: AI decisions based on seeded random
+☑ Save-Ready: AI state fully serializable
+☑ Time-Independent: Decisions based on game state not time
+☑ Integer Math: All AI calculations use integers
+☑ Testable: AI logic can be unit tested
+
+## 🗂️ Archived - Completed or Rejected
+
+*Items moved out of active development*
+
+### TD_045: Enforce Clean Architecture via Project Separation
+**Status**: REJECTED - Over-engineered per architectural review
+**Owner**: Tech Lead
+**Size**: M (6-8h) - But complexity questionable
+**Priority**: N/A - Superseded by TD_046
 **Created**: 2025-09-15 20:40 (Tech Lead)
-**Markers**: [ARCHITECTURE] [CLEAN-ARCHITECTURE] [BUILD-SYSTEM]
+**Updated**: 2025-09-16 01:00 (Tech Lead - Moved to archived after dependency analysis)
+**Markers**: [ARCHITECTURE] [CLEAN-ARCHITECTURE] [BUILD-SYSTEM] [REJECTED]
+**Related**: ADR-019 (rejected for same reasons)
 
 **What**: Separate monolithic Darklands.Core.csproj into layer-specific projects to enforce architectural boundaries at compile-time
 
 **Why**: Current single project allows architectural violations (e.g., Domain referencing Infrastructure). Project separation makes violations impossible, not just discouraged.
+
+**Tech Lead Note**: REJECTED - See TD_046 for simpler approach that achieves same goals
 
 **📋 Implementation Plan**:
 
@@ -221,6 +329,8 @@ src/
 - [ ] All 662 tests pass
 - [ ] Architecture tests validate layer dependencies
 - [ ] No circular dependencies between projects
+
+**Tech Lead Note**: REJECTED - See TD_046 Migration Plan for simpler approach
 
 ### VS_012: Vision-Based Movement System
 **Status**: Approved  
@@ -415,284 +525,77 @@ Animation: Gentle pulse on destination tile
 **Dependencies**: None (foundation feature)
 **Blocks**: VS_012 (Movement System)
 
-### TD_039: Remove Task.Run Violations (Pre-DDD Critical Fix)
-
-**Status**: Done
-**Owner**: Tech Lead → Dev Engineer (for implementation)
-**Size**: S (2h) - Based on commit 65a22c1 implementation
-**Priority**: Critical - ADR-009 violations causing race conditions
-**Created**: 2025-09-15 20:07 (Tech Lead)
-**Reference Implementation**: Commit 65a22c1 (TD_050 equivalent)
-**Markers**: [ARCHITECTURE] [ADR-009] [CRITICAL-FIX] [CLEAN-ARCHITECTURE]
-
-**What**: Remove Task.Run violations from GameManager, GridView, and ActorPresenter
-**Why**: Task.Run in turn-based games creates concurrency where sequential processing is needed (ADR-009)
-
-**🚨 Critical Violations to Fix**:
-1. **GameManager.cs line 57**: Task.Run for async initialization
-2. **GridView.cs line 322**: Task.Run for tile click handling
-3. **ActorPresenter.cs lines 81, 94, 111**: Task.Run for actor display operations
-
-**📋 Implementation Plan** (Based on proven 65a22c1 approach):
-
-**Phase 1: GameManager.cs Fix** (30min):
-```csharp
-// BEFORE (line 57):
-_ = Task.Run(async () => {
-    await CompleteInitializationAsync();
-});
-
-// AFTER (sequential per ADR-009):
-try {
-    CompleteInitializationAsync().GetAwaiter().GetResult();
-} catch (Exception ex) {
-    // Error handling
-}
-```
-
-**Phase 2: GridView.cs Fix** (45min):
-```csharp
-// BEFORE (line 322):
-_ = Task.Run(async () => {
-    await _presenter.HandleTileClickAsync(gridPosition);
-});
-
-// AFTER (use CallDeferred for Godot main-thread safety):
-CallDeferred(MethodName.HandleTileClickDeferred, gridPosition);
-
-// Add new method:
-private void HandleTileClickDeferred(Position gridPosition) {
-    _presenter.HandleTileClickAsync(gridPosition).GetAwaiter().GetResult();
-}
-```
-
-**Phase 3: ActorPresenter.cs Fix** (45min):
-```csharp
-// BEFORE (lines 81, 94, 111):
-_ = Task.Run(async () => {
-    await View.DisplayActorAsync(actorId, position, type);
-});
-
-// AFTER (.GetAwaiter().GetResult() pattern):
-try {
-    View.DisplayActorAsync(actorId, position, type).GetAwaiter().GetResult();
-} catch (Exception ex) {
-    _logger.Log(LogLevel.Error, LogCategory.System, "Display actor failed: {0}", ex.Message);
-}
-```
-
-**Success Criteria**:
-- [x] No Task.Run calls in GameManager.cs, GridView.cs, ActorPresenter.cs
-- [x] All async operations use .GetAwaiter().GetResult() pattern
-- [x] Godot main-thread safety preserved with CallDeferred
-- [x] All existing tests still pass
-- [x] No new race conditions introduced
-
-**Tech Lead Notes**: This fix eliminates the BR_007 race condition root cause and enforces ADR-009 sequential processing.
-
-**Dev Engineer Decision** (2025-09-15):
-- Implementation mirrored remote commit 65a22c1 pattern (sequentializing async and deferring to Godot main thread).
-- Replaced Task.Run with synchronous `.GetAwaiter().GetResult()` in `GameManager.cs` and `ActorPresenter.cs`.
-- Replaced Task.Run with `CallDeferred(nameof(HandleTileClickDeferred), position)` in `Views/GridView.cs`, executing handler synchronously on the main thread.
-- Verified no remaining Task.Run in production code via search; remaining usages are confined to tests and mock services.
-- Build succeeded; tests passed (664 passed, 2 skipped).
-- Risk of deadlock mitigated by invoking from the main thread and using Godot deferred calls where UI is involved.
-
-### TD_040: Replace Double Math with Fixed-Point for Determinism (Pre-DDD Critical Fix)
-**Status**: Done
-**Owner**: Tech Lead → Dev Engineer (for implementation)
-**Size**: S (3h) - Based on commit 63746e3 implementation
-**Priority**: Critical - ADR-004 violations breaking save compatibility
-**Created**: 2025-09-15 20:07 (Tech Lead)
-**Reference Implementation**: Commit 63746e3 (TD_051 equivalent)
-**Markers**: [ARCHITECTURE] [ADR-004] [CRITICAL-FIX] [DETERMINISM]
-
-**What**: Replace floating-point calculations in ShadowcastingFOV with Fixed-point arithmetic
-**Why**: Double math breaks determinism across platforms (ARM vs x86), violating ADR-004
-
-**🚨 Critical Violation to Fix**:
-- **ShadowcastingFOV.cs lines 98-100**: `double tileSlopeHigh/tileSlopeLow` calculations
-
-**📋 Implementation Plan** (Based on proven 63746e3 approach):
-
-**Phase 1: Create Fixed Type** (1h):
-```csharp
-// Add to src/Core/Domain/Determinism/Fixed.cs
-public readonly struct Fixed : IComparable<Fixed>
-{
-    private readonly int _value;
-    private const int SCALE = 65536; // 16.16 fixed point
-
-    public static Fixed FromInt(int value) => new(value * SCALE);
-    public static Fixed One => new(SCALE);
-    public static Fixed Half => new(SCALE / 2);
-    public static Fixed Zero => new(0);
-
-    // Arithmetic operators
-    public static Fixed operator +(Fixed a, Fixed b) => new(a._value + b._value);
-    public static Fixed operator -(Fixed a, Fixed b) => new(a._value - b._value);
-    public static Fixed operator *(Fixed a, Fixed b) => new((int)((long)a._value * b._value / SCALE));
-    public static Fixed operator /(Fixed a, Fixed b) => new((int)((long)a._value * SCALE / b._value));
-
-    // Comparison operators
-    public static bool operator >(Fixed a, Fixed b) => a._value > b._value;
-    public static bool operator <(Fixed a, Fixed b) => a._value < b._value;
-}
-```
-
-**Phase 2: Update ShadowcastingFOV** (1.5h):
-```csharp
-// BEFORE (lines 98-100):
-double tileSlopeHigh = distance == 0 ? 1.0 : (angle + 0.5) / (distance - 0.5);
-double tileSlopeLow = (angle - 0.5) / (distance + 0.5);
-
-// AFTER (Fixed-point arithmetic):
-Fixed tileSlopeHigh = distance == 0 ? Fixed.One :
-    (Fixed.FromInt(angle) + Fixed.Half) / (Fixed.FromInt(distance) - Fixed.Half);
-Fixed tileSlopeLow = (Fixed.FromInt(angle) - Fixed.Half) / (Fixed.FromInt(distance) + Fixed.Half);
-```
-
-**Phase 3: Update Method Signatures** (30min):
-```csharp
-// Change CastShadow parameters from double to Fixed:
-private static void CastShadow(
-    Position origin,
-    int range,
-    Grid grid,
-    int octant,
-    HashSet<Position> visible,
-    int distance,
-    Fixed viewSlopeHigh,  // Changed from double
-    Fixed viewSlopeLow)   // Changed from double
-```
-
-**Success Criteria**:
-- [x] No double/float arithmetic in ShadowcastingFOV.cs
-- [x] Fixed-point arithmetic maintains identical algorithmic behavior
-- [x] All vision tests still pass with identical results
-- [x] Cross-platform determinism verified (integer math only)
-- [x] Save/load compatibility preserved
-
-**Tech Lead Notes**: This ensures FOV calculations are identical across all platforms and compiler optimizations.
-
-**Dev Engineer Decision** (2025-09-15):
-- Added `src/Domain/Determinism/Fixed.cs` implementing 16.16 fixed-point with Abs, Clamp, Lerp, Sqrt.
-- Refactored `src/Domain/Vision/ShadowcastingFOV.cs` to use `Fixed` for all slope calculations.
-- Removed all double-based slope math; start slopes now use `Fixed.One`/`Fixed.Zero` and tile slopes use integer-only ops.
-- Build succeeded, all tests passed (664 total, 2 skipped). Behavior preserved per test suite.
-
-### TD_041: Implement Production-Ready DI Lifecycle Management (Pre-DDD Critical Fix)
-**Status**: Done
-**Owner**: Tech Lead → Dev Engineer (for implementation)
-**Size**: M (4h) - Based on commit 92c3e93 implementation
-**Priority**: Important - Memory leaks and scope management issues
-**Created**: 2025-09-15 20:07 (Tech Lead)
-**Reference Implementation**: Commit 92c3e93 (TD_052 equivalent)
-**Markers**: [INFRASTRUCTURE] [DI] [MEMORY-MANAGEMENT] [CLEAN-ARCHITECTURE]
-/
-**What**: Implement proper DI scope management for Godot nodes without memory leaks
-**Why**: Current GameStrapper approach causes memory leaks and improper service lifetimes
-
-**📋 Implementation Plan** (Based on proven 92c3e93 approach):
-
-**Phase 1: Create IScopeManager Interface** (1h):
-```csharp
-// src/Core/Infrastructure/Services/IScopeManager.cs
-public interface IScopeManager
-{
-    bool TryCreateScope(Node node, out IServiceScope scope);
-    bool TryGetScope(Node node, out IServiceScope scope);
-    void DisposeScope(Node node);
-    T GetService<T>(Node node) where T : notnull;
-}
-```
-
-**Phase 2: Implement GodotScopeManager** (2h):
-```csharp
-// Create with ConditionalWeakTable to prevent memory leaks
-public class GodotScopeManager : IScopeManager
-{
-    private readonly ConditionalWeakTable<Node, IServiceScope> _nodeScopes;
-    private readonly ConcurrentDictionary<Node, IServiceScope> _scopeCache;
-
-    // O(1) cached scope resolution
-    // Automatic cleanup when nodes are freed
-}
-```
-
-**Phase 3: ServiceLocator Autoload** (1h):
-```csharp
-// Create autoload for scene-based scope management
-public class ServiceLocator : Node
-{
-    private static IScopeManager? _scopeManager;
-
-    public static T GetService<T>(Node context) where T : notnull
-    {
-        return _scopeManager?.GetService<T>(context)
-               ?? GameStrapper.Services.GetRequiredService<T>();
-    }
-}
-```
-
-**Success Criteria**:
-- [x] No memory leaks from orphaned node scopes
-- [x] O(1) service resolution performance
-- [x] Graceful fallback to GameStrapper when scope unavailable
-- [x] Thread-safe scope management
-- [x] Automatic cleanup when nodes are freed
-
-**Tech Lead Notes**: This provides production-ready scope management without the complexity of full DDD bounded contexts.
-
-**Dev Engineer Decision** (2025-09-15):
-- Added wiring to register `IScopeManager` stub in `GameStrapper` and initialize real `GodotScopeManager` via `ServiceLocator` autoload in `GameManager._Ready()`.
-- Implemented `Presentation/Infrastructure/GodotScopeManager.cs` (ConditionalWeakTable, cache, RWL) and `Presentation/Infrastructure/NodeServiceExtensions.cs` for `GetService<T>()`, `GetOptionalService<T>()`, and `CreateScope()` with fallback to `GameStrapper`.
-- Updated `Presentation/UI/EventAwareNode.cs` to use scope-aware `GetService<T>()` instead of direct `GameStrapper` resolution.
-- Build and tests pass (664 total, 2 skipped); behavior unchanged; ADR-018 alignment verified.
-
-
-## 📈 Important (Do Next)
-*Core features for current milestone, technical debt affecting velocity*
-
-<!-- TD_031 moved to permanent archive (2025-09-10 21:02) - TimeUnit TU refactor completed successfully -->
-
-
-### TD_032: Fix Namespace-Class Collisions (Grid.Grid, Actor.Actor)
-**Status**: Approved
+## 🔄 Execution Summary
+**Status**: Approved - Ready for implementation
 **Owner**: Dev Engineer
-**Size**: S (4h)
-**Priority**: Important
-**Created**: 2025-09-11
-**Complexity**: 2/10
-**ADR**: ADR-015
+**Size**: L (8h total) - Project extraction (3h) + EventAwareNode refactor (1h) + Feature namespaces (4h)
+**Priority**: Important - Architectural clarity and purity enforcement
+**Created**: 2025-09-15 23:15 (Tech Lead)
+**Updated**: 2025-09-16 00:30 (Tech Lead - Created detailed migration plan)
+**Complexity**: 4/10 - Increased due to EventAwareNode refactoring
+**Markers**: [ARCHITECTURE] [CLEAN-ARCHITECTURE] [FEATURE-ORGANIZATION] [BREAKING-CHANGE]
+**ADRs**: ADR-021 (minimal separation with MVP), ADR-018 (DI alignment updated)
+**Migration Plan**: Docs/01-Active/TD_046_Migration_Plan.md
 
-**What**: Refactor namespace structure to eliminate collisions
-**Why**: Current `Domain.Grid.Grid` and `Domain.Actor.Actor` patterns force verbose code and confuse developers
+**What**: Extract Domain and Presentation to separate projects + reorganize into feature namespaces
+**Why**: Enforce architectural purity at compile-time while eliminating namespace collisions
 
-**Implementation Plan** (per ADR-015):
-1. **Domain Layer** (2h):
-   - Rename `Grid` → `WorldGrid` in new `Domain.Spatial` namespace
-   - Move `Actor` to `Domain.Entities` namespace
-   - Reorganize into bounded contexts: Spatial, Entities, TurnBased, Perception
-   
-2. **Application/Infrastructure** (1h):
-   - Update all imports and references
-   - No structural changes, just namespace updates
-   
-3. **Tests** (1h):
-   - Update test imports
-   - Verify all tests pass
+**Final Project Structure**:
+```
+Darklands.csproj            → Godot Views & Entry (has Godot references)
+Darklands.Domain.csproj     → Pure domain logic (NO external dependencies)
+Darklands.Core.csproj       → Application & Infrastructure (NO Godot references)
+Darklands.Presentation.csproj → Presenters & View Interfaces (NO Godot references)
+```
+
+**Combined Implementation Plan**:
+
+### Part 1: Project Extraction (3h)
+1. **Create Domain Project** (30min):
+   - Create `src/Darklands.Domain/Darklands.Domain.csproj`
+   - Add to solution
+   - Reference from Core project
+
+2. **Move Domain Types** (1h):
+   - Move entire `src/Domain/` to `src/Darklands.Domain/`
+   - Update namespace from `Darklands.Core.Domain` to `Darklands.Domain`
+
+3. **Fix References** (30min):
+   - Update all using statements
+   - Verify build succeeds
+
+### Part 2: Feature Organization (4h)
+Apply to ALL layers (Domain, Application, Infrastructure, Presentation):
+
+```
+Domain.World/      → Grid, Tile, Position
+Domain.Characters/ → Actor, Health, ActorState
+Domain.Combat/     → Damage, TimeUnit, AttackAction
+Domain.Vision/     → VisionRange, VisionState, ShadowcastingFOV
+
+Application.World.Commands/
+Application.Characters.Handlers/
+Application.Combat.Commands/
+Application.Vision.Queries/
+
+(Similar for Infrastructure and Presentation)
+```
 
 **Done When**:
-- No namespace-class collisions remain
-- All tests pass without warnings
-- Architecture fitness tests validate structure
-- IntelliSense shows clear suggestions
+- [ ] Domain project created and referenced
+- [ ] Domain types extracted with no external dependencies
+- [ ] Feature namespaces applied consistently across all layers
+- [ ] No namespace-class collisions exist
+- [ ] All 662 tests pass
+- [ ] Architecture test validates domain purity
+- [ ] IntelliSense shows clear, intuitive suggestions
 
-**Technical Notes**:
-- Single atomic PR for entire refactoring
-- No behavior changes, pure reorganization
-- Follow bounded context pattern from ADR-015
+**Benefits**:
+- Compile-time domain purity enforcement
+- No namespace collisions
+- Intuitive feature organization
+- Minimal complexity (just 3 projects total)
+- Aligns with post-TD_042 simplification
 
 
 
@@ -787,8 +690,15 @@ public Fin<T> ServiceMethod() =>
 
 ---
 
-## 💡 Future Ideas (Not Current Priority)
+## 💡 Future Ideas - Chain 4 Dependencies
+
 *Features and systems to consider when foundational work is complete*
+
+**DEPENDENCY CHAIN**: All future ideas are Chain 4 - blocked until prerequisites complete:
+- ✅ Chain 1 (Architecture Foundation): TD_046 → MUST COMPLETE FIRST
+- ⏳ Chain 2 (Movement/Vision): VS_014 → VS_012 → VS_013
+- ⏳ Chain 3 (Technical Debt): TD_035
+- 🚫 Chain 4 (Future Features): Cannot start until Chains 1-3 complete
 
 ### IDEA_001: Life-Review/Obituary System
 **Status**: Future Consideration
@@ -849,25 +759,36 @@ public Fin<T> ServiceMethod() =>
 - Visual dashboard for analysis
 **Reference**: ADR-007 Future Considerations section
 
+## 🔄 Execution Summary
+
+**Current State**: All items properly organized by dependency chains after ADR consistency review
+**Critical Path**: TD_046 → VS_014 → VS_012 → VS_013 → Future Features
+
+**Next Actions**:
+1. **Immediate**: Execute TD_046 (8h) - Architectural foundation that blocks all other work
+2. **Parallel**: Execute TD_035 (3h) - Technical debt cleanup, compatible with TD_046
+3. **After Chain 1**: Begin VS_014 → VS_012 → VS_013 sequence (7h total)
+4. **Future**: Evaluate IDEA_* items once foundations are complete
+
+**Estimated Timeline**:
+- ✅ **Week 1**: TD_046 + TD_035 (Architecture + Cleanup)
+- ⏳ **Week 2**: VS_014 + VS_012 (Movement Foundation)
+- ⏳ **Week 3**: VS_013 (Enemy AI) + Polish
+- 🔮 **Future**: Feature expansion with solid architectural foundation
+
 ## 📋 Quick Reference
 
-**Priority Decision Framework:**
-1. **Blocking other work?** → 🔥 Critical
-2. **Current milestone?** → 📈 Important  
-3. **Everything else** → 💡 Ideas
+**Dependency Chain Rules:**
+- 🚫 **Never** start items with blocking dependencies
+- ✅ **Always** complete architectural foundations first
+- ⚡ **Parallel** work only when items are in different code areas
+- 🔄 **Re-evaluate** priorities after each chain completion
 
 **Work Item Types:**
-- **VS_xxx**: Vertical Slice (new feature) - Product Owner creates
-- **BR_xxx**: Bug Report (investigation) - Test Specialist creates, Debugger owns
 - **TD_xxx**: Technical Debt (refactoring) - Anyone proposes → Tech Lead approves
-
-*Notes:*
-- *Critical bugs are BR items with 🔥 priority*
-- *TD items need Tech Lead approval to move from "Proposed" to actionable*
-
-
-
-<!-- TD_017 and TD_019 moved to permanent archive (2025-09-09 17:53) -->
+- **VS_xxx**: Vertical Slice (new feature) - Product Owner creates, Tech Lead breaks down
+- **BR_xxx**: Bug Report (investigation) - Test Specialist creates, Debugger owns
+- **IDEA_xxx**: Future Features - No owner until prerequisite chains complete
 
 ---
-*Single Source of Truth for all Darklands development work. Simple, maintainable, actually used.*
+*Single Source of Truth for all Darklands development work. Organized by dependency chains for optimal execution order.*

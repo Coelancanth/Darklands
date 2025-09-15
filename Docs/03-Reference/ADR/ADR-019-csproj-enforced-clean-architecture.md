@@ -1,9 +1,33 @@
 # ADR-019: .csproj-Enforced Clean Architecture
 
-**Status**: Proposed (Conditional Approval - See Conditions)
-**Date**: 2025-09-15
-**Decision Makers**: Tech Lead, Dev Engineer
-**Last Updated**: 2025-09-15 (Post-Review Revision)
+**Status**: REJECTED - Over-engineered for current needs
+**Date**: 2025-09-15 (Proposed) | 2025-09-15 (Rejected)
+**Decision Makers**: Tech Lead, Dev Engineer, DevOps Engineer
+**Last Updated**: 2025-09-15 (Rejected post-TD_042 review)
+**Rejection Reason**: Contradicts TD_042 simplification. ADR-020 provides simpler solution.
+
+## Rejection Rationale (2025-09-15)
+
+After completing TD_042 (Replace Over-Engineered DDD Main with Focused Implementation), this ADR represents exactly the kind of over-engineering we eliminated:
+
+### Why This ADR is Over-Engineered:
+1. **Excessive Complexity**: Multiple .csproj files, complex project references, extensive tooling requirements
+2. **High Friction**: 2-5 days analysis + 5-10 days implementation vs 4 hours for namespace reorganization
+3. **Contradicts TD_042**: Reintroduces the architectural complexity we just spent hours removing
+4. **Wrong Solution**: We need namespace organization to fix collisions, not project separation enforcement
+5. **Template Hell**: Requires custom dotnet templates, PowerShell scripts, extensive developer tooling
+
+### Simple Solution Applied Instead (ADR-020):
+- **Feature-based namespaces**: World, Characters, Combat, Vision
+- **Single project**: Keep Darklands.Core.csproj monolithic (simpler)
+- **4-hour migration**: Just namespace reorganization
+- **No tooling required**: Standard refactoring tools suffice
+- **Maintains simplicity**: Aligned with post-TD_042 philosophy
+
+### The Real Problem:
+We have namespace collisions (`Domain.Grid.Grid`, `Domain.Actor.Actor`). The solution is namespace reorganization (ADR-020), not architectural astronautics with multiple projects and complex tooling.
+
+**Result**: ADR-020 adopted instead - provides all benefits with 10% of the complexity.
 
 ## Context
 
