@@ -139,7 +139,7 @@ When subagent completes work, verify with:
 | **Test Specialist** | Finding bugs, validation | Creating BR items, formatting |
 | **Debugger Expert** | Root cause analysis | Updating BR status, archiving |
 | **DevOps** | CI/CD, automation | TD proposals, documentation |
-| **Strategic Prioritizer** | Meta-analysis (EXCEPTION) | Auto-invokes backlog-assistant for analysis |
+| **Strategic Prioritizer** | Meta-analysis | Suggests strategic priorities |
 
 ### The Results
 - **30% time savings** per persona per session
@@ -155,11 +155,11 @@ The persona system now includes automatic git state resolution:
 - **Smart sync** - `git sync` chooses optimal strategy (reset vs rebase)
 - Focus on your work, not git mechanics!
 
-### ⚠️ CRITICAL: Backlog-Assistant Protocol
+### ⚠️ CRITICAL: Backlog Management Protocol
 
-**CORRECTED RULE**: Personas SUGGEST backlog updates, they do NOT auto-invoke backlog-assistant.
+**RULE**: Personas SUGGEST backlog updates, they do NOT auto-invoke agents.
 
-**Exception**: Strategic Prioritizer auto-invokes for meta-analysis (this is its designed function).
+**Backlog-Archiver**: Limited agent that ONLY archives completed items (cannot create/edit/update).
 
 **Why This Matters**:
 - Preserves user control over backlog management

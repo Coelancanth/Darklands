@@ -159,3 +159,73 @@
 **Depends On**: Understanding of ADR-006 boundaries
 
 ---
+
+
+## 💡 Future Ideas - Chain 4 Dependencies
+
+*Features and systems to consider when foundational work is complete*
+
+**DEPENDENCY CHAIN**: All future ideas are Chain 4 - blocked until prerequisites complete:
+- ✅ Chain 1 (Architecture Foundation): TD_046 → MUST COMPLETE FIRST
+- ⏳ Chain 2 (Movement/Vision): VS_014 → VS_012 → VS_013
+- ⏳ Chain 3 (Technical Debt): TD_035
+- 🚫 Chain 4 (Future Features): Cannot start until Chains 1-3 complete
+
+### IDEA_001: Life-Review/Obituary System
+**Status**: Future Consideration
+**Owner**: Unassigned
+**Size**: L (2-3 days)
+**Priority**: Ideas
+**Created**: 2025-09-12
+
+**What**: Battle Brothers-style obituary and company history system
+**Why**: Creates narrative and emotional attachment to characters
+**How**: 
+- Track all character events (battles, injuries, level-ups, deaths)
+- Generate procedural obituaries for fallen characters
+- Company timeline showing major events
+- Statistics and achievements per character
+**Technical Approach**: 
+- Separate IGameHistorian system (not debug logging)
+- SQLite or JSON for structured event storage
+- Query system for generating reports
+**Reference**: ADR-007 Future Considerations section
+
+### IDEA_002: Economy Analytics System  
+**Status**: Future Consideration
+**Owner**: Unassigned
+**Size**: M (1-2 days)
+**Priority**: Ideas
+**Created**: 2025-09-12
+
+**What**: Track economic metrics for balance analysis
+**Why**: Balance item prices, loot tables, and gold flow
+**How**:
+- Record all transactions (buy/sell/loot/reward)
+- Aggregate metrics (avg gold per battle, popular items)
+- Export reports for balance decisions
+**Technical Approach**:
+- Separate IEconomyTracker system (not debug logging)
+- Aggregated analytics database
+- Periodic report generation
+**Reference**: ADR-007 Future Considerations section
+
+### IDEA_003: Player Analytics Dashboard
+**Status**: Future Consideration  
+**Owner**: Unassigned
+**Size**: L (3-4 days)
+**Priority**: Ideas
+**Created**: 2025-09-12
+
+**What**: Comprehensive player behavior analytics
+**Why**: Understand difficulty spikes, player preferences, death patterns
+**How**:
+- Heat maps of death locations
+- Progression funnel analysis
+- Play session patterns
+- Difficulty curve validation
+**Technical Approach**:
+- Separate IPlayerAnalytics system (not debug logging)
+- Event stream processing
+- Visual dashboard for analysis
+**Reference**: ADR-007 Future Considerations section

@@ -93,9 +93,14 @@ Product Owner → Tech Lead → Dev Engineer → Test Specialist → DevOps
 ```
 
 ### Key Protocol: Suggest, Don't Auto-Execute
-**⚠️ CRITICAL**: Personas SUGGEST backlog updates, never auto-invoke backlog-assistant.
+**⚠️ CRITICAL**: Personas SUGGEST backlog updates, never auto-invoke agents.
 
 **Process**: Persona completes work → Suggests updates → User chooses to execute
+
+### Backlog Archiver Agent (Restricted Scope)
+**Purpose**: ONLY archives completed/rejected items - nothing else
+**Usage**: `Use backlog-archiver agent` when moving completed items to archive
+**Cannot**: Create, edit, update, or reorganize items - archive only
 
 ## 🔄 MANDATORY: Phased Implementation Protocol
 

@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-16 18:45 (Backlog Assistant - TD_046 archived as completed)
+**Last Updated**: 2025-09-16 22:06 (Backlog Assistant - Archived 3 completed TD items)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 008
-- **Next TD**: 047
+- **Next TD**: 056
 - **Next VS**: 015 
 
 
@@ -113,6 +113,125 @@ All IDEA_* items depend on:
 ## 🚀 Ready for Immediate Execution
 
 *Items with no blocking dependencies, approved and ready to start*
+
+
+
+
+
+### TD_054: Dependency Chain Maintenance Protocol
+**Status**: Approved
+**Owner**: Tech Lead
+**Size**: S (2h)
+**Priority**: Important - Planning accuracy
+**Created**: 2025-09-16 19:32 (Tech Lead)
+**Complexity**: 3/10
+**Markers**: [PROCESS] [PLANNING]
+
+**What**: Create protocol for maintaining accurate dependency chains in backlog
+**Why**: Chains drift out of sync, causing confusion about what's actually blocked
+
+**Protocol Elements**:
+1. Weekly dependency review (during planning)
+2. Automated chain validation script
+3. Clear "blocks/blocked-by" notation
+4. Status transitions when dependencies resolve
+
+**Implementation**:
+```powershell
+./scripts/backlog/validate-dependencies.ps1
+# Checks all items for:
+# - Broken dependency references
+# - Completed blockers not removed
+# - Circular dependencies
+# - Items marked blocked without blockers
+```
+
+**Done When**:
+- [ ] Protocol documented in PROTOCOLS.md
+- [ ] Validation script created
+- [ ] Backlog template updated
+- [ ] All current chains validated
+- [ ] CI check for PR updates
+
+### TD_050: NetArchTest for Architecture Enforcement
+**Status**: Approved - CRITICAL
+**Owner**: Test Specialist
+**Size**: S (4h)
+**Priority**: Critical - Prevents architecture violations
+**Created**: 2025-09-16 19:29 (Tech Lead)
+**Complexity**: 4/10
+**Markers**: [ARCHITECTURE] [TESTING] [SAFETY-CRITICAL]
+
+**What**: Add NetArchTest to enforce Clean Architecture boundaries after TD_046
+**Why**: Without automated tests, developers can accidentally violate architecture (Domain → Infrastructure)
+
+**Scope**:
+1. Domain purity tests (no external dependencies)
+2. Layer dependency tests (Domain ← Application ← Infrastructure)
+3. Feature isolation tests (Features don't reference each other)
+4. Godot containment tests (Godot types only in main project)
+
+**Done When**:
+- [ ] Domain project has zero dependency tests
+- [ ] Layer violations fail CI build
+- [ ] Feature cross-references are detected
+- [ ] Godot type leakage is prevented
+- [ ] Tests run in <1s in CI pipeline
+
+**Reference**: TD_046 created the boundaries, this enforces them
+
+### TD_047: Unify Error Handling with LanguageExt
+**Status**: Approved
+**Owner**: Dev Engineer
+**Size**: M (6-8h)
+**Priority**: Important - Debugging complexity
+**Created**: 2025-09-16 19:29 (Tech Lead)
+**Complexity**: 5/10
+**Markers**: [ERROR-HANDLING] [TECHNICAL-DEBT]
+
+**What**: Replace all try-catch blocks with LanguageExt Fin<T> for consistent error handling
+**Why**: Mixed error handling (try-catch vs Fin<T>) breaks functional composition and makes debugging harder
+
+**Scope** (System-wide):
+1. Infrastructure services (remaining try-catch blocks)
+2. Presenters (error propagation to UI)
+3. Command handlers (side effect isolation)
+4. Godot integration points (thread marshalling errors)
+
+**Done When**:
+- [ ] Zero try-catch blocks outside Godot integration boundary
+- [ ] All errors flow through Fin<T> pipeline
+- [ ] Error aggregation uses LanguageExt combinators
+- [ ] Performance unchanged (measure before/after)
+- [ ] All 664 tests still pass
+
+**Reference Pattern**: `ExecuteAttackCommandHandler` for Fin<T> usage
+
+### TD_048: Update Protocols to Reference Established Patterns
+**Status**: Approved
+**Owner**: Tech Lead
+**Size**: S (2h)
+**Priority**: Important - Developer friction
+**Created**: 2025-09-16 19:29 (Tech Lead)
+**Complexity**: 2/10
+**Markers**: [DOCUMENTATION] [DEVELOPER-EXPERIENCE]
+
+**What**: Update all protocol docs to link to actual pattern implementations
+**Why**: Developers waste time searching for patterns that already exist
+
+**Scope**:
+1. HANDBOOK.md - Link to Move Block pattern
+2. Persona docs - Reference actual code examples
+3. ADRs - Add "Implementation" sections with file paths
+4. CLAUDE.md - Include pattern directory
+
+**Done When**:
+- [ ] Every mentioned pattern has a code reference
+- [ ] File paths use format: `src/Features/Block/Move/Commands.cs:45`
+- [ ] New developer can find any pattern in <30 seconds
+- [ ] VSA organization clearly documented with examples
+
+
 
 
 ### TD_035: Standardize Error Handling in Infrastructure Services
@@ -229,164 +348,9 @@ All IDEA_* items depend on:
 ☑ Integer Math: All AI calculations use integers
 ☑ Testable: AI logic can be unit tested
 
-## 🗂️ Archived - Completed or Rejected
-
-*Items moved out of active development*
-
-
-
-
-
-
-
-## 🔄 Execution Summary
-**Status**: Approved - Ready for implementation
-**Owner**: Dev Engineer
-**Size**: L (8h total) - Project extraction (3h) + EventAwareNode refactor (1h) + Feature namespaces (4h)
-**Priority**: Important - Architectural clarity and purity enforcement
-**Created**: 2025-09-15 23:15 (Tech Lead)
-**Updated**: 2025-09-16 00:30 (Tech Lead - Created detailed migration plan)
-**Complexity**: 4/10 - Increased due to EventAwareNode refactoring
-**Markers**: [ARCHITECTURE] [CLEAN-ARCHITECTURE] [FEATURE-ORGANIZATION] [BREAKING-CHANGE]
-**ADRs**: ADR-021 (minimal separation with MVP), ADR-018 (DI alignment updated)
-**Migration Plan**: Docs/01-Active/TD_046_Migration_Plan.md
-
-**What**: Extract Domain and Presentation to separate projects + reorganize into feature namespaces
-**Why**: Enforce architectural purity at compile-time while eliminating namespace collisions
-
-**Final Project Structure**:
-```
-Darklands.csproj            → Godot Views & Entry (has Godot references)
-Darklands.Domain.csproj     → Pure domain logic (NO external dependencies)
-Darklands.Core.csproj       → Application & Infrastructure (NO Godot references)
-Darklands.Presentation.csproj → Presenters & View Interfaces (NO Godot references)
-```
-
-**Combined Implementation Plan**:
-
-### Part 1: Project Extraction (3h)
-1. **Create Domain Project** (30min):
-   - Create `src/Darklands.Domain/Darklands.Domain.csproj`
-   - Add to solution
-   - Reference from Core project
-
-2. **Move Domain Types** (1h):
-   - Move entire `src/Domain/` to `src/Darklands.Domain/`
-   - Update namespace from `Darklands.Core.Domain` to `Darklands.Domain`
-
-3. **Fix References** (30min):
-   - Update all using statements
-   - Verify build succeeds
-
-### Part 2: Feature Organization (4h)
-Apply to ALL layers (Domain, Application, Infrastructure, Presentation):
-
-```
-Domain.World/      → Grid, Tile, Position
-Domain.Characters/ → Actor, Health, ActorState
-Domain.Combat/     → Damage, TimeUnit, AttackAction
-Domain.Vision/     → VisionRange, VisionState, ShadowcastingFOV
-
-Application.World.Commands/
-Application.Characters.Handlers/
-Application.Combat.Commands/
-Application.Vision.Queries/
-
-(Similar for Infrastructure and Presentation)
-```
-
-**Done When**:
-- [ ] Domain project created and referenced
-- [ ] Domain types extracted with no external dependencies
-- [ ] Feature namespaces applied consistently across all layers
-- [ ] No namespace-class collisions exist
-- [ ] All 662 tests pass
-- [ ] Architecture test validates domain purity
-- [ ] IntelliSense shows clear, intuitive suggestions
-
-**Benefits**:
-- Compile-time domain purity enforcement
-- No namespace collisions
-- Intuitive feature organization
-- Minimal complexity (just 3 projects total)
-- Aligns with post-TD_042 simplification
-
-
-
-
-
-
-
 ---
 
-## 💡 Future Ideas - Chain 4 Dependencies
 
-*Features and systems to consider when foundational work is complete*
-
-**DEPENDENCY CHAIN**: All future ideas are Chain 4 - blocked until prerequisites complete:
-- ✅ Chain 1 (Architecture Foundation): TD_046 → MUST COMPLETE FIRST
-- ⏳ Chain 2 (Movement/Vision): VS_014 → VS_012 → VS_013
-- ⏳ Chain 3 (Technical Debt): TD_035
-- 🚫 Chain 4 (Future Features): Cannot start until Chains 1-3 complete
-
-### IDEA_001: Life-Review/Obituary System
-**Status**: Future Consideration
-**Owner**: Unassigned
-**Size**: L (2-3 days)
-**Priority**: Ideas
-**Created**: 2025-09-12
-
-**What**: Battle Brothers-style obituary and company history system
-**Why**: Creates narrative and emotional attachment to characters
-**How**: 
-- Track all character events (battles, injuries, level-ups, deaths)
-- Generate procedural obituaries for fallen characters
-- Company timeline showing major events
-- Statistics and achievements per character
-**Technical Approach**: 
-- Separate IGameHistorian system (not debug logging)
-- SQLite or JSON for structured event storage
-- Query system for generating reports
-**Reference**: ADR-007 Future Considerations section
-
-### IDEA_002: Economy Analytics System  
-**Status**: Future Consideration
-**Owner**: Unassigned
-**Size**: M (1-2 days)
-**Priority**: Ideas
-**Created**: 2025-09-12
-
-**What**: Track economic metrics for balance analysis
-**Why**: Balance item prices, loot tables, and gold flow
-**How**:
-- Record all transactions (buy/sell/loot/reward)
-- Aggregate metrics (avg gold per battle, popular items)
-- Export reports for balance decisions
-**Technical Approach**:
-- Separate IEconomyTracker system (not debug logging)
-- Aggregated analytics database
-- Periodic report generation
-**Reference**: ADR-007 Future Considerations section
-
-### IDEA_003: Player Analytics Dashboard
-**Status**: Future Consideration  
-**Owner**: Unassigned
-**Size**: L (3-4 days)
-**Priority**: Ideas
-**Created**: 2025-09-12
-
-**What**: Comprehensive player behavior analytics
-**Why**: Understand difficulty spikes, player preferences, death patterns
-**How**:
-- Heat maps of death locations
-- Progression funnel analysis
-- Play session patterns
-- Difficulty curve validation
-**Technical Approach**:
-- Separate IPlayerAnalytics system (not debug logging)
-- Event stream processing
-- Visual dashboard for analysis
-**Reference**: ADR-007 Future Considerations section
 
 ## 🔄 Execution Summary
 
