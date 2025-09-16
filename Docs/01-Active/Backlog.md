@@ -79,36 +79,6 @@
 
 **EXECUTION ORDER**: Following this sequence ensures no item is blocked by missing dependencies.
 
-### Chain 1: Architecture Foundation (MUST be first)
-```
-TD_046 → (All other work depends on this)
-├─ Enables: Clean separation of concerns
-├─ Enables: Compile-time MVP enforcement
-└─ Blocks: All VS and complex TD items until complete
-```
-
-### Chain 2: Movement & Vision System
-```
-VS_014 (A* Pathfinding) → VS_012 (Vision-Based Movement) → VS_013 (Enemy AI)
-├─ VS_014: Foundation for all movement
-├─ VS_012: Tactical movement using pathfinding
-└─ VS_013: AI needs movement system to function
-```
-
-### Chain 3: Technical Debt Cleanup
-```
-TD_035 (Error Handling) → TD_046 completion
-├─ Can be done in parallel with TD_046
-└─ Should be completed before new feature development
-```
-
-### Chain 4: Future Features (After foundations)
-```
-All IDEA_* items depend on:
-├─ Chain 1 (Architecture) - COMPLETE
-├─ Chain 2 (Movement/Vision) - COMPLETE
-└─ Chain 3 (Technical Debt) - COMPLETE
-```
 
 ## 🚀 Ready for Immediate Execution
 
@@ -116,69 +86,6 @@ All IDEA_* items depend on:
 
 
 
-
-
-### TD_054: Dependency Chain Maintenance Protocol
-**Status**: Approved
-**Owner**: Tech Lead
-**Size**: S (2h)
-**Priority**: Important - Planning accuracy
-**Created**: 2025-09-16 19:32 (Tech Lead)
-**Complexity**: 3/10
-**Markers**: [PROCESS] [PLANNING]
-
-**What**: Create protocol for maintaining accurate dependency chains in backlog
-**Why**: Chains drift out of sync, causing confusion about what's actually blocked
-
-**Protocol Elements**:
-1. Weekly dependency review (during planning)
-2. Automated chain validation script
-3. Clear "blocks/blocked-by" notation
-4. Status transitions when dependencies resolve
-
-**Implementation**:
-```powershell
-./scripts/backlog/validate-dependencies.ps1
-# Checks all items for:
-# - Broken dependency references
-# - Completed blockers not removed
-# - Circular dependencies
-# - Items marked blocked without blockers
-```
-
-**Done When**:
-- [ ] Protocol documented in PROTOCOLS.md
-- [ ] Validation script created
-- [ ] Backlog template updated
-- [ ] All current chains validated
-- [ ] CI check for PR updates
-
-### TD_050: NetArchTest for Architecture Enforcement
-**Status**: Approved - CRITICAL
-**Owner**: Test Specialist
-**Size**: S (4h)
-**Priority**: Critical - Prevents architecture violations
-**Created**: 2025-09-16 19:29 (Tech Lead)
-**Complexity**: 4/10
-**Markers**: [ARCHITECTURE] [TESTING] [SAFETY-CRITICAL]
-
-**What**: Add NetArchTest to enforce Clean Architecture boundaries after TD_046
-**Why**: Without automated tests, developers can accidentally violate architecture (Domain → Infrastructure)
-
-**Scope**:
-1. Domain purity tests (no external dependencies)
-2. Layer dependency tests (Domain ← Application ← Infrastructure)
-3. Feature isolation tests (Features don't reference each other)
-4. Godot containment tests (Godot types only in main project)
-
-**Done When**:
-- [ ] Domain project has zero dependency tests
-- [ ] Layer violations fail CI build
-- [ ] Feature cross-references are detected
-- [ ] Godot type leakage is prevented
-- [ ] Tests run in <1s in CI pipeline
-
-**Reference**: TD_046 created the boundaries, this enforces them
 
 ### TD_047: Unify Error Handling with LanguageExt
 **Status**: Approved

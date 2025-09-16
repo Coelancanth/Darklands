@@ -3,8 +3,12 @@ using LanguageExt.Common;
 using Microsoft.Extensions.Logging;
 using Darklands.Application.Services;
 using Darklands.Domain.Grid;
+using Darklands.Application.Common;
 using System.Collections.Generic;
 using static LanguageExt.Prelude;
+
+// Alias to resolve LogLevel namespace collision
+using DomainLogLevel = Darklands.Application.Common.LogLevel;
 
 namespace Darklands.Application.Infrastructure.Services;
 
@@ -15,7 +19,7 @@ namespace Darklands.Application.Infrastructure.Services;
 /// </summary>
 public sealed class MockAudioService : IAudioService
 {
-    private readonly ILogger<MockAudioService>? _logger;
+    private readonly ICategoryLogger? _logger;
     private readonly List<AudioOperation> _operations;
     private readonly object _operationsLock = new();
 
@@ -30,7 +34,7 @@ public sealed class MockAudioService : IAudioService
     public Dictionary<AudioBus, float> BusVolumes { get; } = new();
     public bool IsAllStopped { get; private set; }
 
-    public MockAudioService(ILogger<MockAudioService>? logger = null)
+    public MockAudioService(ICategoryLogger? logger = null)
     {
         _logger = logger;
         _operations = new List<AudioOperation>();
@@ -47,7 +51,7 @@ public sealed class MockAudioService : IAudioService
         if (ShouldFailPlaySound)
         {
             var error = Error.New($"Mock configured to fail PlaySound for {soundId}");
-            _logger?.LogWarning("Mock audio service failing PlaySound: {Error}", error);
+            _logger?.Log(DomainLogLevel.Warning, LogCategory.System, "Mock audio service failing PlaySound: {Error}", error);
             return FinFail<Unit>(error);
         }
 
@@ -55,7 +59,7 @@ public sealed class MockAudioService : IAudioService
         RecordOperation(operation);
 
         IsAllStopped = false;
-        _logger?.LogDebug("Mock played sound {SoundId} at position {Position}", soundId, position);
+        _logger?.Log(DomainLogLevel.Debug, LogCategory.System, "Mock played sound {SoundId} at position {Position}", soundId, position?.ToString() ?? "null");
         return FinSucc(unit);
     }
 
@@ -64,7 +68,7 @@ public sealed class MockAudioService : IAudioService
         if (ShouldFailSetMusic)
         {
             var error = Error.New($"Mock configured to fail SetMusicTrack for {musicId}");
-            _logger?.LogWarning("Mock audio service failing SetMusicTrack: {Error}", error);
+            _logger?.Log(DomainLogLevel.Warning, LogCategory.System, "Mock audio service failing SetMusicTrack: {Error}", error);
             return FinFail<Unit>(error);
         }
 
@@ -73,7 +77,7 @@ public sealed class MockAudioService : IAudioService
 
         CurrentMusicTrack = musicId;
         IsAllStopped = false;
-        _logger?.LogDebug("Mock set music track to {MusicId}", musicId);
+        _logger?.Log(DomainLogLevel.Debug, LogCategory.System, "Mock set music track to {MusicId}", musicId);
         return FinSucc(unit);
     }
 
@@ -82,7 +86,7 @@ public sealed class MockAudioService : IAudioService
         if (ShouldFailSetVolume)
         {
             var error = Error.New($"Mock configured to fail SetBusVolume for {bus}");
-            _logger?.LogWarning("Mock audio service failing SetBusVolume: {Error}", error);
+            _logger?.Log(DomainLogLevel.Warning, LogCategory.System, "Mock audio service failing SetBusVolume: {Error}", error);
             return FinFail<Unit>(error);
         }
 
@@ -93,7 +97,7 @@ public sealed class MockAudioService : IAudioService
         RecordOperation(operation);
 
         BusVolumes[bus] = volume;
-        _logger?.LogDebug("Mock set {AudioBus} volume to {Volume}", bus, volume);
+        _logger?.Log(DomainLogLevel.Debug, LogCategory.System, "Mock set {AudioBus} volume to {Volume}", bus, volume);
         return FinSucc(unit);
     }
 
@@ -102,7 +106,7 @@ public sealed class MockAudioService : IAudioService
         if (ShouldFailStopAll)
         {
             var error = Error.New("Mock configured to fail StopAll");
-            _logger?.LogWarning("Mock audio service failing StopAll: {Error}", error);
+            _logger?.Log(DomainLogLevel.Warning, LogCategory.System, "Mock audio service failing StopAll: {Error}", error);
             return FinFail<Unit>(error);
         }
 
@@ -110,7 +114,7 @@ public sealed class MockAudioService : IAudioService
         RecordOperation(operation);
 
         IsAllStopped = true;
-        _logger?.LogDebug("Mock stopped all audio");
+        _logger?.Log(DomainLogLevel.Debug, LogCategory.System, "Mock stopped all audio");
         return FinSucc(unit);
     }
 

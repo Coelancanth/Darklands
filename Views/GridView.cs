@@ -17,7 +17,7 @@ namespace Darklands.Views
     public partial class GridView : Node2D, IGridView
     {
         private IGridPresenter? _presenter;
-        private ICategoryLogger? _logger;
+        private ICategoryLogger _logger = null!;
         private const int TileSize = 64;
         private int _gridWidth;
         private int _gridHeight;
@@ -50,6 +50,9 @@ namespace Darklands.Views
         {
             try
             {
+                // Get the logger first - required service
+                _logger = this.GetService<ICategoryLogger>();
+
                 // Use service locator to get the presenter
                 _presenter = this.GetOptionalService<IGridPresenter>();
 
@@ -57,20 +60,19 @@ namespace Darklands.Views
                 {
                     _presenter.AttachView(this);
                     _presenter.InitializeAsync().GetAwaiter().GetResult();
-                    GD.Print($"[GridView] Successfully attached to GridPresenter");
+                    _logger.Log(LogLevel.Information, LogCategory.System, "GridView successfully attached to GridPresenter");
                 }
                 else
                 {
-                    GD.PrintErr("[GridView] Failed to resolve IGridPresenter from service locator");
+                    _logger.Log(LogLevel.Error, LogCategory.System, "GridView failed to resolve IGridPresenter from service locator");
                 }
-
-                // Also get the logger if available
-                _logger = this.GetOptionalService<ICategoryLogger>();
             }
             catch (Exception ex)
             {
+                // Fallback to GD.Print if logger initialization failed
                 GD.PrintErr($"[GridView] Error in _Ready: {ex.Message}");
-                _logger?.Log(LogLevel.Error, LogCategory.System, "GridView._Ready error: {Error}", ex.Message);
+                // Try to log if logger was initialized
+                _logger.Log(LogLevel.Error, LogCategory.System, "GridView._Ready error: {Error}", ex.Message);
             }
         }
 
@@ -92,7 +94,7 @@ namespace Darklands.Views
             }
             catch (Exception ex)
             {
-                _logger?.Log(LogLevel.Error, LogCategory.System, "GridView._Input error: {Error}", ex.Message);
+                _logger.Log(LogLevel.Error, LogCategory.Gameplay, "GridView._Input error: {Error}", ex.Message);
             }
         }
 
@@ -128,7 +130,7 @@ namespace Darklands.Views
             ClearAllTiles();
             ClearGridLines();
 
-            _logger?.Log(LogLevel.Information, LogCategory.System, "Creating {Width}x{Height} grid with lines", width, height);
+            _logger.Log(LogLevel.Information, LogCategory.System, "Creating {Width}x{Height} grid with lines", width, height);
 
             // Create a basic grid with grass tiles as default, with initial fog applied
             for (int x = 0; x < width; x++)
@@ -234,7 +236,7 @@ namespace Darklands.Views
         {
             // For Phase 4, just print to console
             // Future: Show floating text or particle effects
-            _logger?.Log(LogLevel.Debug, LogCategory.System, "{Message} at ({X},{Y})", message, position.X, position.Y);
+            _logger.Log(LogLevel.Debug, LogCategory.System, "{Message} at ({X},{Y})", message, position.X, position.Y);
             await Task.CompletedTask;
         }
 
@@ -245,7 +247,7 @@ namespace Darklands.Views
         {
             // For Phase 4, just print to console
             // Future: Show error indicators or red highlights
-            _logger?.Log(LogLevel.Warning, LogCategory.System, "{ErrorMessage} at ({X},{Y})", errorMessage, position.X, position.Y);
+            _logger.Log(LogLevel.Warning, LogCategory.System, "{ErrorMessage} at ({X},{Y})", errorMessage, position.X, position.Y);
             await Task.CompletedTask;
         }
 
@@ -274,13 +276,13 @@ namespace Darklands.Views
         /// <param name="visionState">The vision state containing visibility information</param>
         public async Task UpdateFogOfWarAsync(Darklands.Domain.Vision.VisionState visionState)
         {
-            _logger?.Log(LogLevel.Debug, LogCategory.Vision, "GridView.UpdateFogOfWarAsync called for Actor {ActorId}: {Visible} visible, {Explored} explored",
+            _logger.Log(LogLevel.Debug, LogCategory.Vision, "GridView.UpdateFogOfWarAsync called for Actor {ActorId}: {Visible} visible, {Explored} explored",
                 visionState.ViewerId.Value.ToString()[..8],
                 visionState.CurrentlyVisible.Count,
                 visionState.PreviouslyExplored.Count);
 
             _currentVisionState = visionState;
-            _logger?.Log(LogLevel.Debug, LogCategory.Vision, "GridView: Calling deferred fog update for {GridWidth}x{GridHeight} grid", _gridWidth, _gridHeight);
+            _logger.Log(LogLevel.Debug, LogCategory.Vision, "GridView: Calling deferred fog update for {GridWidth}x{GridHeight} grid", _gridWidth, _gridHeight);
             CallDeferred(nameof(UpdateFogOfWarDeferred));
 
             await Task.CompletedTask;
@@ -307,7 +309,7 @@ namespace Darklands.Views
         /// </summary>
         public async Task ClearFogOfWarAsync()
         {
-            _logger?.Log(LogLevel.Debug, LogCategory.Vision, "Clearing all fog of war effects");
+            _logger.Log(LogLevel.Debug, LogCategory.Vision, "Clearing all fog of war effects");
             _currentVisionState = null;
             CallDeferred(nameof(ClearFogOfWarDeferred));
 
@@ -336,7 +338,7 @@ namespace Darklands.Views
                 {
                     var gridPosition = new Darklands.Domain.Grid.Position(tileX, tileY);
 
-                    _logger?.Log(LogLevel.Debug, LogCategory.Gameplay, "User clicked tile ({X},{Y})", tileX, tileY);
+                    _logger.Log(LogLevel.Debug, LogCategory.Gameplay, "User clicked tile ({X},{Y})", tileX, tileY);
 
                     // Notify the presenter about the tile click on the main thread
                     // Convert Position to Godot-compatible parameters
@@ -345,7 +347,7 @@ namespace Darklands.Views
             }
             catch (Exception ex)
             {
-                _logger?.Log(LogLevel.Error, LogCategory.Gameplay, "HandleMouseClick error: {Error}", ex.Message);
+                _logger.Log(LogLevel.Error, LogCategory.Gameplay, "HandleMouseClick error: {Error}", ex.Message);
             }
         }
 
@@ -364,7 +366,7 @@ namespace Darklands.Views
             }
             catch (Exception ex)
             {
-                _logger?.Log(LogLevel.Error, LogCategory.Gameplay, "Error handling tile click at ({X},{Y}): {Error}", x, y, ex.Message);
+                _logger.Log(LogLevel.Error, LogCategory.Gameplay, "Error handling tile click at ({X},{Y}): {Error}", x, y, ex.Message);
             }
         }
 
@@ -402,7 +404,7 @@ namespace Darklands.Views
             // Debug log for first few tiles to confirm initial fog application
             if (position.X < 3 && position.Y < 3)
             {
-                _logger?.Log(LogLevel.Debug, LogCategory.Vision, "GridView: Created tile ({X},{Y}) with initial fog - Color: {TerrainColor}, Fog: {FogColor}",
+                _logger.Log(LogLevel.Debug, LogCategory.Vision, "GridView: Created tile ({X},{Y}) with initial fog - Color: {TerrainColor}, Fog: {FogColor}",
                     position.X, position.Y, color, FogUnseen);
             }
         }
@@ -693,13 +695,13 @@ namespace Darklands.Views
         {
             if (_currentVisionState == null)
             {
-                _logger?.Log(LogLevel.Warning, LogCategory.Vision, "GridView.UpdateFogOfWarDeferred: No current vision state available");
+                _logger.Log(LogLevel.Warning, LogCategory.Vision, "GridView.UpdateFogOfWarDeferred: No current vision state available");
                 return;
             }
 
-            _logger?.Log(LogLevel.Debug, LogCategory.Vision, "GridView.UpdateFogOfWarDeferred: Processing fog update for {GridWidth}x{GridHeight} grid with {TileCount} tiles",
+            _logger.Log(LogLevel.Debug, LogCategory.Vision, "GridView.UpdateFogOfWarDeferred: Processing fog update for {GridWidth}x{GridHeight} grid with {TileCount} tiles",
                 _gridWidth, _gridHeight, _tiles.Count);
-            _logger?.Log(LogLevel.Debug, LogCategory.Vision, "Vision state details - Currently Visible: {Visible}, Previously Explored: {Explored}",
+            _logger.Log(LogLevel.Debug, LogCategory.Vision, "Vision state details - Currently Visible: {Visible}, Previously Explored: {Explored}",
                 _currentVisionState.CurrentlyVisible.Count, _currentVisionState.PreviouslyExplored.Count);
 
             int visibleCount = 0, exploredCount = 0, unseenCount = 0;
@@ -728,18 +730,18 @@ namespace Darklands.Views
                         // Debug a few sample tiles to verify modulation is being applied
                         if (x == 15 && y == 10) // Center position
                         {
-                            _logger?.Log(LogLevel.Debug, LogCategory.Vision, "GridView: Applied fog to tile (15,10) - Visibility: {Visibility}, Color: {Color}",
+                            _logger.Log(LogLevel.Debug, LogCategory.Vision, "GridView: Applied fog to tile (15,10) - Visibility: {Visibility}, Color: {Color}",
                                 visibilityLevel, fogColor);
                         }
                     }
                     else if (x < 5 && y < 5) // Only log for a few tiles to avoid spam
                     {
-                        _logger?.Log(LogLevel.Warning, LogCategory.Vision, "GridView: Tile not found at ({X},{Y}) in _tiles dictionary", x, y);
+                        _logger.Log(LogLevel.Warning, LogCategory.Vision, "GridView: Tile not found at ({X},{Y}) in _tiles dictionary", x, y);
                     }
                 }
             }
 
-            _logger?.Log(LogLevel.Debug, LogCategory.Vision, "GridView: Fog update complete - {Visible} visible, {Explored} explored, {Unseen} unseen tiles",
+            _logger.Log(LogLevel.Debug, LogCategory.Vision, "GridView: Fog update complete - {Visible} visible, {Explored} explored, {Unseen} unseen tiles",
                 visibleCount, exploredCount, unseenCount);
         }
 

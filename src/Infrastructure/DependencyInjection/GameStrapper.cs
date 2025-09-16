@@ -301,7 +301,7 @@ public static class GameStrapper
                 // For now, use a development seed - TODO: integrate with save system
                 const ulong developmentSeed = 12345UL;
 
-                var logger = provider.GetService<ILogger<Domain.Determinism.DeterministicRandom>>();
+                var logger = provider.GetService<ILoggerFactory>()?.CreateLogger<Domain.Determinism.DeterministicRandom>();
                 return new Domain.Determinism.DeterministicRandom(developmentSeed, logger: logger);
             });
 

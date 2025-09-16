@@ -31,7 +31,7 @@ public sealed class DeterministicRandom : IDeterministicRandom
     /// </summary>
     /// <param name="seed">Initial seed value for the generator</param>
     /// <param name="stream">Stream identifier (will be made odd automatically)</param>
-    /// <param name="logger">Optional logger for debugging random calls</param>
+    /// <param name="logger">Logger for debugging random calls</param>
     public DeterministicRandom(ulong seed, ulong stream = 1, ILogger? logger = null)
     {
         _state = seed;

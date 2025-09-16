@@ -205,7 +205,7 @@ namespace Darklands.Core.Tests.Application.Combat.Common
             // Arrange
             var scheduler = new CombatScheduler();
             var actorCount = 1500; // Exceeds required 1000+ actors
-            var random = new DeterministicRandom(42UL, logger: NullLogger<DeterministicRandom>.Instance); // Fixed seed for reproducible tests
+            var random = new DeterministicRandom(42UL, logger: null); // Fixed seed for reproducible tests
 
             var actors = new List<SchedulableActor>();
             for (int i = 0; i < actorCount; i++)
