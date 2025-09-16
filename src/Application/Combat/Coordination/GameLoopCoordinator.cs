@@ -48,34 +48,25 @@ namespace Darklands.Application.Combat.Coordination
         /// <returns>Success with next actor ID, or None if no actors scheduled</returns>
         public async Task<Fin<Option<ActorId>>> ProcessNextTurnAsync()
         {
-            try
-            {
-                _logger.Log(LogLevel.Debug, LogCategory.System, "Processing next turn in game loop");
+            _logger.Log(LogLevel.Debug, LogCategory.System, "Processing next turn in game loop");
 
-                // Step 1: Get next actor from scheduler (synchronously)
-                var nextTurnResult = await _mediator.Send(new ProcessNextTurnCommand());
+            // Step 1: Get next actor from scheduler (synchronously)
+            var nextTurnResult = await _mediator.Send(new ProcessNextTurnCommand());
 
-                // Handle result with proper type mapping from Guid to ActorId
-                var result = from turnOption in nextTurnResult
-                             select turnOption.Map(guid => ActorId.FromGuid(guid));
+            // Handle result with proper type mapping from Guid to ActorId
+            var result = from turnOption in nextTurnResult
+                         select turnOption.Map(guid => ActorId.FromGuid(guid));
 
-                // Side effects for logging
-                result.Match(
-                    Succ: turnOption => turnOption.Match(
-                        Some: actorId => _logger.Log(LogCategory.System, "Turn processed for actor {ActorId}", actorId),
-                        None: () => _logger.Log(LogLevel.Debug, LogCategory.System, "No actors scheduled for processing")
-                    ),
-                    Fail: error => _logger.Log(LogLevel.Warning, LogCategory.System, "Failed to process next turn: {Error}", error.Message)
-                );
+            // Side effects for logging
+            result.Match(
+                Succ: turnOption => turnOption.Match(
+                    Some: actorId => _logger.Log(LogCategory.System, "Turn processed for actor {ActorId}", actorId),
+                    None: () => _logger.Log(LogLevel.Debug, LogCategory.System, "No actors scheduled for processing")
+                ),
+                Fail: error => _logger.Log(LogLevel.Warning, LogCategory.System, "Failed to process next turn: {Error}", error.Message)
+            );
 
-                return result;
-            }
-            catch (Exception ex)
-            {
-                var error = Error.New("TURN_PROCESSING_ERROR", ex);
-                _logger.Log(LogLevel.Error, LogCategory.System, "Unexpected error during turn processing" + ": " + ex.Message);
-                return FinFail<Option<ActorId>>(error);
-            }
+            return result;
         }
 
         /// <summary>
@@ -86,50 +77,41 @@ namespace Darklands.Application.Combat.Coordination
         /// <returns>Success or error if scheduling failed</returns>
         public async Task<Fin<LanguageExt.Unit>> InitializeGameLoopAsync(ISchedulable[] initialActors)
         {
-            try
+            _logger.Log(LogCategory.System, "Initializing game loop with {ActorCount} actors", initialActors.Length);
+
+            var errors = new List<Error>();
+
+            // Schedule each actor sequentially (no concurrency)
+            foreach (var actor in initialActors)
             {
-                _logger.Log(LogCategory.System, "Initializing game loop with {ActorCount} actors", initialActors.Length);
+                // For now, we need a position - this will be provided by caller in real implementation
+                var dummyPosition = new Position(5, 5);
+                var scheduleCommand = ScheduleActorCommand.Create(ActorId.FromGuid(actor.Id), dummyPosition, actor.NextTurn);
+                var scheduleResult = await _mediator.Send(scheduleCommand);
 
-                var errors = new List<Error>();
-
-                // Schedule each actor sequentially (no concurrency)
-                foreach (var actor in initialActors)
-                {
-                    // For now, we need a position - this will be provided by caller in real implementation
-                    var dummyPosition = new Position(5, 5);
-                    var scheduleCommand = ScheduleActorCommand.Create(ActorId.FromGuid(actor.Id), dummyPosition, actor.NextTurn);
-                    var scheduleResult = await _mediator.Send(scheduleCommand);
-
-                    scheduleResult.Match(
-                        Succ: _ => _logger.Log(LogLevel.Debug, LogCategory.System, "Scheduled actor {ActorId} for turn {NextTurn}",
-                            actor.Id, actor.NextTurn),
-                        Fail: error =>
-                        {
-                            _logger.Log(LogLevel.Warning, LogCategory.System, "Failed to schedule actor {ActorId}: {Error}",
-                                actor.Id, error.Message);
-                            errors.Add(error);
-                        }
-                    );
-                }
-
-                // Return success if all actors scheduled, otherwise aggregate errors  
-                if (errors.Count == 0)
-                {
-                    _logger.Log(LogCategory.System, "Game loop initialized successfully");
-                    return FinSucc(LanguageExt.Unit.Default);
-                }
-                else
-                {
-                    var aggregateError = Error.New($"INITIALIZATION_PARTIAL_FAILURE: {errors.Count}/{initialActors.Length} actors failed to schedule",
-                        (Exception)new AggregateException(errors.Select(e => new Exception(e.Message))));
-                    return FinFail<LanguageExt.Unit>(aggregateError);
-                }
+                scheduleResult.Match(
+                    Succ: _ => _logger.Log(LogLevel.Debug, LogCategory.System, "Scheduled actor {ActorId} for turn {NextTurn}",
+                        actor.Id, actor.NextTurn),
+                    Fail: error =>
+                    {
+                        _logger.Log(LogLevel.Warning, LogCategory.System, "Failed to schedule actor {ActorId}: {Error}",
+                            actor.Id, error.Message);
+                        errors.Add(error);
+                    }
+                );
             }
-            catch (Exception ex)
+
+            // Return success if all actors scheduled, otherwise aggregate errors
+            if (errors.Count == 0)
             {
-                var error = Error.New("INITIALIZATION_ERROR", ex);
-                _logger.Log(LogLevel.Error, LogCategory.System, "Unexpected error during game loop initialization" + ": " + ex.Message);
-                return FinFail<LanguageExt.Unit>(error);
+                _logger.Log(LogCategory.System, "Game loop initialized successfully");
+                return FinSucc(LanguageExt.Unit.Default);
+            }
+            else
+            {
+                var aggregateError = Error.New($"INITIALIZATION_PARTIAL_FAILURE: {errors.Count}/{initialActors.Length} actors failed to schedule",
+                    (Exception)new AggregateException(errors.Select(e => new Exception(e.Message))));
+                return FinFail<LanguageExt.Unit>(aggregateError);
             }
         }
 
@@ -140,25 +122,16 @@ namespace Darklands.Application.Combat.Coordination
         /// <returns>Current turn order or error if retrieval failed</returns>
         public async Task<Fin<IReadOnlyList<ISchedulable>>> GetCurrentTurnOrderAsync()
         {
-            try
-            {
-                var queryResult = await _mediator.Send(new GetSchedulerQuery());
+            var queryResult = await _mediator.Send(new GetSchedulerQuery());
 
-                return queryResult.Match(
-                    Succ: turnOrder => FinSucc(turnOrder),
-                    Fail: error =>
-                    {
-                        _logger.Log(LogLevel.Warning, LogCategory.System, "Failed to get scheduler for turn order: {Error}", error.Message);
-                        return FinFail<IReadOnlyList<ISchedulable>>(error);
-                    }
-                );
-            }
-            catch (Exception ex)
-            {
-                var error = Error.New("TURN_ORDER_QUERY_ERROR", ex);
-                _logger.Log(LogLevel.Error, LogCategory.System, "Unexpected error getting turn order" + ": " + ex.Message);
-                return FinFail<IReadOnlyList<ISchedulable>>(error);
-            }
+            return queryResult.Match(
+                Succ: turnOrder => FinSucc(turnOrder),
+                Fail: error =>
+                {
+                    _logger.Log(LogLevel.Warning, LogCategory.System, "Failed to get scheduler for turn order: {Error}", error.Message);
+                    return FinFail<IReadOnlyList<ISchedulable>>(error);
+                }
+            );
         }
 
         /// <summary>
