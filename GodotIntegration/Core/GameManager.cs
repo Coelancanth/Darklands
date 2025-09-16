@@ -27,11 +27,13 @@ namespace Darklands
     /// Initializes the dependency injection container, sets up the MVP architecture,
     /// and manages the lifecycle of presenters and views.
     /// Entry point for the Godot application that bridges to the Clean Architecture core.
-    /// 
+    ///
     /// Now inherits from EventAwareNode to subscribe to domain events via the UI Event Bus.
+    /// MUST be registered as an autoload in project.godot to ensure DI initializes before scenes load.
     /// </summary>
     public partial class GameManager : EventAwareNode
     {
+        private Node2D? _currentScene;
         private GridView? _gridView;
         private ActorView? _actorView;
         private GridPresenter? _gridPresenter;
@@ -41,12 +43,13 @@ namespace Darklands
 
         /// <summary>
         /// Called when the node is added to the scene tree.
-        /// Initializes the dependency injection container and sets up the MVP connections.
+        /// As an autoload, this runs before any scene loads.
+        /// Initializes the dependency injection container and then loads the combat scene.
         /// </summary>
         public override void _Ready()
         {
             // Use minimal console output until logging is initialized
-            GD.Print("GameManager starting initialization...");
+            GD.Print("GameManager autoload starting initialization...");
 
             try
             {
@@ -59,6 +62,9 @@ namespace Darklands
                 // NOW call base implementation to initialize EventBus from EventAwareNode
                 // This will work because GameStrapper is now initialized
                 base._Ready();
+
+                // Load the combat scene after DI is ready
+                LoadCombatScene();
 
                 // Continue with initialization sequentially (ADR-009): avoid background concurrency
                 try
@@ -96,6 +102,10 @@ namespace Darklands
                 _actorPresenter?.Dispose();
 
                 _logger?.Log(DomainLogLevel.Information, LogCategory.System, "Presenters disposed successfully");
+
+                // Clean up the loaded scene
+                _currentScene?.QueueFree();
+                _currentScene = null;
 
                 // Dispose DI container
                 GameStrapper.Dispose();
@@ -192,6 +202,40 @@ namespace Darklands
         }
 
         /// <summary>
+        /// Loads the combat scene and adds it to the tree.
+        /// Called after DI is initialized to ensure Views can resolve their presenters.
+        /// </summary>
+        private void LoadCombatScene()
+        {
+            try
+            {
+                var packedScene = GD.Load<PackedScene>("res://Scenes/combat_scene.tscn");
+                if (packedScene == null)
+                {
+                    throw new InvalidOperationException("Failed to load combat_scene.tscn");
+                }
+
+                _currentScene = packedScene.Instantiate<Node2D>();
+                if (_currentScene == null)
+                {
+                    throw new InvalidOperationException("Failed to instantiate combat scene");
+                }
+
+                // Add to the scene tree
+                GetTree().Root.AddChild(_currentScene);
+                GetTree().CurrentScene = _currentScene;
+
+                _logger?.Log(DomainLogLevel.Information, LogCategory.System, "Combat scene loaded successfully");
+            }
+            catch (Exception ex)
+            {
+                GD.PrintErr($"Failed to load combat scene: {ex.Message}");
+                _logger?.Log(DomainLogLevel.Error, LogCategory.System, "Failed to load combat scene: {0}", ex.Message);
+                throw;
+            }
+        }
+
+        /// <summary>
         /// Completes the initialization by setting up MVP architecture.
         /// </summary>
         private async Task CompleteInitializationAsync()
@@ -263,9 +307,14 @@ namespace Darklands
                     throw new InvalidOperationException("ServiceProvider not initialized");
                 }
 
-                // Find view nodes in the scene tree
-                _gridView = GetNode<GridView>("Grid");
-                _actorView = GetNode<ActorView>("Actors");
+                // Find view nodes in the loaded scene (not as child nodes since GameManager is now an autoload)
+                if (_currentScene == null)
+                {
+                    throw new InvalidOperationException("No scene loaded. LoadCombatScene must be called first.");
+                }
+
+                _gridView = _currentScene.GetNode<GridView>("Grid");
+                _actorView = _currentScene.GetNode<ActorView>("Actors");
 
                 if (_gridView == null)
                 {

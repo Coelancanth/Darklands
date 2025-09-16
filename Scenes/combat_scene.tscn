@@ -1,11 +1,9 @@
-[gd_scene load_steps=4 format=3 uid="uid://coxy82oj87fjb"]
+[gd_scene load_steps=3 format=3 uid="uid://coxy82oj87fjb"]
 
-[ext_resource type="Script" uid="uid://dgqr607l32wlj" path="res://GodotIntegration/Core/GameManager.cs" id="1_kv618"]
 [ext_resource type="Script" uid="uid://umtdiuyv1ifi" path="res://Views/ActorView.cs" id="2_qumoa"]
 [ext_resource type="Script" uid="uid://d17tgsg3d33q2" path="res://Views/GridView.cs" id="4_gridview"]
 
 [node name="CombatScene" type="Node2D"]
-script = ExtResource("1_kv618")
 
 [node name="Grid" type="Node2D" parent="."]
 script = ExtResource("4_gridview")
