@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-16 18:45 (Backlog Assistant - TD_046 archived as completed)
+**Last Updated**: 2025-09-16 22:06 (Backlog Assistant - Archived 3 completed TD items)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 008
-- **Next TD**: 047
+- **Next TD**: 056
 - **Next VS**: 015 
 
 
@@ -113,6 +113,125 @@ All IDEA_* items depend on:
 ## 🚀 Ready for Immediate Execution
 
 *Items with no blocking dependencies, approved and ready to start*
+
+
+
+
+
+### TD_054: Dependency Chain Maintenance Protocol
+**Status**: Approved
+**Owner**: Tech Lead
+**Size**: S (2h)
+**Priority**: Important - Planning accuracy
+**Created**: 2025-09-16 19:32 (Tech Lead)
+**Complexity**: 3/10
+**Markers**: [PROCESS] [PLANNING]
+
+**What**: Create protocol for maintaining accurate dependency chains in backlog
+**Why**: Chains drift out of sync, causing confusion about what's actually blocked
+
+**Protocol Elements**:
+1. Weekly dependency review (during planning)
+2. Automated chain validation script
+3. Clear "blocks/blocked-by" notation
+4. Status transitions when dependencies resolve
+
+**Implementation**:
+```powershell
+./scripts/backlog/validate-dependencies.ps1
+# Checks all items for:
+# - Broken dependency references
+# - Completed blockers not removed
+# - Circular dependencies
+# - Items marked blocked without blockers
+```
+
+**Done When**:
+- [ ] Protocol documented in PROTOCOLS.md
+- [ ] Validation script created
+- [ ] Backlog template updated
+- [ ] All current chains validated
+- [ ] CI check for PR updates
+
+### TD_050: NetArchTest for Architecture Enforcement
+**Status**: Approved - CRITICAL
+**Owner**: Test Specialist
+**Size**: S (4h)
+**Priority**: Critical - Prevents architecture violations
+**Created**: 2025-09-16 19:29 (Tech Lead)
+**Complexity**: 4/10
+**Markers**: [ARCHITECTURE] [TESTING] [SAFETY-CRITICAL]
+
+**What**: Add NetArchTest to enforce Clean Architecture boundaries after TD_046
+**Why**: Without automated tests, developers can accidentally violate architecture (Domain → Infrastructure)
+
+**Scope**:
+1. Domain purity tests (no external dependencies)
+2. Layer dependency tests (Domain ← Application ← Infrastructure)
+3. Feature isolation tests (Features don't reference each other)
+4. Godot containment tests (Godot types only in main project)
+
+**Done When**:
+- [ ] Domain project has zero dependency tests
+- [ ] Layer violations fail CI build
+- [ ] Feature cross-references are detected
+- [ ] Godot type leakage is prevented
+- [ ] Tests run in <1s in CI pipeline
+
+**Reference**: TD_046 created the boundaries, this enforces them
+
+### TD_047: Unify Error Handling with LanguageExt
+**Status**: Approved
+**Owner**: Dev Engineer
+**Size**: M (6-8h)
+**Priority**: Important - Debugging complexity
+**Created**: 2025-09-16 19:29 (Tech Lead)
+**Complexity**: 5/10
+**Markers**: [ERROR-HANDLING] [TECHNICAL-DEBT]
+
+**What**: Replace all try-catch blocks with LanguageExt Fin<T> for consistent error handling
+**Why**: Mixed error handling (try-catch vs Fin<T>) breaks functional composition and makes debugging harder
+
+**Scope** (System-wide):
+1. Infrastructure services (remaining try-catch blocks)
+2. Presenters (error propagation to UI)
+3. Command handlers (side effect isolation)
+4. Godot integration points (thread marshalling errors)
+
+**Done When**:
+- [ ] Zero try-catch blocks outside Godot integration boundary
+- [ ] All errors flow through Fin<T> pipeline
+- [ ] Error aggregation uses LanguageExt combinators
+- [ ] Performance unchanged (measure before/after)
+- [ ] All 664 tests still pass
+
+**Reference Pattern**: `ExecuteAttackCommandHandler` for Fin<T> usage
+
+### TD_048: Update Protocols to Reference Established Patterns
+**Status**: Approved
+**Owner**: Tech Lead
+**Size**: S (2h)
+**Priority**: Important - Developer friction
+**Created**: 2025-09-16 19:29 (Tech Lead)
+**Complexity**: 2/10
+**Markers**: [DOCUMENTATION] [DEVELOPER-EXPERIENCE]
+
+**What**: Update all protocol docs to link to actual pattern implementations
+**Why**: Developers waste time searching for patterns that already exist
+
+**Scope**:
+1. HANDBOOK.md - Link to Move Block pattern
+2. Persona docs - Reference actual code examples
+3. ADRs - Add "Implementation" sections with file paths
+4. CLAUDE.md - Include pattern directory
+
+**Done When**:
+- [ ] Every mentioned pattern has a code reference
+- [ ] File paths use format: `src/Features/Block/Move/Commands.cs:45`
+- [ ] New developer can find any pattern in <30 seconds
+- [ ] VSA organization clearly documented with examples
+
+
 
 
 ### TD_035: Standardize Error Handling in Infrastructure Services

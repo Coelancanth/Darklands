@@ -181,13 +181,33 @@ When unit tests pass but visual validation needed:
 - **Coverage**: User scenarios
 - **Location**: `Tests/E2E/`
 
-### Phase Gate Validation
+### Phase Gate Validation & Documentation
 When Dev completes a phase:
 1. Run phase-specific tests only
 2. Validate speed requirements
 3. Check coverage thresholds
-4. Approve phase completion
-5. Allow next phase to start
+4. **Document test discoveries** in backlog:
+
+```markdown
+**Phase X Test Validation** (YYYY-MM-DD HH:MM):
+✅ Tests: N/N passing (execution time: XXXms)
+
+**Test Discoveries**:
+- [Edge cases found during testing]
+- [Performance bottlenecks identified]
+- [Flaky test patterns observed]
+
+**Test Debt Created**:
+- [Missing test scenarios noticed]
+- [Tests that should be added later]
+
+**Warnings for Next Phase**:
+- [Integration points to watch]
+- [Potential test conflicts]
+```
+
+5. Approve phase completion
+6. Allow next phase to start
 
 ## 📐 Testing Spectrum
 
