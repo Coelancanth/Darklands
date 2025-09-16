@@ -74,8 +74,8 @@ Need something?
 - Library-specific guidance
 - Use `mcp__context7__get-library-docs` tool
 
-### Move Block Reference Implementation
-**Location**: `src/Features/Block/Move/`
+### ExecuteAttackCommand Reference Implementation
+**Location**: `src/Application/Combat/Commands/ExecuteAttackCommand.cs`
 - The gold standard pattern
 - Copy this for new features
 - Shows proper architecture

@@ -31,7 +31,7 @@
 
 ## 🏗️ Technical Implementation *(Tech Lead)*
 
-**Architecture Pattern**: Follow `src/Features/Block/Move/` as gold standard
+**Architecture Pattern**: Follow `src/Application/Combat/Commands/ExecuteAttackCommand.cs` as gold standard
 
 **Vertical Slice Components**:
 - **Commands**: [Specific commands for this slice]
@@ -101,7 +101,7 @@
 ---
 
 ## 📚 References
-- **Gold Standard**: `src/Features/Block/Move/` 
+- **Gold Standard**: `src/Application/Combat/Commands/ExecuteAttackCommand.cs` 
 - **Related Work**: [Links to related VS items, bugs, or documentation]
 
 ---

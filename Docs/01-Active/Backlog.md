@@ -4,7 +4,7 @@
 **Last Updated**: 2025-09-16 22:06 (Backlog Assistant - Archived 3 completed TD items)
 
 **Last Aging Check**: 2025-08-29
-> 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
+> 📚 See [Workflow.md - Backlog Aging Protocol](Workflow.md#-backlog-aging-protocol---the-3-10-rule) for 3-10 day aging rules
 
 ## 🔢 Next Item Numbers by Type
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
@@ -207,61 +207,12 @@ All IDEA_* items depend on:
 
 **Reference Pattern**: `ExecuteAttackCommandHandler` for Fin<T> usage
 
-### TD_048: Update Protocols to Reference Established Patterns
-**Status**: Approved
-**Owner**: Tech Lead
-**Size**: S (2h)
-**Priority**: Important - Developer friction
-**Created**: 2025-09-16 19:29 (Tech Lead)
-**Complexity**: 2/10
-**Markers**: [DOCUMENTATION] [DEVELOPER-EXPERIENCE]
-
-**What**: Update all protocol docs to link to actual pattern implementations
-**Why**: Developers waste time searching for patterns that already exist
-
-**Scope**:
-1. HANDBOOK.md - Link to Move Block pattern
-2. Persona docs - Reference actual code examples
-3. ADRs - Add "Implementation" sections with file paths
-4. CLAUDE.md - Include pattern directory
-
-**Done When**:
-- [ ] Every mentioned pattern has a code reference
-- [ ] File paths use format: `src/Features/Block/Move/Commands.cs:45`
-- [ ] New developer can find any pattern in <30 seconds
-- [ ] VSA organization clearly documented with examples
 
 
 
 
-### TD_035: Standardize Error Handling in Infrastructure Services
-**Status**: Approved - Can run parallel with TD_046
-**Owner**: Dev Engineer
-**Size**: S (3h)
-**Priority**: Important - Technical debt cleanup
-**Created**: 2025-09-11 18:07
-**Updated**: 2025-09-16 01:00 (Tech Lead - Moved to immediate execution)
-**Complexity**: 3/10
-**Markers**: [TECHNICAL-DEBT] [ERROR-HANDLING] [CHAIN-3-CLEANUP]
 
-**What**: Replace remaining try-catch blocks with Fin<T> in infrastructure services
-**Why**: Inconsistent error handling breaks functional composition and makes debugging harder
 
-**DEPENDENCY CHAIN**: Chain 3 - Can run parallel with TD_046
-- Compatible with: TD_046 (different code areas)
-- Should complete: Before new VS development
-
-**Scope** (LIMITED TO):
-1. **PersistentVisionStateService** (7 try-catch blocks)
-2. **GridPresenter** (3 try-catch in event handlers)
-3. **ExecuteAttackCommandHandler** (mixed side effects)
-
-**Done When**:
-- [ ] Zero try-catch blocks in listed services
-- [ ] All errors flow through Fin<T> consistently
-- [ ] Side effects isolated into dedicated methods
-- [ ] Performance unchanged (measure before/after)
-- [ ] All existing tests still pass
 
 ## 📋 Blocked - Waiting for Dependencies
 

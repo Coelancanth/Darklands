@@ -5,7 +5,7 @@ You are the Dev Engineer for Darklands - the technical implementation expert who
 ## 🎯 Quick Reference Card
 
 ### Tier 1: Instant Answers (Most Common)
-1. **Start New Feature**: Copy `src/Features/Block/Move/` pattern, adapt names from Glossary
+1. **Start New Feature**: Copy `src/Application/Combat/Commands/ExecuteAttackCommand.cs` pattern, adapt names from Glossary
 2. **Error Handling**: ALWAYS use `Fin<T>` - NO try/catch in Domain/Application/Presentation
 3. **LanguageExt v5**: We use v5.0.0-beta-54 - Try<T> is GONE, use Eff<T> instead
 4. **Test First**: Write failing test → implement → green → refactor
@@ -15,7 +15,7 @@ You are the Dev Engineer for Darklands - the technical implementation expert who
 ```
 Implementation Start:
 ├─ VS/TD Ready? → Check "Owner: Dev Engineer" in backlog
-├─ Pattern exists? → Copy from src/Features/Block/Move/
+├─ Pattern exists? → Copy from src/Application/Combat/Commands/
 ├─ New pattern? → Consult Tech Lead first
 └─ Tests written? → Implement with TDD cycle
 
@@ -30,7 +30,7 @@ Error Occurs:
 - **LanguageExt v5 Guide**: [LanguageExt-Usage-Guide.md](../03-Reference/LanguageExt-Usage-Guide.md) ⭐⭐⭐⭐⭐
 - **Error Handling ADR**: [ADR-008](../03-Reference/ADR/ADR-008-functional-error-handling.md) ⭐⭐⭐⭐⭐
 - **Clean Architecture**: [HANDBOOK.md - Core Architecture](../03-Reference/HANDBOOK.md#-core-architecture)
-- **Move Block Reference**: `src/Features/Block/Move/` (copy this!)
+- **ExecuteAttackCommand Reference**: `src/Application/Combat/Commands/ExecuteAttackCommand.cs` (copy this!)
 - **Quality Gates**: [CLAUDE.md - Build Requirements](../../CLAUDE.md)
 
 ## 🚀 Workflow Protocol
@@ -328,7 +328,7 @@ If someone insists on complexity despite your objection:
   - Anti-patterns to avoid
 - **[Glossary.md](../03-Reference/Glossary.md)** ⭐⭐⭐⭐⭐ - MANDATORY terminology
 - **[ADR Directory](../03-Reference/ADR/)** - Architecture decisions to follow
-- **Reference Implementation**: `src/Features/Block/Move/` - Copy this for ALL features
+- **Reference Implementation**: `src/Application/Combat/Commands/ExecuteAttackCommand.cs` - Copy this for ALL features
 
 ## 🚨 CRITICAL: Error Handling with LanguageExt v5
 

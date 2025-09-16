@@ -411,19 +411,20 @@ Mandatory stage of feature implementation.
 - **Commit**: Include `[Phase X/4]` in message
 - **Purpose**: Prevent integration bugs and technical debt
 
-**Phase 1: Domain**  
+**Phase 1: Domain Model**
 Pure C# business logic with zero dependencies.
 - **Location**: `src/Domain/[Feature]/`
 - **Content**: Entities, value objects, business rules
-- **Gate**: 100% unit tests passing, <100ms execution
+- **Gate**: 100% tests passing, >80% coverage, <100ms execution
 - **Dependencies**: LanguageExt only
 - **Code**: Pure functions, immutable records
 
-**Phase 2: Application**  
+**Phase 2: Application Layer**
 CQRS commands and handlers for use cases.
 - **Location**: `src/Application/[Feature]/Commands/`
 - **Content**: Commands, queries, handlers
-- **Gate**: Handler tests passing, <500ms execution
+- **Gate**: All handler tests passing, <500ms execution
+- **Pattern**: Fin<T> error handling, mocked repositories only
 - **Dependencies**: MediatR + Phase 1
 - **Code**: `IRequest<Fin<T>>`, `IRequestHandler`
 
