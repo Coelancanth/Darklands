@@ -1,4 +1,4 @@
-using Darklands.Core.Domain.Debug;
+using Darklands.Application.Common;
 
 namespace Darklands.Core.Tests.TestUtilities;
 

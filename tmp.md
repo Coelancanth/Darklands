@@ -1,74 +1,33 @@
-好的。作为技术负责人（Tech Lead），我对这份架构决策记录（ADR）进行审阅。
+Godot Engine v4.4.1.stable.mono.official.49a5bc7b6 - https://godotengine.org
+OpenGL API 3.3.0 Core Profile Context 23.40.02.240110 - Compatibility - Using Device: ATI Technologies Inc. - AMD Radeon(TM) Graphics
 
-### **总体评估 (Overall Assessment)**
-
-这是一份高质量的ADR。它准确地识别了一个关键问题——架构随时间腐化（architectural decay），并提出了一个技术上稳健的解决方案：通过 `.csproj` 项目引用在编译时强制执行架构规则。该方案考虑了迁移策略、开发者工具、风险和替代方案，表现出高度的严谨性和前瞻性。
-
-该决策的核心思想是正确的：将架构约束从“约定”提升为“强制”，这是维护大型复杂代码库长期健康的关键。
-
-尽管如此，该方案在一些关键的集成和通信细节上存在模糊之处，必须在最终批准前予以明确。
-
-### **优点 (Strengths)**
-
-1.  **问题与方案的强匹配 (Strong Problem-Solution Fit)**：直接解决了架构违规难以通过人工审查根除的痛点，将错误从运行时或审查阶段提前到编译时。
-2.  **极高的清晰度 (Excellent Clarity)**：文档结构清晰，通过项目结构图和 `.csproj` 代码片段明确定义了依赖关系，几乎没有歧义。对“功能切片是什么”和“不是什么”的澄清尤其重要。
-3.  **务实的实施计划 (Pragmatic Implementation Plan)**：包含了“迁移前分析”这一强制步骤，并根据违规数量对工作量进行了初步分级。允许渐进式迁移，承认了现实世界项目的复杂性。
-4.  **关注开发者体验 (Focus on Developer Experience)**：将开发者工具（`dotnet new` 模板和脚本）作为强制性前置条件，是成功的关键。这极大地降低了新架构的采纳阻力，确保了一致性。
-5.  **全面的风险评估 (Comprehensive Risk Assessment)**：不仅列出了收益，还清晰地阐述了开发摩擦和构建复杂性等弊端，并对替代方案进行了评估和拒绝，这表明决策是经过深思熟虑的。
-
-### **风险与疑虑 (Risks and Concerns)**
-
-尽管方案整体稳健，但我识别出以下几个需要重点关注的风险和待明确的问题：
-
-1.  **关键缺失：功能切片间的通信模式 (Critical Gap: Inter-Feature Communication Pattern)**
-    *   **问题**: ADR 严格规定“功能切片（Feature Slices）绝不能引用其他功能切片”。这是一个正确的约束，但ADR**完全没有定义**功能切片之间应如何合法地通信。在实际业务中，功能之间必然存在交互（例如，战斗（Combat）功能需要知道网格（Grid）中的位置信息）。
-    *   **风险**: 如果不提供一个明确的、受支持的通信模式，开发者将被迫寻找“变通方法”，这可能导致新的、更隐蔽的架构违规（例如，通过一个共享的“上帝对象”或滥用事件总线）。
-
-2.  **集成复杂性：主 Godot 项目的角色 (Integration Complexity: The Main Godot Project's Role)**
-    *   **问题**: `Darklands.csproj` (Main Godot Project) 引用了“所有必要的项目”。这在实践中是一个高度复杂的“组合根 (Composition Root)”。依赖注入容器（Dependency Injection container）的配置、服务生命周期的管理、以及如何将 Godot 的节点（Nodes）和信号（Signals）与纯 C# 服务连接起来，这些核心细节都未被提及。
-    *   **风险**: 集成点的模糊是导致架构在实践中失败的主要原因。如果 Godot 与后端服务的集成模式不清晰，可能会导致在主项目中出现大量混乱的“胶水代码”，破坏整体架构的整洁性。
-
-3.  **`Presentation` 层的职责模糊 (Ambiguous Role of the `Presentation` Layer)**
-    *   **问题**: ADR 定义了一个顶层的 `Darklands.Presentation.csproj`，同时又在每个功能切片内部定义了 `Presenters` 目录。这两者之间的关系是什么？`Darklands.Presentation.csproj` 是用于存放共享的、与UI无关的表示逻辑（如ViewModel基类），还是其他用途？
-    *   **风险**: 职责不清的层容易成为代码的“垃圾场”。开发者可能不清楚应该将 Presenter 放在功能切片内还是共享的 `Presentation` 项目中，导致不一致性。
-
-4.  **迁移工作量可能被低估 (Potential Underestimation of Migration Effort)**
-    *   **问题**: 迁移分析中，仅通过违规的“数量”来估算工作量过于粗略。一个违规可能只是一个错误的 `using` 语句，修复耗时几秒钟；另一个违规可能是深度的逻辑耦合，需要进行接口提取和大量重构，耗时数天。
-    *   **风险**: 过于乐观的估算会导致项目延期和团队挫败感。必须进行更定性的分析。
-
-### **修改建议 (Recommendations for Improvement)**
-
-为了使此 ADR 达到可执行状态，我要求在最终批准前进行以下修改：
-
-1.  **[必须] 明确定义功能切片间的通信机制**
-    *   在ADR中增加一节，标题为“**功能切片间通信 (Inter-Feature Slice Communication)**”。
-    *   明确规定允许的模式。我建议：
-        *   **命令/查询 (Commands/Queries)**: 一个功能切片可以通过 `MediatR` 向另一个功能切片发送命令或查询。这是最清晰的模式，因为依赖关系是单向的（请求者 -> MediatR -> 处理者）。
-        *   **领域事件/通知 (Domain Events/Notifications)**: 一个功能切片发布一个领域事件（通过 `MediatR` 的 `INotification`），其他功能切片可以订阅并响应这些事件。这适用于“发布-订阅”模式，可以实现更松散的耦合。
-    *   **严禁**任何形式的直接方法调用或共享服务状态。
-
-2.  **[必须] 增加“Godot 集成策略”一节**
-    *   详细说明 `Darklands.csproj` 如何作为组合根。
-    *   内容应包括：
-        *   **依赖注入容器的初始化**: 在哪里以及如何配置DI容器？（例如，在Godot主场景的一个单例脚本 `_Ready` 函数中）。
-        *   **服务获取**: Godot 节点（例如，一个 `Player.cs` 脚本）如何获取其依赖的C#服务（例如 `ICombatService`）？是通过服务定位器模式（Service Locator）还是通过某种形式的注入？
-        *   **信号与服务的连接**: MVP模式中的Presenter如何订阅Godot节点的信号，并调用应用层服务？提供一个具体的代码示例。
-
-3.  **[必须] 澄清 `Presentation` 层与功能 `Presenters` 的关系**
-    *   明确 `Darklands.Presentation.csproj` 的具体职责。如果它的功能可以被功能切片内的 `Presenters` 完全覆盖，我建议**移除这个共享的 `Presentation` 项目**，以简化架构。所有与表现层相关的逻辑都应存在于其所属的功能切片中。
-
-4.  **[建议] 优化迁移分析流程**
-    *   将“迁移前分析”的要求从“量化违规”修改为“**量化并定性分析违规**”。
-    *   要求将违规分类，例如：
-        *   **L1 (简单)**: 错误的 `using` 引用。
-        *   **L2 (中等)**: 需要提取接口以解耦。
-        *   **L3 (复杂)**: 跨层逻辑紧密耦合，需要重写部分逻辑。
-    *   迁移计划应基于这个更详细的分析来制定。
-
-### **最终结论 (Final Verdict)**
-
-我给予此ADR**有条件的批准 (Conditional Approval)**。
-
-该方案方向正确，思考深入。但是，在上述提到的**功能切片间通信**和**Godot集成策略**这两个关键架构问题得到明确的、文档化的解决方案之前，**不得开始实施**。
-
-一旦ADR根据上述建议进行了修订，并通过再次审阅，即可获得最终批准。这项工作将为我们的项目构建一个坚固、可维护的架构基础，其长期收益将远超前期的投入。
+GameManager autoload starting initialization...
+Initializing DI container...
+[18:30:31] [INF] [System] DI container initialized successfully - unified logging active
+[ServiceLocator] Initialized successfully with scope manager
+[18:30:32] [INF] [System] ServiceLocator initialized with GodotScopeManager
+[18:30:32] [DEB] [System] [UIEventBus] Initialized - Ready to bridge domain events to UI
+[18:30:32] [DEB] [System] [UIEventBus] Subscriber {SubscriberType} registered for {EventType} (Total: {Count})
+[18:30:32] [DEB] [System] [UIEventBus] Subscriber {SubscriberType} registered for {EventType} (Total: {Count})
+[18:30:32] [INF] [System] Successfully subscribed to domain events via UI Event Bus
+[18:30:32] [INF] [System] Modern event architecture active - static router fully replaced
+[18:30:32] [INF] [System] GameManager successfully subscribed to domain events
+[18:30:32] [INF] [System] GameManager initialization completed successfully
+[ServiceLocator] Autoload ready at /root/ServiceLocator
+[UIDispatcher] Initialized at /root/UIDispatcher
+[18:30:32] [INF] [System] DebugSystem initialized successfully
+[18:30:32] [INF] [Developer] Information level message - should show if level is Information or lower
+[18:30:32] [WAR] [Developer] Warning level message - should always show
+[GridView] Successfully attached to GridPresenter
+[18:30:32] [INF] [System] Setting up MVP architecture...
+[18:30:32] [INF] [System] Views found successfully - Grid: "Grid", Actor: "Actors" (health consolidated into ActorView)
+[18:30:32] [INF] [System] GameManager will subscribe to domain events via UI Event Bus - modern architecture replaces static router
+[18:30:32] [INF] [System] Presenters created and connected - GridPresenter and ActorPresenter (with consolidated health functionality) initialized with cross-presenter coordination
+[18:30:32] [INF] [System] Creating {Width}x{Height} grid with lines
+[18:30:32] [INF] [System] ActorPresenter initialized, setting up initial actors
+[18:30:32] [INF] [System] Successfully created test player {Name} (Player) at position Actor_aa85f6a0 with (15, 10) health
+[18:30:32] [INF] [Gameplay] Actor_aa85f6a0 created at (15,10)
+[18:30:32] [INF] [System] Creating dummy combat target at position (5, 5) with 50 health
+[18:30:32] [INF] [System] Successfully created dummy target {Name} (Combat Dummy) at position Actor_35409451 with (5, 5) health
+[18:30:32] [INF] [Gameplay] Actor_35409451 created at (5,5)
+[18:30:32] [INF] [System] MVP architecture setup completed - application ready for interaction

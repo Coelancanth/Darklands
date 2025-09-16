@@ -3,11 +3,11 @@ using LanguageExt.Common;
 using MediatR;
 using System.Threading;
 using System.Threading.Tasks;
-using Darklands.Core.Domain.Debug;
-using Darklands.Core.Application.Grid.Services;
+using Darklands.Application.Common;
+using Darklands.Application.Grid.Services;
 using static LanguageExt.Prelude;
 
-namespace Darklands.Core.Application.Grid.Commands
+namespace Darklands.Application.Grid.Commands
 {
     /// <summary>
     /// Handler for MoveActorCommand - Implements functional CQRS pattern with Fin&lt;T&gt; monads.

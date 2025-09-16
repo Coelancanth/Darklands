@@ -5,12 +5,12 @@ using Darklands.Core.Application.Grid.Queries;
 using Darklands.Core.Application.Actor.Services;
 using Darklands.Core.Application.Combat.Services;
 using Darklands.Core.Presentation.Views;
-using Darklands.Core.Domain.Debug;
+using Darklands.Domain.Debug;
 using Darklands.Core.Infrastructure.Debug;
 using MediatR;
 using static LanguageExt.Prelude;
 
-namespace Darklands.Core.Presentation.Presenters
+namespace Darklands.Application.Presentation.Presenters
 {
     /// <summary>
     /// Presenter for the actor view that manages character/unit display and interactions.

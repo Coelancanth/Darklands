@@ -2,7 +2,7 @@ using System;
 using System.Threading.Tasks;
 using MediatR;
 
-namespace Darklands.Core.Application.Events;
+namespace Darklands.Application.Events;
 
 /// <summary>
 /// Core contract for UI Event Bus - bridges MediatR domain events to Godot UI components.

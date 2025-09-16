@@ -3,18 +3,19 @@ using Microsoft.Extensions.Logging;
 using Serilog;
 using Serilog.Extensions.Logging;
 using System;
+using System.Linq;
 using System.Reflection;
 using MediatR;
 using LanguageExt;
 using LanguageExt.Common;
 using static LanguageExt.Prelude;
 using Serilog.Core;
-using Darklands.Core.Domain.Debug;
-using Darklands.Core.Infrastructure.Debug;
-using Darklands.Core.Infrastructure.Logging;
-using Darklands.Core.Domain.Services;
+using Darklands.Application.Common;
+using Darklands.Application.Infrastructure.Debug;
+using Darklands.Application.Infrastructure.Logging;
+using Darklands.Application.Services;
 
-namespace Darklands.Core.Infrastructure.DependencyInjection;
+namespace Darklands.Application.Infrastructure.DependencyInjection;
 
 /// <summary>
 /// Central dependency injection bootstrapper for the Darklands game.
@@ -97,6 +98,14 @@ public static class GameStrapper
                 var appServicesResult = ConfigureApplicationServices(services);
                 if (appServicesResult.IsFail)
                     return appServicesResult.Match(
+                        Succ: _ => FinFail<ServiceProvider>(Error.New("Unexpected success in error path")),
+                        Fail: err => FinFail<ServiceProvider>(err));
+
+                // Phase 3.5: Presentation Services (if available)
+                // Try to configure presentation services if the assembly is loaded
+                var presentationResult = ConfigurePresentationServices(services);
+                if (presentationResult.IsFail)
+                    return presentationResult.Match(
                         Succ: _ => FinFail<ServiceProvider>(Error.New("Unexpected success in error path")),
                         Fail: err => FinFail<ServiceProvider>(err));
 
@@ -187,7 +196,7 @@ public static class GameStrapper
             services.AddSingleton<ICategoryLogger, UnifiedCategoryLogger>();
 
             // Compatibility: allow resolving ILogger<T> via adapter
-            services.AddSingleton(typeof(Microsoft.Extensions.Logging.ILogger<>), typeof(Darklands.Core.Infrastructure.Logging.CategoryLoggerAdapter<>));
+            services.AddSingleton(typeof(Microsoft.Extensions.Logging.ILogger<>), typeof(Darklands.Application.Infrastructure.Logging.CategoryLoggerAdapter<>));
 
             return FinSucc(LanguageExt.Unit.Default);
         }
@@ -277,13 +286,13 @@ public static class GameStrapper
             // NOTE: Using Mock implementations in Core project - Godot implementations are registered in main project
 
             // Audio Service - Singleton for consistent audio state management
-            services.AddSingleton<Domain.Services.IAudioService, Infrastructure.Services.MockAudioService>();
+            services.AddSingleton<Application.Services.IAudioService, Infrastructure.Services.MockAudioService>();
 
             // Input Service - Singleton for consistent input state and event streaming
-            services.AddSingleton<Domain.Services.IInputService, Infrastructure.Services.MockInputService>();
+            services.AddSingleton<Application.Services.IInputService, Infrastructure.Services.MockInputService>();
 
             // Settings Service - Singleton for consistent configuration management across the application
-            services.AddSingleton<Domain.Services.ISettingsService, Infrastructure.Services.MockSettingsService>();
+            services.AddSingleton<Application.Services.ISettingsService, Infrastructure.Services.MockSettingsService>();
 
             // Deterministic simulation foundation (ADR-004 + TD_026)
             services.AddSingleton<Domain.Determinism.IDeterministicRandom>(provider =>
@@ -329,6 +338,54 @@ public static class GameStrapper
         catch (Exception ex)
         {
             return FinFail<LanguageExt.Unit>(Error.New($"Application services configuration failed: {ex.Message}", ex));
+        }
+    }
+
+    /// <summary>
+    /// Configures presentation layer services if the Presentation assembly is available.
+    /// This allows the Core project to optionally load presenters when running in Godot context.
+    /// </summary>
+    private static Fin<LanguageExt.Unit> ConfigurePresentationServices(IServiceCollection services)
+    {
+        try
+        {
+            // Try to load the Presentation assembly
+            var presentationAssembly = AppDomain.CurrentDomain.GetAssemblies()
+                .FirstOrDefault(a => a.GetName().Name == "Darklands.Presentation");
+
+            if (presentationAssembly == null)
+            {
+                // Presentation assembly not loaded - this is fine for tests
+                return FinSucc(LanguageExt.Unit.Default);
+            }
+
+            // Find the ServiceConfiguration type
+            var serviceConfigType = presentationAssembly
+                .GetType("Darklands.Presentation.DI.ServiceConfiguration");
+
+            if (serviceConfigType == null)
+            {
+                return FinFail<LanguageExt.Unit>(Error.New("ServiceConfiguration type not found in Presentation assembly"));
+            }
+
+            // Find the ConfigurePresentationServices method
+            var configureMethod = serviceConfigType
+                .GetMethod("ConfigurePresentationServices",
+                    System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+
+            if (configureMethod == null)
+            {
+                return FinFail<LanguageExt.Unit>(Error.New("ConfigurePresentationServices method not found"));
+            }
+
+            // Invoke the configuration method
+            configureMethod.Invoke(null, new object[] { services });
+
+            return FinSucc(LanguageExt.Unit.Default);
+        }
+        catch (Exception ex)
+        {
+            return FinFail<LanguageExt.Unit>(Error.New($"Presentation services configuration failed: {ex.Message}", ex));
         }
     }
 

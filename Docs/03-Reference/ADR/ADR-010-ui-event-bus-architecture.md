@@ -2,6 +2,7 @@
 
 ## Status
 **Accepted** - 2025-09-08
+**Updated** - 2025-09-16 - Updated for ADR-021 MVP enforcement (EventAwarePresenter pattern)
 
 ## Context
 
@@ -196,65 +197,148 @@ public class UIEventForwarder<TEvent> : INotificationHandler<TEvent>
 }
 ```
 
-#### 4. Base Class for Event-Aware UI Components
+#### 4. Base Class for Event-Aware Presenters (Updated for MVP)
 ```csharp
-public abstract class EventAwareNode : Node2D
+// UPDATED: Presenters handle events, not Views directly
+public abstract class EventAwarePresenter<TView> : IPresenter<TView>
+    where TView : class
 {
-    protected IUIEventBus EventBus { get; private set; }
-    
-    // Optional: Keep a reference to unsubscribe specific event types if needed
-    
-    
-    public override void _Ready()
+    protected readonly IUIEventBus _eventBus;
+    protected readonly ICategoryLogger _logger;
+    protected TView? _view;
+
+    protected EventAwarePresenter(IUIEventBus eventBus, ICategoryLogger logger)
     {
-        // Service locator pattern - necessary evil for Godot integration
-        EventBus = ServiceLocator.GetRequiredService<IUIEventBus>();
+        _eventBus = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
+
+    public virtual void AttachView(TView view)
+    {
+        _view = view ?? throw new ArgumentNullException(nameof(view));
+    }
+
+    public virtual void Initialize()
+    {
+        // Subscribe to events in presenter, not view
         SubscribeToEvents();
+        _logger.LogDebug("Presenter {Type} subscribed to events", GetType().Name);
     }
-    
-    protected abstract void SubscribeToEvents();
-    
-    public override void _ExitTree()
+
+    public virtual void Dispose()
     {
-        EventBus?.UnsubscribeAll(this);
+        _eventBus.UnsubscribeAll(this);
+        _logger.LogDebug("Presenter {Type} unsubscribed from all events", GetType().Name);
     }
+
+    /// <summary>
+    /// Subclasses override to subscribe to specific event types
+    /// Events are handled by presenter, which then updates the view
+    /// </summary>
+    protected abstract void SubscribeToEvents();
 }
 ```
 
-#### 5. Concrete UI Implementation
+#### 5. MVP Implementation Example
 ```csharp
-public partial class GameManager : EventAwareNode
+// Presenter handles events and coordinates with View
+public sealed class CombatPresenter : EventAwarePresenter<ICombatView>
 {
+    public CombatPresenter(IUIEventBus eventBus, ICategoryLogger logger)
+        : base(eventBus, logger) { }
+
     protected override void SubscribeToEvents()
     {
-        EventBus.Subscribe<ActorDiedEvent>(this, OnActorDied);
-        EventBus.Subscribe<ActorDamagedEvent>(this, OnActorDamaged);
-        EventBus.Subscribe<CombatEndedEvent>(this, OnCombatEnded);
+        _eventBus.Subscribe<ActorDiedEvent>(this, OnActorDied);
+        _eventBus.Subscribe<ActorDamagedEvent>(this, OnActorDamaged);
+        _eventBus.Subscribe<CombatEndedEvent>(this, OnCombatEnded);
     }
-    
+
     private void OnActorDied(ActorDiedEvent e)
     {
-        // Already on UI thread via CallDeferred
-        RemoveActor(e.ActorId);
+        // Presenter receives event and updates view
+        _view?.RemoveActor(e.ActorId);
+        _view?.ShowDeathAnimation(e.ActorId);
     }
-    
+
     private void OnActorDamaged(ActorDamagedEvent e)
     {
-        UpdateHealthBar(e.ActorId, e.RemainingHealth);
+        // Presenter coordinates view updates
+        _view?.UpdateHealthBar(e.ActorId, e.RemainingHealth, e.MaxHealth);
+        _view?.ShowDamageNumber(e.Damage);
+    }
+}
+
+// View only implements interface and resolves presenter
+public partial class CombatView : Control, ICombatView
+{
+    private ICombatPresenter? _presenter;
+
+    public override void _Ready()
+    {
+        // Views ONLY resolve their presenter
+        _presenter = this.GetService<ICombatPresenter>();
+        _presenter.AttachView(this);
+        _presenter.Initialize(); // Presenter handles event subscriptions
+    }
+
+    public override void _ExitTree()
+    {
+        // Cleanup through presenter
+        _presenter?.Dispose();
+    }
+
+    // ICombatView implementation - pure UI updates
+    public void RemoveActor(ActorId actorId)
+    {
+        var actor = FindActorNode(actorId);
+        actor?.QueueFree();
+    }
+
+    public void UpdateHealthBar(ActorId actorId, int current, int max)
+    {
+        var healthBar = FindHealthBar(actorId);
+        healthBar.Value = (float)current / max;
+    }
+
+    public void ShowDamageNumber(int damage)
+    {
+        // Show floating damage number animation
+        var damageLabel = GetNode<Label>("DamagePopup");
+        damageLabel.Text = damage.ToString();
+        damageLabel.Show();
+        CreateTween().TweenProperty(damageLabel, "modulate:a", 0.0f, 1.0f);
     }
 }
 ```
 
-### DI Registration
+### DI Registration (Updated for Project Separation)
 ```csharp
-// In ServiceConfiguration.cs
-public static void ConfigureUIEventBus(this IServiceCollection services)
+// In Darklands.Presentation/ServiceConfiguration.cs
+public static class ServiceConfiguration
 {
-    // Register the bus as singleton
-    services.AddSingleton<IUIEventBus, UIEventBus>();
-    
-    // Register generic forwarder for all domain events
-    services.AddTransient(typeof(INotificationHandler<>), typeof(UIEventForwarder<>));
+    public static IServiceProvider ConfigureServices()
+    {
+        var services = new ServiceCollection();
+
+        // UI Event Bus - singleton across application
+        services.AddSingleton<IUIEventBus, UIEventBus>();
+
+        // Register generic forwarder for all domain events
+        services.AddTransient(typeof(INotificationHandler<>), typeof(UIEventForwarder<>));
+
+        // Presenters - scoped per scene/scope
+        services.AddScoped<ICombatPresenter, CombatPresenter>();
+        services.AddScoped<IGridPresenter, GridPresenter>();
+        services.AddScoped<IActorPresenter, ActorPresenter>();
+
+        // Core services (for presenters to use)
+        services.AddSingleton<IMediator, Mediator>();
+        services.AddSingleton<ICategoryLogger, UnifiedCategoryLogger>();
+        // ... other core services
+
+        return services.BuildServiceProvider();
+    }
 }
 ```
 

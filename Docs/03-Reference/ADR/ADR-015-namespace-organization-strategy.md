@@ -1,9 +1,30 @@
 # ADR-015: Namespace Organization Strategy
 
 ## Status
-**Status**: Proposed  
-**Date**: 2025-09-11  
-**Decision Makers**: Tech Lead, Dev Engineer  
+**Status**: REJECTED - Over-engineered solution
+**Date**: 2025-09-11 (Proposed) | 2025-09-15 (Rejected)
+**Decision Makers**: Tech Lead, Dev Engineer, DevOps Engineer
+**Rejection Reason**: Post TD_042 architectural simplification - this ADR reintroduces DDD complexity we intentionally removed
+
+## Rejection Rationale (2025-09-15)
+
+After successful completion of TD_042 (Replace Over-Engineered DDD Main with Focused Implementation Approach), this ADR represents exactly the kind of over-engineering we eliminated:
+
+### Why This ADR is Over-Engineered
+1. **Reintroduces DDD Concepts**: Proposes "Bounded Contexts" like `Domain.Spatial`, `Domain.Entities`, etc.
+2. **Massive Scope**: 4-hour refactoring for a simple naming collision problem
+3. **Adds Complexity**: Creates new organizational patterns when simple renames suffice
+4. **Violates Zero-Friction Philosophy**: Transforms 30-minute fix into architectural overhaul
+
+### Simple Solution Applied Instead
+**TD_032 updated to minimal approach:**
+- Rename `Grid` → `WorldGrid` (same namespace)
+- Rename `Actor` → `ActorEntity` (same namespace)
+- 30 minutes total vs 4 hours
+- Zero new concepts vs "Bounded Contexts"
+- Solves collision problem without architectural astronautics
+
+**Result**: Namespace collisions eliminated with minimal change, preserving the architectural simplicity achieved in TD_042.
 
 ## Context
 

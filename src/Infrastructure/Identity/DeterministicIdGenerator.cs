@@ -1,8 +1,8 @@
-using Darklands.Core.Domain.Common;
-using Darklands.Core.Domain.Determinism;
+using Darklands.Domain.Common;
+using Darklands.Domain.Determinism;
 using System.Text;
 
-namespace Darklands.Core.Infrastructure.Identity;
+namespace Darklands.Application.Infrastructure.Identity;
 
 /// <summary>
 /// Deterministic ID generator using IDeterministicRandom for testing and replay scenarios.

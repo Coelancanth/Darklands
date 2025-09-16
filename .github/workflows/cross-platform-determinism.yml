@@ -66,8 +66,14 @@ jobs:
       
     - name: 🏗️ Build Core projects
       run: |
-        dotnet build src/Darklands.Core.csproj --configuration Release
-        dotnet build tests/Darklands.Core.Tests.csproj --configuration Release
+        # Build entire solution - handles dependency order automatically
+        dotnet build Darklands.sln --configuration Release --no-restore || {
+          # Fallback to individual projects if solution build fails (e.g., missing Godot)
+          dotnet build src/Darklands.Domain/Darklands.Domain.csproj --configuration Release --no-restore
+          dotnet build src/Darklands.Application.csproj --configuration Release --no-restore
+          dotnet build src/Darklands.Presentation/Darklands.Presentation.csproj --configuration Release --no-restore
+          dotnet build tests/Darklands.Core.Tests.csproj --configuration Release --no-restore
+        }
         
     - name: 🎯 Run Determinism Property Tests
       id: property_tests

@@ -1,8 +1,8 @@
 using System;
 using System.Text;
-using Darklands.Core.Domain.Debug;
+using Darklands.Application.Common;
 
-namespace Darklands.Core.Infrastructure.Logging;
+namespace Darklands.Application.Infrastructure.Logging;
 
 /// <summary>
 /// Simple output for test environment that writes to Console and buffers content.

@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <ValidateOnBuild>true</ValidateOnBuild>
+  </PropertyGroup>
+  
+  <ItemGroup>
+    <!-- Domain project reference -->
+    <ProjectReference Include="Darklands.Domain\Darklands.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Explicitly exclude folders that belong to other projects -->
+    <Compile Remove="Darklands.Domain\**" />
+    <Compile Remove="Darklands.Presentation\**" />
+    <Compile Remove="Presentation\**" />
+    <Compile Remove="Tactical\**" />
+    <Compile Remove="Diagnostics\**" />
+    <EmbeddedResource Remove="Darklands.Domain\**" />
+    <EmbeddedResource Remove="Darklands.Presentation\**" />
+    <EmbeddedResource Remove="Presentation\**" />
+    <EmbeddedResource Remove="Tactical\**" />
+    <EmbeddedResource Remove="Diagnostics\**" />
+    <None Remove="Darklands.Domain\**" />
+    <None Remove="Darklands.Presentation\**" />
+    <None Remove="Presentation\**" />
+    <None Remove="Tactical\**" />
+    <None Remove="Diagnostics\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Application + Infrastructure dependencies - NO Godot! -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.8" />
+    <PackageReference Include="Serilog" Version="4.3.0" />
+    <PackageReference Include="Serilog.Extensions.Logging" Version="9.0.2" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.8" />
+    <PackageReference Include="LanguageExt.Core" Version="5.0.0-beta-54" />
+    <PackageReference Include="MediatR" Version="13.0.0" />
+    <PackageReference Include="System.Reactive" Version="6.0.1" />
+  </ItemGroup>
+  
+  <!-- CRITICAL: Husky.NET auto-installation (disabled in CI) -->
+  <Target Name="husky" BeforeTargets="Restore;CollectPackageReferences" Condition="'$(HUSKY)' != '0' AND '$(CI)' != 'true'">
+    <Exec Command="dotnet tool restore" StandardOutputImportance="Low" StandardErrorImportance="High" />
+    <Exec Command="dotnet husky install" StandardOutputImportance="Low" StandardErrorImportance="High" WorkingDirectory=".." />
+  </Target>
+</Project>

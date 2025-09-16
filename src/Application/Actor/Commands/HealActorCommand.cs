@@ -1,9 +1,9 @@
-using Darklands.Core.Application.Common;
-using Darklands.Core.Domain.Grid;
+using Darklands.Application.Common;
+using Darklands.Domain.Grid;
 using LanguageExt;
 using MediatR;
 
-namespace Darklands.Core.Application.Actor.Commands
+namespace Darklands.Application.Actor.Commands
 {
     /// <summary>
     /// Command to apply healing to an actor, restoring their health.

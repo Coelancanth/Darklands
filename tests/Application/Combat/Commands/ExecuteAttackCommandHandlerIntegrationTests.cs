@@ -3,14 +3,14 @@ using Xunit;
 using Microsoft.Extensions.DependencyInjection;
 using MediatR;
 using Serilog;
-using Darklands.Core.Application.Combat.Commands;
-using Darklands.Core.Application.Combat.Services;
-using Darklands.Core.Application.Actor.Services;
-using Darklands.Core.Application.Actor.Commands;
-using Darklands.Core.Application.Grid.Services;
-using Darklands.Core.Domain.Combat;
-using Darklands.Core.Domain.Grid;
-using Darklands.Core.Infrastructure.DependencyInjection;
+using Darklands.Application.Combat.Commands;
+using Darklands.Application.Combat.Services;
+using Darklands.Application.Actor.Services;
+using Darklands.Application.Actor.Commands;
+using Darklands.Application.Grid.Services;
+using Darklands.Domain.Combat;
+using Darklands.Domain.Grid;
+using Darklands.Application.Infrastructure.DependencyInjection;
 using Darklands.Core.Tests.TestUtilities;
 using LanguageExt;
 using System.Threading;
@@ -75,8 +75,8 @@ public class ExecuteAttackCommandHandlerIntegrationTests : IDisposable
         var targetPosition = new Position(15, 11); // Adjacent to player position
 
         // Create actors with full health
-        var attackerResult = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(attackerId, 100, "Warrior");
-        var targetResult = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(targetId, 50, "Orc");
+        var attackerResult = Darklands.Domain.Actor.Actor.CreateAtFullHealth(attackerId, 100, "Warrior");
+        var targetResult = Darklands.Domain.Actor.Actor.CreateAtFullHealth(targetId, 50, "Orc");
 
         var attacker = attackerResult.Match(a => a, _ => throw new Exception("Test setup failed"));
         var target = targetResult.Match(a => a, _ => throw new Exception("Test setup failed"));
@@ -123,8 +123,8 @@ public class ExecuteAttackCommandHandlerIntegrationTests : IDisposable
         var attackerPosition = new Position(5, 10); // Goblin position (guaranteed open)
         var targetPosition = new Position(5, 11); // Adjacent
 
-        var attackerResult = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(attackerId, 100, "Warrior");
-        var targetResult = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(targetId, 5, "WeakOrc"); // Very low health
+        var attackerResult = Darklands.Domain.Actor.Actor.CreateAtFullHealth(attackerId, 100, "Warrior");
+        var targetResult = Darklands.Domain.Actor.Actor.CreateAtFullHealth(targetId, 5, "WeakOrc"); // Very low health
 
         var attacker = attackerResult.Match(a => a, _ => throw new Exception("Test setup failed"));
         var target = targetResult.Match(a => a, _ => throw new Exception("Test setup failed"));
@@ -167,8 +167,8 @@ public class ExecuteAttackCommandHandlerIntegrationTests : IDisposable
         var attackerPosition = new Position(20, 15); // Orc position (guaranteed open)
         var targetPosition = new Position(23, 18); // Not adjacent (distance 3,3), using open area
 
-        var attackerResult = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(attackerId, 100, "Warrior");
-        var targetResult = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(targetId, 50, "Orc");
+        var attackerResult = Darklands.Domain.Actor.Actor.CreateAtFullHealth(attackerId, 100, "Warrior");
+        var targetResult = Darklands.Domain.Actor.Actor.CreateAtFullHealth(targetId, 50, "Orc");
 
         var attacker = attackerResult.Match(a => a, _ => throw new Exception("Test setup failed"));
         var target = targetResult.Match(a => a, _ => throw new Exception("Test setup failed"));
@@ -208,8 +208,8 @@ public class ExecuteAttackCommandHandlerIntegrationTests : IDisposable
         var attackerPosition = new Position(25, 5); // Eagle position (guaranteed open)
         var targetPosition = new Position(24, 5); // Adjacent (horizontal, moving away from border)
 
-        var attackerResult = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(attackerId, 100, "Warrior");
-        var targetResult = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(targetId, 50, "Orc");
+        var attackerResult = Darklands.Domain.Actor.Actor.CreateAtFullHealth(attackerId, 100, "Warrior");
+        var targetResult = Darklands.Domain.Actor.Actor.CreateAtFullHealth(targetId, 50, "Orc");
 
         var attacker = attackerResult.Match(a => a, _ => throw new Exception("Test setup failed"));
         var aliveTarget = targetResult.Match(a => a, _ => throw new Exception("Test setup failed"));
@@ -246,8 +246,8 @@ public class ExecuteAttackCommandHandlerIntegrationTests : IDisposable
         var attackerPosition = new Position(14, 10); // Near player position (guaranteed open)
         var targetPosition = new Position(14, 11); // Adjacent
 
-        var attackerResult = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(attackerId, 100, "Warrior");
-        var targetResult = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(targetId, 100, "ToughOrc");
+        var attackerResult = Darklands.Domain.Actor.Actor.CreateAtFullHealth(attackerId, 100, "Warrior");
+        var targetResult = Darklands.Domain.Actor.Actor.CreateAtFullHealth(targetId, 100, "ToughOrc");
 
         var attacker = attackerResult.Match(a => a, _ => throw new Exception("Test setup failed"));
         var target = targetResult.Match(a => a, _ => throw new Exception("Test setup failed"));
@@ -295,9 +295,9 @@ public class ExecuteAttackCommandHandlerIntegrationTests : IDisposable
         GetMediator().Should().NotBeNull("IMediator should be resolved from DI");
 
         // Verify service types are correct implementations
-        GetGridStateService().Should().BeOfType<Darklands.Core.Application.Grid.Services.InMemoryGridStateService>();
-        GetActorStateService().Should().BeOfType<Darklands.Core.Application.Actor.Services.InMemoryActorStateService>();
-        GetCombatSchedulerService().Should().BeOfType<Darklands.Core.Application.Combat.Services.InMemoryCombatSchedulerService>();
+        GetGridStateService().Should().BeOfType<Darklands.Application.Grid.Services.InMemoryGridStateService>();
+        GetActorStateService().Should().BeOfType<Darklands.Application.Actor.Services.InMemoryActorStateService>();
+        GetCombatSchedulerService().Should().BeOfType<Darklands.Application.Combat.Services.InMemoryCombatSchedulerService>();
 
         // Verify MediatR can resolve the handler
         var command = ExecuteAttackCommand.Create(attackerId, targetId);

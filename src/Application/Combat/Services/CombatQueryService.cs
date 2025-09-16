@@ -1,11 +1,11 @@
 using System.Collections.Generic;
 using System.Linq;
 using LanguageExt;
-using Darklands.Core.Application.Actor.Services;
-using Darklands.Core.Application.Grid.Services;
-using Darklands.Core.Domain.Grid;
+using Darklands.Application.Actor.Services;
+using Darklands.Application.Grid.Services;
+using Darklands.Domain.Grid;
 
-namespace Darklands.Core.Application.Combat.Services
+namespace Darklands.Application.Combat.Services
 {
     /// <summary>
     /// Implementation of ICombatQueryService that coordinates between ActorStateService and GridStateService.

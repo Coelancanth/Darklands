@@ -1,9 +1,9 @@
 using MediatR;
 using LanguageExt;
 using LanguageExt.Common;
-using Darklands.Core.Domain.Debug;
+using Darklands.Application.Common;
 
-namespace Darklands.Core.Infrastructure.DependencyInjection;
+namespace Darklands.Application.Infrastructure.DependencyInjection;
 
 /// <summary>
 /// MediatR pipeline behavior that provides consistent error handling for all commands and queries.

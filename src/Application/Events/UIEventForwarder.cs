@@ -1,10 +1,10 @@
 using System.Threading;
 using System.Threading.Tasks;
 using MediatR;
-using Darklands.Core.Domain.Debug;
-using Darklands.Core.Infrastructure.Debug;
+using Darklands.Application.Common;
+using Darklands.Application.Infrastructure.Debug;
 
-namespace Darklands.Core.Application.Events;
+namespace Darklands.Application.Events;
 
 /// <summary>
 /// Generic MediatR notification handler that forwards domain events to the UI Event Bus.

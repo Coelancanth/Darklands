@@ -1,10 +1,10 @@
 using System;
 using Godot;
 using Microsoft.Extensions.DependencyInjection;
-using Darklands.Core.Domain.Debug;
-using Darklands.Core.Infrastructure.Logging;
-using Darklands.Core.Application.Events;
-using Darklands.Core.Infrastructure.DependencyInjection;
+using Darklands.Application.Common;
+using Darklands.Application.Infrastructure.Logging;
+using Darklands.Application.Events;
+using Darklands.Application.Infrastructure.DependencyInjection;
 using Darklands.Presentation.Infrastructure;
 using MediatR;
 

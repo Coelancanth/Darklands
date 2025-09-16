@@ -1,9 +1,9 @@
 using System;
 using System.IO;
 using System.Text;
-using Darklands.Core.Domain.Debug;
+using Darklands.Application.Common;
 
-namespace Darklands.Core.Infrastructure.Logging;
+namespace Darklands.Application.Infrastructure.Logging;
 
 /// <summary>
 /// Simple session-based file output. Creates a timestamped file and updates a

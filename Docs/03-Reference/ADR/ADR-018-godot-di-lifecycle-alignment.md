@@ -2,6 +2,7 @@
 
 ## Status
 **ACCEPTED** - Implemented in TD_052 (2025-09-15)
+**UPDATED** - 2025-09-15 - Aligned with ADR-021 MVP enforcement
 
 ## Context
 
@@ -20,6 +21,19 @@ Current state:
 - Nodes manually call ServiceProvider in various lifecycle methods
 
 We need a lightweight bridge between MS.DI's scope model and Godot's scene lifecycle without abandoning our existing DI infrastructure or introducing complex abstractions.
+
+### Critical Constraint: MVP Pattern Enforcement (per ADR-021)
+
+**IMPORTANT**: This ADR must align with ADR-021's strict MVP separation:
+- **Views (Godot nodes) can ONLY resolve their Presenter**
+- **Views MUST NOT resolve Application services (IMediator, IRepository, etc.)**
+- **Views MUST NOT resolve Infrastructure services (ILogger, IAudioService, etc.)**
+- **Presenters are responsible for ALL service interactions**
+
+This constraint is enforced at the project reference level:
+- `Darklands.csproj` (Views) → references ONLY `Darklands.Presentation`
+- `Darklands.csproj` has NO reference to `Darklands.Core`
+- Therefore, Views cannot even see Core services at compile time
 
 ## Decision
 
@@ -198,66 +212,166 @@ public static class NodeServiceExtensions
 ### Service Registration
 
 ```csharp
-// In GameStrapper.cs
-public static IServiceProvider Initialize()
+// In Darklands.Presentation/ServiceConfiguration.cs (NOT in Darklands.csproj!)
+public static class ServiceConfiguration
 {
-    var services = new ServiceCollection();
+    public static IServiceProvider ConfigureServices()
+    {
+        var services = new ServiceCollection();
 
-    // Register scope manager as singleton
-    services.AddSingleton<IScopeManager>(provider =>
-        new GodotScopeManager(provider));
+        // Register scope manager as singleton
+        services.AddSingleton<IScopeManager>(provider =>
+            new GodotScopeManager(provider));
 
-    // SINGLETON - Lives entire application lifetime
-    services.AddSingleton<ILogger, UnifiedLogger>();
-    services.AddSingleton<IAudioService, GodotAudioService>();
-    services.AddSingleton<ISettingsService, SettingsService>();
-    services.AddSingleton<IDeterministicRandom, DeterministicRandom>();
-    services.AddSingleton<IUIEventBus, UIEventBus>();
+        // PRESENTERS - The ONLY services Views should resolve
+        services.AddScoped<IGridPresenter, GridPresenter>();
+        services.AddScoped<IActorPresenter, ActorPresenter>();
+        services.AddScoped<ICombatPresenter, CombatPresenter>();
+        services.AddScoped<IInventoryPresenter, InventoryPresenter>();
 
-    // SCOPED - Reset per scope (scene or nested)
-    services.AddScoped<IGameState, GameState>();
-    services.AddScoped<ICombatState, CombatState>();
-    services.AddScoped<IActorRepository, ActorRepository>();
-    services.AddScoped<IGridPresenter, GridPresenter>();
+        // SINGLETON - Lives entire application lifetime (used by Presenters)
+        services.AddSingleton<ILogger, UnifiedLogger>();
+        services.AddSingleton<IAudioService, GodotAudioService>();
+        services.AddSingleton<ISettingsService, SettingsService>();
+        services.AddSingleton<IDeterministicRandom, DeterministicRandom>();
+        services.AddSingleton<IUIEventBus, UIEventBus>();
 
-    // TRANSIENT - New instance per resolution
-    services.AddTransient<ICommand, Command>();
-    services.AddTransient(typeof(IRequestHandler<,>), typeof(Handler<,>));
+        // SCOPED - Reset per scope (used by Presenters)
+        services.AddScoped<IGameState, GameState>();
+        services.AddScoped<ICombatState, CombatState>();
+        services.AddScoped<IActorRepository, ActorRepository>();
 
-    var provider = services.BuildServiceProvider();
+        // TRANSIENT - New instance per resolution (used by Presenters)
+        services.AddTransient<ICommand, Command>();
+        services.AddTransient(typeof(IRequestHandler<,>), typeof(Handler<,>));
 
-    // Initialize extension methods
-    var scopeManager = provider.GetRequiredService<IScopeManager>();
-    NodeServiceExtensions.Initialize(scopeManager);
+        // MediatR registration
+        services.AddMediatR(cfg => {
+            cfg.RegisterServicesFromAssembly(typeof(Darklands.Core.CoreMarker).Assembly);
+        });
 
-    return provider;
+        var provider = services.BuildServiceProvider();
+
+        // Initialize scope manager
+        var scopeManager = provider.GetRequiredService<IScopeManager>();
+
+        return provider;
+    }
+}
+
+// In GameManager.cs (Darklands.csproj - minimal bootstrap only)
+public partial class GameManager : Node
+{
+    public override void _Ready()
+    {
+        // Bootstrap DI through Presentation layer
+        var serviceProvider = ServiceConfiguration.ConfigureServices();
+
+        // Initialize ServiceLocator autoload
+        var serviceLocator = GetNode<ServiceLocator>("/root/ServiceLocator");
+        serviceLocator.Initialize(serviceProvider.GetRequiredService<IScopeManager>());
+    }
 }
 ```
 
-### Node Resolution Pattern
+### Node Resolution Pattern (MVP-Compliant)
 
 ```csharp
-public partial class CombatView : Control
+// CORRECT: View only resolves its Presenter
+public partial class CombatView : Control, ICombatView
 {
-    private IMediator? _mediator;
-    private IUIEventBus? _eventBus;
-    private ICombatState? _combatState;
+    private ICombatPresenter? _presenter;
 
     public override void _Ready()
     {
-        // Using extension methods - clean and simple
-        _mediator = this.GetService<IMediator>();
-        _eventBus = this.GetService<IUIEventBus>();
-        _combatState = this.GetService<ICombatState>();
+        // Views ONLY resolve their presenter
+        _presenter = this.GetService<ICombatPresenter>();
 
-        // Subscribe to events
-        _eventBus.Subscribe<CombatStartedEvent>(OnCombatStarted);
+        // Register view with presenter
+        _presenter.AttachView(this);
+
+        // Let presenter handle all initialization
+        _presenter.Initialize();
     }
 
     public override void _ExitTree()
     {
-        // Cleanup subscriptions
-        _eventBus?.Unsubscribe<CombatStartedEvent>(OnCombatStarted);
+        // Presenter handles cleanup
+        _presenter?.Dispose();
+    }
+
+    // ICombatView implementation - UI updates only
+    public void UpdateHealth(int current, int max)
+    {
+        GetNode<ProgressBar>("HealthBar").Value = (float)current / max;
+    }
+
+    // UI events delegate to presenter
+    private void _on_AttackButton_pressed()
+    {
+        _presenter?.OnAttackRequested();
+    }
+}
+
+// The Presenter handles ALL service interactions
+public class CombatPresenter : ICombatPresenter
+{
+    private readonly IMediator _mediator;
+    private readonly IUIEventBus _eventBus;
+    private readonly ICombatState _combatState;
+    private ICombatView? _view;
+
+    // Presenter gets services through constructor injection
+    public CombatPresenter(
+        IMediator mediator,
+        IUIEventBus eventBus,
+        ICombatState combatState)
+    {
+        _mediator = mediator;
+        _eventBus = eventBus;
+        _combatState = combatState;
+    }
+
+    public void AttachView(ICombatView view)
+    {
+        _view = view;
+    }
+
+    public void Initialize()
+    {
+        // Presenter subscribes to domain events
+        _eventBus.Subscribe<CombatStartedEvent>(OnCombatStarted);
+
+        // Presenter updates view based on state
+        var health = _combatState.PlayerHealth;
+        _view?.UpdateHealth(health.Current, health.Max);
+    }
+
+    public void OnAttackRequested()
+    {
+        // Presenter sends commands through MediatR
+        _mediator.Send(new AttackCommand());
+    }
+
+    public void Dispose()
+    {
+        _eventBus.Unsubscribe<CombatStartedEvent>(OnCombatStarted);
+    }
+}
+```
+
+### INCORRECT Patterns (DO NOT USE)
+
+```csharp
+// ❌ WRONG: View should NOT resolve Core services
+public partial class BadView : Control
+{
+    public override void _Ready()
+    {
+        // These violate MVP - Views cannot see Core services!
+        var mediator = this.GetService<IMediator>();       // ❌ COMPILE ERROR
+        var repository = this.GetService<IRepository>();   // ❌ COMPILE ERROR
+        var logger = this.GetService<ILogger>();          // ❌ COMPILE ERROR
     }
 }
 ```
@@ -490,13 +604,16 @@ Keep current approach with only singleton/transient.
 3. Performance test tree walking in deep hierarchies
 4. Add debug window showing active scopes and services
 
-### Critical Rules
-1. **Never resolve in _Process**: Only in _Ready or event handlers
-2. **Cache resolved services**: Store in private fields
-3. **Dispose subscriptions**: Clean up in _ExitTree
-4. **No attribute injection for services**: Only for node paths
-5. **Test scope isolation**: Each test should begin/end scope
-6. **Scene loading MUST use SceneManager**: Direct scene instantiation bypasses DI
+### Critical Rules (Updated for MVP Compliance)
+1. **Views ONLY resolve Presenters**: Never resolve Core services directly
+2. **Never resolve in _Process**: Only in _Ready or event handlers
+3. **Cache resolved presenter**: Store in private field
+4. **Presenters handle ALL service interactions**: Views are purely UI
+5. **Dispose through presenter**: Call presenter.Dispose() in _ExitTree
+6. **No attribute injection for services**: Only for node paths
+7. **Test scope isolation**: Each test should begin/end scope
+8. **Scene loading MUST use SceneManager**: Direct scene instantiation bypasses DI
+9. **Compile-time enforcement**: Project references prevent violations
 
 ### Enforcement Mechanisms
 
@@ -504,6 +621,28 @@ Keep current approach with only singleton/transient.
 // Add to project settings or CI
 public class DIEnforcementTests
 {
+    [Test]
+    public void ViewsOnlyResolvePresenterInterfaces()
+    {
+        // Scan View classes for GetService<T> calls
+        // Ensure T always ends with "Presenter"
+        var viewTypes = Assembly.GetAssembly(typeof(GameManager))
+            .GetTypes()
+            .Where(t => t.IsSubclassOf(typeof(Node)));
+
+        foreach (var viewType in viewTypes)
+        {
+            // Check that GetService only resolves IPresenter types
+        }
+    }
+
+    [Test]
+    public void NoCoreReferencesInGodotProject()
+    {
+        // Ensure Darklands.csproj doesn't reference Darklands.Core
+        // This is enforced at project level but double-check
+    }
+
     [Test]
     public void AllScenesLoadedThroughSceneManager()
     {
@@ -533,9 +672,63 @@ public class DIEnforcementTests
 | Commands | Transient | Stateless operations |
 | Handlers | Transient | MediatR requirement |
 
+## Godot Project Organization
+
+### Where Godot Files Live (per ADR-021)
+
+```
+Darklands.csproj (Root - Godot Entry Point)
+├── Views/                     # Godot View implementations
+│   ├── Combat/
+│   │   ├── CombatView.cs     # : Control, ICombatView
+│   │   └── CombatView.tscn   # Godot scene file
+│   ├── Grid/
+│   │   ├── GridView.cs       # : TileMap, IGridView
+│   │   └── GridView.tscn     # Godot scene file
+│   └── Actor/
+│       ├── ActorView.cs      # : Node2D, IActorView
+│       └── ActorView.tscn    # Godot scene file
+├── Scenes/                    # Composed scenes
+│   ├── MainMenu.tscn
+│   ├── GameWorld.tscn
+│   └── CombatArena.tscn
+├── Resources/                 # Godot resources
+│   ├── Sprites/
+│   ├── Audio/
+│   └── Themes/
+├── GameManager.cs            # Minimal bootstrap only
+├── ServiceLocator.cs         # Autoload for DI
+└── project.godot             # Godot project file
+
+Darklands.Presentation.csproj
+├── Views/                    # View INTERFACES
+│   ├── ICombatView.cs
+│   ├── IGridView.cs
+│   └── IActorView.cs
+├── Presenters/              # Presenters orchestrate
+│   ├── CombatPresenter.cs
+│   ├── GridPresenter.cs
+│   └── ActorPresenter.cs
+└── ServiceConfiguration.cs  # DI setup
+
+Darklands.Core.csproj
+├── Application/             # Commands, Handlers
+└── Infrastructure/         # Services, Repositories
+
+Darklands.Domain.csproj     # Pure business logic
+```
+
+### Key Points:
+- **Godot scenes (.tscn)** stay in root project with Views
+- **View interfaces** live in Presentation project
+- **Presenters** live in Presentation and handle all logic
+- **Views** only know about their Presenter interface
+- **No Core references** allowed in Darklands.csproj
+
 ## References
 - [Microsoft.Extensions.DependencyInjection Scopes](https://docs.microsoft.com/en-us/dotnet/core/extensions/dependency-injection#service-lifetimes)
 - [Godot Scene Tree](https://docs.godotengine.org/en/stable/tutorials/scripting/scene_tree.html)
 - ADR-006: Selective Abstraction Strategy
 - ADR-010: UI Event Bus Architecture
+- ADR-021: Minimal Project Separation for Domain Purity
 - Unity's Zenject/VContainer scope model (inspiration)

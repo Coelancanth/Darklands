@@ -2,10 +2,11 @@ using Xunit;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using Darklands.Core.Infrastructure.Vision;
-using Darklands.Core.Domain.Common;
-using Darklands.Core.Domain.Grid;
-using Darklands.Core.Infrastructure.Identity;
+using Darklands.Application.Vision;
+using Darklands.Application.Infrastructure.Vision;
+using Darklands.Domain.Common;
+using Darklands.Domain.Grid;
+using Darklands.Application.Infrastructure.Identity;
 using Darklands.Core.Tests.TestUtilities;
 
 namespace Darklands.Core.Tests.Infrastructure.Vision;

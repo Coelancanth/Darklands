@@ -1,8 +1,8 @@
 using FluentAssertions;
 using Xunit;
-using Darklands.Core.Infrastructure.Identity;
-using Darklands.Core.Domain.Determinism;
-using Darklands.Core.Domain.Common;
+using Darklands.Application.Infrastructure.Identity;
+using Darklands.Domain.Determinism;
+using Darklands.Domain.Common;
 using System.Collections.Generic;
 
 namespace Darklands.Core.Tests.Infrastructure.Identity;

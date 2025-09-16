@@ -1,9 +1,9 @@
 using System.Reflection;
 using FluentAssertions;
 using Xunit;
-using Darklands.Core.Infrastructure.DependencyInjection;
-using Darklands.Core.Infrastructure.Validation;
-using Darklands.Core.Domain.Common;
+using Darklands.Application.Infrastructure.DependencyInjection;
+using Darklands.Application.Infrastructure.Validation;
+using Darklands.Domain.Common;
 using Microsoft.Extensions.DependencyInjection;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,6 +14,8 @@ namespace Darklands.Core.Tests.Architecture;
 public class ArchitectureTests
 {
     private readonly Assembly _coreAssembly = typeof(GameStrapper).Assembly;
+    private readonly Assembly _presentationAssembly = typeof(Darklands.Presentation.Presenters.ActorPresenter).Assembly;
+    private readonly Assembly _domainAssembly = typeof(IPersistentEntity).Assembly;
 
     [Fact]
     [Trait("Category", "Architecture")]
@@ -78,7 +80,8 @@ public class ArchitectureTests
     public void Presenters_Should_Not_Have_State_Fields()
     {
         // Presenters should only have injected dependencies
-        var presenterTypes = _coreAssembly.GetTypes()
+        // Presenters have been moved to the Presentation assembly as part of TD_046
+        var presenterTypes = _presentationAssembly.GetTypes()
             .Where(t => t.Name.EndsWith("Presenter"));
 
         foreach (var presenterType in presenterTypes)
@@ -95,7 +98,8 @@ public class ArchitectureTests
     public void ViewInterfaces_Should_Not_Expose_Godot_Types()
     {
         // IView interfaces should use primitive/DTO types only
-        var viewInterfaces = _coreAssembly.GetTypes()
+        // View interfaces have been moved to the Presentation assembly as part of TD_046
+        var viewInterfaces = _presentationAssembly.GetTypes()
             .Where(t => t.IsInterface && t.Name.EndsWith("View"));
 
         foreach (var viewInterface in viewInterfaces)
@@ -118,7 +122,8 @@ public class ArchitectureTests
     public void Domain_Types_Should_Use_Proper_Namespaces()
     {
         // Ensure all domain types are in proper namespace structure
-        var domainTypes = _coreAssembly.GetTypes()
+        // Domain types have been moved to separate Domain assembly as part of TD_046
+        var domainTypes = _domainAssembly.GetTypes()
             .Where(t => t.Namespace?.Contains("Domain") == true)
             .ToList();
 
@@ -128,18 +133,17 @@ public class ArchitectureTests
         {
             var namespaceParts = type.Namespace!.Split('.');
 
-            // Verify namespace structure: Darklands.Core.Domain.[Domain]
-            if (namespaceParts.Length < 4 ||
+            // Verify namespace structure: Darklands.Domain.[SubDomain] after TD_046
+            if (namespaceParts.Length < 3 ||
                 namespaceParts[0] != "Darklands" ||
-                namespaceParts[1] != "Core" ||
-                namespaceParts[2] != "Domain")
+                namespaceParts[1] != "Domain")
             {
-                violations.Add($"{type.Name}: {type.Namespace} (should be Darklands.Core.Domain.*)");
+                violations.Add($"{type.Name}: {type.Namespace} (should be Darklands.Domain.[SubDomain])");
             }
         }
 
         violations.Should().BeEmpty(
-            $"All domain types must follow Darklands.Core.Domain.* namespace pattern. " +
+            $"All domain types must follow Darklands.Domain.* namespace pattern. " +
             $"Found {violations.Count} violations: {string.Join("; ", violations)}");
     }
 
@@ -154,7 +158,8 @@ public class ArchitectureTests
     public void Domain_Layer_Should_Be_Synchronous_For_Turn_Based_Game()
     {
         // Turn-based games are inherently sequential - domain should never need async
-        var domainTypes = _coreAssembly.GetTypes()
+        // Domain types have been moved to separate Domain assembly as part of TD_046
+        var domainTypes = _domainAssembly.GetTypes()
             .Where(t => t.Namespace?.Contains("Domain") == true);
 
         foreach (var domainType in domainTypes)
@@ -208,7 +213,8 @@ public class ArchitectureTests
         // CURRENT STATE: View interfaces are async (causing race conditions)
         // TARGET STATE after TD_011: Should be synchronous for turn-based games
 
-        var viewInterfaces = _coreAssembly.GetTypes()
+        // View interfaces have been moved to the Presentation assembly as part of TD_046
+        var viewInterfaces = _presentationAssembly.GetTypes()
             .Where(t => t.IsInterface && t.Name.StartsWith("I") && t.Name.EndsWith("View"));
 
         foreach (var viewInterface in viewInterfaces)
@@ -234,7 +240,8 @@ public class ArchitectureTests
         // Task.Run() in turn-based games creates concurrency where sequential processing is needed
         // This test documents the current problem that TD_011 will fix
 
-        var presenterTypes = _coreAssembly.GetTypes()
+        // Presenters have been moved to the Presentation assembly as part of TD_046
+        var presenterTypes = _presentationAssembly.GetTypes()
             .Where(t => t.Name.EndsWith("Presenter"));
 
         presenterTypes.Should().NotBeEmpty("Should have presenter types to validate");
@@ -250,7 +257,8 @@ public class ArchitectureTests
     public void All_Persistent_Entities_Should_Implement_IPersistentEntity()
     {
         // ADR-005: All entities intended for save/load must implement IPersistentEntity
-        var entityTypes = _coreAssembly.GetTypes()
+        // Domain types have been moved to separate Domain assembly as part of TD_046
+        var entityTypes = _domainAssembly.GetTypes()
             .Where(t => t.Namespace?.Contains("Domain") == true)
             .Where(t => IsEntityType(t))
             .ToList();
@@ -276,7 +284,8 @@ public class ArchitectureTests
     public void All_Persistent_Entities_Should_Pass_SaveReady_Validation()
     {
         // ADR-005: All persistent entities must pass save-ready validation
-        var entityTypes = _coreAssembly.GetTypes()
+        // Domain types have been moved to separate Domain assembly as part of TD_046
+        var entityTypes = _domainAssembly.GetTypes()
             .Where(t => typeof(IPersistentEntity).IsAssignableFrom(t))
             .Where(t => !t.IsInterface && !t.IsAbstract)
             .ToList();
@@ -303,7 +312,8 @@ public class ArchitectureTests
     public void Entity_Records_Should_Be_Immutable()
     {
         // ADR-005: Entity records should be immutable for safe serialization
-        var entityTypes = _coreAssembly.GetTypes()
+        // Domain types have been moved to separate Domain assembly as part of TD_046
+        var entityTypes = _domainAssembly.GetTypes()
             .Where(t => typeof(IPersistentEntity).IsAssignableFrom(t))
             .Where(t => !t.IsInterface && !t.IsAbstract)
             .ToList();
@@ -356,10 +366,10 @@ public class ArchitectureTests
                 idGenerator.Should().NotBeNull("IStableIdGenerator should be registered in DI container");
 
                 // Should be able to resolve both concrete implementations
-                var guidGenerator = provider.GetService(typeof(Darklands.Core.Infrastructure.Identity.GuidIdGenerator));
+                var guidGenerator = provider.GetService(typeof(Darklands.Application.Infrastructure.Identity.GuidIdGenerator));
                 guidGenerator.Should().NotBeNull("GuidIdGenerator should be registered in DI container");
 
-                var deterministicGenerator = provider.GetService(typeof(Darklands.Core.Infrastructure.Identity.DeterministicIdGenerator));
+                var deterministicGenerator = provider.GetService(typeof(Darklands.Application.Infrastructure.Identity.DeterministicIdGenerator));
                 deterministicGenerator.Should().NotBeNull("DeterministicIdGenerator should be registered in DI container");
 
                 provider.Dispose();

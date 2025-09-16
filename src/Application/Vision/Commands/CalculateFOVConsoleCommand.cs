@@ -1,10 +1,10 @@
-using Darklands.Core.Application.Common;
-using Darklands.Core.Domain.Vision;
-using Darklands.Core.Domain.Grid;
-using Darklands.Core.Domain.Common;
+using Darklands.Application.Common;
+using Darklands.Domain.Vision;
+using Darklands.Domain.Grid;
+using Darklands.Domain.Common;
 using System;
 
-namespace Darklands.Core.Application.Vision.Commands
+namespace Darklands.Application.Vision.Commands
 {
     /// <summary>
     /// Console command to calculate and display FOV for testing purposes.

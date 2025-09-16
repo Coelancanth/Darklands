@@ -70,13 +70,12 @@ fi
 
 # AUTO-FIX: Verify and fix code formatting
 echo "🔧 Verifying code formatting..."
-dotnet format src/Darklands.Core.csproj --verify-no-changes --verbosity minimal 2>/dev/null
+dotnet format Darklands.sln --verify-no-changes --verbosity minimal 2>/dev/null
 if [ $? -ne 0 ]; then
     echo "🔧 Code formatting issues detected - auto-fixing..."
-    
+
     # Apply formatting
-    dotnet format src/Darklands.Core.csproj --verbosity minimal
-    dotnet format tests/Darklands.Core.Tests.csproj --verbosity minimal 2>/dev/null
+    dotnet format Darklands.sln --verbosity minimal
     
     # Stage the formatting changes
     git add -u 2>/dev/null
@@ -84,6 +83,17 @@ if [ $? -ne 0 ]; then
 else
     echo "✅ Code formatting is correct"
 fi
+
+# Run FULL test suite before push
+echo "🧪 Running full test suite (this ensures CI will pass)..."
+dotnet test tests/Darklands.Core.Tests.csproj --no-build --verbosity minimal
+if [ $? -ne 0 ]; then
+    echo "❌ Tests failed - push blocked to prevent CI failures"
+    echo "💡 Run './scripts/core/build.ps1 test' to see detailed results"
+    echo "💡 For quick tests only: './scripts/test/quick.ps1'"
+    exit 1
+fi
+echo "✅ All tests passed"
 
 # Check for common issues before push
 echo "🔧 Checking for common issues..."

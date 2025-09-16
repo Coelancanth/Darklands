@@ -3,7 +3,7 @@ using FluentAssertions;
 using FsCheck;
 using FsCheck.Fluent;
 using FsCheck.Xunit;
-using Darklands.Core.Domain.Combat;
+using Darklands.Domain.Combat;
 using System.Collections.Generic;
 using System.Linq;
 

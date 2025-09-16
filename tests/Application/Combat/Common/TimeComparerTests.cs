@@ -3,9 +3,9 @@ using FluentAssertions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Darklands.Core.Application.Combat.Common;
-using Darklands.Core.Domain.Combat;
-using Darklands.Core.Domain.Grid;
+using Darklands.Application.Combat.Common;
+using Darklands.Domain.Combat;
+using Darklands.Domain.Grid;
 
 namespace Darklands.Core.Tests.Application.Combat.Common
 {

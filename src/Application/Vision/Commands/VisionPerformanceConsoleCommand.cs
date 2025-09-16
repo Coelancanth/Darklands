@@ -1,10 +1,10 @@
 using LanguageExt;
 using LanguageExt.Common;
 using MediatR;
-using Darklands.Core.Infrastructure.Vision;
+using Darklands.Application.Infrastructure.Vision;
 using static LanguageExt.Prelude;
 
-namespace Darklands.Core.Application.Vision.Commands
+namespace Darklands.Application.Vision.Commands
 {
     /// <summary>
     /// Console command for viewing vision system performance metrics.

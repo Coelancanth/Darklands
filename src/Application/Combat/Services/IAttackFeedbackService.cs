@@ -1,8 +1,8 @@
 using System.Threading.Tasks;
-using Darklands.Core.Domain.Grid;
-using Darklands.Core.Domain.Combat;
+using Darklands.Domain.Grid;
+using Darklands.Domain.Combat;
 
-namespace Darklands.Core.Application.Combat.Services
+namespace Darklands.Application.Combat.Services
 {
     /// <summary>
     /// Service interface for providing attack feedback and visual effects.

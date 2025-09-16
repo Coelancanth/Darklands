@@ -3,11 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using LanguageExt;
 using LanguageExt.Common;
-using Darklands.Core.Domain.Combat;
-using Darklands.Core.Domain.Grid;
+using Darklands.Domain.Combat;
+using Darklands.Domain.Grid;
 using static LanguageExt.Prelude;
 
-namespace Darklands.Core.Application.Combat.Common
+namespace Darklands.Application.Combat.Common
 {
     /// <summary>
     /// Priority queue-based timeline scheduler for turn-based combat.

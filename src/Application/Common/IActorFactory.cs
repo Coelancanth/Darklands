@@ -1,7 +1,7 @@
 using LanguageExt;
-using Darklands.Core.Domain.Grid;
+using Darklands.Domain.Grid;
 
-namespace Darklands.Core.Application.Common
+namespace Darklands.Application.Common
 {
     /// <summary>
     /// Factory interface for creating and managing game actors.

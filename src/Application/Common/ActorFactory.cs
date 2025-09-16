@@ -1,16 +1,16 @@
 using LanguageExt;
 using LanguageExt.Common;
-using Darklands.Core.Domain.Debug;
-using Darklands.Core.Infrastructure.Debug;
+using Darklands.Application.Common;
+using Darklands.Application.Infrastructure.Debug;
 using System;
 using System.Threading.Tasks;
-using Darklands.Core.Application.Grid.Services;
-using Darklands.Core.Application.Actor.Services;
-using Darklands.Core.Domain.Common;
-using Darklands.Core.Domain.Grid;
+using Darklands.Application.Grid.Services;
+using Darklands.Application.Actor.Services;
+using Darklands.Domain.Common;
+using Darklands.Domain.Grid;
 using static LanguageExt.Prelude;
 
-namespace Darklands.Core.Application.Common
+namespace Darklands.Application.Common
 {
     /// <summary>
     /// Factory implementation for creating and managing game actors.

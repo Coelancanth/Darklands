@@ -2,13 +2,13 @@ using System;
 using LanguageExt;
 using LanguageExt.Common;
 using MediatR;
-using Darklands.Core.Domain.Debug;
+using Darklands.Application.Common;
 using System.Threading;
 using System.Threading.Tasks;
-using Darklands.Core.Application.Combat.Services;
+using Darklands.Application.Combat.Services;
 using static LanguageExt.Prelude;
 
-namespace Darklands.Core.Application.Combat.Commands
+namespace Darklands.Application.Combat.Commands
 {
     /// <summary>
     /// Handler for ProcessNextTurnCommand - Implements functional CQRS pattern with Fin&lt;T&gt; monads.

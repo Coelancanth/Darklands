@@ -1,11 +1,11 @@
 using System.Collections.Concurrent;
 using LanguageExt;
 using LanguageExt.Common;
-using Darklands.Core.Application.Actor.Services;
-using Darklands.Core.Domain.Grid;
+using Darklands.Application.Actor.Services;
+using Darklands.Domain.Grid;
 using static LanguageExt.Prelude;
 
-namespace Darklands.Core.Application.Actor.Services
+namespace Darklands.Application.Actor.Services
 {
     /// <summary>
     /// In-memory implementation of IActorStateService for Phase 3.

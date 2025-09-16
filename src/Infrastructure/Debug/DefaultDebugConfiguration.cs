@@ -1,7 +1,7 @@
-using Darklands.Core.Domain.Debug;
+using Darklands.Application.Common;
 using System;
 
-namespace Darklands.Core.Infrastructure.Debug;
+namespace Darklands.Application.Infrastructure.Debug;
 
 /// <summary>
 /// Proxy implementation of IDebugConfiguration that delegates to the live debug configuration.

@@ -11,13 +11,16 @@ config_version=5
 [application]
 
 config/name="Darklands"
-run/main_scene="uid://coxy82oj87fjb"
+run/main_scene="res://Scenes/combat_scene.tscn"
 config/features=PackedStringArray("4.4", "C#", "GL Compatibility")
 config/icon="res://icon.svg"
 
 [autoload]
 
-DebugSystem="*res://DebugSystem.cs"
+GameManager="*res://GodotIntegration/Core/GameManager.cs"
+ServiceLocator="*res://GodotIntegration/Core/ServiceLocator.cs"
+UIDispatcher="*res://GodotIntegration/EventBus/UIDispatcher.cs"
+DebugSystem="*res://GodotIntegration/Debug/DebugSystem.cs"
 
 [dotnet]
 

@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Darklands.Core.Domain.Grid;
-using Darklands.Core.Domain.Vision;
+using Darklands.Domain.Grid;
+using Darklands.Domain.Vision;
 
-namespace Darklands.Core.Presentation.Views
+namespace Darklands.Application.Presentation.Views
 {
     /// <summary>
     /// Interface for the grid view that handles tactical combat grid visualization and user interactions.

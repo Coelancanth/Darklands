@@ -1,13 +1,13 @@
 using FluentAssertions;
 using Xunit;
 using Moq;
-using Darklands.Core.Domain.Debug;
-using Darklands.Core.Application.Combat.Commands;
-using Darklands.Core.Application.Combat.Services;
-using Darklands.Core.Application.Actor.Services;
-using Darklands.Core.Application.Grid.Services;
-using Darklands.Core.Domain.Combat;
-using Darklands.Core.Domain.Grid;
+using Darklands.Application.Common;
+using Darklands.Application.Combat.Commands;
+using Darklands.Application.Combat.Services;
+using Darklands.Application.Actor.Services;
+using Darklands.Application.Grid.Services;
+using Darklands.Domain.Combat;
+using Darklands.Domain.Grid;
 using Darklands.Core.Tests.TestUtilities;
 using LanguageExt;
 using LanguageExt.Common;
@@ -31,8 +31,8 @@ public class ExecuteAttackCommandHandlerTests
     private readonly Position _attackerPosition = new(2, 2);
     private readonly Position _targetPosition = new(2, 3); // Adjacent
     private readonly CombatAction _combatAction = CombatAction.Common.SwordSlash;
-    private readonly Darklands.Core.Domain.Actor.Actor _attacker = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(ActorId.NewId(TestIdGenerator.Instance), 100, "Warrior").Match(a => a, _ => throw new System.Exception("Test setup failed"));
-    private readonly Darklands.Core.Domain.Actor.Actor _target = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(ActorId.NewId(TestIdGenerator.Instance), 80, "Orc").Match(a => a, _ => throw new System.Exception("Test setup failed"));
+    private readonly Darklands.Domain.Actor.Actor _attacker = Darklands.Domain.Actor.Actor.CreateAtFullHealth(ActorId.NewId(TestIdGenerator.Instance), 100, "Warrior").Match(a => a, _ => throw new System.Exception("Test setup failed"));
+    private readonly Darklands.Domain.Actor.Actor _target = Darklands.Domain.Actor.Actor.CreateAtFullHealth(ActorId.NewId(TestIdGenerator.Instance), 80, "Orc").Match(a => a, _ => throw new System.Exception("Test setup failed"));
 
     private readonly Mock<IGridStateService> _gridStateService = new();
     private readonly Mock<IActorStateService> _actorStateService = new();

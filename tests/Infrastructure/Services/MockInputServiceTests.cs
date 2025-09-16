@@ -1,9 +1,9 @@
 using Xunit;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
-using Darklands.Core.Infrastructure.Services;
-using Darklands.Core.Domain.Services;
-using Darklands.Core.Domain.Grid;
+using Darklands.Application.Services;
+using Darklands.Application.Infrastructure.Services;
+using Darklands.Domain.Grid;
 using System.Reactive.Linq;
 
 namespace Darklands.Core.Tests.Infrastructure.Services;

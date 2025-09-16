@@ -3,11 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using MediatR;
-using Darklands.Core.Domain.Debug;
-using Darklands.Core.Infrastructure.Debug;
-using Darklands.Core.Application.Events;
+using Darklands.Application.Common;
+using Darklands.Application.Infrastructure.Debug;
+using Darklands.Application.Events;
 
-namespace Darklands.Core.Infrastructure.Events;
+namespace Darklands.Application.Infrastructure.Events;
 
 /// <summary>
 /// Concrete implementation of UI Event Bus that bridges MediatR domain events to Godot UI components.

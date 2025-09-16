@@ -1,6 +1,6 @@
-using Darklands.Core.Presentation.Views;
-using Darklands.Core.Presentation.Presenters;
-using Darklands.Core.Domain.Debug;
+using Darklands.Presentation.Views;
+using Darklands.Presentation.Presenters;
+using Darklands.Application.Common;
 using Godot;
 using System;
 using System.Collections.Concurrent;
@@ -19,8 +19,8 @@ namespace Darklands.Views
         private ActorPresenter? _presenter;
         private ICategoryLogger? _logger;
         // FIXED BR_007: Use ConcurrentDictionary for thread-safe access from async operations
-        private readonly ConcurrentDictionary<Darklands.Core.Domain.Grid.ActorId, ColorRect> _actorNodes = new();
-        private readonly ConcurrentDictionary<Darklands.Core.Domain.Grid.ActorId, ProgressBar> _healthBars = new();
+        private readonly ConcurrentDictionary<Darklands.Domain.Grid.ActorId, ColorRect> _actorNodes = new();
+        private readonly ConcurrentDictionary<Darklands.Domain.Grid.ActorId, ProgressBar> _healthBars = new();
         private const int TileSize = 64;
         private const float MoveDuration = 0.3f; // Seconds for movement animation
 
@@ -36,10 +36,10 @@ namespace Darklands.Views
         private readonly Queue<ActorVisibilityData> _pendingVisibilityUpdates = new();
 
         // Data structures to hold operation parameters
-        private record ActorCreationData(ColorRect ActorNode, Darklands.Core.Domain.Grid.ActorId ActorId);
-        private record ActorMoveData(ColorRect ActorNode, Vector2 EndPosition, Darklands.Core.Domain.Grid.ActorId ActorId,
-            Darklands.Core.Domain.Grid.Position FromPosition, Darklands.Core.Domain.Grid.Position ToPosition);
-        private record ActorVisibilityData(Darklands.Core.Domain.Grid.ActorId ActorId, bool IsVisible);
+        private record ActorCreationData(ColorRect ActorNode, Darklands.Domain.Grid.ActorId ActorId);
+        private record ActorMoveData(ColorRect ActorNode, Vector2 EndPosition, Darklands.Domain.Grid.ActorId ActorId,
+            Darklands.Domain.Grid.Position FromPosition, Darklands.Domain.Grid.Position ToPosition);
+        private record ActorVisibilityData(Darklands.Domain.Grid.ActorId ActorId, bool IsVisible);
 
         /// <summary>
         /// Called when the node is added to the scene tree.
@@ -77,7 +77,7 @@ namespace Darklands.Views
         /// <summary>
         /// Creates and displays a new actor at the specified position.
         /// </summary>
-        public async Task DisplayActorAsync(Darklands.Core.Domain.Grid.ActorId actorId, Darklands.Core.Domain.Grid.Position position, ActorType actorType)
+        public async Task DisplayActorAsync(Darklands.Domain.Grid.ActorId actorId, Darklands.Domain.Grid.Position position, ActorType actorType)
         {
             try
             {
@@ -149,7 +149,7 @@ namespace Darklands.Views
         /// <summary>
         /// Updates an existing actor's position on the grid with smooth animation.
         /// </summary>
-        public async Task MoveActorAsync(Darklands.Core.Domain.Grid.ActorId actorId, Darklands.Core.Domain.Grid.Position fromPosition, Darklands.Core.Domain.Grid.Position toPosition)
+        public async Task MoveActorAsync(Darklands.Domain.Grid.ActorId actorId, Darklands.Domain.Grid.Position fromPosition, Darklands.Domain.Grid.Position toPosition)
         {
             try
             {
@@ -221,11 +221,11 @@ namespace Darklands.Views
         /// <summary>
         /// Updates an actor's visual state or appearance.
         /// </summary>
-        public async Task UpdateActorAsync(Darklands.Core.Domain.Grid.ActorId actorId, Darklands.Core.Domain.Grid.Position position, ActorType actorType)
+        public async Task UpdateActorAsync(Darklands.Domain.Grid.ActorId actorId, Darklands.Domain.Grid.Position position, ActorType actorType)
         {
             await CallDeferredAsync(actorId, position, actorType);
 
-            async Task CallDeferredAsync(Darklands.Core.Domain.Grid.ActorId id, Darklands.Core.Domain.Grid.Position pos, ActorType type)
+            async Task CallDeferredAsync(Darklands.Domain.Grid.ActorId id, Darklands.Domain.Grid.Position pos, ActorType type)
             {
                 try
                 {
@@ -253,11 +253,11 @@ namespace Darklands.Views
         /// <summary>
         /// Removes an actor from the visual display.
         /// </summary>
-        public async Task RemoveActorAsync(Darklands.Core.Domain.Grid.ActorId actorId, Darklands.Core.Domain.Grid.Position position)
+        public async Task RemoveActorAsync(Darklands.Domain.Grid.ActorId actorId, Darklands.Domain.Grid.Position position)
         {
             await CallDeferredAsync(actorId, position);
 
-            async Task CallDeferredAsync(Darklands.Core.Domain.Grid.ActorId id, Darklands.Core.Domain.Grid.Position pos)
+            async Task CallDeferredAsync(Darklands.Domain.Grid.ActorId id, Darklands.Domain.Grid.Position pos)
             {
                 try
                 {
@@ -283,11 +283,11 @@ namespace Darklands.Views
         /// <summary>
         /// Highlights an actor to indicate selection, targeting, or special state.
         /// </summary>
-        public async Task HighlightActorAsync(Darklands.Core.Domain.Grid.ActorId actorId, ActorHighlightType highlightType)
+        public async Task HighlightActorAsync(Darklands.Domain.Grid.ActorId actorId, ActorHighlightType highlightType)
         {
             await CallDeferredAsync(actorId, highlightType);
 
-            async Task CallDeferredAsync(Darklands.Core.Domain.Grid.ActorId id, ActorHighlightType type)
+            async Task CallDeferredAsync(Darklands.Domain.Grid.ActorId id, ActorHighlightType type)
             {
                 try
                 {
@@ -318,11 +318,11 @@ namespace Darklands.Views
         /// <summary>
         /// Removes highlighting from an actor.
         /// </summary>
-        public async Task UnhighlightActorAsync(Darklands.Core.Domain.Grid.ActorId actorId)
+        public async Task UnhighlightActorAsync(Darklands.Domain.Grid.ActorId actorId)
         {
             await CallDeferredAsync(actorId);
 
-            async Task CallDeferredAsync(Darklands.Core.Domain.Grid.ActorId id)
+            async Task CallDeferredAsync(Darklands.Domain.Grid.ActorId id)
             {
                 try
                 {
@@ -348,11 +348,11 @@ namespace Darklands.Views
         /// <summary>
         /// Shows visual feedback related to an actor.
         /// </summary>
-        public async Task ShowActorFeedbackAsync(Darklands.Core.Domain.Grid.ActorId actorId, ActorFeedbackType feedbackType, string? message = null)
+        public async Task ShowActorFeedbackAsync(Darklands.Domain.Grid.ActorId actorId, ActorFeedbackType feedbackType, string? message = null)
         {
             await CallDeferredAsync(actorId, feedbackType, message);
 
-            async Task CallDeferredAsync(Darklands.Core.Domain.Grid.ActorId id, ActorFeedbackType type, string? msg)
+            async Task CallDeferredAsync(Darklands.Domain.Grid.ActorId id, ActorFeedbackType type, string? msg)
             {
                 try
                 {
@@ -410,7 +410,7 @@ namespace Darklands.Views
         /// Creates a health bar as a child node of an actor.
         /// The health bar will automatically move with its parent actor.
         /// </summary>
-        private ProgressBar CreateHealthBar(Darklands.Core.Domain.Grid.ActorId actorId)
+        private ProgressBar CreateHealthBar(Darklands.Domain.Grid.ActorId actorId)
         {
             var healthBar = new ProgressBar
             {
@@ -473,7 +473,7 @@ namespace Darklands.Views
         /// <summary>
         /// Updates the health value of an actor's health bar.
         /// </summary>
-        public void UpdateActorHealth(Darklands.Core.Domain.Grid.ActorId actorId, int currentHealth, int maxHealth)
+        public void UpdateActorHealth(Darklands.Domain.Grid.ActorId actorId, int currentHealth, int maxHealth)
         {
             if (_healthBars.TryGetValue(actorId, out var healthBar))
             {
@@ -515,11 +515,11 @@ namespace Darklands.Views
         /// Updates an actor's health bar with new health values.
         /// Provides smooth transitions for health changes using the existing child health bar.
         /// </summary>
-        public async Task UpdateActorHealthAsync(Darklands.Core.Domain.Grid.ActorId actorId, Darklands.Core.Domain.Actor.Health oldHealth, Darklands.Core.Domain.Actor.Health newHealth)
+        public async Task UpdateActorHealthAsync(Darklands.Domain.Grid.ActorId actorId, Darklands.Domain.Actor.Health oldHealth, Darklands.Domain.Actor.Health newHealth)
         {
             await CallDeferredAsync(actorId, oldHealth, newHealth);
 
-            async Task CallDeferredAsync(Darklands.Core.Domain.Grid.ActorId id, Darklands.Core.Domain.Actor.Health old, Darklands.Core.Domain.Actor.Health current)
+            async Task CallDeferredAsync(Darklands.Domain.Grid.ActorId id, Darklands.Domain.Actor.Health old, Darklands.Domain.Actor.Health current)
             {
                 try
                 {
@@ -542,11 +542,11 @@ namespace Darklands.Views
         /// Shows visual feedback for health changes (damage numbers, healing effects).
         /// Creates floating text above the actor using their existing position.
         /// </summary>
-        public async Task ShowHealthFeedbackAsync(Darklands.Core.Domain.Grid.ActorId actorId, HealthFeedbackType feedbackType, int amount, Darklands.Core.Domain.Grid.Position position)
+        public async Task ShowHealthFeedbackAsync(Darklands.Domain.Grid.ActorId actorId, HealthFeedbackType feedbackType, int amount, Darklands.Domain.Grid.Position position)
         {
             await CallDeferredAsync(actorId, feedbackType, amount, position);
 
-            async Task CallDeferredAsync(Darklands.Core.Domain.Grid.ActorId id, HealthFeedbackType type, int amt, Darklands.Core.Domain.Grid.Position pos)
+            async Task CallDeferredAsync(Darklands.Domain.Grid.ActorId id, HealthFeedbackType type, int amt, Darklands.Domain.Grid.Position pos)
             {
                 try
                 {
@@ -576,11 +576,11 @@ namespace Darklands.Views
         /// Highlights an actor's health bar to indicate targeting or special state.
         /// Uses the existing health bar infrastructure.
         /// </summary>
-        public async Task HighlightActorHealthBarAsync(Darklands.Core.Domain.Grid.ActorId actorId, HealthHighlightType highlightType)
+        public async Task HighlightActorHealthBarAsync(Darklands.Domain.Grid.ActorId actorId, HealthHighlightType highlightType)
         {
             await CallDeferredAsync(actorId, highlightType);
 
-            async Task CallDeferredAsync(Darklands.Core.Domain.Grid.ActorId id, HealthHighlightType type)
+            async Task CallDeferredAsync(Darklands.Domain.Grid.ActorId id, HealthHighlightType type)
             {
                 try
                 {
@@ -607,11 +607,11 @@ namespace Darklands.Views
         /// <summary>
         /// Removes highlighting from an actor's health bar.
         /// </summary>
-        public async Task UnhighlightActorHealthBarAsync(Darklands.Core.Domain.Grid.ActorId actorId)
+        public async Task UnhighlightActorHealthBarAsync(Darklands.Domain.Grid.ActorId actorId)
         {
             await CallDeferredAsync(actorId);
 
-            async Task CallDeferredAsync(Darklands.Core.Domain.Grid.ActorId id)
+            async Task CallDeferredAsync(Darklands.Domain.Grid.ActorId id)
             {
                 try
                 {
@@ -638,7 +638,7 @@ namespace Darklands.Views
         /// Sets the visibility of an actor based on player vision.
         /// Used by the fog of war system to show/hide actors dynamically.
         /// </summary>
-        public async Task SetActorVisibilityAsync(Darklands.Core.Domain.Grid.ActorId actorId, bool isVisible)
+        public async Task SetActorVisibilityAsync(Darklands.Domain.Grid.ActorId actorId, bool isVisible)
         {
             try
             {

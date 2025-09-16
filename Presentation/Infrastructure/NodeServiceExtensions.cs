@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Godot;
 using LanguageExt;
 using static LanguageExt.Prelude;
-using Darklands.Core.Infrastructure.DependencyInjection;
+using Darklands.Application.Infrastructure.DependencyInjection;
 
 namespace Darklands.Presentation.Infrastructure;
 

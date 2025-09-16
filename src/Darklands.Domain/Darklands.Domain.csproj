@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>Darklands.Domain</RootNamespace>
+  </PropertyGroup>
+
+  <!-- NO project references - Domain must be pure -->
+
+  <ItemGroup>
+    <!-- Only pure .NET packages allowed -->
+    <!-- LanguageExt.Core is explicitly allowed as it provides pure functional
+         programming constructs (Option<T>, Fin<T>) that enhance domain modeling
+         capabilities without introducing infrastructure dependencies -->
+    <PackageReference Include="LanguageExt.Core" Version="5.0.0-beta-54" />
+  </ItemGroup>
+</Project>

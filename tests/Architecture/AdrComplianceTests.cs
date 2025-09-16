@@ -4,8 +4,8 @@ using System.Linq;
 using System.Reflection;
 using FluentAssertions;
 using Xunit;
-using Darklands.Core.Domain.Common;
-using Darklands.Core.Infrastructure.DependencyInjection;
+using Darklands.Domain.Common;
+using Darklands.Application.Infrastructure.DependencyInjection;
 
 namespace Darklands.Core.Tests.Architecture;
 
@@ -17,6 +17,7 @@ namespace Darklands.Core.Tests.Architecture;
 public class AdrComplianceTests
 {
     private readonly Assembly _coreAssembly = typeof(GameStrapper).Assembly;
+    private readonly Assembly _domainAssembly = typeof(IPersistentEntity).Assembly;
 
     #region ADR-004: Deterministic Simulation Tests
 
@@ -141,7 +142,8 @@ public class AdrComplianceTests
     {
         // ADR-004: string.GetHashCode() is non-deterministic across processes
         // This is mainly documentation - real detection needs IL inspection
-        var persistentTypes = _coreAssembly.GetTypes()
+        // Domain types have been moved to separate Domain assembly as part of TD_046
+        var persistentTypes = _domainAssembly.GetTypes()
             .Where(t => typeof(IPersistentEntity).IsAssignableFrom(t))
             .Where(t => !t.IsInterface && !t.IsAbstract)
             .ToList();

@@ -43,13 +43,16 @@ jobs:
     - name: 🔍 Verify code formatting
       run: |
         echo "🔍 Verifying local hooks did their job..."
-        
-        # Check if code would be changed by formatting
-        dotnet format src/Darklands.Core.csproj --verify-no-changes --verbosity diagnostic
-        dotnet format tests/Darklands.Core.Tests.csproj --verify-no-changes --verbosity diagnostic
-        
+
+        # Check if code would be changed by formatting - build all projects in dependency order
+        # Note: Using full solution format to handle all projects properly
+        dotnet format Darklands.sln --verify-no-changes --verbosity diagnostic || {
+          echo "⚠️ Code formatting issues found. Running 'dotnet format' locally should fix this."
+          exit 1
+        }
+
         echo "✅ Code formatting is correct (local hooks worked!)"
-        
+
         # Clean up any build artifacts created during format verification
         echo "🧹 Cleaning up format verification artifacts..."
         find . -type d -name "bin" -o -name "obj" | grep -v .godot | xargs rm -rf || true
@@ -75,12 +78,18 @@ jobs:
       
     - name: 🏗️ Build projects
       run: |
-        dotnet build src/Darklands.Core.csproj --configuration Release
-        dotnet build tests/Darklands.Core.Tests.csproj --configuration Release
-        
-        # Godot project (optional - may need Godot runtime)
-        dotnet build Darklands.csproj --configuration Release || {
-          echo "ℹ️ Godot project build skipped (requires Godot runtime)"
+        # Build entire solution - handles dependency order automatically
+        dotnet build Darklands.sln --configuration Release --no-restore || {
+          echo "⚠️ Build failed. Checking for Godot-specific issues..."
+
+          # If main solution fails, try building without the Godot project
+          echo "📦 Building core projects without Godot runtime..."
+          dotnet build src/Darklands.Domain/Darklands.Domain.csproj --configuration Release --no-restore
+          dotnet build src/Darklands.Application.csproj --configuration Release --no-restore
+          dotnet build src/Darklands.Presentation/Darklands.Presentation.csproj --configuration Release --no-restore
+          dotnet build tests/Darklands.Core.Tests.csproj --configuration Release --no-restore
+
+          echo "ℹ️ Core projects built successfully (Godot project skipped)"
         }
         
     - name: 🧪 Run tests

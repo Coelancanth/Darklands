@@ -1,8 +1,8 @@
 using Xunit;
 using FluentAssertions;
-using Darklands.Core.Domain.Grid;
-using Darklands.Core.Domain.Vision;
-using Darklands.Core.Domain.Common;
+using Darklands.Domain.Grid;
+using Darklands.Domain.Vision;
+using Darklands.Domain.Common;
 using Darklands.Core.Tests.TestUtilities;
 using System.Collections.Immutable;
 using System.Linq;
@@ -240,19 +240,19 @@ public class ShadowcastingFOVTests
     }
 
     // Helper methods
-    private Darklands.Core.Domain.Grid.Grid CreateEmptyGrid(int width, int height)
+    private Darklands.Domain.Grid.Grid CreateEmptyGrid(int width, int height)
     {
-        return Darklands.Core.Domain.Grid.Grid.Create(_idGenerator, width, height, TerrainType.Open)
+        return Darklands.Domain.Grid.Grid.Create(_idGenerator, width, height, TerrainType.Open)
             .IfFail(_ => throw new System.InvalidOperationException("Failed to create grid"));
     }
 
-    private Darklands.Core.Domain.Grid.Grid PlaceWall(Darklands.Core.Domain.Grid.Grid grid, Position position)
+    private Darklands.Domain.Grid.Grid PlaceWall(Darklands.Domain.Grid.Grid grid, Position position)
     {
         return grid.SetTerrain(position, TerrainType.Wall)
             .IfFail(grid);
     }
 
-    private Darklands.Core.Domain.Grid.Grid PlaceTerrain(Darklands.Core.Domain.Grid.Grid grid, Position position, TerrainType terrain)
+    private Darklands.Domain.Grid.Grid PlaceTerrain(Darklands.Domain.Grid.Grid grid, Position position, TerrainType terrain)
     {
         return grid.SetTerrain(position, terrain)
             .IfFail(grid);

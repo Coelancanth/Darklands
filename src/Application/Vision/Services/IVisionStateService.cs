@@ -1,10 +1,10 @@
 using LanguageExt;
 using LanguageExt.Common;
-using Darklands.Core.Domain.Vision;
-using Darklands.Core.Domain.Common;
-using Darklands.Core.Domain.Grid;
+using Darklands.Domain.Vision;
+using Darklands.Domain.Common;
+using Darklands.Domain.Grid;
 
-namespace Darklands.Core.Application.Vision.Services
+namespace Darklands.Application.Vision.Services
 {
     /// <summary>
     /// Service for managing vision state persistence and caching.

@@ -1,6 +1,7 @@
-using Darklands.Core.Presentation.Views;
-using Darklands.Core.Presentation.Presenters;
-using Darklands.Core.Domain.Debug;
+using Darklands.Presentation.Views;
+using Darklands.Presentation.Presenters;
+using Darklands.Presentation.Infrastructure;
+using Darklands.Application.Common;
 using Godot;
 using System;
 using System.Collections.Generic;
@@ -15,7 +16,7 @@ namespace Darklands.Views
     /// </summary>
     public partial class GridView : Node2D, IGridView
     {
-        private GridPresenter? _presenter;
+        private IGridPresenter? _presenter;
         private ICategoryLogger? _logger;
         private const int TileSize = 64;
         private int _gridWidth;
@@ -24,7 +25,7 @@ namespace Darklands.Views
         private readonly List<Line2D> _gridLines = new();
 
         // Fog of war state management
-        private Darklands.Core.Domain.Vision.VisionState? _currentVisionState;
+        private Darklands.Domain.Vision.VisionState? _currentVisionState;
 
         // Colors for different terrain types
         private readonly Color GrassColor = new Color(0.3f, 0.7f, 0.2f); // Green
@@ -43,14 +44,32 @@ namespace Darklands.Views
         /// <summary>
         /// Called when the node is added to the scene tree.
         /// Initializes the grid display system with ColorRect-based tiles.
+        /// Uses service locator pattern to resolve the presenter from DI container.
         /// </summary>
         public override void _Ready()
         {
             try
             {
+                // Use service locator to get the presenter
+                _presenter = this.GetOptionalService<IGridPresenter>();
+
+                if (_presenter != null)
+                {
+                    _presenter.AttachView(this);
+                    _presenter.InitializeAsync().GetAwaiter().GetResult();
+                    GD.Print($"[GridView] Successfully attached to GridPresenter");
+                }
+                else
+                {
+                    GD.PrintErr("[GridView] Failed to resolve IGridPresenter from service locator");
+                }
+
+                // Also get the logger if available
+                _logger = this.GetOptionalService<ICategoryLogger>();
             }
             catch (Exception ex)
             {
+                GD.PrintErr($"[GridView] Error in _Ready: {ex.Message}");
                 _logger?.Log(LogLevel.Error, LogCategory.System, "GridView._Ready error: {Error}", ex.Message);
             }
         }
@@ -79,9 +98,10 @@ namespace Darklands.Views
 
         /// <summary>
         /// Sets the presenter that controls this view.
-        /// Called during initialization to establish the MVP connection.
+        /// Legacy method - now using service locator pattern in _Ready().
+        /// Kept for compatibility if needed.
         /// </summary>
-        public void SetPresenter(GridPresenter presenter)
+        public void SetPresenter(IGridPresenter presenter)
         {
             _presenter = presenter ?? throw new ArgumentNullException(nameof(presenter));
         }
@@ -130,7 +150,7 @@ namespace Darklands.Views
         /// Updates the entire grid display with the current tile states.
         /// Renders all tiles according to their terrain types and occupancy.
         /// </summary>
-        public async Task RefreshGridAsync(Darklands.Core.Domain.Grid.Grid grid)
+        public async Task RefreshGridAsync(Darklands.Domain.Grid.Grid grid)
         {
             _gridWidth = grid.Width;
             _gridHeight = grid.Height;
@@ -144,7 +164,7 @@ namespace Darklands.Views
             {
                 for (int y = 0; y < grid.Height; y++)
                 {
-                    var position = new Darklands.Core.Domain.Grid.Position(x, y);
+                    var position = new Darklands.Domain.Grid.Position(x, y);
                     var tileResult = grid.GetTile(position);
 
                     tileResult.Match(
@@ -173,7 +193,7 @@ namespace Darklands.Views
         /// <summary>
         /// Updates a single tile's visual representation.
         /// </summary>
-        public async Task UpdateTileAsync(Darklands.Core.Domain.Grid.Position position, Darklands.Core.Domain.Grid.Tile tile)
+        public async Task UpdateTileAsync(Darklands.Domain.Grid.Position position, Darklands.Domain.Grid.Tile tile)
         {
             var tileColor = GetColorFromTerrain(tile.TerrainType);
             var tilePosition = new Vector2I(position.X, position.Y);
@@ -185,7 +205,7 @@ namespace Darklands.Views
         /// <summary>
         /// Highlights a tile to indicate selection, hover, or special state.
         /// </summary>
-        public async Task HighlightTileAsync(Darklands.Core.Domain.Grid.Position position, HighlightType highlightType)
+        public async Task HighlightTileAsync(Darklands.Domain.Grid.Position position, HighlightType highlightType)
         {
             // For Phase 4, use a simple color overlay
             // Future: Different highlight types could use different visual effects
@@ -198,7 +218,7 @@ namespace Darklands.Views
         /// <summary>
         /// Removes highlighting from a tile.
         /// </summary>
-        public async Task UnhighlightTileAsync(Darklands.Core.Domain.Grid.Position position)
+        public async Task UnhighlightTileAsync(Darklands.Domain.Grid.Position position)
         {
             // Restore original tile color (assume grass for now)
             var tilePosition = new Vector2I(position.X, position.Y);
@@ -210,7 +230,7 @@ namespace Darklands.Views
         /// <summary>
         /// Shows visual feedback for successful operations.
         /// </summary>
-        public async Task ShowSuccessFeedbackAsync(Darklands.Core.Domain.Grid.Position position, string message)
+        public async Task ShowSuccessFeedbackAsync(Darklands.Domain.Grid.Position position, string message)
         {
             // For Phase 4, just print to console
             // Future: Show floating text or particle effects
@@ -221,7 +241,7 @@ namespace Darklands.Views
         /// <summary>
         /// Shows visual feedback for invalid operations or errors.
         /// </summary>
-        public async Task ShowErrorFeedbackAsync(Darklands.Core.Domain.Grid.Position position, string errorMessage)
+        public async Task ShowErrorFeedbackAsync(Darklands.Domain.Grid.Position position, string errorMessage)
         {
             // For Phase 4, just print to console
             // Future: Show error indicators or red highlights
@@ -252,7 +272,7 @@ namespace Darklands.Views
         /// Applies modulation to all tiles to show visibility levels while preserving terrain colors.
         /// </summary>
         /// <param name="visionState">The vision state containing visibility information</param>
-        public async Task UpdateFogOfWarAsync(Darklands.Core.Domain.Vision.VisionState visionState)
+        public async Task UpdateFogOfWarAsync(Darklands.Domain.Vision.VisionState visionState)
         {
             _logger?.Log(LogLevel.Debug, LogCategory.Vision, "GridView.UpdateFogOfWarAsync called for Actor {ActorId}: {Visible} visible, {Explored} explored",
                 visionState.ViewerId.Value.ToString()[..8],
@@ -272,7 +292,7 @@ namespace Darklands.Views
         /// </summary>
         /// <param name="position">Grid position of the tile</param>
         /// <param name="visibilityLevel">New visibility level for the tile</param>
-        public async Task UpdateTileFogAsync(Darklands.Core.Domain.Grid.Position position, Darklands.Core.Domain.Vision.VisibilityLevel visibilityLevel)
+        public async Task UpdateTileFogAsync(Darklands.Domain.Grid.Position position, Darklands.Domain.Vision.VisibilityLevel visibilityLevel)
         {
             var fogColor = GetFogColorFromVisibility(visibilityLevel);
             var tilePosition = new Vector2I(position.X, position.Y);
@@ -314,7 +334,7 @@ namespace Darklands.Views
                 if (tileX >= 0 && tileX < _gridWidth &&
                     tileY >= 0 && tileY < _gridHeight)
                 {
-                    var gridPosition = new Darklands.Core.Domain.Grid.Position(tileX, tileY);
+                    var gridPosition = new Darklands.Domain.Grid.Position(tileX, tileY);
 
                     _logger?.Log(LogLevel.Debug, LogCategory.Gameplay, "User clicked tile ({X},{Y})", tileX, tileY);
 
@@ -339,7 +359,7 @@ namespace Darklands.Views
         {
             try
             {
-                var gridPosition = new Darklands.Core.Domain.Grid.Position(x, y);
+                var gridPosition = new Darklands.Domain.Grid.Position(x, y);
                 _presenter?.HandleTileClickAsync(gridPosition).GetAwaiter().GetResult();
             }
             catch (Exception ex)
@@ -438,17 +458,17 @@ namespace Darklands.Views
         /// <summary>
         /// Converts terrain type to color for rendering.
         /// </summary>
-        private Color GetColorFromTerrain(Darklands.Core.Domain.Grid.TerrainType terrain)
+        private Color GetColorFromTerrain(Darklands.Domain.Grid.TerrainType terrain)
         {
             return terrain switch
             {
-                Darklands.Core.Domain.Grid.TerrainType.Open => GrassColor,
-                Darklands.Core.Domain.Grid.TerrainType.Rocky => StoneColor,
-                Darklands.Core.Domain.Grid.TerrainType.Water => WaterColor,
-                Darklands.Core.Domain.Grid.TerrainType.Forest => ForestColor,
-                Darklands.Core.Domain.Grid.TerrainType.Hill => StoneColor,
-                Darklands.Core.Domain.Grid.TerrainType.Swamp => WaterColor,
-                Darklands.Core.Domain.Grid.TerrainType.Wall => StoneColor,
+                Darklands.Domain.Grid.TerrainType.Open => GrassColor,
+                Darklands.Domain.Grid.TerrainType.Rocky => StoneColor,
+                Darklands.Domain.Grid.TerrainType.Water => WaterColor,
+                Darklands.Domain.Grid.TerrainType.Forest => ForestColor,
+                Darklands.Domain.Grid.TerrainType.Hill => StoneColor,
+                Darklands.Domain.Grid.TerrainType.Swamp => WaterColor,
+                Darklands.Domain.Grid.TerrainType.Wall => StoneColor,
                 _ => GrassColor // Default to grass
             };
         }
@@ -534,13 +554,13 @@ namespace Darklands.Views
         /// Features: Long walls, pillar formations, corridors, and room structures for shadowcasting validation.
         /// </summary>
         /// <returns>Strategic test grid with player at center (15,10) and complex terrain</returns>
-        public static Darklands.Core.Domain.Grid.Grid CreateStrategicTestGrid(Core.Domain.Common.IStableIdGenerator idGenerator)
+        public static Darklands.Domain.Grid.Grid CreateStrategicTestGrid(Darklands.Domain.Common.IStableIdGenerator idGenerator)
         {
             const int width = 30;
             const int height = 20;
 
             // Create base empty grid (Open terrain)
-            var grid = Darklands.Core.Domain.Grid.Grid.Create(idGenerator, width, height, Darklands.Core.Domain.Grid.TerrainType.Open)
+            var grid = Darklands.Domain.Grid.Grid.Create(idGenerator, width, height, Darklands.Domain.Grid.TerrainType.Open)
                 .IfFail(_ => throw new System.InvalidOperationException("Failed to create strategic test grid"));
 
             // Strategic Layout Design:
@@ -688,7 +708,7 @@ namespace Darklands.Views
             {
                 for (int y = 0; y < _gridHeight; y++)
                 {
-                    var position = new Darklands.Core.Domain.Grid.Position(x, y);
+                    var position = new Darklands.Domain.Grid.Position(x, y);
                     var visibilityLevel = _currentVisionState.GetVisibilityLevel(position);
                     var fogColor = GetFogColorFromVisibility(visibilityLevel);
                     var tilePosition = new Vector2I(x, y);
@@ -696,9 +716,9 @@ namespace Darklands.Views
                     // Count visibility levels for debugging
                     switch (visibilityLevel)
                     {
-                        case Darklands.Core.Domain.Vision.VisibilityLevel.Visible: visibleCount++; break;
-                        case Darklands.Core.Domain.Vision.VisibilityLevel.Explored: exploredCount++; break;
-                        case Darklands.Core.Domain.Vision.VisibilityLevel.Unseen: unseenCount++; break;
+                        case Darklands.Domain.Vision.VisibilityLevel.Visible: visibleCount++; break;
+                        case Darklands.Domain.Vision.VisibilityLevel.Explored: exploredCount++; break;
+                        case Darklands.Domain.Vision.VisibilityLevel.Unseen: unseenCount++; break;
                     }
 
                     if (_tiles.TryGetValue(tilePosition, out var tile))
@@ -754,36 +774,36 @@ namespace Darklands.Views
         /// Converts visibility level to appropriate fog color.
         /// Uses modulation colors that preserve terrain appearance while indicating visibility.
         /// </summary>
-        private Color GetFogColorFromVisibility(Darklands.Core.Domain.Vision.VisibilityLevel visibilityLevel)
+        private Color GetFogColorFromVisibility(Darklands.Domain.Vision.VisibilityLevel visibilityLevel)
         {
             return visibilityLevel switch
             {
-                Darklands.Core.Domain.Vision.VisibilityLevel.Unseen => FogUnseen,       // Nearly black
-                Darklands.Core.Domain.Vision.VisibilityLevel.Explored => FogExplored,   // Gray
-                Darklands.Core.Domain.Vision.VisibilityLevel.Visible => FogVisible,     // No modulation
+                Darklands.Domain.Vision.VisibilityLevel.Unseen => FogUnseen,       // Nearly black
+                Darklands.Domain.Vision.VisibilityLevel.Explored => FogExplored,   // Gray
+                Darklands.Domain.Vision.VisibilityLevel.Visible => FogVisible,     // No modulation
                 _ => FogUnseen // Default to unseen for safety
             };
         }
 
         // Helper methods for strategic grid creation
-        private static Darklands.Core.Domain.Grid.Grid PlaceWall(Darklands.Core.Domain.Grid.Grid grid, int x, int y)
+        private static Darklands.Domain.Grid.Grid PlaceWall(Darklands.Domain.Grid.Grid grid, int x, int y)
         {
-            var position = new Darklands.Core.Domain.Grid.Position(x, y);
-            return grid.SetTerrain(position, Darklands.Core.Domain.Grid.TerrainType.Wall)
+            var position = new Darklands.Domain.Grid.Position(x, y);
+            return grid.SetTerrain(position, Darklands.Domain.Grid.TerrainType.Wall)
                 .IfFail(grid);
         }
 
-        private static Darklands.Core.Domain.Grid.Grid PlaceOpen(Darklands.Core.Domain.Grid.Grid grid, int x, int y)
+        private static Darklands.Domain.Grid.Grid PlaceOpen(Darklands.Domain.Grid.Grid grid, int x, int y)
         {
-            var position = new Darklands.Core.Domain.Grid.Position(x, y);
-            return grid.SetTerrain(position, Darklands.Core.Domain.Grid.TerrainType.Open)
+            var position = new Darklands.Domain.Grid.Position(x, y);
+            return grid.SetTerrain(position, Darklands.Domain.Grid.TerrainType.Open)
                 .IfFail(grid);
         }
 
-        private static Darklands.Core.Domain.Grid.Grid PlaceForest(Darklands.Core.Domain.Grid.Grid grid, int x, int y)
+        private static Darklands.Domain.Grid.Grid PlaceForest(Darklands.Domain.Grid.Grid grid, int x, int y)
         {
-            var position = new Darklands.Core.Domain.Grid.Position(x, y);
-            return grid.SetTerrain(position, Darklands.Core.Domain.Grid.TerrainType.Forest)
+            var position = new Darklands.Domain.Grid.Position(x, y);
+            return grid.SetTerrain(position, Darklands.Domain.Grid.TerrainType.Forest)
                 .IfFail(grid);
         }
     }

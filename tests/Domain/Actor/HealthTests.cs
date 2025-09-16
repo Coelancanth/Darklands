@@ -2,7 +2,7 @@ using Xunit;
 using FluentAssertions;
 using LanguageExt;
 using LanguageExt.Common;
-using Darklands.Core.Domain.Actor;
+using Darklands.Domain.Actor;
 using static LanguageExt.Prelude;
 
 namespace Darklands.Core.Tests.Domain.Actor

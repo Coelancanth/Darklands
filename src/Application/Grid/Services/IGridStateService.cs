@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using LanguageExt;
-using Darklands.Core.Domain.Grid;
+using Darklands.Domain.Grid;
 
-namespace Darklands.Core.Application.Grid.Services
+namespace Darklands.Application.Grid.Services
 {
     /// <summary>
     /// Service interface for managing grid state and actor positions.

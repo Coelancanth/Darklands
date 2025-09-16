@@ -1,16 +1,16 @@
 using LanguageExt;
 using LanguageExt.Common;
 using MediatR;
-using Darklands.Core.Domain.Debug;
+using Darklands.Application.Common;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
-using Darklands.Core.Application.Grid.Services;
-using Darklands.Core.Application.Vision.Services;
-using Darklands.Core.Domain.Vision;
+using Darklands.Application.Grid.Services;
+using Darklands.Application.Vision.Services;
+using Darklands.Domain.Vision;
 using static LanguageExt.Prelude;
 
-namespace Darklands.Core.Application.Vision.Queries
+namespace Darklands.Application.Vision.Queries
 {
     /// <summary>
     /// Handler for CalculateFOVQuery - Enhanced Phase 3 implementation with performance monitoring.

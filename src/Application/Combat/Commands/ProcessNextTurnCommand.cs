@@ -1,8 +1,8 @@
 using System;
 using LanguageExt;
-using Darklands.Core.Application.Common;
+using Darklands.Application.Common;
 
-namespace Darklands.Core.Application.Combat.Commands
+namespace Darklands.Application.Combat.Commands
 {
     /// <summary>
     /// Command to process the next turn in the combat timeline.

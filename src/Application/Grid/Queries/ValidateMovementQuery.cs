@@ -1,7 +1,7 @@
-using Darklands.Core.Application.Common;
-using Darklands.Core.Domain.Grid;
+using Darklands.Application.Common;
+using Darklands.Domain.Grid;
 
-namespace Darklands.Core.Application.Grid.Queries
+namespace Darklands.Application.Grid.Queries
 {
     /// <summary>
     /// Query to validate if a movement from one position to another is legal.

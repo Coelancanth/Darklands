@@ -10,7 +10,8 @@
   </PropertyGroup>
   
   <ItemGroup>
-    <ProjectReference Include="src\Darklands.Core.csproj" />
+    <!-- Godot only references Presentation layer - the architectural firewall -->
+    <ProjectReference Include="src\Darklands.Presentation\Darklands.Presentation.csproj" />
   </ItemGroup>
   
   <ItemGroup>

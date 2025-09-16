@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using System.Linq;
-using Darklands.Core.Domain.Debug;
+using Darklands.Application.Common;
 
-namespace Darklands.Core.Infrastructure.Logging;
+namespace Darklands.Application.Infrastructure.Logging;
 
 /// <summary>
 /// Composite output that forwards writes to multiple child outputs.

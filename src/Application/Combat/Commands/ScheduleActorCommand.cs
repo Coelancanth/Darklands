@@ -1,9 +1,9 @@
 using System;
-using Darklands.Core.Application.Common;
-using Darklands.Core.Domain.Combat;
-using Darklands.Core.Domain.Grid;
+using Darklands.Application.Common;
+using Darklands.Domain.Combat;
+using Darklands.Domain.Grid;
 
-namespace Darklands.Core.Application.Combat.Commands
+namespace Darklands.Application.Combat.Commands
 {
     /// <summary>
     /// Command to schedule an actor to act at a specific time in the combat timeline.
