@@ -37,11 +37,14 @@ jobs:
     - name: 🔧 Auto-format entire codebase
       run: |
         echo "🔧 Formatting all C# files..."
-        dotnet format src/Darklands.Domain/Darklands.Domain.csproj --verbosity diagnostic || true
-        dotnet format src/Darklands.Application.csproj --verbosity diagnostic || true
-        dotnet format src/Darklands.Presentation/Darklands.Presentation.csproj --verbosity diagnostic || true
-        dotnet format tests/Darklands.Core.Tests.csproj --verbosity diagnostic || true
-        dotnet format Darklands.csproj --verbosity diagnostic || true
+        # Format the entire solution - handles all projects
+        dotnet format Darklands.sln --verbosity diagnostic || {
+          echo "⚠️ Solution format failed, trying individual projects..."
+          dotnet format src/Darklands.Domain/Darklands.Domain.csproj --verbosity diagnostic || true
+          dotnet format src/Darklands.Application.csproj --verbosity diagnostic || true
+          dotnet format src/Darklands.Presentation/Darklands.Presentation.csproj --verbosity diagnostic || true
+          dotnet format tests/Darklands.Core.Tests.csproj --verbosity diagnostic || true
+        }
         
     - name: 🔧 Update tool manifest
       run: |
@@ -60,15 +63,17 @@ jobs:
         echo "" >> metrics.md
         echo "### Lines of Code" >> metrics.md
         
-        # Safer line counting approach
-        domain_lines=$(find src/Domain -name "*.cs" 2>/dev/null | xargs wc -l 2>/dev/null | tail -1 | awk '{print $1}' || echo "0")
-        app_lines=$(find src/Application -name "*.cs" 2>/dev/null | xargs wc -l 2>/dev/null | tail -1 | awk '{print $1}' || echo "0")
-        infra_lines=$(find src/Infrastructure -name "*.cs" 2>/dev/null | xargs wc -l 2>/dev/null | tail -1 | awk '{print $1}' || echo "0")
+        # Safer line counting approach - updated for new project structure
+        domain_lines=$(find src/Darklands.Domain -name "*.cs" 2>/dev/null | xargs wc -l 2>/dev/null | tail -1 | awk '{print $1}' || echo "0")
+        app_lines=$(find src -path "*/Application/*" -name "*.cs" 2>/dev/null | xargs wc -l 2>/dev/null | tail -1 | awk '{print $1}' || echo "0")
+        infra_lines=$(find src -path "*/Infrastructure/*" -name "*.cs" 2>/dev/null | xargs wc -l 2>/dev/null | tail -1 | awk '{print $1}' || echo "0")
+        presentation_lines=$(find src/Darklands.Presentation -name "*.cs" 2>/dev/null | xargs wc -l 2>/dev/null | tail -1 | awk '{print $1}' || echo "0")
         test_lines=$(find tests -name "*.cs" 2>/dev/null | xargs wc -l 2>/dev/null | tail -1 | awk '{print $1}' || echo "0")
         
         echo "- Domain: $domain_lines" >> metrics.md
-        echo "- Application: $app_lines" >> metrics.md  
+        echo "- Application: $app_lines" >> metrics.md
         echo "- Infrastructure: $infra_lines" >> metrics.md
+        echo "- Presentation: $presentation_lines" >> metrics.md
         echo "- Tests: $test_lines" >> metrics.md
         echo "" >> metrics.md
         
