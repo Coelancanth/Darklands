@@ -17,6 +17,7 @@ config/icon="res://icon.svg"
 
 [autoload]
 
+ServiceLocator="*res://GodotIntegration/Core/ServiceLocator.cs"
 DebugSystem="*res://GodotIntegration/Debug/DebugSystem.cs"
 
 [dotnet]

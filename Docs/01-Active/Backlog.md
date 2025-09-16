@@ -115,12 +115,12 @@ All IDEA_* items depend on:
 *Items with no blocking dependencies, approved and ready to start*
 
 ### TD_046: Clean Architecture Project Separation (ADR-021)
-**Status**: TESTS 98.8% PASSING - Handoff to Test Specialist
-**Owner**: Test Specialist (handoff from Dev Engineer)
+**Status**: CRITICAL VIOLATIONS FOUND - Return to Dev Engineer
+**Owner**: Dev Engineer (returned from Tech Lead review)
 **Size**: XXL (2-3 DAYS total) - High-risk architectural refactoring affecting 662+ tests
 **Priority**: CRITICAL - Blocks all other development
 **Created**: 2025-09-15 23:15 (Tech Lead)
-**Updated**: 2025-09-16 10:34 (Dev Engineer - 656/664 tests passing, 6 architecture tests need updating)
+**Updated**: 2025-09-16 14:59 (Tech Lead - Architectural review found critical missing implementations)
 **Complexity**: 7/10 - Sequential migration requiring pair programming, NO parallel development
 **Markers**: [ARCHITECTURE] [CLEAN-ARCHITECTURE] [MVP-ENFORCEMENT] [THREAD-SAFETY] [BREAKING-CHANGE] [CHAIN-1-FOUNDATION] [HIGH-RISK]
 **ADRs**: ADR-021 (4-project separation), ADR-006 (selective abstraction), ADR-010 (UI event bus), ADR-018 (DI lifecycle)
@@ -203,17 +203,73 @@ All IDEA_* items depend on:
 - Presentation: MVP firewall, references Application + Domain
 - Godot: Only references Presentation (architectural firewall enforced)
 
-### Handoff to Test Specialist
-**Next Actions Required**:
-1. Fix 6 failing architecture tests to validate new namespace patterns
-2. Run full test suite with `--filter Category=Architecture` focus
-3. Validate thread safety and performance tests still pass
-4. Mark TD_046 as COMPLETE when all tests pass
-**Key Tasks**:
-1. **Update solution file**: Add all three projects to solution with proper references
-2. **Clean up legacy Core project**: Remove/rename Darklands.Core.csproj appropriately
-3. **Final project excludes**: Ensure no project includes files from other projects
-4. **Validate complete architecture**: All projects build, no circular dependencies
+## 🚨 TECH LEAD ARCHITECTURAL REVIEW (2025-09-16 14:59)
+
+### Review Score: 65% Complete - CRITICAL VIOLATIONS FOUND
+
+**✅ WHAT'S CORRECT (Structure & Boundaries):**
+- Project separation: 4-project structure created correctly
+- Domain purity: Zero dependencies except LanguageExt ✅
+- MVP firewall: Godot.csproj only references Presentation ✅
+- Namespace migration: 100% complete (Domain.*, Application.*, Presentation.*)
+- Solution file: All projects registered correctly
+
+**❌ CRITICAL VIOLATIONS REQUIRING IMMEDIATE FIX:**
+
+### 1. Views Not Using Service Locator Pattern (BLOCKS MVP)
+**File**: Views/GridView.cs:47-51
+**Problem**: `_Ready()` method is EMPTY - no presenter initialization
+```csharp
+public override void _Ready()
+{
+    try { /* EMPTY */ } // ❌ No presenter resolution!
+}
+```
+**Required Fix**: Implement service locator pattern per ADR-021:447-469
+```csharp
+public override void _Ready()
+{
+    _presenter = this.GetService<IGridPresenter>();
+    _presenter?.AttachView(this);
+    _presenter?.Initialize();
+}
+```
+
+### 2. UIDispatcher Not Implemented (THREAD CRASHES)
+**Problem**: No UIDispatcher class exists in codebase
+**Required per ADR-021:306-387**: Thread marshalling for UI updates
+**Missing File**: src/Darklands.Presentation/EventBus/UIDispatcher.cs
+**Fix**: Create UIDispatcher as Godot autoload with ConcurrentQueue<Action>
+
+### 3. Task.Run Still Present (TD_039 VIOLATION)
+**Files**: src/Infrastructure/Services/MockInputService.cs:129,190
+**Problem**: Task.Run causes race conditions (BR_007)
+**Fix**: Replace with CallDeferred pattern as documented in TD_039
+
+### 4. ServiceConfiguration Missing (DI BROKEN)
+**Missing File**: src/Darklands.Presentation/DI/ServiceConfiguration.cs
+**Problem**: No DI composition root means services cannot be resolved
+**Fix**: Create ServiceConfiguration with presenter registrations
+
+### 5. Presenter Interfaces Missing
+**Missing**: IGridPresenter, IActorPresenter, IAttackPresenter
+**Location**: Should be in src/Darklands.Presentation/Presenters/
+**Impact**: Views cannot properly type their dependencies
+
+### REQUIRED FIXES BEFORE COMPLETION (Est. 6 hours)
+
+**Priority 1 - Runtime Wiring (4 hours):**
+1. Implement View service locator in GridView._Ready() and ActorView._Ready()
+2. Create UIDispatcher singleton as Godot autoload
+3. Create ServiceConfiguration in Presentation/DI/
+4. Wire up presenter lifecycle (_ExitTree disposal)
+
+**Priority 2 - Violations (2 hours):**
+1. Fix Task.Run violations in MockInputService
+2. Add missing presenter interfaces
+3. Register UIDispatcher in ServiceConfiguration
+
+**AFTER these fixes, THEN Test Specialist can:**
 
 ### Phase 5-6 Ready (Post Phase 4)
 - Phase 5: Implement UIDispatcher and thread safety

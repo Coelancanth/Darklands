@@ -55,9 +55,9 @@ public class MediatRHandlerRegistrationTests
         {
             var namespaceName = handlerType.Namespace ?? string.Empty;
 
-            // CRITICAL: All handlers must be in Darklands.Core namespace hierarchy
-            // This ensures MediatR's assembly scanning finds them
-            if (!namespaceName.StartsWith("Darklands.Core"))
+            // CRITICAL: All handlers must be in Darklands.Application namespace hierarchy
+            // This ensures MediatR's assembly scanning finds them (TD_046 project separation)
+            if (!namespaceName.StartsWith("Darklands.Application"))
             {
                 incorrectNamespaces.Add($"{handlerType.Name} in {namespaceName}");
             }
@@ -65,7 +65,7 @@ public class MediatRHandlerRegistrationTests
 
         // Provide detailed error message for debugging
         incorrectNamespaces.Should().BeEmpty(
-            $"All handlers must be in Darklands.Core.* namespace for MediatR auto-discovery. " +
+            $"All handlers must be in Darklands.Application.* namespace for MediatR auto-discovery. " +
             $"Found {incorrectNamespaces.Count} handlers with incorrect namespaces: " +
             $"{string.Join(", ", incorrectNamespaces)}");
     }
