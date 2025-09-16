@@ -32,15 +32,15 @@ namespace Darklands.Presentation.Presenters
 
         /// <summary>
         /// Creates a new GridPresenter with the specified dependencies.
+        /// The view will be attached later via AttachView method.
         /// </summary>
-        /// <param name="view">The grid view interface this presenter controls</param>
         /// <param name="mediator">MediatR instance for sending commands and queries</param>
         /// <param name="logger">Logger for tracking grid operations</param>
         /// <param name="gridStateService">Service for accessing grid state directly</param>
         /// <param name="combatQueryService">Service for querying actor positions and combat data</param>
         /// <param name="actorFactory">Factory for accessing actor information</param>
-        public GridPresenter(IGridView view, IMediator mediator, ICategoryLogger logger, Application.Grid.Services.IGridStateService gridStateService, ICombatQueryService combatQueryService, IActorFactory actorFactory)
-            : base(view)
+        public GridPresenter(IMediator mediator, ICategoryLogger logger, Application.Grid.Services.IGridStateService gridStateService, ICombatQueryService combatQueryService, IActorFactory actorFactory)
+            : base()
         {
             _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -61,16 +61,11 @@ namespace Darklands.Presentation.Presenters
 
         /// <summary>
         /// Attaches a view to this presenter.
-        /// Note: The view is already set in the constructor, so this is a no-op for compatibility.
+        /// Required for IGridPresenter interface compliance.
         /// </summary>
-        public void AttachView(IGridView view)
+        public new void AttachView(IGridView view)
         {
-            // View is already set in constructor via PresenterBase
-            // This method exists for interface compliance
-            if (view != View)
-            {
-                _logger.Log(LogLevel.Warning, LogCategory.System, "AttachView called with different view instance");
-            }
+            base.AttachView(view);
         }
 
         /// <summary>

@@ -27,15 +27,15 @@ namespace Darklands.Presentation.Presenters
 
         /// <summary>
         /// Creates a new ActorPresenter with the specified dependencies.
+        /// The view will be attached later via AttachView method.
         /// </summary>
-        /// <param name="view">The actor view interface this presenter controls</param>
         /// <param name="mediator">MediatR instance for sending commands and queries</param>
         /// <param name="logger">Logger for tracking actor operations</param>
         /// <param name="actorFactory">Factory for creating and managing actors</param>
         /// <param name="actorStateService">Service for querying actor state including health</param>
         /// <param name="combatQueryService">Combat query service for composite actor and position data</param>
-        public ActorPresenter(IActorView view, IMediator mediator, ICategoryLogger logger, IActorFactory actorFactory, IActorStateService actorStateService, ICombatQueryService combatQueryService)
-            : base(view)
+        public ActorPresenter(IMediator mediator, ICategoryLogger logger, IActorFactory actorFactory, IActorStateService actorStateService, ICombatQueryService combatQueryService)
+            : base()
         {
             _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -60,14 +60,9 @@ namespace Darklands.Presentation.Presenters
         /// Attaches a view to this presenter.
         /// Required for IActorPresenter interface compliance.
         /// </summary>
-        public void AttachView(IActorView view)
+        public new void AttachView(IActorView view)
         {
-            // View is already set in constructor via PresenterBase
-            // This method exists for interface compliance
-            if (view != View)
-            {
-                _logger.Log(LogLevel.Warning, LogCategory.System, "AttachView called with different view instance");
-            }
+            base.AttachView(view);
         }
 
         /// <summary>

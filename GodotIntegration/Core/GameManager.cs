@@ -355,15 +355,18 @@ namespace Darklands
                     _actorView?.SetLogger(_logger);
                 }
 
-                // Create presenters manually (they need view interfaces which are Godot-specific)
-                var mediator = _serviceProvider.GetRequiredService<IMediator>();
-                var gridStateService = _serviceProvider.GetRequiredService<Darklands.Application.Grid.Services.IGridStateService>();
-                var actorStateService = _serviceProvider.GetRequiredService<Darklands.Application.Actor.Services.IActorStateService>();
-                var combatQueryService = _serviceProvider.GetRequiredService<Darklands.Application.Combat.Services.ICombatQueryService>();
-                var actorFactory = _serviceProvider.GetRequiredService<Darklands.Application.Common.IActorFactory>();
+                // Get presenters from DI container (they're registered by ServiceConfiguration)
+                _gridPresenter = _serviceProvider.GetRequiredService<IGridPresenter>() as GridPresenter;
+                _actorPresenter = _serviceProvider.GetRequiredService<IActorPresenter>() as ActorPresenter;
 
-                _gridPresenter = new GridPresenter(_gridView!, mediator, _logger!, gridStateService, combatQueryService, actorFactory);
-                _actorPresenter = new ActorPresenter(_actorView!, mediator, _logger!, actorFactory, actorStateService, combatQueryService);
+                if (_gridPresenter == null || _actorPresenter == null)
+                {
+                    throw new InvalidOperationException("Failed to resolve presenters from DI container");
+                }
+
+                // Attach views to presenters
+                _gridPresenter.AttachView(_gridView!);
+                _actorPresenter.AttachView(_actorView!);
 
                 // Connect views to presenters
                 _gridView!.SetPresenter(_gridPresenter);

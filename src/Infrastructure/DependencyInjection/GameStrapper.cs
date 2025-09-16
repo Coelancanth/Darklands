@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Serilog;
 using Serilog.Extensions.Logging;
 using System;
+using System.Linq;
 using System.Reflection;
 using MediatR;
 using LanguageExt;
@@ -97,6 +98,14 @@ public static class GameStrapper
                 var appServicesResult = ConfigureApplicationServices(services);
                 if (appServicesResult.IsFail)
                     return appServicesResult.Match(
+                        Succ: _ => FinFail<ServiceProvider>(Error.New("Unexpected success in error path")),
+                        Fail: err => FinFail<ServiceProvider>(err));
+
+                // Phase 3.5: Presentation Services (if available)
+                // Try to configure presentation services if the assembly is loaded
+                var presentationResult = ConfigurePresentationServices(services);
+                if (presentationResult.IsFail)
+                    return presentationResult.Match(
                         Succ: _ => FinFail<ServiceProvider>(Error.New("Unexpected success in error path")),
                         Fail: err => FinFail<ServiceProvider>(err));
 
@@ -329,6 +338,54 @@ public static class GameStrapper
         catch (Exception ex)
         {
             return FinFail<LanguageExt.Unit>(Error.New($"Application services configuration failed: {ex.Message}", ex));
+        }
+    }
+
+    /// <summary>
+    /// Configures presentation layer services if the Presentation assembly is available.
+    /// This allows the Core project to optionally load presenters when running in Godot context.
+    /// </summary>
+    private static Fin<LanguageExt.Unit> ConfigurePresentationServices(IServiceCollection services)
+    {
+        try
+        {
+            // Try to load the Presentation assembly
+            var presentationAssembly = AppDomain.CurrentDomain.GetAssemblies()
+                .FirstOrDefault(a => a.GetName().Name == "Darklands.Presentation");
+
+            if (presentationAssembly == null)
+            {
+                // Presentation assembly not loaded - this is fine for tests
+                return FinSucc(LanguageExt.Unit.Default);
+            }
+
+            // Find the ServiceConfiguration type
+            var serviceConfigType = presentationAssembly
+                .GetType("Darklands.Presentation.DI.ServiceConfiguration");
+
+            if (serviceConfigType == null)
+            {
+                return FinFail<LanguageExt.Unit>(Error.New("ServiceConfiguration type not found in Presentation assembly"));
+            }
+
+            // Find the ConfigurePresentationServices method
+            var configureMethod = serviceConfigType
+                .GetMethod("ConfigurePresentationServices",
+                    System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+
+            if (configureMethod == null)
+            {
+                return FinFail<LanguageExt.Unit>(Error.New("ConfigurePresentationServices method not found"));
+            }
+
+            // Invoke the configuration method
+            configureMethod.Invoke(null, new object[] { services });
+
+            return FinSucc(LanguageExt.Unit.Default);
+        }
+        catch (Exception ex)
+        {
+            return FinFail<LanguageExt.Unit>(Error.New($"Presentation services configuration failed: {ex.Message}", ex));
         }
     }
 

@@ -20,36 +20,47 @@ namespace Darklands.Presentation.Presenters
     public sealed class AttackPresenter : PresenterBase<IAttackView>, IAttackPresenter, IAttackFeedbackService
     {
         private readonly IGridStateService _gridStateService;
-        private readonly IActorView _actorView;
+        private IActorView? _actorView;
         private readonly ILogger _logger;
 
         /// <summary>
         /// Creates a new AttackPresenter with the specified dependencies.
+        /// The view will be attached later via AttachView method.
         /// </summary>
-        /// <param name="view">The attack view interface this presenter controls</param>
         /// <param name="gridStateService">Grid state service for position lookup</param>
-        /// <param name="actorView">Actor view for coordinated feedback</param>
         /// <param name="logger">Logger for combat messages (serves as combat log)</param>
-        public AttackPresenter(IAttackView view, IGridStateService gridStateService, IActorView actorView, ILogger logger)
-            : base(view)
+        public AttackPresenter(IGridStateService gridStateService, ILogger logger)
+            : base()
         {
             _gridStateService = gridStateService ?? throw new ArgumentNullException(nameof(gridStateService));
-            _actorView = actorView ?? throw new ArgumentNullException(nameof(actorView));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         /// <summary>
-        /// Attaches a view to this presenter.
-        /// Required for IAttackPresenter interface compliance.
+        /// Sets the actor view for coordinated visual feedback.
+        /// Called during view initialization after presenters are wired up.
         /// </summary>
-        public void AttachView(IAttackView view)
+        public void SetActorView(IActorView actorView)
         {
-            // View is already set in constructor via PresenterBase
-            // This method exists for interface compliance
-            if (view != View)
-            {
-                _logger.Warning("AttachView called with different view instance");
-            }
+            _actorView = actorView ?? throw new ArgumentNullException(nameof(actorView));
+        }
+
+        /// <summary>
+        /// Attaches a view to this presenter.
+        /// Overrides base implementation to properly handle the view attachment.
+        /// </summary>
+        public new void AttachView(IAttackView view)
+        {
+            base.AttachView(view);
+            // Additional initialization if needed
+        }
+
+        /// <summary>
+        /// Legacy method for backward compatibility.
+        /// </summary>
+        void IAttackPresenter.AttachView(IAttackView view)
+        {
+            AttachView(view);
         }
 
 
@@ -102,8 +113,11 @@ namespace Darklands.Presentation.Presenters
                 await View.ShowAttackSuccessAsync(attackerId, attackerPosition, combatAction.Name);
 
                 // Coordinate with actor view for damage feedback
-                await _actorView.ShowActorFeedbackAsync(targetId, ActorFeedbackType.Damage, damage.ToString());
-                await _actorView.ShowActorFeedbackAsync(attackerId, ActorFeedbackType.ActionSuccess);
+                if (_actorView != null)
+                {
+                    await _actorView.ShowActorFeedbackAsync(targetId, ActorFeedbackType.Damage, damage.ToString());
+                    await _actorView.ShowActorFeedbackAsync(attackerId, ActorFeedbackType.ActionSuccess);
+                }
 
                 // Handle death effects if lethal
                 if (wasLethal)
@@ -201,7 +215,10 @@ namespace Darklands.Presentation.Presenters
                 await View.ShowAttackFailureAsync(attackerId, targetId, attackerPosition, targetPosition, reason);
 
                 // Coordinate with actor view for failure feedback
-                await _actorView.ShowActorFeedbackAsync(attackerId, ActorFeedbackType.ActionFailed, reason);
+                if (_actorView != null)
+                {
+                    await _actorView.ShowActorFeedbackAsync(attackerId, ActorFeedbackType.ActionFailed, reason);
+                }
             }
             catch (Exception ex)
             {
