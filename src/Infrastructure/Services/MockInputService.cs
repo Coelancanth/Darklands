@@ -13,6 +13,7 @@ namespace Darklands.Application.Infrastructure.Services;
 /// Mock implementation of IInputService for testing purposes.
 /// Provides controllable input state and event simulation for unit tests.
 /// Enables testing input-dependent behavior without actual user interaction.
+/// Fixed to remove Task.Run violations per TD_039 - uses deferred action pattern instead.
 /// </summary>
 public sealed class MockInputService : IInputService
 {
@@ -21,6 +22,10 @@ public sealed class MockInputService : IInputService
     private readonly Dictionary<InputAction, bool> _actionStates;
     private readonly Dictionary<InputAction, bool> _justPressedStates;
     private readonly Dictionary<InputAction, bool> _justReleasedStates;
+
+    // Queues for deferred actions (replacing Task.Run pattern)
+    private readonly Queue<(InputAction action, ulong timestamp)> _pendingReleases;
+    private readonly Queue<(MouseButton button, Position position, ulong timestamp)> _pendingMouseReleases;
 
     // Configurable state
     public Position MousePosition { get; set; } = Position.Zero;
@@ -33,6 +38,8 @@ public sealed class MockInputService : IInputService
         _actionStates = new Dictionary<InputAction, bool>();
         _justPressedStates = new Dictionary<InputAction, bool>();
         _justReleasedStates = new Dictionary<InputAction, bool>();
+        _pendingReleases = new Queue<(InputAction, ulong)>();
+        _pendingMouseReleases = new Queue<(MouseButton, Position, ulong)>();
 
         // Initialize all actions to not pressed
         foreach (var action in Enum.GetValues<InputAction>())
@@ -125,12 +132,10 @@ public sealed class MockInputService : IInputService
     public void SimulateActionTap(InputAction action, ulong timestamp = 0)
     {
         SimulatePressAction(action, timestamp);
-        // The release will be handled in the next update cycle
-        Task.Run(async () =>
-        {
-            await Task.Delay(16); // Simulate one frame delay
-            SimulateReleaseAction(action, timestamp + 1);
-        });
+        // Schedule release for next frame using a timer or deferred action
+        // Note: In a real Godot context, this would use CallDeferred
+        // For testing, we simulate the delay differently
+        _pendingReleases.Enqueue((action, timestamp + 1));
     }
 
     /// <summary>
@@ -187,19 +192,33 @@ public sealed class MockInputService : IInputService
     public void SimulateMouseClick(MouseButton button, Position? position = null, ulong timestamp = 0)
     {
         SimulateMousePress(button, position, timestamp);
-        Task.Run(async () =>
-        {
-            await Task.Delay(16); // Simulate one frame delay
-            SimulateMouseRelease(button, position, timestamp + 1);
-        });
+        // Schedule release for next frame using deferred pattern
+        // Note: In a real Godot context, this would use CallDeferred
+        // For testing, we simulate the delay differently
+        _pendingMouseReleases.Enqueue((button, position ?? MousePosition, timestamp + 1));
     }
 
     /// <summary>
     /// Updates the mock input service. Should be called each frame to clear just-pressed/released states.
     /// This simulates how real input systems work.
+    /// Also processes any pending deferred releases (replacing Task.Run pattern).
     /// </summary>
     public void Update()
     {
+        // Process pending action releases (simulates deferred execution)
+        while (_pendingReleases.Count > 0)
+        {
+            var (action, timestamp) = _pendingReleases.Dequeue();
+            SimulateReleaseAction(action, timestamp);
+        }
+
+        // Process pending mouse releases (simulates deferred execution)
+        while (_pendingMouseReleases.Count > 0)
+        {
+            var (button, position, timestamp) = _pendingMouseReleases.Dequeue();
+            SimulateMouseRelease(button, position, timestamp);
+        }
+
         // Clear just-pressed and just-released states after one frame
         foreach (var action in Enum.GetValues<InputAction>())
         {

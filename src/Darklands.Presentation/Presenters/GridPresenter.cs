@@ -20,7 +20,7 @@ namespace Darklands.Presentation.Presenters
     /// Orchestrates grid display, user interactions, and coordinates with the application layer via MediatR.
     /// Follows MVP pattern - handles all grid-related presentation logic without containing view implementation details.
     /// </summary>
-    public sealed class GridPresenter : PresenterBase<IGridView>
+    public sealed class GridPresenter : PresenterBase<IGridView>, IGridPresenter
     {
         private readonly IMediator _mediator;
         private readonly ICategoryLogger _logger;
@@ -57,6 +57,29 @@ namespace Darklands.Presentation.Presenters
         public void SetActorPresenter(ActorPresenter actorPresenter)
         {
             _actorPresenter = actorPresenter ?? throw new ArgumentNullException(nameof(actorPresenter));
+        }
+
+        /// <summary>
+        /// Attaches a view to this presenter.
+        /// Note: The view is already set in the constructor, so this is a no-op for compatibility.
+        /// </summary>
+        public void AttachView(IGridView view)
+        {
+            // View is already set in constructor via PresenterBase
+            // This method exists for interface compliance
+            if (view != View)
+            {
+                _logger.Log(LogLevel.Warning, LogCategory.System, "AttachView called with different view instance");
+            }
+        }
+
+        /// <summary>
+        /// Initializes the presenter and sets up the initial grid state asynchronously.
+        /// </summary>
+        public async Task InitializeAsync()
+        {
+            Initialize();
+            await Task.CompletedTask;
         }
 
         /// <summary>

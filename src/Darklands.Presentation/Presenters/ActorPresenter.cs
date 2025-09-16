@@ -16,7 +16,7 @@ namespace Darklands.Presentation.Presenters
     /// Handles actor positioning, visual state updates, and coordinates with the application layer.
     /// Follows MVP pattern - contains presentation logic without view implementation details.
     /// </summary>
-    public sealed class ActorPresenter : PresenterBase<IActorView>
+    public sealed class ActorPresenter : PresenterBase<IActorView>, IActorPresenter
     {
         private readonly IMediator _mediator;
         private readonly ICategoryLogger _logger;
@@ -54,6 +54,35 @@ namespace Darklands.Presentation.Presenters
         {
             _gridPresenter = gridPresenter ?? throw new ArgumentNullException(nameof(gridPresenter));
             _logger.Log(LogLevel.Debug, LogCategory.System, "ActorPresenter connected to GridPresenter for vision updates");
+        }
+
+        /// <summary>
+        /// Attaches a view to this presenter.
+        /// Required for IActorPresenter interface compliance.
+        /// </summary>
+        public void AttachView(IActorView view)
+        {
+            // View is already set in constructor via PresenterBase
+            // This method exists for interface compliance
+            if (view != View)
+            {
+                _logger.Log(LogLevel.Warning, LogCategory.System, "AttachView called with different view instance");
+            }
+        }
+
+        /// <summary>
+        /// Updates the visual position of an actor.
+        /// </summary>
+        public async Task UpdateActorPositionAsync(Domain.Grid.ActorId actorId, Domain.Grid.Position position)
+        {
+            // Get current position from the combat query service
+            var actorWithPositionOption = _combatQueryService.GetActorWithPosition(actorId);
+            var fromPosition = actorWithPositionOption.Match(
+                Some: actor => actor.Position,
+                None: () => position // Use target position as fallback if current position unknown
+            );
+
+            await View.MoveActorAsync(actorId, fromPosition, position);
         }
 
         /// <summary>

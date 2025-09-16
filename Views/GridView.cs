@@ -1,5 +1,6 @@
 using Darklands.Presentation.Views;
 using Darklands.Presentation.Presenters;
+using Darklands.Presentation.Infrastructure;
 using Darklands.Application.Common;
 using Godot;
 using System;
@@ -15,7 +16,7 @@ namespace Darklands.Views
     /// </summary>
     public partial class GridView : Node2D, IGridView
     {
-        private GridPresenter? _presenter;
+        private IGridPresenter? _presenter;
         private ICategoryLogger? _logger;
         private const int TileSize = 64;
         private int _gridWidth;
@@ -43,14 +44,32 @@ namespace Darklands.Views
         /// <summary>
         /// Called when the node is added to the scene tree.
         /// Initializes the grid display system with ColorRect-based tiles.
+        /// Uses service locator pattern to resolve the presenter from DI container.
         /// </summary>
         public override void _Ready()
         {
             try
             {
+                // Use service locator to get the presenter
+                _presenter = this.GetOptionalService<IGridPresenter>();
+
+                if (_presenter != null)
+                {
+                    _presenter.AttachView(this);
+                    _presenter.InitializeAsync().GetAwaiter().GetResult();
+                    GD.Print($"[GridView] Successfully attached to GridPresenter");
+                }
+                else
+                {
+                    GD.PrintErr("[GridView] Failed to resolve IGridPresenter from service locator");
+                }
+
+                // Also get the logger if available
+                _logger = this.GetOptionalService<ICategoryLogger>();
             }
             catch (Exception ex)
             {
+                GD.PrintErr($"[GridView] Error in _Ready: {ex.Message}");
                 _logger?.Log(LogLevel.Error, LogCategory.System, "GridView._Ready error: {Error}", ex.Message);
             }
         }
@@ -79,9 +98,10 @@ namespace Darklands.Views
 
         /// <summary>
         /// Sets the presenter that controls this view.
-        /// Called during initialization to establish the MVP connection.
+        /// Legacy method - now using service locator pattern in _Ready().
+        /// Kept for compatibility if needed.
         /// </summary>
-        public void SetPresenter(GridPresenter presenter)
+        public void SetPresenter(IGridPresenter presenter)
         {
             _presenter = presenter ?? throw new ArgumentNullException(nameof(presenter));
         }

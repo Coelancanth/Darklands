@@ -17,7 +17,7 @@ namespace Darklands.Presentation.Presenters
     /// Follows MVP pattern - contains presentation logic without view implementation details.
     /// Implements IAttackFeedbackService to provide feedback to the application layer.
     /// </summary>
-    public sealed class AttackPresenter : PresenterBase<IAttackView>, IAttackFeedbackService
+    public sealed class AttackPresenter : PresenterBase<IAttackView>, IAttackPresenter, IAttackFeedbackService
     {
         private readonly IGridStateService _gridStateService;
         private readonly IActorView _actorView;
@@ -37,6 +37,21 @@ namespace Darklands.Presentation.Presenters
             _actorView = actorView ?? throw new ArgumentNullException(nameof(actorView));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
+
+        /// <summary>
+        /// Attaches a view to this presenter.
+        /// Required for IAttackPresenter interface compliance.
+        /// </summary>
+        public void AttachView(IAttackView view)
+        {
+            // View is already set in constructor via PresenterBase
+            // This method exists for interface compliance
+            if (view != View)
+            {
+                _logger.Warning("AttachView called with different view instance");
+            }
+        }
+
 
         /// <summary>
         /// Processes a successful attack with full visual and logging feedback.
