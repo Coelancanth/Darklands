@@ -63,8 +63,8 @@ namespace Darklands
                 // This will work because GameStrapper is now initialized
                 base._Ready();
 
-                // Load the combat scene after DI is ready
-                LoadCombatScene();
+                // Note: Scene is loaded automatically by Godot as main_scene
+                // We just need to find it and set up MVP after a frame
 
                 // Continue with initialization sequentially (ADR-009): avoid background concurrency
                 try
@@ -209,10 +209,25 @@ namespace Darklands
         {
             try
             {
-                var packedScene = GD.Load<PackedScene>("res://Scenes/combat_scene.tscn");
+                // Use ResourceLoader for more reliable loading
+                var scenePath = "res://Scenes/combat_scene.tscn";
+
+                // Check if resource exists first
+                if (!ResourceLoader.Exists(scenePath))
+                {
+                    GD.PrintErr($"Scene file not found at path: {scenePath}");
+                    // Try alternative path (lowercase)
+                    scenePath = "res://scenes/combat_scene.tscn";
+                    if (!ResourceLoader.Exists(scenePath))
+                    {
+                        throw new InvalidOperationException($"Cannot find combat_scene.tscn in either Scenes/ or scenes/ directory");
+                    }
+                }
+
+                var packedScene = ResourceLoader.Load<PackedScene>(scenePath);
                 if (packedScene == null)
                 {
-                    throw new InvalidOperationException("Failed to load combat_scene.tscn");
+                    throw new InvalidOperationException($"Failed to load scene from: {scenePath}");
                 }
 
                 _currentScene = packedScene.Instantiate<Node2D>();
@@ -225,7 +240,8 @@ namespace Darklands
                 GetTree().Root.AddChild(_currentScene);
                 GetTree().CurrentScene = _currentScene;
 
-                _logger?.Log(DomainLogLevel.Information, LogCategory.System, "Combat scene loaded successfully");
+                _logger?.Log(DomainLogLevel.Information, LogCategory.System, "Combat scene loaded successfully from: {0}", scenePath);
+                GD.Print($"Combat scene loaded successfully from: {scenePath}");
             }
             catch (Exception ex)
             {
@@ -307,12 +323,15 @@ namespace Darklands
                     throw new InvalidOperationException("ServiceProvider not initialized");
                 }
 
-                // Find view nodes in the loaded scene (not as child nodes since GameManager is now an autoload)
+                // Find the current scene (loaded as main_scene)
+                _currentScene = GetTree().CurrentScene as Node2D;
                 if (_currentScene == null)
                 {
-                    throw new InvalidOperationException("No scene loaded. LoadCombatScene must be called first.");
+                    GD.PrintErr("Current scene is not a Node2D or is null");
+                    throw new InvalidOperationException("Current scene is not available or is not a Node2D");
                 }
 
+                // Find view nodes in the current scene
                 _gridView = _currentScene.GetNode<GridView>("Grid");
                 _actorView = _currentScene.GetNode<ActorView>("Actors");
 
