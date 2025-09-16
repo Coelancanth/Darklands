@@ -37,7 +37,9 @@ jobs:
     - name: 🔧 Auto-format entire codebase
       run: |
         echo "🔧 Formatting all C# files..."
-        dotnet format src/Darklands.Core.csproj --verbosity diagnostic || true
+        dotnet format src/Darklands.Domain/Darklands.Domain.csproj --verbosity diagnostic || true
+        dotnet format src/Darklands.Application.csproj --verbosity diagnostic || true
+        dotnet format src/Darklands.Presentation/Darklands.Presentation.csproj --verbosity diagnostic || true
         dotnet format tests/Darklands.Core.Tests.csproj --verbosity diagnostic || true
         dotnet format Darklands.csproj --verbosity diagnostic || true
         

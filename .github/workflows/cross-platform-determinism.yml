@@ -66,7 +66,10 @@ jobs:
       
     - name: 🏗️ Build Core projects
       run: |
-        dotnet build src/Darklands.Core.csproj --configuration Release
+        # Build in dependency order: Domain -> Application -> Presentation
+        dotnet build src/Darklands.Domain/Darklands.Domain.csproj --configuration Release
+        dotnet build src/Darklands.Application.csproj --configuration Release
+        dotnet build src/Darklands.Presentation/Darklands.Presentation.csproj --configuration Release
         dotnet build tests/Darklands.Core.Tests.csproj --configuration Release
         
     - name: 🎯 Run Determinism Property Tests

@@ -43,9 +43,11 @@ jobs:
     - name: 🔍 Verify code formatting
       run: |
         echo "🔍 Verifying local hooks did their job..."
-        
-        # Check if code would be changed by formatting
-        dotnet format src/Darklands.Core.csproj --verify-no-changes --verbosity diagnostic
+
+        # Check if code would be changed by formatting - build all projects in dependency order
+        dotnet format src/Darklands.Domain/Darklands.Domain.csproj --verify-no-changes --verbosity diagnostic
+        dotnet format src/Darklands.Application.csproj --verify-no-changes --verbosity diagnostic
+        dotnet format src/Darklands.Presentation/Darklands.Presentation.csproj --verify-no-changes --verbosity diagnostic
         dotnet format tests/Darklands.Core.Tests.csproj --verify-no-changes --verbosity diagnostic
         
         echo "✅ Code formatting is correct (local hooks worked!)"
@@ -75,7 +77,10 @@ jobs:
       
     - name: 🏗️ Build projects
       run: |
-        dotnet build src/Darklands.Core.csproj --configuration Release
+        # Build in dependency order: Domain -> Application -> Presentation
+        dotnet build src/Darklands.Domain/Darklands.Domain.csproj --configuration Release
+        dotnet build src/Darklands.Application.csproj --configuration Release
+        dotnet build src/Darklands.Presentation/Darklands.Presentation.csproj --configuration Release
         dotnet build tests/Darklands.Core.Tests.csproj --configuration Release
         
         # Godot project (optional - may need Godot runtime)
