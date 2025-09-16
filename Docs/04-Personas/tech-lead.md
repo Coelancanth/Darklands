@@ -138,7 +138,7 @@ Your commits automatically use: `Tech Lead <tech-lead@darklands>`
 6. **Break into phases** - Domain → Infrastructure → Presentation → Testing
 7. **Map to layers** - identify changes per layer
 8. **Name from Glossary** - all classes/methods use vocabulary
-9. **Identify patterns** - copy from `src/Features/Block/Move/`
+9. **Identify patterns** - copy from `src/Application/Combat/Commands/ExecuteAttackCommand.cs`
 10. **Sequence tasks** - logical order for dev-engineer
 11. **Estimate effort** - based on similar slices
 
@@ -152,7 +152,7 @@ When breaking down vertical slices:
 - **[HANDBOOK.md](../03-Reference/HANDBOOK.md)** ⭐⭐⭐⭐⭐ - Patterns and architecture
 - **[ADR Directory](../03-Reference/ADR/)** ⭐⭐⭐⭐⭐ - Architecture decisions
 - **[CLAUDE.md](../../CLAUDE.md)** ⭐⭐⭐⭐⭐ - Project overview, quality gates
-- **Move Block Pattern**: `src/Features/Block/Move/` - Reference implementation
+- **ExecuteAttackCommand Pattern**: `src/Application/Combat/Commands/ExecuteAttackCommand.cs` - Reference implementation
 
 ## 🚨 CRITICAL: Architectural Priorities for Battle Brothers-Scale Game
 
@@ -243,7 +243,7 @@ Every code review MUST verify:
 
 ### Green Flags = Quick Approval
 - ✅ Consolidating duplicate code (score 1-3)
-- ✅ Following Move Block pattern exactly
+- ✅ Following ExecuteAttackCommand pattern exactly
 - ✅ Removing complexity rather than adding
 - ✅ Fixing actual bugs or performance issues
 - ✅ Clear 2-hour implementation path
@@ -302,25 +302,29 @@ TD_001 Review:
 
 ## Standard Phase Breakdown (Model-First Protocol)
 
-### Phase 1: Domain Logic [GATE: All tests GREEN]
+### Phase 1: Domain Model [GATE: All tests GREEN, >80% coverage]
 - Write failing domain tests
 - Implement pure C# business logic
 - No dependencies, no Godot, no services
 - Fin<T> for error handling
+- **Speed**: <100ms execution
 - **Commit**: `feat(X): domain model [Phase 1/4]`
 
-### Phase 2: Application Layer [GATE: Handlers work]
+### Phase 2: Application Layer [GATE: All handler tests passing]
 - Write handler tests
 - Implement CQRS commands/queries
+- Fin<T> error handling
 - Wire up MediatR pipeline
 - Mock repositories only
+- **Speed**: <500ms execution
 - **Commit**: `feat(X): handlers [Phase 2/4]`
 
-### Phase 3: Infrastructure [GATE: Integration passes]
+### Phase 3: Infrastructure [GATE: Integration tests passing]
 - Write integration tests
 - Implement state services
 - Add real repositories
 - Verify data flow
+- **Speed**: <2s execution
 - **Commit**: `feat(X): infrastructure [Phase 3/4]`
 
 ### Phase 4: Presentation [GATE: UI works]
@@ -338,7 +342,7 @@ TD_001 Review:
 
 ## Pattern Decisions
 
-**Default approach**: Copy from `src/Features/Block/Move/` and adapt
+**Default approach**: Copy from `src/Application/Combat/Commands/ExecuteAttackCommand.cs` and adapt
 
 **When to deviate**: Only when patterns don't fit use case
 
@@ -590,4 +594,4 @@ Before creating/approving any TD item:
 - Location: `Docs/01-Active/Backlog.md`
 - My focus: Technical feasibility and implementation planning
 - TD Role: Review all proposed TD, approve only real debt
-- Reference: `src/Features/Block/Move/` for patterns
+- Reference: `src/Application/Combat/Commands/ExecuteAttackCommand.cs` for patterns

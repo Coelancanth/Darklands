@@ -32,7 +32,7 @@
 **🚨 Emergency Fixes:**
 - **First-time setup** → Run `./scripts/setup/verify-environment.ps1`
 - **30+ test failures** → Check DI registration in GameStrapper.cs first
-- **Handler not found** → Namespace MUST be `Darklands.Core.*` for MediatR discovery
+- **Handler not found** → Namespace MUST be `Darklands.Application.*` for MediatR discovery
 - **DI container fails** → Check namespace matches pattern
 - **Build/test issues** → Run `./scripts/fix/common-issues.ps1`
 - **Tests pass but game won't compile** → Use `./scripts/core/build.ps1 test` not `test-only`
@@ -165,7 +165,7 @@ After running the setup script, you should see:
 ✅ NuGet packages restored
 ✅ Git hooks (Husky) installed
 ✅ Build system working
-✅ All tests passing (107/107)
+✅ All tests passing
 ✅ Setup complete - ready for development!
 ```
 
@@ -197,7 +197,7 @@ dotnet build Darklands.csproj
 
 After proper setup:
 - **Build time**: 2-3 seconds
-- **Test time**: < 1.5 seconds (107 tests)
+- **Test time**: ~1-5 seconds (machine-dependent)
 - **Pre-commit hook**: < 0.5 seconds
 - **Fresh clone to working**: < 10 minutes
 
@@ -224,10 +224,11 @@ The `./scripts/setup/verify-environment.ps1` script performs:
 ## 🏗️ Core Architecture
 
 ### Clean Architecture + MVP Pattern (ADR-001)
-- **Core Layer** (`src/Darklands.Core.csproj`): Pure C# business logic, NO Godot
-- **Application Layer**: Commands, Queries, Handlers (MediatR)
-- **Godot Integration** (`Darklands.csproj`): Views, Presenters, Scene files
-- **Test Layer** (`tests/Darklands.Core.Tests.csproj`): Fast unit tests
+- **Domain Layer** (`src/Darklands.Domain/Darklands.Domain.csproj`): Pure C# domain logic, NO Godot
+- **Application Layer** (`src/Darklands.Application.csproj`): Commands, Queries, Handlers (MediatR)
+- **Presentation Layer** (`src/Darklands.Presentation/Darklands.Presentation.csproj`): Presenters and view interfaces
+- **Godot Project** (`Darklands.csproj`): Hosts Godot integration; excludes `src/**` from compilation
+- **Test Layer** (`tests/Darklands.Core.Tests.csproj`): Fast unit/integration tests
 
 ### Critical Architecture Rules
 1. **Core has ZERO Godot references** - Enables modding without Godot
@@ -261,11 +262,11 @@ Y↑
 ```
 
 ### GameStrapper Pattern
-**CRITICAL**: Follow established GameStrapper.cs pattern (468 lines)
+**CRITICAL**: Follow established `GameStrapper` in `src/Infrastructure/DependencyInjection/GameStrapper.cs`
 - Full DI container setup with validation
 - Fallback-safe Serilog configuration
 - Service lifetime management
-- MediatR pipeline registration
+- MediatR pipeline registration (handlers must be in `Darklands.Application.*`)
 
 ---
 
@@ -368,7 +369,7 @@ result.Match(
 ./scripts/core/build.ps1 test             # Build + test (safe to commit)
 
 # Build and test
-dotnet build src/Darklands.Core.csproj    # Core only (fast)
+dotnet build src/Darklands.Domain/Darklands.Domain.csproj    # Domain only (fast)
 dotnet test tests/Darklands.Core.Tests.csproj  # Unit tests
 dotnet build Darklands.csproj              # Full with Godot
 
@@ -695,10 +696,10 @@ namespace Darklands.Features.Combat
 public class AttackHandler : IRequestHandler<AttackCommand, Fin<Result>>
 
 // ✅ CORRECT - Will be auto-discovered by MediatR
-namespace Darklands.Core.Features.Combat
+namespace Darklands.Application.Combat
 public class AttackHandler : IRequestHandler<AttackCommand, Fin<Result>>
 ```
-**Impact**: Handlers outside `Darklands.Core.*` namespace are invisible to MediatR
+**Impact**: Handlers outside `Darklands.Application.*` namespace are invisible to MediatR
 **Symptom**: 30+ test failures from single namespace error
 
 ### Notification Layer Completeness
@@ -729,7 +730,7 @@ public class ProcessAfterSpellHandler : INotificationHandler<SpellCompletedNotif
 
 ### MediatR Handler Not Found
 **Symptom**: "No handler registered"  
-**Fix**: Namespace must be `Darklands.Core.*`, check assembly scanning
+**Fix**: Namespace must be `Darklands.Application.*`, check assembly scanning
 
 ### Godot Compilation Errors
 **Symptom**: Build fails with Godot errors  
@@ -872,7 +873,7 @@ git config --get core.hookspath  # Should return .husky
 - **Established HANDBOOK**: Our template and proven patterns
 - **ADR-001**: Strict Model-View Separation
 - **ADR-002**: Phased Implementation Protocol
-- **GameStrapper.cs**: DI container pattern (established approach)
+- **GameStrapper.cs**: DI container pattern (in `src/Infrastructure/DependencyInjection/GameStrapper.cs`)
 - **Clean Architecture**: Uncle Bob's principles
 - **LanguageExt Docs**: Functional patterns in C#
 

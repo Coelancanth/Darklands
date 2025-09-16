@@ -225,5 +225,5 @@ public class CombatPresenter : PresenterBase<ICombatView>
 
 ## References
 - Proven ADR-006: Model-First Implementation Protocol
-- [Move Block Reference](https://github.com/user/darklands-reference/src/Features/Block/Move/)
+- [ExecuteAttackCommand Reference](../../src/Application/Combat/Commands/ExecuteAttackCommand.cs)
 - Clean Architecture principles

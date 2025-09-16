@@ -405,7 +405,7 @@ When investigating bugs, I primarily reference:
 - **[Glossary.md](../03-Reference/Glossary.md)** ⭐⭐⭐⭐⭐ - Terminology for bug descriptions
 - **[BugReport_Template.md](../05-Templates/BugReport_Template.md)** - BR structure
 - **[06-PostMortems/](../06-PostMortems/)** - Learning from past issues
-- **Move Block Reference**: `src/Features/Block/Move/` - Pattern comparison
+- **ExecuteAttackCommand Reference**: `src/Application/Combat/Commands/ExecuteAttackCommand.cs` - Pattern comparison
 
 ## 📝 Post-Mortem Lifecycle Management
 

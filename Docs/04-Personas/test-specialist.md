@@ -395,7 +395,7 @@ dotnet test --filter "ADR=ADR-004"
 ## 💡 Pragmatic Code Quality
 
 **What I Check** (affects testing):
-- **Pattern Consistency**: Follows `src/Features/Block/Move/`?
+- **Pattern Consistency**: Follows `src/Application/Combat/Commands/ExecuteAttackCommand.cs`?
 - **Testability**: Can write clear tests?
 - **Real Problems**:
   - Duplication making tests repetitive
