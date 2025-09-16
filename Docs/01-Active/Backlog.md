@@ -278,11 +278,39 @@ UIDispatcher="*res://GodotIntegration/EventBus/UIDispatcher.cs"
 - Insertions: 517
 - Deletions: 127
 
+## 🔧 DEV ENGINEER SESSION 2 - INITIALIZATION FIX (2025-09-16 17:45)
+
+### Problem: Views couldn't resolve presenters (initialization order issue)
+**Root Cause**: Child nodes' _Ready() runs before parent's _Ready() in Godot
+
+### Solution Implemented: GameManager as Autoload
+1. **Converted GameManager to autoload** (runs before any scene)
+2. **Fixed project.godot configuration**:
+   - Added GameManager as first autoload
+   - Kept main_scene for Godot startup
+   - Proper autoload order: GameManager → ServiceLocator → UIDispatcher
+
+### Files Modified:
+- `Scenes/combat_scene.tscn` - Removed GameManager script from root
+- `GodotIntegration/Core/GameManager.cs` - Updated to work as autoload
+- `project.godot` - Added autoloads, kept main_scene
+- Created `AUTOLOAD_SETUP.md` - Configuration instructions
+
+### Commits:
+- 46d2327: Configure autoloads in project.godot
+- 3cdcbd4: Restore main_scene to fix Godot startup
+
+### Remaining Issue:
+**IGridPresenter not registered** - ServiceConfiguration.ConfigurePresentationServices() is never called
+- Need to wire ServiceConfiguration into GameStrapper initialization
+- Presenters must be registered in DI container for Views to resolve them
+
 ### Technical Debt Created
 - ~~Service interfaces misplaced in Domain~~ ✅ RESOLVED: Created IScopeManager, ScopeManagerDiagnostics in Application.Common
 - Mixed infrastructure code in `src/Infrastructure/` needs proper organization (Phase 4 target)
 - Event files moved but namespace references need cleanup (Phase 3-4 target)
 - Legacy `Darklands.Core.csproj` still includes Presentation files (Phase 3 cleanup)
+- **NEW**: ServiceConfiguration not wired into DI initialization (blocking presenter resolution)
 
 ## 📋 Pre-Migration Checklist (30 min)
 ```bash
