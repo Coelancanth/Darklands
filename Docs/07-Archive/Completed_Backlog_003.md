@@ -1,21 +1,3 @@
-- Information logs only for important events
-- Debug logs contain detailed execution flow
-- Log output reduced by >50% at Info level
-
-**Depends On**: None
-
-**Tech Lead Decision** (2025-09-08 14:45):
-- **APPROVED** - Clean logging essential for production
-- Emojis inappropriate for professional logs
-- Simple log level adjustments, no architectural changes
-- Low-risk, high-value cleanup work
-- Route to Dev Engineer (can be done anytime)
----
-**Extraction Targets**:
-- [ ] HANDBOOK update: Production logging standards and emoji removal rationale
-- [ ] HANDBOOK update: Log verbosity level guidelines (Debug vs Information vs Warning)
-- [ ] Pattern: Structured logging properties over string interpolation
-
 ### TD_030: Fix Code Formatting CI/Local Inconsistency ✅ DEVELOPER EXPERIENCE RESTORED
 **Extraction Status**: NOT EXTRACTED ⚠️
 **Completed**: 2025-09-09
@@ -998,3 +980,105 @@ private void BuildCategorySection(string categoryName, string icon)
 - Search/filter box at top
 - Position at (20, 20), size (350, 500)
 
+**4. Wire F12 Toggle (0.5h)**:
+```csharp
+public override void _Input(InputEvent @event)
+{
+    if (@event.IsActionPressed("toggle_debug_window")) // F12
+    {
+        _debugWindow.Visible = !_debugWindow.Visible;
+    }
+}
+```
+
+**5. Enhanced Logging with Category Filtering (1h)**:
+```csharp
+// Enhanced logger that respects category filters
+public class CategoryFilteredLogger : ILogger
+{
+    private readonly DebugConfig _config;
+    
+    public void Log(LogCategory category, string message)
+    {
+        // Check if category is enabled
+        bool shouldLog = category switch
+        {
+            LogCategory.Thread => _config.ShowThreadMessages,
+            LogCategory.Command => _config.ShowCommandMessages,
+            LogCategory.Event => _config.ShowEventMessages,
+            LogCategory.System => _config.ShowSystemMessages,
+            LogCategory.AI => _config.ShowAIMessages,
+            LogCategory.Performance => _config.ShowPerformanceMessages,
+            _ => true
+        };
+        
+        if (shouldLog)
+        {
+            // Color-code by category
+            var color = GetCategoryColor(category);
+            GD.PrintRich($"[color={color}][{category}] {message}[/color]");
+        }
+    }
+}
+
+// Usage in code:
+_logger.Log(LogCategory.Command, "ExecuteAttackCommand processed");
+_logger.Log(LogCategory.AI, "Enemy evaluating targets...");
+_logger.Log(LogCategory.Thread, "Background task completed");
+```
+
+**6. Bridge to Infrastructure (0.5h)**:
+- Create IDebugConfiguration interface  
+- GodotDebugBridge implements interface
+- CategoryFilteredLogger replaces default logger
+- Register in ServiceLocator for clean access
+
+**File Structure**:
+```
+res://
+├── debug_config.tres (the resource)
+├── src/
+│   ├── Configuration/
+│   │   ├── DebugConfig.cs
+│   │   ├── DebugSystem.cs
+│   │   └── DebugSystem.tscn
+│   └── UI/
+│       ├── DebugWindow.cs
+│       └── DebugWindow.tscn
+```
+
+**Project Settings Changes**:
+- Add to Autoload: DebugSystem → res://src/Configuration/DebugSystem.tscn
+- Add Input Map: "toggle_debug_window" → F12
+
+**Done When**:
+- F12 toggles debug window during play
+- Log messages filtered by category (Thread, Command, Event, etc.)
+- Console output color-coded by message type
+- Can toggle message categories on/off in debug window
+- Example filtering in action:
+  ```
+  [Command] ExecuteAttackCommand processed     ✓ Shown
+  [AI] Evaluating target priorities...         ✗ Hidden (disabled)
+  [Thread] Background pathfinding complete     ✓ Shown
+  [Performance] Frame time: 12.3ms            ✗ Hidden (disabled)
+  ```
+- Settings accessible via `DebugSystem.Instance.Config`
+- Visual debug overlays organized in groups
+- Window persists across scene changes
+- Dramatically reduces console noise during debugging
+
+**Tech Lead Notes**:
+- Keep it simple - just F12 for now, no other hotkeys
+- Log filtering is THE killer feature - reduces noise by 80%
+- Color-coding makes patterns visible instantly
+- This is dev-only, not player-facing
+- Easy to add new LogCategory values as needed
+- Consider: Save filter preferences per developer
+---
+**Extraction Targets**:
+- [ ] ADR needed for: Global debug systems architecture pattern (Autoload singleton with Resource config)
+- [ ] HANDBOOK update: F12 debug window implementation pattern for Godot
+- [ ] HANDBOOK update: Category-based logging system design
+- [ ] Test pattern: Runtime UI testing approaches for debug systems
+- [ ] Technical debt: Address log level dropdown minor issue separately

@@ -954,3 +954,20 @@ Core implementation complete with all hardening features integrated. Ready for T
 
 **Done When**:
 - No emojis in any log messages
+- Information logs only for important events
+- Debug logs contain detailed execution flow
+- Log output reduced by >50% at Info level
+
+**Depends On**: None
+
+**Tech Lead Decision** (2025-09-08 14:45):
+- **APPROVED** - Clean logging essential for production
+- Emojis inappropriate for professional logs
+- Simple log level adjustments, no architectural changes
+- Low-risk, high-value cleanup work
+- Route to Dev Engineer (can be done anytime)
+---
+**Extraction Targets**:
+- [ ] HANDBOOK update: Production logging standards and emoji removal rationale
+- [ ] HANDBOOK update: Log verbosity level guidelines (Debug vs Information vs Warning)
+- [ ] Pattern: Structured logging properties over string interpolation

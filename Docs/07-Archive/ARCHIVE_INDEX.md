@@ -19,27 +19,53 @@ Archives are split when they reach **1000 lines** to maintain readability and pe
 - **VS_010a/b**: Actor Health & Combat System - Complete health/damage foundation with melee attacks
 - **TD_001-004**: Early technical debt cleanup and API fixes
 
-### Completed_Backlog_002.md (Lines 1001-2000)
-**Item Range**: Core gameplay implementation (VS_005-008, TD_005)
-**Notable Items**:
-- VS_005-008: Grid and Player system implementation series
-- TD_005: Actor Movement Visual Update Bug
-- Core presentation layer work
+### Completed_Backlog_002.md (957 lines)
+**Date Range**: 2025-09-07 to 2025-09-09
+**Major Items**:
+- **VS_005**: Grid and Player Visualization (Phase 1 Domain) - Complete grid system foundation
+- **VS_006**: Player Movement Commands (Phase 2 Application) - CQRS implementation with MediatR
+- **TD_005**: Fix Actor Movement Visual Update Bug - Critical visual sync bug resolved
+- **VS_008**: Grid Scene and Player Sprite (Phase 4 Presentation) - Complete MVP architecture validation
+- **TD_008**: Godot Console Serilog Sink - Rich formatting, eliminated dual logging anti-pattern
+- **VS_002**: Combat Scheduler (Phase 2) - Priority queue-based timeline scheduler
+- **TD_009**: Remove Position from Actor Domain Model - Clean architecture separation with ICombatQueryService
+- **VS_010c**: Dummy Combat Target - Complete testing target with enhanced death system
+- **TD_012**: Remove Static Callbacks - Event-driven architecture replacing static handlers
+- **TD_023**: Strategic ADR Review - Created 6 new TD items (TD_024-029) for production gaps
+- **TD_017**: UI Event Bus Architecture - Complete MediatR integration replacing static router
+- **TD_019**: Fix embody script squash merge handling - Zero-friction automation restored
+- **TD_020**: Deterministic Random Service - Foundation with property-based tests
+- **TD_026**: Determinism Hardening - Production-grade with rejection sampling and FNV-1a hashing
+- **TD_015**: Reduce Logging Verbosity - Production readiness, emoji removal
 
-### Completed_Backlog_003.md (Lines 2001-3000)
-**Item Range**: Mid-development items and refactoring
-**Notable Items**:
-- Various TD items and VS implementations
-- System consolidation work
-- Bug fixes and improvements
+### Completed_Backlog_003.md (1,001 lines)
+**Date Range**: 2025-09-09 to 2025-09-11
+**Major Items**:
+- **TD_030**: Fix Code Formatting CI/Local Inconsistency - Developer experience improvement
+- **TD_021**: Save-Ready Entity Patterns (All 4 Phases) - Complete architectural milestone
+- **TD_022**: Core Abstraction Services - Audio/Input/Settings with production-quality mocks
+- **TD_024**: Architecture Tests for ADR Compliance - 40 total tests with NetArchTest integration
+- **TD_025**: Cross-Platform Determinism CI Pipeline - GitHub Actions matrix workflow
+- **TD_018**: Integration Tests for C# Event Infrastructure - 34 tests preventing DI/MediatR failures
+- **TD_013**: Extract Test Data from Production Presenters - Clean IActorFactory abstraction
+- **VS_011**: Vision/FOV System with Shadowcasting - Complete foundation for combat/AI/stealth
+- **BR_002**: Shadowcasting FOV Edge Cases - 75% implementation deemed sufficient
+- **TD_033**: Shadowcasting Edge Cases Investigation - Root cause analysis, deferred as acceptable
+- **TD_034**: Consolidate HealthView into ActorView - Eliminated 790 lines of phantom code
+- **TD_036**: Global Debug System - F12-toggleable debug window with runtime controls
 
-### Completed_Backlog_004.md (Lines 3001-3974)
-**Item Range**: Recent development including architecture decisions
-**Contains**: Most recent 974 items
-**Notable Items**:
-- Recent TD items (TD_049, TD_052, TD_055)
-- Architecture decision implementations
-- Latest bug fixes and improvements
+### Completed_Backlog_004.md (200+ lines, partial)
+**Date Range**: 2025-09-11 to 2025-09-16
+**Major Items Visible**:
+- **BR_005**: Debug Window Log Level Filtering - Fixed logging SSOT violation
+- **TD_039**: Remove Task.Run Violations - Sequential execution patterns for ADR-009 compliance
+- **TD_040**: Fixed-Point Math for Determinism - 16.16 Fixed-point arithmetic replacing doubles
+- **TD_041**: Production-Ready DI Lifecycle Management - ConditionalWeakTable scope management
+- **TD_042**: Replace Over-Engineered DDD Main - Simplified clean architecture approach
+- **TD_046**: Clean Architecture Project Separation - 4-project structure with MVP enforcement
+- **TD_055**: Document Real Implementation Experience - Phase completion documentation protocol
+- **TD_052**: Restrict Backlog-Assistant to Archive Operations - Process clarity improvement
+- **TD_049**: Size-Based Backlog Archive Protocol - Archive management at 1000-line threshold
 
 ### Completed_Backlog.md (Current Active - Empty)
 **Status**: Fresh archive ready for new completions
@@ -53,12 +79,15 @@ Archives are split when they reach **1000 lines** to maintain readability and pe
 - **Very recent**: May be in 004 or active file
 
 ### By Feature Area
-- **Architecture Foundation**: 001 (VS_001, TD_011, Clean Architecture)
-- **Vision/FOV**: 001 (VS_011, BR_007 vision-related threading)
-- **Combat System**: 001 (VS_010a/b, BR_001 determinism)
-- **Movement/Grid**: Check 002, 003
-- **Logger System**: 001 (TD_038 complete rewrite)
-- **Recent TD items**: Check 004
+- **Architecture Foundation**: 001 (VS_001, TD_011, Clean Architecture), 004 (TD_046 4-project separation)
+- **Vision/FOV**: 003 (VS_011 complete shadowcasting system, BR_002/TD_033 edge cases)
+- **Combat System**: 001 (VS_010a/b), 002 (VS_002 Combat Scheduler, VS_010c Dummy Target)
+- **Movement/Grid**: 002 (VS_005/006/008 complete grid and movement system)
+- **Logger System**: 001 (TD_038 complete rewrite), 002 (TD_008 Godot Serilog sink)
+- **Determinism**: 002 (TD_020 Deterministic Random, TD_026 Hardening), 004 (TD_040 Fixed-point math)
+- **Event Architecture**: 002 (TD_017 UI Event Bus), 003 (TD_018 Integration Tests)
+- **Save System**: 003 (TD_021 Save-Ready Entity Patterns - all 4 phases)
+- **DevOps/CI**: 002 (TD_019 embody script fixes), 003 (TD_025 Cross-Platform CI, TD_030 formatting)
 
 ### Search Commands
 ```bash
@@ -74,11 +103,18 @@ grep -l "BR_007" Docs/07-Archive/Completed_Backlog_*.md
 
 ## 📊 Archive Statistics
 
-- **Total Archived Items**: ~25 major items (BR, TD, VS items)
+- **Total Archived Items**: ~50+ major items (BR, TD, VS items)
 - **Archive Files**: 4 complete + 1 active
-- **Average Lines per Archive**: 1,000 (except 004: 974)
-- **Largest Archive**: 1,000 lines (001-003)
-- **Archive 001 Content**: Foundation architecture, vision system, combat basics
+- **Archive Sizes**:
+  - **001**: 1,000 lines (Foundation & Combat)
+  - **002**: 957 lines (Grid System & Event Architecture)
+  - **003**: 1,001+ lines (Save System & Vision/FOV)
+  - **004**: 975+ lines (Clean Architecture & Process)
+- **Key Content**:
+  - **001**: Foundation architecture, async fixes, logger rewrite
+  - **002**: Complete grid/movement system, event bus, deterministic random
+  - **003**: Save-ready entities, vision/FOV, abstraction services
+  - **004**: 4-project separation, DDD replacement, process improvements
 - **Current Active**: Empty (ready for new items)
 
 ## 🔄 Archive Workflow (AUTO-ROTATION)
