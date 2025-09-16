@@ -1,7 +1,7 @@
 #!/bin/sh
 . "$(dirname "$0")/_/husky.sh"
 
-echo "🔍 Pre-commit validation..."
+echo "🔍 Pre-commit validation (fast mode)..."
 
 # Auto-fix code formatting BEFORE testing (zero friction)
 echo "🔧 Auto-formatting code..."
@@ -14,24 +14,15 @@ else
     echo "⚠️  Could not auto-format (continuing anyway)"
 fi
 
-# Run Core tests (fast feedback)
-echo "Running Core tests..."
-dotnet test tests/Darklands.Core.Tests.csproj --no-build --verbosity minimal
+# FAST MODE: Only run quick architecture tests (<2 seconds)
+echo "⚡ Running quick architecture tests..."
+dotnet test tests/Darklands.Core.Tests.csproj --no-build --verbosity minimal --filter "Category=Architecture" 2>/dev/null
 if [ $? -ne 0 ]; then
-    echo "❌ Tests failed. Attempting auto-fix..."
-
-    # Try to rebuild in case of stale builds
-    echo "🔧 Attempting fresh build..."
-    dotnet build Darklands.sln --verbosity minimal
-
-    # Retry tests
-    dotnet test tests/Darklands.Core.Tests.csproj --no-build --verbosity minimal
-    if [ $? -ne 0 ]; then
-        echo "❌ Tests still failing after rebuild. Please fix manually."
-        echo "💡 Tip: Run './scripts/test/quick.ps1' for detailed output"
-        exit 1
-    fi
-    echo "✅ Tests passed after rebuild"
+    echo "❌ Architecture tests failed."
+    echo "💡 Tip: Run './scripts/test/quick.ps1' for details"
+    echo "💡 To run full tests: './scripts/core/build.ps1 test'"
+    exit 1
 fi
 
-echo "✅ Pre-commit validation passed!"
+echo "✅ Pre-commit validation passed (fast mode)!"
+echo "💡 Full tests will run on pre-push"
