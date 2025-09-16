@@ -17,7 +17,7 @@ namespace Darklands.Views
     public partial class ActorView : Node2D, IActorView
     {
         private ActorPresenter? _presenter;
-        private ICategoryLogger? _logger;
+        private ICategoryLogger _logger = null!;
         // FIXED BR_007: Use ConcurrentDictionary for thread-safe access from async operations
         private readonly ConcurrentDictionary<Darklands.Domain.Grid.ActorId, ColorRect> _actorNodes = new();
         private readonly ConcurrentDictionary<Darklands.Domain.Grid.ActorId, ProgressBar> _healthBars = new();
@@ -52,7 +52,7 @@ namespace Darklands.Views
             }
             catch (Exception ex)
             {
-                _logger?.Log(LogLevel.Error, LogCategory.System, "ActorView._Ready error: {Error}", ex.Message);
+                _logger.Log(LogLevel.Error, LogCategory.System, "ActorView._Ready error: {Error}", ex.Message);
             }
         }
 
@@ -85,7 +85,7 @@ namespace Darklands.Views
                 if (_actorNodes.TryRemove(actorId, out var existingNode))
                 {
                     existingNode?.QueueFree();
-                    _logger?.Log(LogLevel.Debug, LogCategory.Gameplay, "Removed existing actor node for {ActorId}", actorId);
+                    _logger.Log(LogLevel.Debug, LogCategory.Gameplay, "Removed existing actor node for {ActorId}", actorId);
                 }
 
                 // Create new ColorRect node for the actor
@@ -121,7 +121,7 @@ namespace Darklands.Views
             }
             catch (Exception ex)
             {
-                _logger?.Log(LogLevel.Error, LogCategory.Gameplay, "Error displaying actor {ActorId}: {Error}", actorId, ex.Message);
+                _logger.Log(LogLevel.Error, LogCategory.Gameplay, "Error displaying actor {ActorId}: {Error}", actorId, ex.Message);
             }
         }
 
@@ -139,7 +139,7 @@ namespace Darklands.Views
                     AddChild(creationData.ActorNode);
                     // BR_007 FIX: Use thread-safe AddOrUpdate to handle concurrent access
                     _actorNodes.AddOrUpdate(creationData.ActorId, creationData.ActorNode, (key, oldValue) => creationData.ActorNode);
-                    _logger?.Log(LogLevel.Debug, LogCategory.Gameplay, "Processed actor creation for {ActorId}", creationData.ActorId);
+                    _logger.Log(LogLevel.Debug, LogCategory.Gameplay, "Processed actor creation for {ActorId}", creationData.ActorId);
                 }
             }
         }
@@ -155,7 +155,7 @@ namespace Darklands.Views
             {
                 if (!_actorNodes.TryGetValue(actorId, out var actorNode) || actorNode == null)
                 {
-                    _logger?.Log(LogLevel.Warning, LogCategory.Gameplay, "Actor {ActorId} not found for movement", actorId);
+                    _logger.Log(LogLevel.Warning, LogCategory.Gameplay, "Actor {ActorId} not found for movement", actorId);
                     return;
                 }
 
@@ -174,7 +174,7 @@ namespace Darklands.Views
             }
             catch (Exception ex)
             {
-                _logger?.Log(LogLevel.Error, LogCategory.Gameplay, "Error moving actor {ActorId}: {Error}", actorId, ex.Message);
+                _logger.Log(LogLevel.Error, LogCategory.Gameplay, "Error moving actor {ActorId}: {Error}", actorId, ex.Message);
             }
         }
 
@@ -211,7 +211,7 @@ namespace Darklands.Views
                     }
                     else
                     {
-                        _logger?.Log(LogLevel.Warning, LogCategory.Gameplay, "Cannot move actor {ActorId} - not found in actor nodes", moveData.ActorId);
+                        _logger.Log(LogLevel.Warning, LogCategory.Gameplay, "Cannot move actor {ActorId} - not found in actor nodes", moveData.ActorId);
                     }
                 }
             }
@@ -231,7 +231,7 @@ namespace Darklands.Views
                 {
                     if (!_actorNodes.TryGetValue(id, out var actorNode) || actorNode == null)
                     {
-                        _logger?.Log(LogLevel.Warning, LogCategory.Gameplay, "Actor {ActorId} not found for update", id);
+                        _logger.Log(LogLevel.Warning, LogCategory.Gameplay, "Actor {ActorId} not found for update", id);
                         return;
                     }
 
@@ -245,7 +245,7 @@ namespace Darklands.Views
                 }
                 catch (Exception ex)
                 {
-                    _logger?.Log(LogLevel.Error, LogCategory.Gameplay, "Error updating actor {ActorId}: {Error}", id, ex.Message);
+                    _logger.Log(LogLevel.Error, LogCategory.Gameplay, "Error updating actor {ActorId}: {Error}", id, ex.Message);
                 }
             }
         }
@@ -268,14 +268,14 @@ namespace Darklands.Views
                     }
                     else
                     {
-                        _logger?.Log(LogLevel.Warning, LogCategory.Gameplay, "Actor {ActorId} not found for removal", id);
+                        _logger.Log(LogLevel.Warning, LogCategory.Gameplay, "Actor {ActorId} not found for removal", id);
                     }
 
                     await Task.CompletedTask;
                 }
                 catch (Exception ex)
                 {
-                    _logger?.Log(LogLevel.Error, LogCategory.Gameplay, "Error removing actor {ActorId}: {Error}", id, ex.Message);
+                    _logger.Log(LogLevel.Error, LogCategory.Gameplay, "Error removing actor {ActorId}: {Error}", id, ex.Message);
                 }
             }
         }
@@ -293,7 +293,7 @@ namespace Darklands.Views
                 {
                     if (!_actorNodes.TryGetValue(id, out var actorNode) || actorNode == null)
                     {
-                        _logger?.Log(LogLevel.Warning, LogCategory.Gameplay, "Actor {ActorId} not found for highlighting", id);
+                        _logger.Log(LogLevel.Warning, LogCategory.Gameplay, "Actor {ActorId} not found for highlighting", id);
                         return;
                     }
 
@@ -310,7 +310,7 @@ namespace Darklands.Views
                 }
                 catch (Exception ex)
                 {
-                    _logger?.Log(LogLevel.Error, LogCategory.Gameplay, "Error highlighting actor {ActorId}: {Error}", id, ex.Message);
+                    _logger.Log(LogLevel.Error, LogCategory.Gameplay, "Error highlighting actor {ActorId}: {Error}", id, ex.Message);
                 }
             }
         }
@@ -328,7 +328,7 @@ namespace Darklands.Views
                 {
                     if (!_actorNodes.TryGetValue(id, out var actorNode) || actorNode == null)
                     {
-                        _logger?.Log(LogLevel.Warning, LogCategory.Gameplay, "Actor {ActorId} not found for unhighlighting", id);
+                        _logger.Log(LogLevel.Warning, LogCategory.Gameplay, "Actor {ActorId} not found for unhighlighting", id);
                         return;
                     }
 
@@ -340,7 +340,7 @@ namespace Darklands.Views
                 }
                 catch (Exception ex)
                 {
-                    _logger?.Log(LogLevel.Error, LogCategory.Gameplay, "Error unhighlighting actor {ActorId}: {Error}", id, ex.Message);
+                    _logger.Log(LogLevel.Error, LogCategory.Gameplay, "Error unhighlighting actor {ActorId}: {Error}", id, ex.Message);
                 }
             }
         }
@@ -364,7 +364,7 @@ namespace Darklands.Views
                 }
                 catch (Exception ex)
                 {
-                    _logger?.Log(LogLevel.Error, LogCategory.Gameplay, "Error showing feedback for actor {ActorId}: {Error}", id, ex.Message);
+                    _logger.Log(LogLevel.Error, LogCategory.Gameplay, "Error showing feedback for actor {ActorId}: {Error}", id, ex.Message);
                 }
             }
         }
@@ -386,7 +386,7 @@ namespace Darklands.Views
                 }
                 catch (Exception ex)
                 {
-                    _logger?.Log(LogLevel.Error, LogCategory.Gameplay, "Error refreshing all actors: {Error}", ex.Message);
+                    _logger.Log(LogLevel.Error, LogCategory.Gameplay, "Error refreshing all actors: {Error}", ex.Message);
                 }
             }
         }
@@ -526,14 +526,14 @@ namespace Darklands.Views
                     // Use existing UpdateActorHealth method with integer values
                     UpdateActorHealth(id, current.Current, current.Maximum);
 
-                    _logger?.Log(LogLevel.Debug, LogCategory.Gameplay, "Updated health for actor {ActorId} from {OldHealth} to {NewHealth}",
+                    _logger.Log(LogLevel.Debug, LogCategory.Gameplay, "Updated health for actor {ActorId} from {OldHealth} to {NewHealth}",
                         id, old, current);
 
                     await Task.CompletedTask;
                 }
                 catch (Exception ex)
                 {
-                    _logger?.Log(LogLevel.Error, LogCategory.Gameplay, "Error updating actor health for {ActorId}: {Error}", id, ex.Message);
+                    _logger.Log(LogLevel.Error, LogCategory.Gameplay, "Error updating actor health for {ActorId}: {Error}", id, ex.Message);
                 }
             }
         }
@@ -560,14 +560,14 @@ namespace Darklands.Views
                     AddChild(feedbackLabel);
                     AnimateHealthFeedbackText(feedbackLabel);
 
-                    _logger?.Log(LogLevel.Debug, LogCategory.Gameplay, "Showed {FeedbackType} feedback for actor {ActorId}: {Amount}",
+                    _logger.Log(LogLevel.Debug, LogCategory.Gameplay, "Showed {FeedbackType} feedback for actor {ActorId}: {Amount}",
                         type, id, amt);
 
                     await Task.CompletedTask;
                 }
                 catch (Exception ex)
                 {
-                    _logger?.Log(LogLevel.Error, LogCategory.Gameplay, "Error showing health feedback for actor {ActorId}: {Error}", id, ex.Message);
+                    _logger.Log(LogLevel.Error, LogCategory.Gameplay, "Error showing health feedback for actor {ActorId}: {Error}", id, ex.Message);
                 }
             }
         }
@@ -587,19 +587,19 @@ namespace Darklands.Views
                     if (_healthBars.TryGetValue(id, out var healthBar) && healthBar != null)
                     {
                         ApplyHealthBarHighlight(healthBar, type);
-                        _logger?.Log(LogLevel.Debug, LogCategory.Gameplay, "Applied {HighlightType} highlight to health bar for actor {ActorId}",
+                        _logger.Log(LogLevel.Debug, LogCategory.Gameplay, "Applied {HighlightType} highlight to health bar for actor {ActorId}",
                             type, id);
                     }
                     else
                     {
-                        _logger?.Log(LogLevel.Warning, LogCategory.Gameplay, "Health bar not found for highlighting: actor {ActorId}", id);
+                        _logger.Log(LogLevel.Warning, LogCategory.Gameplay, "Health bar not found for highlighting: actor {ActorId}", id);
                     }
 
                     await Task.CompletedTask;
                 }
                 catch (Exception ex)
                 {
-                    _logger?.Log(LogLevel.Error, LogCategory.Gameplay, "Error highlighting health bar for actor {ActorId}: {Error}", id, ex.Message);
+                    _logger.Log(LogLevel.Error, LogCategory.Gameplay, "Error highlighting health bar for actor {ActorId}: {Error}", id, ex.Message);
                 }
             }
         }
@@ -618,18 +618,18 @@ namespace Darklands.Views
                     if (_healthBars.TryGetValue(id, out var healthBar) && healthBar != null)
                     {
                         ClearHealthBarHighlight(healthBar);
-                        _logger?.Log(LogLevel.Debug, LogCategory.Gameplay, "Cleared highlight from health bar for actor {ActorId}", id);
+                        _logger.Log(LogLevel.Debug, LogCategory.Gameplay, "Cleared highlight from health bar for actor {ActorId}", id);
                     }
                     else
                     {
-                        _logger?.Log(LogLevel.Warning, LogCategory.Gameplay, "Health bar not found for unhighlighting: actor {ActorId}", id);
+                        _logger.Log(LogLevel.Warning, LogCategory.Gameplay, "Health bar not found for unhighlighting: actor {ActorId}", id);
                     }
 
                     await Task.CompletedTask;
                 }
                 catch (Exception ex)
                 {
-                    _logger?.Log(LogLevel.Error, LogCategory.Gameplay, "Error unhighlighting health bar for actor {ActorId}: {Error}", id, ex.Message);
+                    _logger.Log(LogLevel.Error, LogCategory.Gameplay, "Error unhighlighting health bar for actor {ActorId}: {Error}", id, ex.Message);
                 }
             }
         }
@@ -653,7 +653,7 @@ namespace Darklands.Views
             }
             catch (Exception ex)
             {
-                _logger?.Log(LogLevel.Error, LogCategory.Gameplay, "Error queueing actor visibility update for {ActorId}: {Error}", actorId, ex.Message);
+                _logger.Log(LogLevel.Error, LogCategory.Gameplay, "Error queueing actor visibility update for {ActorId}: {Error}", actorId, ex.Message);
             }
         }
 
@@ -672,13 +672,13 @@ namespace Darklands.Views
                     if (_actorNodes.TryGetValue(visibilityData.ActorId, out var actorNode) && actorNode != null)
                     {
                         actorNode.Visible = visibilityData.IsVisible;
-                        _logger?.Log(LogLevel.Debug, LogCategory.Gameplay, "Set actor {ActorId} visibility to {Visible}",
+                        _logger.Log(LogLevel.Debug, LogCategory.Gameplay, "Set actor {ActorId} visibility to {Visible}",
                             visibilityData.ActorId.Value.ToString()[..8],
                             visibilityData.IsVisible ? "VISIBLE" : "HIDDEN");
                     }
                     else
                     {
-                        _logger?.Log(LogLevel.Warning, LogCategory.Gameplay, "Actor {ActorId} not found for visibility update", visibilityData.ActorId);
+                        _logger.Log(LogLevel.Warning, LogCategory.Gameplay, "Actor {ActorId} not found for visibility update", visibilityData.ActorId);
                     }
                 }
             }

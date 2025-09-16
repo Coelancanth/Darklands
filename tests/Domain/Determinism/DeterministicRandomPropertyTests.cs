@@ -47,7 +47,7 @@ public class DeterministicRandomPropertyTests
             test =>
             {
                 // Arrange
-                var random = new DeterministicRandom(test.Seed, stream: 1UL, _nullLogger);
+                var random = new DeterministicRandom(test.Seed, stream: 1UL, null);
 
                 // Act
                 var result = random.Next(test.MaxExclusive, test.Context);

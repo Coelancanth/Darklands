@@ -2,11 +2,11 @@ using System;
 using System.Threading.Tasks;
 using Darklands.Application.Grid.Services;
 using Darklands.Application.Combat.Services;
+using Darklands.Application.Common;
 using Darklands.Domain.Grid;
 using Darklands.Domain.Combat;
 using Darklands.Presentation.Views;
 using MediatR;
-using Serilog;
 using static LanguageExt.Prelude;
 
 namespace Darklands.Presentation.Presenters
@@ -21,7 +21,7 @@ namespace Darklands.Presentation.Presenters
     {
         private readonly IGridStateService _gridStateService;
         private IActorView? _actorView;
-        private readonly ILogger _logger;
+        private readonly ICategoryLogger _logger;
 
         /// <summary>
         /// Creates a new AttackPresenter with the specified dependencies.
@@ -29,7 +29,7 @@ namespace Darklands.Presentation.Presenters
         /// </summary>
         /// <param name="gridStateService">Grid state service for position lookup</param>
         /// <param name="logger">Logger for combat messages (serves as combat log)</param>
-        public AttackPresenter(IGridStateService gridStateService, ILogger logger)
+        public AttackPresenter(IGridStateService gridStateService, ICategoryLogger logger)
             : base()
         {
             _gridStateService = gridStateService ?? throw new ArgumentNullException(nameof(gridStateService));
@@ -83,7 +83,7 @@ namespace Darklands.Presentation.Presenters
 
                 if (attackerPos.IsNone || targetPos.IsNone)
                 {
-                    _logger?.Warning("Attack success feedback failed: Could not find positions for attacker {AttackerId} or target {TargetId}",
+                    _logger.Log(LogLevel.Warning, LogCategory.Combat, "Attack success feedback failed: Could not find positions for attacker {AttackerId} or target {TargetId}",
                         attackerId, targetId);
                     return;
                 }
@@ -94,12 +94,12 @@ namespace Darklands.Presentation.Presenters
                 // Log combat message (this serves as our combat log)
                 if (wasLethal)
                 {
-                    _logger?.Information("{AttackerName} killed {TargetName} with {AttackName} for {Damage} damage",
+                    _logger.Log(LogLevel.Information, LogCategory.Combat, "{AttackerName} killed {TargetName} with {AttackName} for {Damage} damage",
                         attackerId, targetId, combatAction.Name, damage);
                 }
                 else
                 {
-                    _logger?.Information("{AttackerName} hit {TargetName} with {AttackName} for {Damage} damage",
+                    _logger.Log(LogLevel.Information, LogCategory.Combat, "{AttackerName} hit {TargetName} with {AttackName} for {Damage} damage",
                         attackerId, targetId, combatAction.Name, damage);
                 }
 
@@ -123,13 +123,13 @@ namespace Darklands.Presentation.Presenters
                 if (wasLethal)
                 {
                     await View.ShowDeathEffectAsync(targetId, targetPosition);
-                    _logger?.Information("{TargetName} has been defeated", targetId);
+                    _logger.Log(LogLevel.Information, LogCategory.Combat, "{TargetName} has been defeated", targetId);
                 }
             }
             catch (Exception ex)
             {
-                _logger?.Error(ex, "Error processing attack success feedback for {AttackerId} -> {TargetId}",
-                    attackerId, targetId);
+                _logger.Log(LogLevel.Error, LogCategory.Combat, "Error processing attack success feedback for {AttackerId} -> {TargetId}: {Error}",
+                    attackerId, targetId, ex.Message);
             }
         }
 
@@ -147,7 +147,7 @@ namespace Darklands.Presentation.Presenters
 
                 if (attackerPos.IsNone || targetPos.IsNone)
                 {
-                    _logger?.Warning("Attack success feedback failed: Could not find positions for attacker {AttackerId} or target {TargetId}",
+                    _logger.Log(LogLevel.Warning, LogCategory.Combat, "Attack success feedback failed: Could not find positions for attacker {AttackerId} or target {TargetId}",
                         attackerId, targetId);
                     return;
                 }
@@ -158,12 +158,12 @@ namespace Darklands.Presentation.Presenters
                 // Log combat message (this serves as our combat log)
                 if (wasLethal)
                 {
-                    _logger?.Information("{AttackerName} killed {TargetName} with {AttackName} for {Damage} damage",
+                    _logger.Log(LogLevel.Information, LogCategory.Combat, "{AttackerName} killed {TargetName} with {AttackName} for {Damage} damage",
                         attackerId, targetId, combatAction.Name, damage);
                 }
                 else
                 {
-                    _logger?.Information("{AttackerName} hit {TargetName} with {AttackName} for {Damage} damage",
+                    _logger.Log(LogLevel.Information, LogCategory.Combat, "{AttackerName} hit {TargetName} with {AttackName} for {Damage} damage",
                         attackerId, targetId, combatAction.Name, damage);
                 }
 
@@ -174,12 +174,12 @@ namespace Darklands.Presentation.Presenters
                 // - Coordinate with actor view for feedback via direct calls
                 // - Handle death effects if lethal via CallDeferred
 
-                _logger?.Debug("Attack feedback processed synchronously for {AttackerId} -> {TargetId}", attackerId, targetId);
+                _logger.Log(LogLevel.Debug, LogCategory.Combat, "Attack feedback processed synchronously for {AttackerId} -> {TargetId}", attackerId, targetId);
             }
             catch (Exception ex)
             {
-                _logger?.Error(ex, "Error processing attack success feedback for {AttackerId} -> {TargetId}",
-                    attackerId, targetId);
+                _logger.Log(LogLevel.Error, LogCategory.Combat, "Error processing attack success feedback for {AttackerId} -> {TargetId}: {Error}",
+                    attackerId, targetId, ex.Message);
             }
         }
 
@@ -200,7 +200,7 @@ namespace Darklands.Presentation.Presenters
 
                 if (attackerPos.IsNone)
                 {
-                    _logger?.Warning("Attack failure feedback failed: Could not find attacker {AttackerId} position", attackerId);
+                    _logger.Log(LogLevel.Warning, LogCategory.Combat, "Attack failure feedback failed: Could not find attacker {AttackerId} position", attackerId);
                     return;
                 }
 
@@ -208,7 +208,7 @@ namespace Darklands.Presentation.Presenters
                 var targetPosition = targetPos.IfNone(new Position(0, 0)); // Default if target not on grid
 
                 // Log combat message
-                _logger?.Warning("{AttackerName} failed to attack {TargetName} with {AttackName}: {Reason}",
+                _logger.Log(LogLevel.Warning, LogCategory.Combat, "{AttackerName} failed to attack {TargetName} with {AttackName}: {Reason}",
                     attackerId, targetId, combatAction.Name, reason);
 
                 // Show failure feedback
@@ -222,8 +222,8 @@ namespace Darklands.Presentation.Presenters
             }
             catch (Exception ex)
             {
-                _logger?.Error(ex, "Error processing attack failure feedback for {AttackerId} -> {TargetId}",
-                    attackerId, targetId);
+                _logger.Log(LogLevel.Error, LogCategory.Combat, "Error processing attack failure feedback for {AttackerId} -> {TargetId}: {Error}",
+                    attackerId, targetId, ex.Message);
             }
         }
 
@@ -239,7 +239,7 @@ namespace Darklands.Presentation.Presenters
                 var attackerPos = _gridStateService.GetActorPosition(attackerId);
                 if (attackerPos.IsNone)
                 {
-                    _logger?.Warning("Cannot highlight targets: Attacker {AttackerId} not found on grid", attackerId);
+                    _logger.Log(LogLevel.Warning, LogCategory.Combat, "Cannot highlight targets: Attacker {AttackerId} not found on grid", attackerId);
                     return;
                 }
 
@@ -249,12 +249,12 @@ namespace Darklands.Presentation.Presenters
                 var validTargets = GetAdjacentPositions(attackerPosition);
 
                 await View.HighlightAttackTargetsAsync(attackerId, attackerPosition, validTargets);
-                _logger?.Debug("Highlighted {TargetCount} valid attack targets for {AttackerId}",
+                _logger.Log(LogLevel.Debug, LogCategory.Combat, "Highlighted {TargetCount} valid attack targets for {AttackerId}",
                     validTargets.Length, attackerId);
             }
             catch (Exception ex)
             {
-                _logger?.Error(ex, "Error highlighting attack targets for {AttackerId}", attackerId);
+                _logger.Log(LogLevel.Error, LogCategory.Combat, "Error highlighting attack targets for {AttackerId}: {Error}", attackerId, ex.Message);
             }
         }
 
@@ -269,7 +269,7 @@ namespace Darklands.Presentation.Presenters
             }
             catch (Exception ex)
             {
-                _logger?.Error(ex, "Error clearing attack target highlighting");
+                _logger.Log(LogLevel.Error, LogCategory.Combat, "Error clearing attack target highlighting: {Error}", ex.Message);
             }
         }
 

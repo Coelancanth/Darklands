@@ -25,13 +25,13 @@ public partial class GameManager
     {
         try
         {
-            _logger?.Log(LogLevel.Information, LogCategory.System, "[GameManager] Received death notification for actor {ActorId} at {Position}",
+            _logger.Log(LogLevel.Information, LogCategory.System, "[GameManager] Received death notification for actor {ActorId} at {Position}",
                 notification.ActorId, notification.Position);
 
             // Remove actor sprite using the same logic as the old callback
             if (_actorPresenter != null)
             {
-                _logger?.Log(LogLevel.Information, LogCategory.System, "[GameManager] Calling deferred removal for {ActorId}", notification.ActorId);
+                _logger.Log(LogLevel.Information, LogCategory.System, "[GameManager] Calling deferred removal for {ActorId}", notification.ActorId);
                 // Use CallDeferred to ensure this runs on the main thread
                 CallDeferred(nameof(RemoveActorDeferred),
                     notification.ActorId.Value.ToString(),
@@ -40,13 +40,13 @@ public partial class GameManager
             }
             else
             {
-                _logger?.Log(LogLevel.Error, LogCategory.System, "[GameManager] ActorPresenter is NULL - cannot remove sprite!");
+                _logger.Log(LogLevel.Error, LogCategory.System, "[GameManager] ActorPresenter is NULL - cannot remove sprite!");
             }
 
         }
         catch (System.Exception ex)
         {
-            _logger?.Log(LogLevel.Error, LogCategory.System, "[GameManager] Error processing actor death notification for {ActorId}. Exception: {Exception}",
+            _logger.Log(LogLevel.Error, LogCategory.System, "[GameManager] Error processing actor death notification for {ActorId}. Exception: {Exception}",
                 notification.ActorId, ex);
         }
     }
@@ -64,13 +64,13 @@ public partial class GameManager
     {
         try
         {
-            _logger?.Log(LogLevel.Information, LogCategory.System, "[GameManager] Received damage notification for actor {ActorId}: {OldHealth} → {NewHealth}",
+            _logger.Log(LogLevel.Information, LogCategory.System, "[GameManager] Received damage notification for actor {ActorId}: {OldHealth} → {NewHealth}",
                 notification.ActorId, notification.OldHealth, notification.NewHealth);
 
             // Update health bar via ActorPresenter (consolidated functionality)
             if (_actorPresenter != null)
             {
-                _logger?.Log(LogLevel.Information, LogCategory.System, "[GameManager] Updating health bar via ActorPresenter (consolidated from HealthPresenter)");
+                _logger.Log(LogLevel.Information, LogCategory.System, "[GameManager] Updating health bar via ActorPresenter (consolidated from HealthPresenter)");
                 // Use CallDeferred to ensure this runs on the main thread
                 CallDeferred(nameof(UpdateHealthBarDeferred),
                     notification.ActorId.Value.ToString(),
@@ -81,13 +81,13 @@ public partial class GameManager
             }
             else
             {
-                _logger?.Log(LogLevel.Error, LogCategory.System, "[GameManager] ActorPresenter is NULL - cannot update health bar!");
+                _logger.Log(LogLevel.Error, LogCategory.System, "[GameManager] ActorPresenter is NULL - cannot update health bar!");
             }
 
         }
         catch (System.Exception ex)
         {
-            _logger?.Log(LogLevel.Error, LogCategory.System, "[GameManager] Error processing actor damage notification for {ActorId}. Exception: {Exception}",
+            _logger.Log(LogLevel.Error, LogCategory.System, "[GameManager] Error processing actor damage notification for {ActorId}. Exception: {Exception}",
                 notification.ActorId, ex);
         }
     }

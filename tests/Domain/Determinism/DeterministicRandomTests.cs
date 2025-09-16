@@ -17,7 +17,7 @@ public class DeterministicRandomTests
     public void Constructor_ValidParameters_CreatesInstance()
     {
         // Arrange & Act
-        var random = new DeterministicRandom(12345UL, 1UL, _logger);
+        var random = new DeterministicRandom(12345UL, 1UL, null);
 
         // Assert
         random.Should().NotBeNull();
@@ -29,7 +29,7 @@ public class DeterministicRandomTests
     public void Constructor_EvenStream_MakesOdd()
     {
         // Arrange & Act
-        var random = new DeterministicRandom(12345UL, 2UL, _logger);
+        var random = new DeterministicRandom(12345UL, 2UL, null);
 
         // Assert
         random.Stream.Should().Be(3UL); // 2 | 1 = 3

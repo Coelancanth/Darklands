@@ -2,10 +2,14 @@ using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Darklands.Application.Services;
 using Darklands.Domain.Grid;
+using Darklands.Application.Common;
 using System;
 using System.Collections.Generic;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
+
+// Alias to resolve LogLevel namespace collision
+using DomainLogLevel = Darklands.Application.Common.LogLevel;
 
 namespace Darklands.Application.Infrastructure.Services;
 
@@ -17,7 +21,7 @@ namespace Darklands.Application.Infrastructure.Services;
 /// </summary>
 public sealed class MockInputService : IInputService
 {
-    private readonly ILogger<MockInputService>? _logger;
+    private readonly ICategoryLogger _logger = null!;
     private readonly Subject<InputEvent> _inputEventSubject;
     private readonly Dictionary<InputAction, bool> _actionStates;
     private readonly Dictionary<InputAction, bool> _justPressedStates;
@@ -31,9 +35,9 @@ public sealed class MockInputService : IInputService
     public Position MousePosition { get; set; } = Position.Zero;
     public Position WorldMousePosition { get; set; } = Position.Zero;
 
-    public MockInputService(ILogger<MockInputService>? logger = null)
+    public MockInputService(ICategoryLogger? logger = null)
     {
-        _logger = logger;
+        _logger = logger!;
         _inputEventSubject = new Subject<InputEvent>();
         _actionStates = new Dictionary<InputAction, bool>();
         _justPressedStates = new Dictionary<InputAction, bool>();
@@ -98,7 +102,7 @@ public sealed class MockInputService : IInputService
         };
 
         _inputEventSubject.OnNext(inputEvent);
-        _logger?.LogDebug("Mock simulated press for {Action}", action);
+        _logger.Log(DomainLogLevel.Debug, LogCategory.System, "Mock simulated press for {Action}", action);
     }
 
     /// <summary>
@@ -122,7 +126,7 @@ public sealed class MockInputService : IInputService
         };
 
         _inputEventSubject.OnNext(inputEvent);
-        _logger?.LogDebug("Mock simulated release for {Action}", action);
+        _logger.Log(DomainLogLevel.Debug, LogCategory.System, "Mock simulated release for {Action}", action);
     }
 
     /// <summary>
@@ -159,7 +163,7 @@ public sealed class MockInputService : IInputService
         };
 
         _inputEventSubject.OnNext(mouseEvent);
-        _logger?.LogDebug("Mock simulated mouse press {Button} at {Position}", button, mousePos);
+        _logger.Log(DomainLogLevel.Debug, LogCategory.System, "Mock simulated mouse press {Button} at {Position}", button, mousePos);
     }
 
     /// <summary>
@@ -183,7 +187,7 @@ public sealed class MockInputService : IInputService
         };
 
         _inputEventSubject.OnNext(mouseEvent);
-        _logger?.LogDebug("Mock simulated mouse release {Button} at {Position}", button, mousePos);
+        _logger.Log(DomainLogLevel.Debug, LogCategory.System, "Mock simulated mouse release {Button} at {Position}", button, mousePos);
     }
 
     /// <summary>
@@ -242,7 +246,7 @@ public sealed class MockInputService : IInputService
         MousePosition = Position.Zero;
         WorldMousePosition = Position.Zero;
 
-        _logger?.LogDebug("Mock input service reset to default state");
+        _logger.Log(DomainLogLevel.Debug, LogCategory.System, "Mock input service reset to default state");
     }
 
     /// <summary>

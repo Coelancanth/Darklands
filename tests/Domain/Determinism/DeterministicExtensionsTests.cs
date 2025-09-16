@@ -8,7 +8,7 @@ namespace Darklands.Core.Tests.Domain.Determinism;
 [Trait("Category", "Phase1")]
 public class DeterministicExtensionsTests
 {
-    private readonly DeterministicRandom _random = new(12345UL, logger: NullLogger<DeterministicRandom>.Instance);
+    private readonly DeterministicRandom _random = new(12345UL, logger: null);
 
     [Fact]
     public void OrderByStable_EqualKeys_PreservesOriginalOrder()
