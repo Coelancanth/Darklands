@@ -18,7 +18,7 @@ namespace Darklands.Application.Infrastructure.Services;
 /// </summary>
 public sealed class MockSettingsService : ISettingsService
 {
-    private readonly ICategoryLogger _logger = null!;
+    private readonly ICategoryLogger? _logger;
     private readonly Dictionary<string, object> _settings;
     private readonly object _settingsLock = new();
 
@@ -34,7 +34,7 @@ public sealed class MockSettingsService : ISettingsService
 
     public MockSettingsService(ICategoryLogger? logger = null)
     {
-        _logger = logger!;
+        _logger = logger;
         _settings = new Dictionary<string, object>();
     }
 
@@ -51,7 +51,7 @@ public sealed class MockSettingsService : ISettingsService
                 {
                     if (value is T directValue)
                     {
-                        _logger.Log(DomainLogLevel.Debug, LogCategory.System, "Retrieved setting {Key} = {Value}", key.Key, value);
+                        _logger?.Log(DomainLogLevel.Debug, LogCategory.System, "Retrieved setting {Key} = {Value}", key.Key, value);
                         return directValue;
                     }
 
@@ -59,18 +59,18 @@ public sealed class MockSettingsService : ISettingsService
                     if (typeof(T).IsPrimitive && value != null)
                     {
                         var convertedValue = (T)Convert.ChangeType(value, typeof(T));
-                        _logger.Log(DomainLogLevel.Debug, LogCategory.System, "Retrieved and converted setting {Key} = {Value}", key.Key, convertedValue);
+                        _logger?.Log(DomainLogLevel.Debug, LogCategory.System, "Retrieved and converted setting {Key} = {Value}", key.Key, convertedValue);
                         return convertedValue;
                     }
                 }
                 catch (Exception ex)
                 {
-                    _logger.Log(DomainLogLevel.Warning, LogCategory.System, "Failed to convert setting {Key} value {Value} to type {Type}, using default: {Error}",
+                    _logger?.Log(DomainLogLevel.Warning, LogCategory.System, "Failed to convert setting {Key} value {Value} to type {Type}, using default: {Error}",
                         key.Key, value, typeof(T).Name, ex.Message);
                 }
             }
 
-            _logger.Log(DomainLogLevel.Debug, LogCategory.System, "Setting {Key} not found, using default value {Default}", key.Key, key.DefaultValue?.ToString() ?? "null");
+            _logger?.Log(DomainLogLevel.Debug, LogCategory.System, "Setting {Key} not found, using default value {Default}", key.Key, key.DefaultValue?.ToString() ?? "null");
             return key.DefaultValue;
         }
     }
@@ -83,7 +83,7 @@ public sealed class MockSettingsService : ISettingsService
         if (ShouldFailSet)
         {
             var error = Error.New($"Mock configured to fail Set for {key.Key}");
-            _logger.Log(DomainLogLevel.Warning, LogCategory.System, "Mock settings service failing Set: {Error}", error);
+            _logger?.Log(DomainLogLevel.Warning, LogCategory.System, "Mock settings service failing Set: {Error}", error);
             return FinFail<Unit>(error);
         }
 
@@ -93,7 +93,7 @@ public sealed class MockSettingsService : ISettingsService
             {
                 _settings[key.Key] = value!;
                 HasUnsavedChanges = true;
-                _logger.Log(DomainLogLevel.Debug, LogCategory.System, "Set setting {Key} to {Value}", key.Key, value?.ToString() ?? "null");
+                _logger?.Log(DomainLogLevel.Debug, LogCategory.System, "Set setting {Key} to {Value}", key.Key, value?.ToString() ?? "null");
             }
 
             return FinSucc(unit);
@@ -101,7 +101,7 @@ public sealed class MockSettingsService : ISettingsService
         catch (Exception ex)
         {
             var error = Error.New($"Failed to set setting {key.Key}: {ex.Message}", ex);
-            _logger.Log(DomainLogLevel.Error, LogCategory.System, "Setting update failed: {Error}", error);
+            _logger?.Log(DomainLogLevel.Error, LogCategory.System, "Setting update failed: {Error}", error);
             return FinFail<Unit>(error);
         }
     }
@@ -113,7 +113,7 @@ public sealed class MockSettingsService : ISettingsService
         if (ShouldFailSave)
         {
             var error = Error.New("Mock configured to fail Save");
-            _logger.Log(DomainLogLevel.Warning, LogCategory.System, "Mock settings service failing Save: {Error}", error);
+            _logger?.Log(DomainLogLevel.Warning, LogCategory.System, "Mock settings service failing Save: {Error}", error);
             return FinFail<Unit>(error);
         }
 
@@ -122,7 +122,7 @@ public sealed class MockSettingsService : ISettingsService
             lock (_settingsLock)
             {
                 HasUnsavedChanges = false;
-                _logger.Log(DomainLogLevel.Debug, LogCategory.System, "Mock saved {Count} settings", _settings.Count);
+                _logger?.Log(DomainLogLevel.Debug, LogCategory.System, "Mock saved {Count} settings", _settings.Count);
             }
 
             return FinSucc(unit);
@@ -130,7 +130,7 @@ public sealed class MockSettingsService : ISettingsService
         catch (Exception ex)
         {
             var error = Error.New($"Failed to save settings: {ex.Message}", ex);
-            _logger.Log(DomainLogLevel.Error, LogCategory.System, "Settings save failed: {Error}", error);
+            _logger?.Log(DomainLogLevel.Error, LogCategory.System, "Settings save failed: {Error}", error);
             return FinFail<Unit>(error);
         }
     }
@@ -142,7 +142,7 @@ public sealed class MockSettingsService : ISettingsService
         if (ShouldFailReload)
         {
             var error = Error.New("Mock configured to fail Reload");
-            _logger.Log(DomainLogLevel.Warning, LogCategory.System, "Mock settings service failing Reload: {Error}", error);
+            _logger?.Log(DomainLogLevel.Warning, LogCategory.System, "Mock settings service failing Reload: {Error}", error);
             return FinFail<Unit>(error);
         }
 
@@ -153,7 +153,7 @@ public sealed class MockSettingsService : ISettingsService
                 // In a real implementation, this would reload from storage
                 // For the mock, we just clear unsaved changes flag
                 HasUnsavedChanges = false;
-                _logger.Log(DomainLogLevel.Debug, LogCategory.System, "Mock reloaded settings");
+                _logger?.Log(DomainLogLevel.Debug, LogCategory.System, "Mock reloaded settings");
             }
 
             return FinSucc(unit);
@@ -161,7 +161,7 @@ public sealed class MockSettingsService : ISettingsService
         catch (Exception ex)
         {
             var error = Error.New($"Failed to reload settings: {ex.Message}", ex);
-            _logger.Log(DomainLogLevel.Error, LogCategory.System, "Settings reload failed: {Error}", error);
+            _logger?.Log(DomainLogLevel.Error, LogCategory.System, "Settings reload failed: {Error}", error);
             return FinFail<Unit>(error);
         }
     }
@@ -183,7 +183,7 @@ public sealed class MockSettingsService : ISettingsService
                 var settingsCount = _settings.Count;
                 _settings.Clear();
                 HasUnsavedChanges = true;
-                _logger.Log(DomainLogLevel.Debug, LogCategory.System, "Reset {Count} settings to defaults", settingsCount);
+                _logger?.Log(DomainLogLevel.Debug, LogCategory.System, "Reset {Count} settings to defaults", settingsCount);
             }
 
             return FinSucc(unit);
@@ -191,7 +191,7 @@ public sealed class MockSettingsService : ISettingsService
         catch (Exception ex)
         {
             var error = Error.New($"Failed to reset all settings: {ex.Message}", ex);
-            _logger.Log(DomainLogLevel.Error, LogCategory.System, "Reset all settings failed: {Error}", error);
+            _logger?.Log(DomainLogLevel.Error, LogCategory.System, "Reset all settings failed: {Error}", error);
             return FinFail<Unit>(error);
         }
     }
@@ -224,7 +224,7 @@ public sealed class MockSettingsService : ISettingsService
                 _settings[kvp.Key] = kvp.Value;
             }
             HasUnsavedChanges = false;
-            _logger.Log(DomainLogLevel.Debug, LogCategory.System, "Preloaded {Count} settings", initialSettings.Count);
+            _logger?.Log(DomainLogLevel.Debug, LogCategory.System, "Preloaded {Count} settings", initialSettings.Count);
         }
     }
 
@@ -242,7 +242,7 @@ public sealed class MockSettingsService : ISettingsService
             ShouldFailSave = false;
             ShouldFailReload = false;
             ShouldFailSet = false;
-            _logger.Log(DomainLogLevel.Debug, LogCategory.System, "Mock settings service reset to initial state");
+            _logger?.Log(DomainLogLevel.Debug, LogCategory.System, "Mock settings service reset to initial state");
         }
     }
 
@@ -263,7 +263,7 @@ public sealed class MockSettingsService : ISettingsService
                 _settings[kvp.Key] = kvp.Value;
             }
             // Don't set unsaved changes flag since this simulates external modification
-            _logger.Log(DomainLogLevel.Debug, LogCategory.System, "Simulated external change to {Count} settings", externalSettings.Count);
+            _logger?.Log(DomainLogLevel.Debug, LogCategory.System, "Simulated external change to {Count} settings", externalSettings.Count);
         }
     }
 }

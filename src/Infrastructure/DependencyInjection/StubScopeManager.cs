@@ -26,17 +26,17 @@ namespace Darklands.Application.Infrastructure.DependencyInjection;
 /// </summary>
 internal sealed class StubScopeManager : IScopeManager
 {
-    private readonly ICategoryLogger _logger = null!;
+    private readonly ICategoryLogger? _logger;
     private bool _disposed;
 
     public StubScopeManager(ICategoryLogger? logger = null)
     {
-        _logger = logger!;
+        _logger = logger;
     }
 
     public IServiceScope? CreateScope(object node)
     {
-        _logger.Log(DomainLogLevel.Warning, LogCategory.System, "CreateScope called on StubScopeManager. " +
+        _logger?.Log(DomainLogLevel.Warning, LogCategory.System, "CreateScope called on StubScopeManager. " +
                            "GodotScopeManager may not be properly initialized. " +
                            "Node service extensions will fall back to GameStrapper pattern.");
         return null;
@@ -44,13 +44,13 @@ internal sealed class StubScopeManager : IScopeManager
 
     public void DisposeScope(object node)
     {
-        _logger.Log(DomainLogLevel.Warning, LogCategory.System, "DisposeScope called on StubScopeManager. " +
+        _logger?.Log(DomainLogLevel.Warning, LogCategory.System, "DisposeScope called on StubScopeManager. " +
                            "This is a no-op. Ensure GodotScopeManager is properly initialized.");
     }
 
     public IServiceProvider GetProviderForNode(object node)
     {
-        _logger.Log(DomainLogLevel.Warning, LogCategory.System, "GetProviderForNode called on StubScopeManager. " +
+        _logger?.Log(DomainLogLevel.Warning, LogCategory.System, "GetProviderForNode called on StubScopeManager. " +
                            "Returning fallback behavior. " +
                            "Node service extensions will use GameStrapper fallback.");
 
@@ -63,7 +63,7 @@ internal sealed class StubScopeManager : IScopeManager
 
     public ScopeManagerDiagnostics GetDiagnostics()
     {
-        _logger.Log(DomainLogLevel.Information, LogCategory.System, "GetDiagnostics called on StubScopeManager - returning empty diagnostics");
+        _logger?.Log(DomainLogLevel.Information, LogCategory.System, "GetDiagnostics called on StubScopeManager - returning empty diagnostics");
 
         return new ScopeManagerDiagnostics(
             ActiveScopeCount: 0,
@@ -79,7 +79,7 @@ internal sealed class StubScopeManager : IScopeManager
     {
         if (!_disposed)
         {
-            _logger.Log(DomainLogLevel.Information, LogCategory.System, "StubScopeManager disposed");
+            _logger?.Log(DomainLogLevel.Information, LogCategory.System, "StubScopeManager disposed");
             _disposed = true;
         }
     }
