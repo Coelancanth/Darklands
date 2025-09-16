@@ -192,6 +192,12 @@ namespace Darklands
                 }
 
                 _logger.Log(DomainLogLevel.Information, LogCategory.System, "DI container initialized successfully - unified logging active");
+
+                // Verify presenter registration (the "60 services" message goes to file log only)
+                var hasGridPresenter = _serviceProvider.GetService<IGridPresenter>() != null;
+                var hasActorPresenter = _serviceProvider.GetService<IActorPresenter>() != null;
+                _logger.Log(DomainLogLevel.Information, LogCategory.System,
+                    "Presenter registration verified - Grid: {0}, Actor: {1}", hasGridPresenter, hasActorPresenter);
             }
             catch (Exception ex)
             {
