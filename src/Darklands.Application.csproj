@@ -45,8 +45,8 @@
     <PackageReference Include="System.Reactive" Version="6.0.1" />
   </ItemGroup>
   
-  <!-- CRITICAL: Husky.NET auto-installation in src/Darklands.Core.csproj -->
-  <Target Name="husky" BeforeTargets="Restore;CollectPackageReferences" Condition="'$(HUSKY)' != '0'">
+  <!-- CRITICAL: Husky.NET auto-installation (disabled in CI) -->
+  <Target Name="husky" BeforeTargets="Restore;CollectPackageReferences" Condition="'$(HUSKY)' != '0' AND '$(CI)' != 'true'">
     <Exec Command="dotnet tool restore" StandardOutputImportance="Low" StandardErrorImportance="High" />
     <Exec Command="dotnet husky install" StandardOutputImportance="Low" StandardErrorImportance="High" WorkingDirectory=".." />
   </Target>
