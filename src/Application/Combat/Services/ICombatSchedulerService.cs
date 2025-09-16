@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
 using LanguageExt;
-using Darklands.Core.Domain.Combat;
-using Darklands.Core.Domain.Grid;
+using Darklands.Domain.Combat;
+using Darklands.Domain.Grid;
 
-namespace Darklands.Core.Application.Combat.Services
+namespace Darklands.Application.Combat.Services
 {
     /// <summary>
     /// Service interface for managing the combat timeline and turn scheduling.

@@ -1,7 +1,7 @@
-using Darklands.Core.Application.Common;
-using Darklands.Core.Domain.Grid;
+using Darklands.Application.Common;
+using Darklands.Domain.Grid;
 
-namespace Darklands.Core.Application.Grid.Commands
+namespace Darklands.Application.Grid.Commands
 {
     /// <summary>
     /// Command to move an actor from its current position to a new position on the grid.

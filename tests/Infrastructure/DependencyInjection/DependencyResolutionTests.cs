@@ -1,4 +1,4 @@
-using Darklands.Core.Infrastructure.DependencyInjection;
+using Darklands.Application.Infrastructure.DependencyInjection;
 using FluentAssertions;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
@@ -58,7 +58,7 @@ public class DependencyResolutionTests
             typeof(IMediator),
             typeof(ILogger),
             typeof(Microsoft.Extensions.Logging.ILoggerFactory),
-            typeof(Darklands.Core.Domain.Debug.ICategoryLogger)
+            typeof(Darklands.Application.Common.ICategoryLogger)
 
             // TODO: Add business services as they're implemented in future phases:
             // typeof(ICombatStateService),
@@ -136,7 +136,7 @@ public class DependencyResolutionTests
         var serilogLogger = serviceProvider.GetRequiredService<ILogger>();
         var msLoggerFactory = serviceProvider.GetRequiredService<Microsoft.Extensions.Logging.ILoggerFactory>();
         var msLogger = serviceProvider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<DependencyResolutionTests>>();
-        var categoryLogger = serviceProvider.GetRequiredService<Darklands.Core.Domain.Debug.ICategoryLogger>();
+        var categoryLogger = serviceProvider.GetRequiredService<Darklands.Application.Common.ICategoryLogger>();
 
         serilogLogger.Should().NotBeNull("Serilog ILogger should be registered");
         msLoggerFactory.Should().NotBeNull("Microsoft ILoggerFactory should be registered");
@@ -152,7 +152,7 @@ public class DependencyResolutionTests
             typeof(IMediator),
             typeof(ILogger),
             typeof(Microsoft.Extensions.Logging.ILoggerFactory),
-            typeof(Darklands.Core.Domain.Debug.ICategoryLogger)
+            typeof(Darklands.Application.Common.ICategoryLogger)
         };
 
         foreach (var serviceType in basicServices)

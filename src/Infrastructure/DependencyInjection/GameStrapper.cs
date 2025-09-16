@@ -9,12 +9,12 @@ using LanguageExt;
 using LanguageExt.Common;
 using static LanguageExt.Prelude;
 using Serilog.Core;
-using Darklands.Core.Domain.Debug;
-using Darklands.Core.Infrastructure.Debug;
-using Darklands.Core.Infrastructure.Logging;
-using Darklands.Core.Domain.Services;
+using Darklands.Application.Common;
+using Darklands.Application.Infrastructure.Debug;
+using Darklands.Application.Infrastructure.Logging;
+using Darklands.Application.Services;
 
-namespace Darklands.Core.Infrastructure.DependencyInjection;
+namespace Darklands.Application.Infrastructure.DependencyInjection;
 
 /// <summary>
 /// Central dependency injection bootstrapper for the Darklands game.
@@ -187,7 +187,7 @@ public static class GameStrapper
             services.AddSingleton<ICategoryLogger, UnifiedCategoryLogger>();
 
             // Compatibility: allow resolving ILogger<T> via adapter
-            services.AddSingleton(typeof(Microsoft.Extensions.Logging.ILogger<>), typeof(Darklands.Core.Infrastructure.Logging.CategoryLoggerAdapter<>));
+            services.AddSingleton(typeof(Microsoft.Extensions.Logging.ILogger<>), typeof(Darklands.Application.Infrastructure.Logging.CategoryLoggerAdapter<>));
 
             return FinSucc(LanguageExt.Unit.Default);
         }
@@ -277,13 +277,13 @@ public static class GameStrapper
             // NOTE: Using Mock implementations in Core project - Godot implementations are registered in main project
 
             // Audio Service - Singleton for consistent audio state management
-            services.AddSingleton<Domain.Services.IAudioService, Infrastructure.Services.MockAudioService>();
+            services.AddSingleton<Application.Services.IAudioService, Infrastructure.Services.MockAudioService>();
 
             // Input Service - Singleton for consistent input state and event streaming
-            services.AddSingleton<Domain.Services.IInputService, Infrastructure.Services.MockInputService>();
+            services.AddSingleton<Application.Services.IInputService, Infrastructure.Services.MockInputService>();
 
             // Settings Service - Singleton for consistent configuration management across the application
-            services.AddSingleton<Domain.Services.ISettingsService, Infrastructure.Services.MockSettingsService>();
+            services.AddSingleton<Application.Services.ISettingsService, Infrastructure.Services.MockSettingsService>();
 
             // Deterministic simulation foundation (ADR-004 + TD_026)
             services.AddSingleton<Domain.Determinism.IDeterministicRandom>(provider =>

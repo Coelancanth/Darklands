@@ -2,7 +2,7 @@ using Xunit;
 using FluentAssertions;
 using FsCheck;
 using FsCheck.Xunit;
-using Darklands.Core.Domain.Combat;
+using Darklands.Domain.Combat;
 
 namespace Darklands.Core.Tests.Domain.Combat;
 

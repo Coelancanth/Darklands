@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
-using Darklands.Core.Domain.Debug;
-using Darklands.Core.Infrastructure.Logging;
+using Darklands.Application.Common;
+using Darklands.Application.Infrastructure.Logging;
 using Godot;
 
 namespace Darklands;

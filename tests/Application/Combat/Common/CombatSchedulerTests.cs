@@ -4,10 +4,10 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using Darklands.Core.Application.Combat.Common;
-using Darklands.Core.Domain.Combat;
-using Darklands.Core.Domain.Grid;
-using Darklands.Core.Domain.Determinism;
+using Darklands.Application.Combat.Common;
+using Darklands.Domain.Combat;
+using Darklands.Domain.Grid;
+using Darklands.Domain.Determinism;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Darklands.Core.Tests.Application.Combat.Common

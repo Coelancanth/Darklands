@@ -1,9 +1,9 @@
 using System.Reflection;
 using FluentAssertions;
 using Xunit;
-using Darklands.Core.Infrastructure.DependencyInjection;
-using Darklands.Core.Infrastructure.Validation;
-using Darklands.Core.Domain.Common;
+using Darklands.Application.Infrastructure.DependencyInjection;
+using Darklands.Application.Infrastructure.Validation;
+using Darklands.Domain.Common;
 using Microsoft.Extensions.DependencyInjection;
 using System.Collections.Generic;
 using System.Linq;
@@ -128,18 +128,18 @@ public class ArchitectureTests
         {
             var namespaceParts = type.Namespace!.Split('.');
 
-            // Verify namespace structure: Darklands.Core.Domain.[Domain]
+            // Verify namespace structure: Darklands.Domain.[Domain]
             if (namespaceParts.Length < 4 ||
                 namespaceParts[0] != "Darklands" ||
                 namespaceParts[1] != "Core" ||
                 namespaceParts[2] != "Domain")
             {
-                violations.Add($"{type.Name}: {type.Namespace} (should be Darklands.Core.Domain.*)");
+                violations.Add($"{type.Name}: {type.Namespace} (should be Darklands.Domain.*)");
             }
         }
 
         violations.Should().BeEmpty(
-            $"All domain types must follow Darklands.Core.Domain.* namespace pattern. " +
+            $"All domain types must follow Darklands.Domain.* namespace pattern. " +
             $"Found {violations.Count} violations: {string.Join("; ", violations)}");
     }
 
@@ -356,10 +356,10 @@ public class ArchitectureTests
                 idGenerator.Should().NotBeNull("IStableIdGenerator should be registered in DI container");
 
                 // Should be able to resolve both concrete implementations
-                var guidGenerator = provider.GetService(typeof(Darklands.Core.Infrastructure.Identity.GuidIdGenerator));
+                var guidGenerator = provider.GetService(typeof(Darklands.Application.Infrastructure.Identity.GuidIdGenerator));
                 guidGenerator.Should().NotBeNull("GuidIdGenerator should be registered in DI container");
 
-                var deterministicGenerator = provider.GetService(typeof(Darklands.Core.Infrastructure.Identity.DeterministicIdGenerator));
+                var deterministicGenerator = provider.GetService(typeof(Darklands.Application.Infrastructure.Identity.DeterministicIdGenerator));
                 deterministicGenerator.Should().NotBeNull("DeterministicIdGenerator should be registered in DI container");
 
                 provider.Dispose();

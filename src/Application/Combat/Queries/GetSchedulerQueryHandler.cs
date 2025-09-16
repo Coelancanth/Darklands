@@ -2,14 +2,14 @@ using System.Collections.Generic;
 using LanguageExt;
 using LanguageExt.Common;
 using MediatR;
-using Darklands.Core.Domain.Debug;
+using Darklands.Application.Common;
 using System.Threading;
 using System.Threading.Tasks;
-using Darklands.Core.Application.Combat.Services;
-using Darklands.Core.Domain.Combat;
+using Darklands.Application.Combat.Services;
+using Darklands.Domain.Combat;
 using static LanguageExt.Prelude;
 
-namespace Darklands.Core.Application.Combat.Queries
+namespace Darklands.Application.Combat.Queries
 {
     /// <summary>
     /// Handler for GetSchedulerQuery - Implements functional CQRS pattern with Fin&lt;T&gt; monads.

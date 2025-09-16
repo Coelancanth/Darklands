@@ -17,7 +17,7 @@ config/icon="res://icon.svg"
 
 [autoload]
 
-DebugSystem="*res://DebugSystem.cs"
+DebugSystem="*res://GodotIntegration/Debug/DebugSystem.cs"
 
 [dotnet]
 

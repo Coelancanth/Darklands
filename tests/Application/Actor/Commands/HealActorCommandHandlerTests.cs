@@ -2,9 +2,9 @@ using Xunit;
 using FluentAssertions;
 using LanguageExt;
 using LanguageExt.Common;
-using Darklands.Core.Application.Actor.Commands;
-using Darklands.Core.Application.Actor.Services;
-using Darklands.Core.Domain.Grid;
+using Darklands.Application.Actor.Commands;
+using Darklands.Application.Actor.Services;
+using Darklands.Domain.Grid;
 using Darklands.Core.Tests.TestUtilities;
 using Serilog;
 using System;
@@ -21,40 +21,40 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
         private class TestActorStateService : IActorStateService
         {
             private readonly bool _actorExists;
-            private readonly Darklands.Core.Domain.Actor.Actor? _actor;
+            private readonly Darklands.Domain.Actor.Actor? _actor;
             private readonly bool _healSucceeds;
 
-            public TestActorStateService(bool actorExists = true, Darklands.Core.Domain.Actor.Actor? actor = null, bool healSucceeds = true)
+            public TestActorStateService(bool actorExists = true, Darklands.Domain.Actor.Actor? actor = null, bool healSucceeds = true)
             {
                 _actorExists = actorExists;
                 _actor = actor;
                 _healSucceeds = healSucceeds;
             }
 
-            public Fin<Unit> AddActor(Darklands.Core.Domain.Actor.Actor actor)
+            public Fin<Unit> AddActor(Darklands.Domain.Actor.Actor actor)
                 => FinSucc(unit);
 
-            public Option<Darklands.Core.Domain.Actor.Actor> GetActor(ActorId actorId)
+            public Option<Darklands.Domain.Actor.Actor> GetActor(ActorId actorId)
                 => _actorExists && _actor != null ? Some(_actor) : None;
 
-            public Fin<Darklands.Core.Domain.Actor.Actor> HealActor(ActorId actorId, int healAmount)
+            public Fin<Darklands.Domain.Actor.Actor> HealActor(ActorId actorId, int healAmount)
             {
                 if (!_healSucceeds)
-                    return FinFail<Darklands.Core.Domain.Actor.Actor>(Error.New("HEAL_FAILED: Simulated failure"));
+                    return FinFail<Darklands.Domain.Actor.Actor>(Error.New("HEAL_FAILED: Simulated failure"));
 
                 if (_actor == null)
-                    return FinFail<Darklands.Core.Domain.Actor.Actor>(Error.New("ACTOR_NOT_FOUND: Actor not found"));
+                    return FinFail<Darklands.Domain.Actor.Actor>(Error.New("ACTOR_NOT_FOUND: Actor not found"));
 
                 var result = _actor.Heal(healAmount);
                 return result.Match(
                     Succ: healedActor => FinSucc(healedActor),
-                    Fail: error => FinFail<Darklands.Core.Domain.Actor.Actor>(error)
+                    Fail: error => FinFail<Darklands.Domain.Actor.Actor>(error)
                 );
             }
 
             // Other interface methods - not used in heal tests
-            public Fin<LanguageExt.Unit> UpdateActorHealth(ActorId actorId, Darklands.Core.Domain.Actor.Health newHealth) => FinSucc(LanguageExt.Unit.Default);
-            public Fin<Darklands.Core.Domain.Actor.Actor> DamageActor(ActorId actorId, int damage) => FinSucc(_actor!);
+            public Fin<LanguageExt.Unit> UpdateActorHealth(ActorId actorId, Darklands.Domain.Actor.Health newHealth) => FinSucc(LanguageExt.Unit.Default);
+            public Fin<Darklands.Domain.Actor.Actor> DamageActor(ActorId actorId, int damage) => FinSucc(_actor!);
             public Option<bool> IsActorAlive(ActorId actorId) => Some(true);
             public Fin<LanguageExt.Unit> RemoveDeadActor(ActorId actorId) => FinSucc(LanguageExt.Unit.Default);
         }
@@ -65,7 +65,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
         public async Task Handle_ValidHealing_ReturnsSuccess()
         {
             // Arrange - Create damaged actor
-            var damagedActor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, 100, "Damaged Warrior").Match(
+            var damagedActor = Darklands.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, 100, "Damaged Warrior").Match(
                 Succ: a => a.TakeDamage(30).Match(Succ: damaged => damaged, Fail: _ => throw new InvalidOperationException()),
                 Fail: _ => throw new InvalidOperationException("Test setup failed")
             );
@@ -104,7 +104,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
         public async Task Handle_NegativeHealAmount_ReturnsError()
         {
             // Arrange
-            var testActor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, 100, "Test Warrior").Match(
+            var testActor = Darklands.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, 100, "Test Warrior").Match(
                 Succ: a => a,
                 Fail: _ => throw new InvalidOperationException("Test setup failed")
             );
@@ -128,7 +128,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
         public async Task Handle_DeadActor_ReturnsError()
         {
             // Arrange - Create dead actor
-            var deadActor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, 100, "Dead Warrior").Match(
+            var deadActor = Darklands.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, 100, "Dead Warrior").Match(
                 Succ: a => a.SetToDead(),
                 Fail: _ => throw new InvalidOperationException("Test setup failed")
             );
@@ -152,7 +152,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
         public async Task Handle_ServiceHealFailure_ReturnsError()
         {
             // Arrange
-            var testActor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, 100, "Test Warrior").Match(
+            var testActor = Darklands.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, 100, "Test Warrior").Match(
                 Succ: a => a,
                 Fail: _ => throw new InvalidOperationException("Test setup failed")
             );
@@ -176,7 +176,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
         public async Task Handle_ZeroHealing_ReturnsSuccess()
         {
             // Arrange
-            var testActor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, 100, "Test Warrior").Match(
+            var testActor = Darklands.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, 100, "Test Warrior").Match(
                 Succ: a => a,
                 Fail: _ => throw new InvalidOperationException("Test setup failed")
             );
@@ -196,7 +196,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
         public async Task Handle_FullHealthActor_ReturnsSuccess()
         {
             // Arrange - Actor already at full health
-            var fullHealthActor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, 100, "Healthy Warrior").Match(
+            var fullHealthActor = Darklands.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, 100, "Healthy Warrior").Match(
                 Succ: a => a,
                 Fail: _ => throw new InvalidOperationException("Test setup failed")
             );
@@ -216,7 +216,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
         public async Task Handle_WithSource_ProcessesCorrectly()
         {
             // Arrange - Damaged actor
-            var damagedActor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, 100, "Injured Warrior").Match(
+            var damagedActor = Darklands.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, 100, "Injured Warrior").Match(
                 Succ: a => a.TakeDamage(40).Match(Succ: damaged => damaged, Fail: _ => throw new InvalidOperationException()),
                 Fail: _ => throw new InvalidOperationException("Test setup failed")
             );
@@ -236,7 +236,7 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
         public async Task Handle_CriticallyDamagedActor_HealsCorrectly()
         {
             // Arrange - Actor with 1 health remaining
-            var criticalActor = Darklands.Core.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, 100, "Critical Warrior").Match(
+            var criticalActor = Darklands.Domain.Actor.Actor.CreateAtFullHealth(_validActorId, 100, "Critical Warrior").Match(
                 Succ: a => a.TakeDamage(99).Match(Succ: damaged => damaged, Fail: _ => throw new InvalidOperationException()),
                 Fail: _ => throw new InvalidOperationException("Test setup failed")
             );

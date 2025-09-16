@@ -2,8 +2,8 @@ using Xunit;
 using FluentAssertions;
 using LanguageExt;
 using LanguageExt.Common;
-using Darklands.Core.Domain.Actor;
-using Darklands.Core.Domain.Grid;
+using Darklands.Domain.Actor;
+using Darklands.Domain.Grid;
 using Darklands.Core.Tests.TestUtilities;
 using static LanguageExt.Prelude;
 

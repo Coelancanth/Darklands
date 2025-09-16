@@ -1,13 +1,13 @@
 using LanguageExt;
 using Microsoft.Extensions.Logging;
-using Darklands.Core.Domain.Services;
-using Darklands.Core.Domain.Grid;
+using Darklands.Application.Services;
+using Darklands.Domain.Grid;
 using System;
 using System.Collections.Generic;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 
-namespace Darklands.Core.Infrastructure.Services;
+namespace Darklands.Application.Infrastructure.Services;
 
 /// <summary>
 /// Mock implementation of IInputService for testing purposes.

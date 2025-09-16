@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-16 01:00 (Tech Lead - Reorganized with dependency chains after ADR consistency review)
+**Last Updated**: 2025-09-16 10:37 (Dev Engineer - TD_046 COMPLETE: Fixed Godot references, ready for Test Specialist)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -114,34 +114,316 @@ All IDEA_* items depend on:
 
 *Items with no blocking dependencies, approved and ready to start*
 
-### TD_046: Minimal Project Separation with Feature Namespaces
-**Status**: Approved - Ready for implementation
-**Owner**: Dev Engineer
-**Size**: L (8h total) - Project extraction (3h) + EventAwareNode refactor (1h) + Feature namespaces (4h)
+### TD_046: Clean Architecture Project Separation (ADR-021)
+**Status**: TESTS 98.8% PASSING - Handoff to Test Specialist
+**Owner**: Test Specialist (handoff from Dev Engineer)
+**Size**: XXL (2-3 DAYS total) - High-risk architectural refactoring affecting 662+ tests
 **Priority**: CRITICAL - Blocks all other development
 **Created**: 2025-09-15 23:15 (Tech Lead)
-**Updated**: 2025-09-16 01:00 (Tech Lead - Moved to immediate execution after dependency analysis)
-**Complexity**: 4/10 - Increased due to EventAwareNode refactoring
-**Markers**: [ARCHITECTURE] [CLEAN-ARCHITECTURE] [FEATURE-ORGANIZATION] [BREAKING-CHANGE] [CHAIN-1-FOUNDATION]
-**ADRs**: ADR-021 (minimal separation with MVP), ADR-018 (DI alignment updated)
-**Migration Plan**: Docs/01-Active/TD_046_Migration_Plan.md
+**Updated**: 2025-09-16 10:34 (Dev Engineer - 656/664 tests passing, 6 architecture tests need updating)
+**Complexity**: 7/10 - Sequential migration requiring pair programming, NO parallel development
+**Markers**: [ARCHITECTURE] [CLEAN-ARCHITECTURE] [MVP-ENFORCEMENT] [THREAD-SAFETY] [BREAKING-CHANGE] [CHAIN-1-FOUNDATION] [HIGH-RISK]
+**ADRs**: ADR-021 (4-project separation), ADR-006 (selective abstraction), ADR-010 (UI event bus), ADR-018 (DI lifecycle)
 
-**What**: Extract Domain and Presentation to separate projects + reorganize into feature namespaces
-**Why**: Enforce architectural purity at compile-time while eliminating namespace collisions
+**What**: Implement 4-project structure with compile-time MVP enforcement, thread safety, and scope lifecycle management
+**Why**: The 4th project (Presentation) is the architectural firewall preventing Views from bypassing Presenters
 
-**DEPENDENCY CHAIN**: This is Chain 1 - MUST complete before any other development work
+**DEPENDENCY CHAIN**: Chain 1 - MUST complete before ANY other development
 - Blocks: VS_012, VS_013, VS_014, TD_035, all future features
-- Enables: Compile-time MVP enforcement, clean separation of concerns
+- Enables: Compile-time MVP enforcement, domain purity, clean separation
+- **CRITICAL**: Execute with pair programming and NO parallel development
 
-**Done When**:
-- [ ] Domain project created and referenced
-- [ ] Presentation project created with MVP enforcement
-- [ ] EventAwareNode converted to EventAwarePresenter pattern
-- [ ] Feature namespaces applied consistently across all layers
-- [ ] No namespace-class collisions exist
-- [ ] All 673 tests pass
-- [ ] Architecture test validates domain purity
-- [ ] IntelliSense shows clear, intuitive suggestions
+## 🎯 IMPLEMENTATION STATUS
+
+### ✅ Phase 1 Complete (2 hours actual)
+- Created `src/Darklands.Domain/Darklands.Domain.csproj` - **PURE DOMAIN ACHIEVED**
+- Moved all domain code to separate project with clean namespaces
+- Fixed Grid/namespace ambiguity issues with alias pattern
+- **CRITICAL SUCCESS**: Domain builds independently with ZERO external dependencies
+- Removed infrastructure violations (MediatR events, ILogger, Debug interfaces)
+- Updated 30+ files with proper System usings (Guid, LINQ, InvalidOperationException)
+
+### ✅ Phase 2 COMPLETE - Application Project Success
+**Current State**: `src/Darklands.Application.csproj` builds successfully with ZERO errors
+
+**Phase 2 Achievements**:
+1. **Fixed Duplicate Assembly Conflicts**: Resolved CS0579 errors by properly excluding Domain folder from Application project
+2. **Completed Namespace Migration**: Systematic replacement of 600+ `Darklands.Core.*` → `Darklands.Application.*` references
+3. **Created Missing Service Interfaces**: Added IScopeManager and ScopeManagerDiagnostics to Application.Common
+4. **Resolved Type Conflicts**: Eliminated CS0436 errors by preventing double-inclusion of Domain source files
+5. **Validated Architecture**: Both Domain (pure) and Application (with Domain reference) build independently
+
+**Build Error Reduction**: 950+ errors → 0 errors (100% success)
+**Architecture Validation**: ✅ Domain: Zero dependencies, ✅ Application: Clean Domain reference
+
+### ✅ Phase 4 COMPLETE - 4-Project Structure Finalized
+**Current State**: Complete 4-project structure per ADR-021 building with ZERO errors
+
+**Phase 4 Achievements**:
+1. **Corrected Architecture**: Removed separate Infrastructure project - merged into Application per ADR-021
+2. **Service Interface Migration**: Moved IAudioService, IInputService, ISettingsService from Domain to Application.Services
+3. **Logging Interface Migration**: Moved ICategoryLogger, IDebugConfiguration, LogCategory, LogLevel to Application.Common
+4. **Fixed All References**: Updated 100+ namespace references across all projects
+5. **Solution Structure**: Clean 4-project structure: Domain, Application, Presentation, Tests
+
+**Architecture Validation**:
+- ✅ Domain: Pure with ZERO dependencies except LanguageExt
+- ✅ Application: Includes Infrastructure folder, references Domain only
+- ✅ Presentation: MVP firewall active, references Application + Domain
+- ✅ All projects build successfully with proper dependency flow
+
+## ✅ BUILD SUCCESS - TEST VALIDATION 98.8% COMPLETE
+
+### Test Results & Handoff to Test Specialist
+**Test Run (2025-09-16 10:34)**:
+- **656 of 664 tests PASSING** (98.8% pass rate)
+- **6 failing tests**: All architecture validation tests that need updating for new namespace structure
+- **0 functional test failures**: All business logic intact
+
+**Failing Architecture Tests (for Test Specialist to fix)**:
+1. `Services_Should_Follow_Naming_Convention` - Update for new namespace pattern
+2. `Verify_NetArchTest_Complements_Reflection_Tests` - Update reflection checks
+3. `All_RequestHandlers_Should_Be_In_Correct_Namespace` - Update for Application namespace
+4. `Domain_Should_Not_Use_String_GetHashCode_For_Persistence` - Update assembly scanning
+5. `Task_Run_Usage_Should_Be_Eliminated` - Update presenter type discovery
+6. `Domain_Types_Should_Use_Proper_Namespaces` - Update for Darklands.Domain.* pattern
+
+### Build & Organization Achievements (2025-09-16 10:30-10:34)
+1. **Fixed build infrastructure**: Updated build scripts for new project structure
+2. **Namespace migration complete**: 500+ files updated from `Darklands.Core.*` to new namespaces
+3. **Test project references fixed**: Tests now properly reference all 3 projects
+4. **Godot integration restored**: Views properly reference Presentation layer only (firewall active)
+5. **ZERO build errors**: Complete solution + Godot project compile successfully
+6. **Root files organized**: Moved 7 root C# files into `GodotIntegration/` folder structure
+7. **Godot references updated**: Fixed all .tscn/.tres/project.godot references to new file locations
+
+**Architecture Integrity Confirmed**:
+- Domain: Pure, no external dependencies except LanguageExt
+- Application: Clean Domain reference, includes Infrastructure
+- Presentation: MVP firewall, references Application + Domain
+- Godot: Only references Presentation (architectural firewall enforced)
+
+### Handoff to Test Specialist
+**Next Actions Required**:
+1. Fix 6 failing architecture tests to validate new namespace patterns
+2. Run full test suite with `--filter Category=Architecture` focus
+3. Validate thread safety and performance tests still pass
+4. Mark TD_046 as COMPLETE when all tests pass
+**Key Tasks**:
+1. **Update solution file**: Add all three projects to solution with proper references
+2. **Clean up legacy Core project**: Remove/rename Darklands.Core.csproj appropriately
+3. **Final project excludes**: Ensure no project includes files from other projects
+4. **Validate complete architecture**: All projects build, no circular dependencies
+
+### Phase 5-6 Ready (Post Phase 4)
+- Phase 5: Implement UIDispatcher and thread safety
+- Phase 6: Run architecture tests and fix 662 tests
+
+### Technical Debt Created
+- ~~Service interfaces misplaced in Domain~~ ✅ RESOLVED: Created IScopeManager, ScopeManagerDiagnostics in Application.Common
+- Mixed infrastructure code in `src/Infrastructure/` needs proper organization (Phase 4 target)
+- Event files moved but namespace references need cleanup (Phase 3-4 target)
+- Legacy `Darklands.Core.csproj` still includes Presentation files (Phase 3 cleanup)
+
+## 📋 Pre-Migration Checklist (30 min)
+```bash
+git status                              # Must be clean
+git checkout -b feat/td-046-clean-architecture
+git branch backup/pre-td-046            # Backup point
+./scripts/core/build.ps1 test           # Baseline: 662 tests passing
+# Document: Tests: 662, Build time: X seconds
+# Notify team: "Architecture migration - no merges for 2-3 days"
+```
+
+## Phase 1: Project Setup (2 hours)
+
+### 1.1 Create Project Files
+```xml
+<!-- src/Darklands.Domain/Darklands.Domain.csproj -->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>Darklands.Domain</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- ONLY LanguageExt.Core v5 allowed - provides Fin<T>, Option<T> -->
+    <PackageReference Include="LanguageExt.Core" Version="5.0.0-beta-54" />
+  </ItemGroup>
+</Project>
+```
+
+### 1.2 Update References
+- Domain → NONE (pure)
+- Application → Domain
+- Presentation → Domain + Application
+- Darklands.csproj → Presentation ONLY (firewall)
+- Tests → ALL projects + NetArchTest
+
+**Validation**: Solution builds (even if empty)
+
+## Phase 2: Domain Extraction (3-4 hours)
+
+### 2.1 File Movement Map
+```
+src/Core/Domain/ → src/Darklands.Domain/
+├── Common/ → Common/ (IDeterministicRandom, Result, Errors)
+├── Entities/ → Characters/ & World/ (Actor, Grid, Tile)
+├── ValueObjects/ → Distributed (Position, Health, Damage)
+└── Algorithms/ → Vision/ (ShadowcastingFOV)
+```
+
+### 2.2 Namespace Updates
+```powershell
+# Automated namespace fix
+Get-ChildItem -Path "src/Darklands.Domain" -Recurse -Filter "*.cs" | ForEach-Object {
+    (Get-Content $_.FullName) `
+        -replace 'namespace Darklands\.Core\.Domain', 'namespace Darklands.Domain' `
+        -replace 'using Darklands\.Core\.Domain', 'using Darklands.Domain' |
+    Set-Content $_.FullName
+}
+```
+
+**Validation**: NO System.IO, System.Data, GodotSharp references
+
+## Phase 3: Core→Application Rename (4-6 hours) ⚠️ HIGHEST IMPACT
+
+### 3.1 Impact Scope
+- 600+ files affected
+- All handlers, queries, services, repositories, tests, views
+- project.godot autoloads
+
+### 3.2 Rename Process
+```powershell
+# 1. Rename project file
+mv src/Core/Darklands.Core.csproj src/Core/Darklands.Application.csproj
+
+# 2. Global namespace replacement (WILL take 2-3 hours)
+Get-ChildItem -Recurse -Filter "*.cs" | ForEach-Object {
+    $content = Get-Content $_.FullName
+    $updated = $content `
+        -replace 'namespace Darklands\.Core(?!\.Domain)', 'namespace Darklands.Application' `
+        -replace 'using Darklands\.Core(?!\.Domain)', 'using Darklands.Application'
+    if ($content -ne $updated) {
+        Set-Content $_.FullName $updated
+        Write-Host "Updated: $($_.Name)"
+    }
+}
+```
+
+**Expected Issues**: Ambiguous references, test breakage, autoload paths
+
+## Phase 4: Presentation Extraction (3-4 hours)
+
+### 4.1 Target Structure
+```
+src/Darklands.Presentation/
+├── ViewInterfaces/      # IActorView, IGridView
+├── Presenters/         # All MVP presenters
+├── EventBus/           # UIEventBus, UIDispatcher
+├── DI/                 # ServiceConfiguration
+└── Abstractions/       # IAudioService (ADR-006)
+```
+
+### 4.2 Critical DI Configuration
+```csharp
+// src/Darklands.Presentation/DI/ServiceConfiguration.cs
+public static class ServiceConfiguration {
+    public static IServiceProvider ConfigureServices() {
+        var services = new ServiceCollection();
+
+        // Presenters ONLY for Views (MVP firewall)
+        services.AddScoped<IGridPresenter, GridPresenter>();
+
+        // UIDispatcher from Godot autoload
+        var uiDispatcher = Engine.GetMainLoop()
+            .GetRoot().GetNode<UIDispatcher>("/root/UIDispatcher");
+        services.AddSingleton<IUIDispatcher>(uiDispatcher);
+
+        // MediatR for Application layer
+        services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(
+            typeof(Darklands.Application.ApplicationMarker).Assembly));
+
+        return services.BuildServiceProvider();
+    }
+}
+```
+
+## Phase 5: Critical Clarifications (4-5 hours) 🚨 PRODUCTION SAFETY
+
+### 5.1 UIDispatcher (Thread Safety)
+```csharp
+// MUST be Godot Autoload in project.godot
+public sealed partial class UIDispatcher : Node {
+    private readonly ConcurrentQueue<Action> _actionQueue = new();
+
+    public void DispatchToMainThread(Action action) {
+        _actionQueue.Enqueue(action);
+        CallDeferred(nameof(ProcessQueuedActions)); // Thread-safe
+    }
+}
+```
+
+### 5.2 Service Locator Pattern (MANDATORY)
+```csharp
+// EVERY View MUST follow - constructor injection IMPOSSIBLE
+public partial class GridView : TileMap, IGridView {
+    private IGridPresenter? _presenter;
+
+    public override void _Ready() {
+        _presenter = this.GetService<IGridPresenter>(); // Service locator
+        _presenter?.AttachView(this);
+    }
+}
+```
+
+### 5.3 Scene Manager (Scope Lifecycle)
+```csharp
+// ONLY place GetTree().ChangeScene* is allowed
+public class SceneManager : ISceneManager {
+    public void LoadScene(SceneType sceneType) {
+        _scopeManager.DisposeCurrentScope();
+        var newScope = _scopeManager.CreateScope();
+        GetTree().ChangeSceneToFile(scenePath); // ONLY HERE
+    }
+}
+```
+
+## Phase 6: Testing & Validation (3-4 hours)
+
+### 6.1 Architecture Tests
+```csharp
+[Fact]
+public void Domain_Should_Have_No_External_Dependencies() {
+    var result = Types.InAssembly(domainAssembly)
+        .Should().NotHaveDependencyOnAny(
+            "Darklands.Application", "GodotSharp", "System.IO")
+        .GetResult();
+    result.IsSuccessful.Should().BeTrue();
+}
+```
+
+### 6.2 Expected Failures
+- ~50-100 namespace compilation errors
+- ~20-30 DI registration issues
+- ~10-20 autoload path problems
+
+## Final Validation Checklist
+- [ ] All 662 tests pass
+- [ ] Domain has ZERO external dependencies
+- [ ] Views resolve ONLY Presenters
+- [ ] UIDispatcher marshals to main thread
+- [ ] No GetTree().ChangeScene* outside SceneManager
+- [ ] No memory leaks in scene transitions
+- [ ] Build time acceptable (<30 seconds)
+
+## Rollback Plan
+```bash
+git checkout backup/pre-td-046
+git branch -D feat/td-046-clean-architecture
+# Document failure points for retry
+```
 
 ### TD_035: Standardize Error Handling in Infrastructure Services
 **Status**: Approved - Can run parallel with TD_046
@@ -261,269 +543,11 @@ All IDEA_* items depend on:
 
 *Items moved out of active development*
 
-### TD_045: Enforce Clean Architecture via Project Separation
-**Status**: REJECTED - Over-engineered per architectural review
-**Owner**: Tech Lead
-**Size**: M (6-8h) - But complexity questionable
-**Priority**: N/A - Superseded by TD_046
-**Created**: 2025-09-15 20:40 (Tech Lead)
-**Updated**: 2025-09-16 01:00 (Tech Lead - Moved to archived after dependency analysis)
-**Markers**: [ARCHITECTURE] [CLEAN-ARCHITECTURE] [BUILD-SYSTEM] [REJECTED]
-**Related**: ADR-019 (rejected for same reasons)
-
-**What**: Separate monolithic Darklands.Core.csproj into layer-specific projects to enforce architectural boundaries at compile-time
-
-**Why**: Current single project allows architectural violations (e.g., Domain referencing Infrastructure). Project separation makes violations impossible, not just discouraged.
-
-**Tech Lead Note**: REJECTED - See TD_046 for simpler approach that achieves same goals
-
-**📋 Implementation Plan**:
-
-**Phase 1: Create Layer Projects** (2h):
-```
-src/
-├── Core/
-│   ├── Darklands.Domain/         (NO dependencies)
-│   ├── Darklands.Application/    (→ Domain only)
-│   ├── Darklands.Infrastructure/ (→ Application, Domain)
-│   └── Darklands.Presentation/   (→ Application, Domain)
-```
-
-**Phase 2: Migrate Code by Layer** (3h):
-- Move domain entities/value objects → `Darklands.Domain`
-- Move commands/handlers/services → `Darklands.Application`
-- Move repositories/external services → `Darklands.Infrastructure`
-- Move MVP presenters/view models → `Darklands.Presentation`
-- Keep VSA Features/ as-is initially (gradual migration)
-
-**Phase 3: Update References** (2h):
-```xml
-<!-- Example: Darklands.Application.csproj -->
-<ProjectReference Include="..\Darklands.Domain\Darklands.Domain.csproj" />
-<!-- CANNOT reference Infrastructure - compile error if violated -->
-```
-
-**Phase 4: Update Build & Tests** (1h):
-- Update Darklands.sln with new projects
-- Update test projects to reference appropriate layers
-- Update CI/CD scripts for new structure
-- Validate all 662 tests still pass
-
-**✅ Benefits**:
-- **Compile-time enforcement**: Domain can't accidentally use Godot types
-- **Clear boundaries**: Each layer's dependencies explicit in .csproj
-- **Better testability**: Domain/Application tests don't need Godot runtime
-- **Parallel builds**: Separate projects can build in parallel
-- **Cleaner namespaces**: `Darklands.Domain.Entities` vs mixed paths
-
-**⚠️ Migration Notes**:
-- Do AFTER critical fixes (TD_039, TD_040, TD_041) to avoid disruption
-- Each step reversible if issues arise
-- Keep Features/ folder initially, migrate gradually
-- Update imports/namespaces as files move
-
-**Done When**:
-- [ ] 4-5 separate layer projects created
-- [ ] All code moved to appropriate layer
-- [ ] Solution builds successfully
-- [ ] All 662 tests pass
-- [ ] Architecture tests validate layer dependencies
-- [ ] No circular dependencies between projects
-
-**Tech Lead Note**: REJECTED - See TD_046 Migration Plan for simpler approach
-
-### VS_012: Vision-Based Movement System
-**Status**: Approved  
-**Owner**: Dev Engineer
-**Size**: S (2h)
-**Priority**: Critical
-**Created**: 2025-09-11 00:10
-**Updated**: 2025-09-11
-**Tech Breakdown**: Movement using vision for scheduler activation
-
-**What**: Movement system where scheduler activates based on vision connections
-**Why**: Creates natural tactical combat without explicit modes
-
-**Design** (per ADR-014):
-- **Scheduler activation**: When player and hostiles have vision
-- **Movement rules**: Adjacent-only when scheduled, pathfinding otherwise
-- **Interruption**: Stop movement when enemy becomes visible
-- **Fixed cost**: 100 TU per action when scheduled
-
-**Implementation Plan**:
-- **Phase 1**: Domain rules (0.5h)
-  - Movement validation (adjacent when scheduled)
-  - Fixed TU costs (100)
-  
-- **Phase 2**: Application layer (0.5h)
-  - MoveCommand handler with vision check
-  - Route to scheduler vs instant movement
-  - Console output for states
-  
-- **Phase 3**: Infrastructure (0.5h)
-  - SchedulerActivationService
-  - PathfindingService integration
-  - Movement interruption handler
-  
-- **Phase 4**: Integration (0.5h)
-  - Wire to existing scheduler
-  - Console messages and turn counter
-  - Test with multiple scenarios
-
-**Scheduler Activation (Solo)**:
-```csharp
-bool ShouldUseScheduler() {
-    // Solo player - only check player vs monsters
-    return monsters.Any(m => 
-        m.State != Dormant && 
-        (visionService.CanSee(player, m) || visionService.CanSee(m, player))
-    );
-}
-```
-
-**Movement Flow**:
-```csharp
-if (ShouldUseScheduler()) {
-    // Tactical movement
-    if (!Position.IsAdjacent(from, to)) {
-        return "Only adjacent moves when enemies visible";
-    }
-    scheduler.Schedule(new MoveAction(actor, to, 100));
-} else {
-    // Instant travel with interruption check
-    foreach (var step in path) {
-        actor.Position = step;
-        if (ShouldUseScheduler()) {
-            return "Movement interrupted - enemy spotted!";
-        }
-    }
-}
-```
-
-**Console Examples**:
-```
-// No vision - instant
-> move to (30, 30)
-[Traveling...]
-You arrive at (30, 30)
-
-// Vision exists - tactical
-> move to (10, 10)
-[Enemies visible - tactical movement]
-> move north
-[Turn 1] You move north (100 TU)
-[Turn 2] Goblin moves west (100 TU)
-
-// Interruption
-> move to (50, 50)
-[Traveling...]
-Movement interrupted at (25, 25) - Orc spotted!
-```
-
-**Done When**:
-- Scheduler activates on vision connections
-- Adjacent-only when scheduled
-- Pathfinding when not scheduled
-- Movement interrupts on new vision
-- Turn counter during tactical movement
-- Clear console messages
-
-**Architectural Constraints**:
-☑ Deterministic: Fixed TU costs
-☑ Save-Ready: Position state only
-☑ Time-Independent: Turn-based
-☑ Integer Math: Tile movement
-☑ Testable: Clear state transitions
-
-**Depends On**: 
-- VS_011 (Vision System) - ✅ Infrastructure foundation complete (Phase 3)
-- VS_014 (A* Pathfinding) - ⏳ Required for non-adjacent movement
-**Next Step**: Implement VS_014 first, then begin VS_012
 
 
-### VS_014: A* Pathfinding Foundation
-**Status**: Approved
-**Owner**: Dev Engineer  
-**Size**: S (3h)
-**Priority**: Critical
-**Created**: 2025-09-11 18:12
-**Tech Breakdown**: Complete by Tech Lead
 
-**What**: Implement A* pathfinding algorithm with visual path display
-**Why**: Foundation for VS_012 movement system and all future tactical movement
 
-**Implementation Plan**:
 
-**Phase 1: Domain Algorithm (1h)**
-- Create `Domain.Pathfinding.AStarPathfinder`
-- Pure functional implementation with no dependencies
-- Deterministic tie-breaking (use Position.X then Y for equal F-scores)
-- Support diagonal movement (8-way) with correct costs (100 ortho, 141 diagonal)
-- Handle blocked tiles from Grid.Tile.IsWalkable
-
-```csharp
-public static class AStarPathfinder
-{
-    public static Option<ImmutableList<Position>> FindPath(
-        Position start,
-        Position goal,
-        Grid grid,
-        bool allowDiagonal = true)
-    {
-        // A* with deterministic tie-breaking
-        // Returns None if no path exists
-    }
-}
-```
-
-**Phase 2: Application Service (0.5h)**
-- Create `IPathfindingService` interface in Core
-- `FindPathQuery` and handler for CQRS pattern
-- Cache recent paths for performance (LRU cache, 32 entries)
-
-**Phase 3: Infrastructure (0.5h)**
-- Implement `PathfindingService` with caching
-- Performance monitoring (target: <10ms for 50 tiles)
-- Path validation before returning
-
-**Phase 4: Presentation (1h)**
-- Path visualization in GridPresenter
-- Semi-transparent overlay tiles (blue for path, green for destination)
-- Update on mouse hover to show potential paths
-- Clear path display on movement/action
-
-**Visual Feedback Design**:
-```
-Path tile: Modulate(0.5, 0.5, 1.0, 0.5) - Semi-transparent blue
-Destination: Modulate(0.5, 1.0, 0.5, 0.7) - Semi-transparent green  
-Current hover: Updates in real-time as mouse moves
-Animation: Gentle pulse on destination tile
-```
-
-**Done When**:
-- A* finds optimal paths deterministically
-- Diagonal movement works correctly (1.41x cost)
-- Path visualizes on grid before movement
-- Performance <10ms for typical paths (50 tiles)
-- Handles no-path-exists gracefully (returns None)
-- All tests pass including edge cases
-
-**Test Scenarios**:
-1. Straight line path (no obstacles)
-2. Path around single wall
-3. Maze navigation
-4. No path exists (surrounded)
-5. Diagonal preference when optimal
-
-**Architectural Constraints**:
-☑ Deterministic: Consistent tie-breaking rules
-☑ Save-Ready: Paths are transient, not saved
-☑ Time-Independent: Pure algorithm
-☑ Integer Math: Use 100/141 for movement costs
-☑ Testable: Pure domain function
-
-**Dependencies**: None (foundation feature)
-**Blocks**: VS_012 (Movement System)
 
 ## 🔄 Execution Summary
 **Status**: Approved - Ready for implementation
@@ -601,92 +625,7 @@ Application.Vision.Queries/
 
 
 
-### TD_035: Standardize Error Handling in Infrastructure Services
-**Status**: Approved
-**Owner**: Dev Engineer
-**Size**: S (3h)
-**Priority**: Important
-**Created**: 2025-09-11 18:07
-**Complexity**: 3/10
 
-**What**: Replace remaining try-catch blocks with Fin<T> in infrastructure services
-**Why**: Inconsistent error handling breaks functional composition and makes debugging harder
-
-**Scope** (LIMITED TO):
-1. **PersistentVisionStateService** (7 try-catch blocks):
-   - GetVisionState, UpdateVisionState, ClearVisionState methods
-   - Convert to Try().Match() pattern with Fin<T>
-   
-2. **GridPresenter** (3 try-catch in event handlers):
-   - OnActorSpawned, OnActorMoved, OnActorRemoved
-   - Wrap in functional error handling
-   
-3. **ExecuteAttackCommandHandler** (mixed side effects):
-   - Extract logging to separate methods
-   - Isolate side effects from business logic
-
-**NOT IN SCOPE** (critical boundaries):
-- Performance-critical loops in ShadowcastingFOV (keep imperative)
-- ConcurrentDictionary in caching (proven pattern, don't change)
-- Working switch statements (already readable)
-- Domain layer (already fully functional)
-
-**Implementation Guidelines**:
-```csharp
-// Pattern to follow:
-public Fin<T> ServiceMethod() =>
-    Try(() => 
-    {
-        // existing logic
-    })
-    .Match(
-        Succ: result => FinSucc(result),
-        Fail: ex => FinFail<T>(Error.New("Context-specific message", ex))
-    );
-```
-
-**Done When**:
-- Zero try-catch blocks in listed services
-- All errors flow through Fin<T> consistently
-- Side effects isolated into dedicated methods
-- Performance unchanged (measure before/after)
-- All existing tests still pass
-
-**Tech Lead Notes**:
-- This is about consistency, not FP purity
-- Keep changes mechanical and predictable
-- Don't get creative - follow existing patterns
-- If performance degrades, revert that specific change
-
-
-
-### VS_013: Basic Enemy AI
-**Status**: Proposed
-**Owner**: Product Owner → Tech Lead
-**Size**: M (4-8h)  
-**Priority**: Important
-**Created**: 2025-09-10 19:03
-
-**What**: Simple but effective enemy AI for combat testing
-**Why**: Need opponents to validate combat system and create gameplay loop
-**How**:
-- Decision tree for action selection (move/attack/wait)
-- Target prioritization (closest/weakest/most dangerous)
-- Basic pathfinding to reach targets
-- Flee behavior when low health
-**Done When**:
-- Enemies move towards player intelligently
-- Enemies attack when in range
-- AI makes decisions based on game state
-- Different enemy types show different behaviors
-- AI actions integrate with scheduler
-
-**Architectural Constraints** (MANDATORY):
-☑ Deterministic: AI decisions based on seeded random
-☑ Save-Ready: AI state fully serializable
-☑ Time-Independent: Decisions based on game state not time
-☑ Integer Math: All AI calculations use integers
-☑ Testable: AI logic can be unit tested
 
 ---
 

@@ -1,8 +1,8 @@
 using LanguageExt;
-using Darklands.Core.Domain.Grid;
-using Darklands.Core.Infrastructure.Vision;
+using Darklands.Domain.Grid;
+using Darklands.Application.Infrastructure.Vision;
 
-namespace Darklands.Core.Application.Vision.Services
+namespace Darklands.Application.Vision.Services
 {
     /// <summary>
     /// Interface for vision system performance monitoring.

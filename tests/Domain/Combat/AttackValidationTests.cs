@@ -1,7 +1,7 @@
 using FluentAssertions;
 using Xunit;
-using Darklands.Core.Domain.Combat;
-using Darklands.Core.Domain.Grid;
+using Darklands.Domain.Combat;
+using Darklands.Domain.Grid;
 using Darklands.Core.Tests.TestUtilities;
 using static LanguageExt.Prelude;
 

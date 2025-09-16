@@ -2,13 +2,13 @@ using Xunit;
 using FluentAssertions;
 using LanguageExt;
 using LanguageExt.Common;
-using Darklands.Core.Application.Grid.Commands;
-using Darklands.Core.Application.Grid.Services;
-using Darklands.Core.Application.Actor.Services;
-using Darklands.Core.Domain.Grid;
-using Darklands.Core.Domain.Actor;
+using Darklands.Application.Grid.Commands;
+using Darklands.Application.Grid.Services;
+using Darklands.Application.Actor.Services;
+using Darklands.Domain.Grid;
+using Darklands.Domain.Actor;
 using Darklands.Core.Tests.TestUtilities;
-using Darklands.Core.Domain.Debug;
+using Darklands.Application.Common;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -54,7 +54,7 @@ namespace Darklands.Core.Tests.Application.Grid.Commands
             public Option<Position> GetActorPosition(ActorId actorId) => None;
             public Fin<Unit> ValidateMove(Position fromPosition, Position toPosition) => FinSucc(Unit.Default);
             public Fin<Unit> MoveActor(ActorId actorId, Position toPosition) => FinSucc(Unit.Default);
-            public Fin<Darklands.Core.Domain.Grid.Grid> GetCurrentGrid() => throw new NotImplementedException();
+            public Fin<Darklands.Domain.Grid.Grid> GetCurrentGrid() => throw new NotImplementedException();
             public bool IsValidPosition(Position position) => true;
             public Fin<Unit> RemoveActorFromGrid(ActorId actorId) => FinSucc(Unit.Default);
             public IReadOnlyDictionary<ActorId, Position> GetAllActorPositions() =>
@@ -71,14 +71,14 @@ namespace Darklands.Core.Tests.Application.Grid.Commands
                 _addActorSucceeds = addActorSucceeds;
             }
 
-            public Fin<Unit> AddActor(Darklands.Core.Domain.Actor.Actor actor)
+            public Fin<Unit> AddActor(Darklands.Domain.Actor.Actor actor)
                 => _addActorSucceeds ? FinSucc(Unit.Default) : FinFail<Unit>(Error.New("ACTOR_ERROR: Failed to add actor"));
 
             // Required interface methods - minimal implementations for testing
-            public Option<Darklands.Core.Domain.Actor.Actor> GetActor(ActorId actorId) => None;
+            public Option<Darklands.Domain.Actor.Actor> GetActor(ActorId actorId) => None;
             public Fin<Unit> UpdateActorHealth(ActorId actorId, Health newHealth) => FinSucc(Unit.Default);
-            public Fin<Darklands.Core.Domain.Actor.Actor> DamageActor(ActorId actorId, int damage) => FinFail<Darklands.Core.Domain.Actor.Actor>(Error.New("Not implemented"));
-            public Fin<Darklands.Core.Domain.Actor.Actor> HealActor(ActorId actorId, int healAmount) => FinFail<Darklands.Core.Domain.Actor.Actor>(Error.New("Not implemented"));
+            public Fin<Darklands.Domain.Actor.Actor> DamageActor(ActorId actorId, int damage) => FinFail<Darklands.Domain.Actor.Actor>(Error.New("Not implemented"));
+            public Fin<Darklands.Domain.Actor.Actor> HealActor(ActorId actorId, int healAmount) => FinFail<Darklands.Domain.Actor.Actor>(Error.New("Not implemented"));
             public Option<bool> IsActorAlive(ActorId actorId) => None;
             public Fin<Unit> RemoveDeadActor(ActorId actorId) => FinSucc(Unit.Default);
         }

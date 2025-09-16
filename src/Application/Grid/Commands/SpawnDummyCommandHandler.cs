@@ -1,16 +1,16 @@
 using LanguageExt;
 using LanguageExt.Common;
 using MediatR;
-using Darklands.Core.Domain.Debug;
+using Darklands.Application.Common;
 using System.Threading;
 using System.Threading.Tasks;
-using Darklands.Core.Application.Grid.Services;
-using Darklands.Core.Application.Actor.Services;
-using Darklands.Core.Domain.Actor;
-using Darklands.Core.Domain.Grid;
+using Darklands.Application.Grid.Services;
+using Darklands.Application.Actor.Services;
+using Darklands.Domain.Actor;
+using Darklands.Domain.Grid;
 using static LanguageExt.Prelude;
 
-namespace Darklands.Core.Application.Grid.Commands
+namespace Darklands.Application.Grid.Commands
 {
     /// <summary>
     /// Handler for SpawnDummyCommand - Creates and places dummy actors on the grid.
@@ -65,7 +65,7 @@ namespace Darklands.Core.Application.Grid.Commands
 
             // Step 3: Register dummy in actor state service
             // Convert DummyActor to Actor for service registration
-            var actorForRegistration = Darklands.Core.Domain.Actor.Actor.Create(dummy.Id, dummy.Health, dummy.Name);
+            var actorForRegistration = Darklands.Domain.Actor.Actor.Create(dummy.Id, dummy.Health, dummy.Name);
             if (actorForRegistration.IsFail)
             {
                 var error = actorForRegistration.Match<Error>(Succ: _ => Error.New("UNKNOWN: Unknown error"), Fail: e => e);

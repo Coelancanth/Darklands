@@ -1,13 +1,13 @@
 using LanguageExt;
 using LanguageExt.Common;
 using MediatR;
-using Darklands.Core.Domain.Debug;
+using Darklands.Application.Common;
 using System.Threading;
 using System.Threading.Tasks;
-using Darklands.Core.Application.Grid.Services;
+using Darklands.Application.Grid.Services;
 using static LanguageExt.Prelude;
 
-namespace Darklands.Core.Application.Grid.Queries
+namespace Darklands.Application.Grid.Queries
 {
     /// <summary>
     /// Handler for ValidateMovementQuery - Implements functional CQRS pattern with Fin&lt;T&gt; monads.

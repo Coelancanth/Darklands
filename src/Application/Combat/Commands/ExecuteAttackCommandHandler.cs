@@ -3,17 +3,17 @@ using LanguageExt.Common;
 using MediatR;
 using System.Threading;
 using System.Threading.Tasks;
-using Darklands.Core.Domain.Debug;
-using Darklands.Core.Application.Combat.Services;
-using Darklands.Core.Application.Actor.Services;
-using Darklands.Core.Application.Actor.Commands;
-using Darklands.Core.Application.Grid.Services;
-using Darklands.Core.Domain.Combat;
-using Darklands.Core.Domain.Grid;
-using Darklands.Core.Domain.Actor;
+using Darklands.Application.Common;
+using Darklands.Application.Combat.Services;
+using Darklands.Application.Actor.Services;
+using Darklands.Application.Actor.Commands;
+using Darklands.Application.Grid.Services;
+using Darklands.Domain.Combat;
+using Darklands.Domain.Grid;
+using Darklands.Domain.Actor;
 using static LanguageExt.Prelude;
 
-namespace Darklands.Core.Application.Combat.Commands;
+namespace Darklands.Application.Combat.Commands;
 
 /// <summary>
 /// Handler for ExecuteAttackCommand - Orchestrates melee combat between actors.

@@ -4,8 +4,8 @@ using System.Linq;
 using System.Reflection;
 using FluentAssertions;
 using Xunit;
-using Darklands.Core.Domain.Common;
-using Darklands.Core.Infrastructure.DependencyInjection;
+using Darklands.Domain.Common;
+using Darklands.Application.Infrastructure.DependencyInjection;
 
 namespace Darklands.Core.Tests.Architecture;
 

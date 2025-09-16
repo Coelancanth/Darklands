@@ -1,9 +1,9 @@
-using Darklands.Core.Domain.Debug;
+using Darklands.Application.Common;
 using Serilog;
 using System;
 using System.Collections.Generic;
 
-namespace Darklands.Core.Infrastructure.Debug;
+namespace Darklands.Application.Infrastructure.Debug;
 
 /// <summary>
 /// Logger implementation that filters messages based on debug configuration categories.

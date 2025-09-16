@@ -2,7 +2,7 @@ using Xunit;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using Darklands.Core.Domain.Determinism;
+using Darklands.Domain.Determinism;
 using LanguageExt;
 using static LanguageExt.Prelude;
 

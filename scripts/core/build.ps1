@@ -23,7 +23,10 @@ $ErrorActionPreference = "Stop"
 
 # PROJECT CONFIGURATION - DARKLANDS
 $ProjectName = "Darklands"
-$CoreProject = "src/Darklands.Core.csproj"
+$SolutionFile = "Darklands.sln"
+$DomainProject = "src/Darklands.Domain/Darklands.Domain.csproj"
+$ApplicationProject = "src/Darklands.Application.csproj"
+$PresentationProject = "src/Darklands.Presentation/Darklands.Presentation.csproj"
 $TestProject = "tests/Darklands.Core.Tests.csproj"
 $GodotProject = "Darklands.csproj"
 $BuildCommand = "dotnet build"
@@ -106,7 +109,7 @@ switch ($Command) {
     
     'clean' {
         Write-Step "Cleaning build artifacts"
-        Execute-Command "$CleanCommand $CoreProject"
+        Execute-Command "$CleanCommand $SolutionFile"
         Execute-Command "$CleanCommand $TestProject"
         Execute-Command "$CleanCommand $GodotProject"
         # Clean bin and obj directories
@@ -116,7 +119,7 @@ switch ($Command) {
 
     'build' {
         Write-Step "Building $ProjectName ($Configuration)"
-        Execute-Command "$BuildCommand $CoreProject --configuration $Configuration"
+        Execute-Command "$BuildCommand $SolutionFile --configuration $Configuration"
         Execute-Command "$BuildCommand $TestProject --configuration $Configuration"
         Execute-Command "$BuildCommand $GodotProject --configuration $Configuration"
         Write-Host "✓ Build successful" -ForegroundColor Green
@@ -128,7 +131,7 @@ switch ($Command) {
         
         if (-not $NoBuild) {
             if ($Detailed) { Write-Host "  Building projects..." -ForegroundColor Yellow }
-            Execute-Command "$BuildCommand $CoreProject --configuration $Configuration"
+            Execute-Command "$BuildCommand $SolutionFile --configuration $Configuration"
             Execute-Command "$BuildCommand $TestProject --configuration $Configuration"
             Execute-Command "$BuildCommand $GodotProject --configuration $Configuration"
             Write-Host "✓ Build successful" -ForegroundColor Green
@@ -195,7 +198,7 @@ switch ($Command) {
         Write-Host "  Note: This requires Godot to be installed" -ForegroundColor Yellow
         if (Get-Command godot -ErrorAction SilentlyContinue) {
             # Build Core library first
-            Execute-Command "$BuildCommand $CoreProject --configuration $Configuration"
+            Execute-Command "$BuildCommand $SolutionFile --configuration $Configuration"
             # Launch Godot
             Execute-Command "godot project.godot"
         } else {

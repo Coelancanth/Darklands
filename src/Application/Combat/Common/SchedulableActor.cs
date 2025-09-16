@@ -1,8 +1,8 @@
 using System;
-using Darklands.Core.Domain.Combat;
-using Darklands.Core.Domain.Grid;
+using Darklands.Domain.Combat;
+using Darklands.Domain.Grid;
 
-namespace Darklands.Core.Application.Combat.Common
+namespace Darklands.Application.Combat.Common
 {
     /// <summary>
     /// Simple implementation of ISchedulable that wraps an actor for combat scheduling.

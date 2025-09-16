@@ -2,14 +2,14 @@ using System;
 using System.Threading.Tasks;
 using Darklands.Core.Application.Grid.Services;
 using Darklands.Core.Application.Combat.Services;
-using Darklands.Core.Domain.Grid;
-using Darklands.Core.Domain.Combat;
+using Darklands.Domain.Grid;
+using Darklands.Domain.Combat;
 using Darklands.Core.Presentation.Views;
 using MediatR;
 using Serilog;
 using static LanguageExt.Prelude;
 
-namespace Darklands.Core.Presentation.Presenters
+namespace Darklands.Application.Presentation.Presenters
 {
     /// <summary>
     /// Presenter for attack animations and visual feedback.

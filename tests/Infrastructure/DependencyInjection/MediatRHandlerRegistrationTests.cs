@@ -1,4 +1,4 @@
-using Darklands.Core.Infrastructure.DependencyInjection;
+using Darklands.Application.Infrastructure.DependencyInjection;
 using FluentAssertions;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;

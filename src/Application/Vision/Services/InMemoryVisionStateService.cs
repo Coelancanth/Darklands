@@ -2,13 +2,13 @@ using LanguageExt;
 using LanguageExt.Common;
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
-using Darklands.Core.Domain.Debug;
-using Darklands.Core.Domain.Vision;
-using Darklands.Core.Domain.Common;
-using Darklands.Core.Domain.Grid;
+using Darklands.Application.Common;
+using Darklands.Domain.Vision;
+using Darklands.Domain.Common;
+using Darklands.Domain.Grid;
 using static LanguageExt.Prelude;
 
-namespace Darklands.Core.Application.Vision.Services
+namespace Darklands.Application.Vision.Services
 {
     /// <summary>
     /// In-memory implementation of vision state service.

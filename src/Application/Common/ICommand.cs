@@ -2,7 +2,7 @@ using MediatR;
 using LanguageExt;
 using LanguageExt.Common;
 
-namespace Darklands.Core.Application.Common
+namespace Darklands.Application.Common
 {
     /// <summary>
     /// Represents a command that modifies system state and returns no data.

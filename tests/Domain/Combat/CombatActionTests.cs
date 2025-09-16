@@ -1,6 +1,6 @@
 using Xunit;
 using FluentAssertions;
-using Darklands.Core.Domain.Combat;
+using Darklands.Domain.Combat;
 
 namespace Darklands.Core.Tests.Domain.Combat;
 

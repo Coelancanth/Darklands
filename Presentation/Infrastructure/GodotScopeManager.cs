@@ -8,7 +8,8 @@ using System.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Godot;
-using Darklands.Core.Domain.Services;
+using Darklands.Application.Common;
+using Darklands.Application.Services;
 
 namespace Darklands.Presentation.Infrastructure;
 

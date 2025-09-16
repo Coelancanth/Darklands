@@ -1,11 +1,11 @@
 using LanguageExt;
 using LanguageExt.Common;
 using Microsoft.Extensions.Logging;
-using Darklands.Core.Domain.Services;
+using Darklands.Application.Services;
 using System.Collections.Generic;
 using static LanguageExt.Prelude;
 
-namespace Darklands.Core.Infrastructure.Services;
+namespace Darklands.Application.Infrastructure.Services;
 
 /// <summary>
 /// Mock implementation of ISettingsService for testing purposes.

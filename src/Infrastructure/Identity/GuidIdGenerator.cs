@@ -1,8 +1,8 @@
-using Darklands.Core.Domain.Common;
+using Darklands.Domain.Common;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace Darklands.Core.Infrastructure.Identity;
+namespace Darklands.Application.Infrastructure.Identity;
 
 /// <summary>
 /// Production ID generator using cryptographically strong random numbers for non-deterministic scenarios.

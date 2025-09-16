@@ -1,6 +1,6 @@
 using System;
 
-namespace Darklands.Core.Presentation
+namespace Darklands.Application.Presentation
 {
     /// <summary>
     /// Base class for all Presenters following the MVP pattern.

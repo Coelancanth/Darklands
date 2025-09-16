@@ -2,12 +2,12 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using LanguageExt;
 using LanguageExt.Common;
-using Darklands.Core.Application.Grid.Services;
-using Darklands.Core.Domain.Grid;
-using Darklands.Core.Infrastructure.Identity;
+using Darklands.Application.Grid.Services;
+using Darklands.Domain.Grid;
+using Darklands.Application.Infrastructure.Identity;
 using static LanguageExt.Prelude;
 
-namespace Darklands.Core.Application.Grid.Services
+namespace Darklands.Application.Grid.Services
 {
     /// <summary>
     /// In-memory implementation of IGridStateService for Phase 2.
@@ -186,7 +186,7 @@ namespace Darklands.Core.Application.Grid.Services
         /// Features: Long walls, pillar formations, corridors, and room structures for shadowcasting validation.
         /// </summary>
         /// <returns>Strategic test grid with player at center (15,10) and complex terrain</returns>
-        private static Domain.Grid.Grid CreateStrategicTestGrid(Core.Domain.Common.IStableIdGenerator idGenerator)
+        private static Domain.Grid.Grid CreateStrategicTestGrid(Domain.Common.IStableIdGenerator idGenerator)
         {
             const int width = 30;
             const int height = 20;

@@ -1,8 +1,8 @@
 using MediatR;
 using System.Diagnostics;
-using Darklands.Core.Domain.Debug;
+using Darklands.Application.Common;
 
-namespace Darklands.Core.Infrastructure.DependencyInjection;
+namespace Darklands.Application.Infrastructure.DependencyInjection;
 
 /// <summary>
 /// MediatR pipeline behavior that logs all command and query executions.

@@ -1,9 +1,10 @@
 using System;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Darklands.Core.Domain.Services;
+using Darklands.Application.Services;
+using Darklands.Application.Common;
 
-namespace Darklands.Core.Infrastructure.DependencyInjection;
+namespace Darklands.Application.Infrastructure.DependencyInjection;
 
 /// <summary>
 /// Stub implementation of IScopeManager that provides fallback behavior when the actual implementation

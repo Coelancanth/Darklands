@@ -1,8 +1,8 @@
 using System.Threading.Tasks;
-using Darklands.Core.Domain.Grid;
-using Darklands.Core.Domain.Combat;
+using Darklands.Domain.Grid;
+using Darklands.Domain.Combat;
 
-namespace Darklands.Core.Presentation.Views
+namespace Darklands.Application.Presentation.Views
 {
     /// <summary>
     /// Interface for the attack view that handles combat animations and visual feedback.

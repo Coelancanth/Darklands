@@ -3,13 +3,13 @@ using LanguageExt.Common;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Diagnostics;
-using Darklands.Core.Application.Vision.Services;
-using Darklands.Core.Domain.Common;
-using Darklands.Core.Domain.Grid;
-using Darklands.Core.Domain.Vision;
+using Darklands.Application.Vision.Services;
+using Darklands.Domain.Common;
+using Darklands.Domain.Grid;
+using Darklands.Domain.Vision;
 using static LanguageExt.Prelude;
 
-namespace Darklands.Core.Infrastructure.Vision;
+namespace Darklands.Application.Infrastructure.Vision;
 
 /// <summary>
 /// Performance monitor for vision system operations.

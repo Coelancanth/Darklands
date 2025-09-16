@@ -1,10 +1,10 @@
 using FluentAssertions;
 using Xunit;
-using Darklands.Core.Infrastructure.Validation;
-using Darklands.Core.Domain.Common;
-using Darklands.Core.Domain.Actor;
-using Darklands.Core.Domain.Grid;
-using Darklands.Core.Infrastructure.Identity;
+using Darklands.Application.Infrastructure.Validation;
+using Darklands.Domain.Common;
+using Darklands.Domain.Actor;
+using Darklands.Domain.Grid;
+using Darklands.Application.Infrastructure.Identity;
 using System.Collections.Immutable;
 
 namespace Darklands.Core.Tests.Infrastructure.Validation;

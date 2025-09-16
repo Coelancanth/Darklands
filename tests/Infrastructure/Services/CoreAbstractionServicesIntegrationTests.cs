@@ -2,9 +2,9 @@ using Xunit;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using LanguageExt;
-using Darklands.Core.Infrastructure.DependencyInjection;
-using Darklands.Core.Domain.Services;
-using Darklands.Core.Infrastructure.Services;
+using Darklands.Application.Infrastructure.DependencyInjection;
+using Darklands.Application.Services;
+using Darklands.Application.Infrastructure.Services;
 
 namespace Darklands.Core.Tests.Infrastructure.Services;
 

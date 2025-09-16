@@ -1,6 +1,6 @@
 using Xunit;
 using FluentAssertions;
-using Darklands.Core.Domain.Grid;
+using Darklands.Domain.Grid;
 using Darklands.Core.Tests.TestUtilities;
 
 namespace Darklands.Core.Tests.Domain.Grid;

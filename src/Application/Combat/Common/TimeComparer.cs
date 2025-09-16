@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using Darklands.Core.Domain.Combat;
+using Darklands.Domain.Combat;
 
-namespace Darklands.Core.Application.Combat.Common
+namespace Darklands.Application.Combat.Common
 {
     /// <summary>
     /// Comparer for ISchedulable entities that provides deterministic ordering.

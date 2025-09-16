@@ -2,8 +2,8 @@ using Xunit;
 using FluentAssertions;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
-using Darklands.Core.Infrastructure.Services;
-using Darklands.Core.Domain.Services;
+using Darklands.Application.Services;
+using Darklands.Application.Infrastructure.Services;
 using System.Collections.Generic;
 
 namespace Darklands.Core.Tests.Infrastructure.Services;

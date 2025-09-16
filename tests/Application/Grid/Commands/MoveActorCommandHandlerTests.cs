@@ -2,9 +2,9 @@ using Xunit;
 using FluentAssertions;
 using LanguageExt;
 using LanguageExt.Common;
-using Darklands.Core.Application.Grid.Commands;
-using Darklands.Core.Application.Grid.Services;
-using Darklands.Core.Domain.Grid;
+using Darklands.Application.Grid.Commands;
+using Darklands.Application.Grid.Services;
+using Darklands.Domain.Grid;
 using Darklands.Core.Tests.TestUtilities;
 using Serilog;
 using System;
@@ -39,7 +39,7 @@ namespace Darklands.Core.Tests.Application.Grid.Commands
             public Fin<Unit> MoveActor(ActorId actorId, Position toPosition)
                 => FinSucc(Unit.Default);
 
-            public Fin<Darklands.Core.Domain.Grid.Grid> GetCurrentGrid() => throw new NotImplementedException();
+            public Fin<Darklands.Domain.Grid.Grid> GetCurrentGrid() => throw new NotImplementedException();
             public bool IsValidPosition(Position position) => true;
             public bool IsPositionEmpty(Position position) => true;
 

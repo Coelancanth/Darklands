@@ -5,10 +5,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using LanguageExt;
 using LanguageExt.Common;
-using Darklands.Core.Application.Combat.Commands;
-using Darklands.Core.Application.Combat.Services;
-using Darklands.Core.Domain.Combat;
-using Darklands.Core.Domain.Grid;
+using Darklands.Application.Combat.Commands;
+using Darklands.Application.Combat.Services;
+using Darklands.Domain.Combat;
+using Darklands.Domain.Grid;
 using Darklands.Core.Tests.TestUtilities;
 using static LanguageExt.Prelude;
 

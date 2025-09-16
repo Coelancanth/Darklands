@@ -5,8 +5,7 @@ echo "🔍 Pre-commit validation..."
 
 # Auto-fix code formatting BEFORE testing (zero friction)
 echo "🔧 Auto-formatting code..."
-dotnet format src/Darklands.Core.csproj --verbosity minimal
-dotnet format tests/Darklands.Core.Tests.csproj --verbosity minimal
+dotnet format Darklands.sln --verbosity minimal
 if [ $? -eq 0 ]; then
     # Stage any formatting changes automatically
     git add -u 2>/dev/null
@@ -23,7 +22,7 @@ if [ $? -ne 0 ]; then
 
     # Try to rebuild in case of stale builds
     echo "🔧 Attempting fresh build..."
-    dotnet build src/Darklands.Core.csproj --verbosity minimal
+    dotnet build Darklands.sln --verbosity minimal
 
     # Retry tests
     dotnet test tests/Darklands.Core.Tests.csproj --no-build --verbosity minimal

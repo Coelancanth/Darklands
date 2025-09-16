@@ -1,8 +1,8 @@
 using System;
-using Darklands.Core.Domain.Debug;
+using Darklands.Application.Common;
 using Microsoft.Extensions.Logging;
 
-namespace Darklands.Core.Infrastructure.Logging;
+namespace Darklands.Application.Infrastructure.Logging;
 
 /// <summary>
 /// Adapter that satisfies Microsoft.Extensions.Logging.ILogger<T> by delegating
@@ -40,17 +40,17 @@ public sealed class CategoryLoggerAdapter<T> : ILogger<T>
         _logger.Log(level, category, message);
     }
 
-    private static (Domain.Debug.LogLevel level, LogCategory category) Map(Microsoft.Extensions.Logging.LogLevel level)
+    private static (Application.Common.LogLevel level, LogCategory category) Map(Microsoft.Extensions.Logging.LogLevel level)
     {
         return level switch
         {
-            Microsoft.Extensions.Logging.LogLevel.Trace => (Domain.Debug.LogLevel.Debug, LogCategory.Developer),
-            Microsoft.Extensions.Logging.LogLevel.Debug => (Domain.Debug.LogLevel.Debug, LogCategory.Developer),
-            Microsoft.Extensions.Logging.LogLevel.Information => (Domain.Debug.LogLevel.Information, LogCategory.System),
-            Microsoft.Extensions.Logging.LogLevel.Warning => (Domain.Debug.LogLevel.Warning, LogCategory.System),
-            Microsoft.Extensions.Logging.LogLevel.Error => (Domain.Debug.LogLevel.Error, LogCategory.System),
-            Microsoft.Extensions.Logging.LogLevel.Critical => (Domain.Debug.LogLevel.Error, LogCategory.System),
-            _ => (Domain.Debug.LogLevel.Information, LogCategory.System)
+            Microsoft.Extensions.Logging.LogLevel.Trace => (Application.Common.LogLevel.Debug, LogCategory.Developer),
+            Microsoft.Extensions.Logging.LogLevel.Debug => (Application.Common.LogLevel.Debug, LogCategory.Developer),
+            Microsoft.Extensions.Logging.LogLevel.Information => (Application.Common.LogLevel.Information, LogCategory.System),
+            Microsoft.Extensions.Logging.LogLevel.Warning => (Application.Common.LogLevel.Warning, LogCategory.System),
+            Microsoft.Extensions.Logging.LogLevel.Error => (Application.Common.LogLevel.Error, LogCategory.System),
+            Microsoft.Extensions.Logging.LogLevel.Critical => (Application.Common.LogLevel.Error, LogCategory.System),
+            _ => (Application.Common.LogLevel.Information, LogCategory.System)
         };
     }
 }

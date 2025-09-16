@@ -1,74 +1,110 @@
-好的。
+好的。已审阅完毕。
 
-这份 ADR (Architectural Decision Record) 编写得非常出色。它结构清晰、论证有力、格式规范，明确地阐述了问题背景、决策过程和预期后果。作为技术主管，我认为这份文档的整体方向是正确的，它在过度工程化和工程纪律缺失之间找到了一个务实的平衡点。
+这是一份非常详尽且高质量的架构决策记录（ADR）。其问题陈述清晰，决策过程透明，并且对后果和替代方案进行了深思熟虑的分析。将项目引用（Project References）作为编译时“架构防火墙”的核心思想是健全且正确的，特别是在强制执行MVP（Model-View-Presenter）模式和领域纯洁性（Domain Purity）方面。
 
-然而，以专业和严格的标准来审视，这份文档中存在几个需要进一步质询和明确的关键点。我的评价将聚焦于那些可能在未来导致架构腐化或技术债务的细节。
+然而，作为技术主管，我的职责是进行压力测试并找出潜在的风险和实施细节中的矛盾之处。这份ADR在理论上是优秀的，但在与Godot引擎的实际集成中存在几个**关键的、必须解决的**问题点。
+
+### **总体评估**
+
+*   **优点**:
+    *   **问题定义准确**: 准确识别了领域污染和MVP模式强制执行的困难。
+    *   **解决方案合理**: 4项目结构是解决所述问题的成熟方案，在企业级.NET应用中得到过验证。
+    *   **边界清晰**: 利用编译时检查（项目引用）和测试时检查（NetArchTest）相结合，提供了强大的架构保障。
+    *   **文档完整**: ADR结构完整，包含了上下文、决策、后果、替代方案和迁移计划。
+
+*   **主要风险**:
+    *   **理论与实践脱节**: 部分提议的实现模式（特别是视图的依赖注入）与Godot节点（Node）的生命周期和实例化机制存在直接冲突。
+    *   **执行风险**: 迁移计划的时间估算过于乐观，可能导致团队在实施过程中遇到未预见的阻碍。
+    *   **纪律依赖**: 某些关键协议（如场景切换和跨Presenter通信）依赖于开发者的严格遵守，缺乏自动化强制手段。
 
 ---
 
-### **总体评价 (Overall Assessment)**
+### **关键实施问题与修正指令**
 
-这是一个高质量的决策记录。它体现了团队在经历过 `TD_042` 和 `ADR-019` 的反思后，对架构简洁性和实用主义的追求。决策的核心——通过最小化的项目分离来保护领域模型的纯粹性——是一个高价值的目标。迁移计划和自动化验证（架构测试）的包含，更是将决策从“希望”层面提升到了“可执行、可维护”的层面。
+以下是在实施前**必须**修正或澄清的关键问题。
 
-尽管如此，我们必须对细节保持警惕。
+#### **1. 严重问题：视图（View）的实例化与依赖注入（DI）策略存在矛盾**
 
-### **关键架构问题 (Critical Architectural Questions)**
+ADR中提出的“简化的MVP强制执行测试”部分，建议对View使用构造函数注入（Constructor Injection），并提供了一个`ViewFactory`。这在Godot的实际工作流中是行不通的，并且存在根本性的误解。
 
-#### **1. `Darklands.csproj` 对 `Darklands.Core` 的直接引用是一个潜在的架构漏洞。**
+*   **问题根源**: Godot通过场景文件（`.tscn`）实例化节点。引擎负责调用节点的无参构造函数（`new()`），开发者无法直接介入并传递依赖项。因此，`public CombatView(ICombatPresenter presenter)` 这样的构造函数永远不会被Godot引擎有效调用。
+*   **实际情况**: ADR中提到的`InjectDependencies(view)`方法，实际上执行的是属性注入（Property Injection）或方法注入（Method Injection），而非构造函数注入。这是一个关键的区别，因为它改变了依赖项何时可用以及如何验证。
+*   **风险**: 如果团队按照ADR中的示例编写构造函数，代码将在运行时因缺少无参构造函数而崩溃，或者注入的依赖项将永远为`null`。所提供的架构测试代码也将完全失效，因为它检查的是一个永远不会被使用的构造函数。
 
-这是我在文档中发现的最严重的问题。
+**修正指令**:
+1.  **明确DI模式**: ADR必须明确指出，对于Godot节点（Views），我们将使用**属性注入**。删除所有关于构造函数注入的错误示例和论述。
+2.  **更新View实现模式**:
+    ```csharp
+    // 正确的View实现模式
+    public partial class CombatView : Control, ICombatView
+    {
+        // 依赖项必须是可写的公开或内部属性
+        [Inject] // 可选的自定义特性，用于标记注入点
+        public ICombatPresenter Presenter { get; set; }
 
-*   **观察**: 在 `Project Structure` 图示中，`Darklands.csproj` (Godot 入口) 同时引用了 `Darklands.Presentation` 和 `Darklands.Core`。
-*   **质询**: 为什么要允许 `View` 层 (Godot 节点) 直接引用 `Core` (应用层/基础设施层)？
-    *   `MVP` 模式的核心思想是通过 `Presenter` 作为 `View` 和 `Model` (在我们的案例中是 `Core` 里的用例) 之间的中介。`View` 只应与 `Presenter` 交互，`Presenter` 再通过 `MediatR` 等工具向 `Core` 发送命令 (Commands) 和查询 (Queries)。
-    *   如果 `View` 可以直接访问 `Core`，就意味着一个 Godot 脚本可以绕过 `Presenter`，直接实例化或调用一个应用服务 (Application Service) 甚至基础设施服务 (Infrastructure Service)。这将破坏 `MVP` 模式的约束力，导致业务逻辑泄露到 `View` 层。
-*   **潜在风险**: 随着项目复杂化和团队成员的变更，开发者可能会图方便，在 `View` 的代码隐藏 (code-behind) 文件中直接调用 `Core` 中的服务，从而绕过了 `Presenter` 的编排和视图模型 (View Model) 的转换逻辑。这会使本 ADR 努力建立的边界逐渐模糊。
-*   **建议**: 除非有极其充分的理由，否则应移除 `Darklands.csproj` 对 `Darklands.Core` 的引用。`Darklands.csproj` 只应引用 `Darklands.Presentation`。所有与 `Core` 的交互都必须通过 `Presentation` 层的 `Presenter` 来进行。如果存在某些必须直接引用的情况（例如依赖注入的配置），应在 ADR 中明确说明并加以限制。
+        public override void _Ready()
+        {
+            // 必须在使用前验证依赖项是否已注入
+            if (Presenter is null)
+            {
+                throw new InvalidOperationException("Presenter was not injected.");
+            }
+            Presenter.AttachView(this);
+            Presenter.Initialize();
+        }
+    }
+    ```
+3.  **重写架构测试**: 必须重写`MVPEnforcementTests.cs`。测试不应检查构造函数参数，而应改为：
+    *   扫描所有继承自`Node`且以`View`结尾的类型。
+    *   检查这些类型中是否存在`GetService<T>()`的调用。
+    *   如果允许属性注入，则检查所有公开的可写属性，确保其类型是Presenter接口。禁止注入`IMediator`或`IRepository`等核心服务。
 
-#### **2. 依赖注入 (Dependency Injection) 的组合根 (Composition Root) 在哪里？**
+#### **2. 关键问题：作用域生命周期（Scope Lifecycle）的强制执行**
 
-*   **观察**: 文档提到了 `Microsoft.Extensions.DependencyInjection`，这表明项目正在使用 DI 容器。但 ADR 未说明容器的配置和构建在何处进行。
-*   **质询**: DI 容器的配置（服务的注册）是在哪个项目中完成的？
-    *   通常，组合根位于应用程序的入口点，即 `Darklands.csproj`。在这里，我们需要注册所有来自 `Darklands.Core` 的处理器 (Handlers)、服务 (Services) 和来自 `Darklands.Presentation` 的表示器 (Presenters)。
-    *   如果组合根在 `Darklands.csproj`，那么它确实需要引用其他所有项目来完成服务注册。这可以解释上一个问题中对 `Core` 的引用，但这必须被明确地、有意识地决定，并应在文档中强调，该引用**仅用于组合根**，而不应用于 `View` 的业务逻辑。
-*   **建议**: 在 ADR 中增加一节，明确定义组合根的位置和职责，并为如何安全地进行依赖注入提供指导原则。
+ADR正确地将DI作用域与Godot的场景生命周期绑定，这是一个优秀的设计。但它低估了破坏这个模式的容易程度。
 
-### **细节质询 (Detailed Inquiries)**
+*   **问题根源**: ADR假设所有场景切换都将通过自定义的`SceneManager`进行，该管理器负责创建和销毁DI作用域。然而，Godot开发者可以随时通过`GetTree().ChangeSceneToFile("res://new_scene.tscn")`来切换场景，这将完全绕过`SceneManager`和作用域管理逻辑，导致服务状态错乱和内存泄漏。
+*   **风险**: 这是一个“约定优于配置”的脆弱环节。新成员或无意识的开发者很容易直接调用原生API，从而破坏整个架构。
 
-*   **`LanguageExt.Core` 在领域层的使用**:
-    *   **观察**: `Darklands.Domain.csproj` 引用了 `LanguageExt.Core`。
-    *   **质询**: 这是一个务实的选择，因为它提供了函数式的构建块，如 `Option<T>` 和 `Fin<T>`，这些可以被视为领域建模语言的扩展。但是，决策必须是有意识的。我们是否已评估过这个库的传递依赖 (transitive dependencies)？我们是否定义了哪些特性是允许在领域层使用的？
-    *   **建议**: 在 ADR 中加一句话，明确指出 `LanguageExt.Core` 被允许是因为它不引入基础设施依赖，并被视为增强领域建模能力的“准语言”特性。
+**修正指令**:
+1.  **强化协议**: ADR必须增加一条强制性规则：“**严禁**直接使用`GetTree().ChangeScene...`系列方法。所有场景的加载、切换和重载**必须**通过注入的`ISceneManager`服务进行。”
+2.  **增加静态分析/测试**: 考虑添加一个自定义的Roslyn分析器或测试，用于扫描代码库中对`GetTree().ChangeScene`的非法调用。这能将运行时风险转移到编译时或测试时。
+3.  **明确`SceneManager`职责**: `SceneManager`的实现细节应在ADR中简要说明，强调其作为作用域管理器的核心职责。
 
-*   **`Core` 项目的内部边界**:
-    *   **观察**: `Darklands.Core.csproj` 合并了应用层 (Application) 和基础设施层 (Infrastructure)。
-    *   **质询**: 这是一个合理的简化。但是，我们如何在该项目内部强制应用层对基础设施层的依赖方向？应用层的用例处理器 (Use Case Handlers) 应该依赖于接口（例如 `IRepository`），而这些接口的实现在基础设施层。我们是否依赖于命名空间规则和代码审查来保证这一点？
-    *   **建议**: 简要提及在 `Darklands.Core` 内部，将继续通过依赖倒置原则 (Dependency Inversion Principle) 来管理应用层和基础设施层之间的耦合，即使它们在同一个项目中。
+#### **3. 澄清项：线程安全协议（Thread Safety Protocol）**
 
-### **风险与成本评估 (Risk and Cost Assessment)**
+`UIDispatcher`的设计是正确的，但ADR中缺少一个关键信息。
 
-*   **遗漏的负面影响 (Negative Consequence)**:
-    *   **观察**: “Negative” 部分提到了“多一个项目”和“更新 using”。
-    *   **质询**: 一个更重要的负面影响被忽略了：**开发过程中的心智负担和导航摩擦 (Cognitive Overhead and Navigation Friction)**。在多个项目之间跳转、追踪代码定义、理解依赖关系，会比在单个项目中更耗时。虽然这个代价是值得的，但必须诚实地承认它。
-    *   **建议**: 在 “Negative” 部分增加“增加开发时的心智模型复杂度和跨项目导航成本”。
+*   **问题根源**: `AttackCommandHandler`如何获取`_dispatcher`实例？
+*   **风险**: 如果每个Handler都自己`new UIDispatcher()`，该机制将无法工作，因为它依赖于作为场景树中节点的`CallDeferred`方法。
 
-*   **架构测试的维护成本**:
-    *   **观察**: 文档中提供了一个很好的架构测试示例。
-    *   **质询**: 这个测试依赖于一个硬编码的字符串列表 (`"Darklands.Core"`, `"GodotSharp"`, etc.)。如果未来引入了新的基础设施库，谁来负责更新这个测试？
-    *   **建议**: 在 “Enforcement and Validation” 部分补充一句，指出架构测试本身也需要作为架构演进的一部分进行维护。
+**修正指令**:
+1.  **明确`UIDispatcher`的生命周期**: ADR应明确规定`UIDispatcher`必须是一个**单例（Singleton）**，并且在Godot场景树中以自动加载（Autoload）节点的形式存在。
+2.  **明确注入方式**: DI容器应配置为将这个全局的`UIDispatcher`实例注入到任何需要它的服务中（如命令处理器）。
+    ```csharp
+    // ServiceConfiguration.cs
+    // 假设UIDispatcher是一个Autoload节点
+    var uiDispatcher = (UIDispatcher)Engine.GetMainLoop().GetRoot().GetNode("/root/UIDispatcher");
+    services.AddSingleton(uiDispatcher);
+    ```
 
-### **结论与建议 (Conclusion and Recommendations)**
+---
 
-我**同意并接受 (Accept)** 这份 ADR，但前提是必须解决上述提出的**关键架构问题**。
+### **次要观察与建议**
 
-**强制性修改项 (Required Amendments):**
+*   **迁移计划过于乐观**: 将一个包含662+个测试的大型项目进行如此核心的重构，6小时的估算过于理想化。命名空间变更、项目引用调整、以及修复因此产生的大量编译错误，通常会消耗更多时间。**建议将估算调整为2-3个工作日**，并明确这是一个高风险、需要全神贯注的任务，期间不应并行其他开发工作。
+*   **服务定位器（Service Locator）的明确化**: ADR提到了`ServiceLocator`自动加载。虽然在Godot中这是一种务实的做法，但它本质上是一种服务定位器模式。ADR应简要提及这一点，并强调它**仅用于**在Godot节点生命周期的入口点（如`_Ready`）获取根服务（如Presenter），而不应在业务逻辑中滥用。
+*   **文档冗余**: “What Goes Where”部分与文件结构图存在内容重叠。可以考虑将两者合并，以使文档更精炼。
 
-1.  **澄清或移除 `Darklands.csproj` 对 `Darklands.Core` 的引用**。必须在 ADR 中明确其目的。如果只是为了 DI 组合根，则必须严格限定其使用范围。如果不是，则应移除此引用。
-2.  **明确 DI 组合根的位置和职责**。这对于理解整个应用的启动和依赖管理至关重要。
+### **最终结论**
 
-**建议性修改项 (Suggested Amendments):**
+此ADR的核心决策（4项目结构）是**正确且应被采纳的**。它为项目提供了急需的架构保障。
 
-1.  在 “Negative” 后果中补充“增加开发时的心智负担”。
-2.  在 ADR 中为 `LanguageExt.Core` 的使用和 `Core` 项目的内部架构提供简要的理论依据。
+然而，其实施细则部分包含与Godot引擎工作方式不兼容的严重缺陷。在批准此ADR之前，**必须**按照上述“关键实施问题与修正指令”进行修订。
 
-完成上述修改后，这份 ADR 将成为一份更加严谨、健壮且能够有效指导未来开发的架构决策文档。它在追求纯粹性的同时，没有脱离我们团队对务实和简洁的承诺。
+**行动项**:
+1.  **修订ADR**: 更新文档，纠正关于View DI的错误描述，明确属性注入模式，重写相关测试策略，并强化作用域生命周期和线程安全协议的执行细节。
+2.  **重新评估时间**: 调整迁移计划的时间估算，使其更符合实际。
+3.  **团队沟通**: 在实施前，向整个开发团队清晰地传达这些经过修正的模式和强制性规则，确保每个人都理解其背后的原因和重要性。
+
+在完成这些修订后，这份ADR将成为一个强大、务实且可执行的架构蓝图。

@@ -1,7 +1,7 @@
 using Xunit;
 using FluentAssertions;
-using Darklands.Core.Application.Grid.Commands;
-using Darklands.Core.Domain.Grid;
+using Darklands.Application.Grid.Commands;
+using Darklands.Domain.Grid;
 
 namespace Darklands.Core.Tests.Application.Grid.Commands
 {

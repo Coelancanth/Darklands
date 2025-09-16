@@ -3,7 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Darklands.Core.Domain.Grid;
+using Darklands.Domain.Grid;
 using FluentAssertions;
 using Xunit;
 

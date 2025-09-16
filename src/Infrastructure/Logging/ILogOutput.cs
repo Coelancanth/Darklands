@@ -1,7 +1,7 @@
 using System;
-using Darklands.Core.Domain.Debug;
+using Darklands.Application.Common;
 
-namespace Darklands.Core.Infrastructure.Logging;
+namespace Darklands.Application.Infrastructure.Logging;
 
 /// <summary>
 /// Abstraction for log output destinations. Implementations write formatted

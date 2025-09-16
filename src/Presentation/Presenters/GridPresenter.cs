@@ -6,15 +6,15 @@ using Darklands.Core.Application.Combat.Services;
 using Darklands.Core.Application.Common;
 using Darklands.Core.Application.Grid.Queries;
 using Darklands.Core.Application.Vision.Queries;
-using Darklands.Core.Domain.Combat;
-using Darklands.Core.Domain.Debug;
-using Darklands.Core.Domain.Vision;
+using Darklands.Domain.Combat;
+using Darklands.Domain.Debug;
+using Darklands.Domain.Vision;
 using Darklands.Core.Infrastructure.Debug;
 using Darklands.Core.Presentation.Views;
 using LanguageExt;
 using MediatR;
 
-namespace Darklands.Core.Presentation.Presenters
+namespace Darklands.Application.Presentation.Presenters
 {
     /// <summary>
     /// Presenter for the tactical combat grid view.

@@ -1,15 +1,15 @@
 using LanguageExt;
 using LanguageExt.Common;
 using MediatR;
-using Darklands.Core.Domain.Debug;
+using Darklands.Application.Common;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Darklands.Core.Application.Vision.Services;
-using Darklands.Core.Infrastructure.Vision;
+using Darklands.Application.Vision.Services;
+using Darklands.Application.Infrastructure.Vision;
 using static LanguageExt.Prelude;
 
-namespace Darklands.Core.Application.Vision.Commands
+namespace Darklands.Application.Vision.Commands
 {
     /// <summary>
     /// Handler for VisionPerformanceConsoleCommand - Generates performance reports for vision system.

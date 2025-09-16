@@ -5,16 +5,16 @@ using System.Threading.Tasks;
 using LanguageExt;
 using LanguageExt.Common;
 using MediatR;
-using Darklands.Core.Domain.Debug;
-using Darklands.Core.Infrastructure.Debug;
-using Darklands.Core.Application.Combat.Common;
-using Darklands.Core.Application.Combat.Commands;
-using Darklands.Core.Application.Combat.Queries;
-using Darklands.Core.Domain.Combat;
-using Darklands.Core.Domain.Grid;
+using Darklands.Application.Common;
+using Darklands.Application.Infrastructure.Debug;
+using Darklands.Application.Combat.Common;
+using Darklands.Application.Combat.Commands;
+using Darklands.Application.Combat.Queries;
+using Darklands.Domain.Combat;
+using Darklands.Domain.Grid;
 using static LanguageExt.Prelude;
 
-namespace Darklands.Core.Application.Combat.Coordination
+namespace Darklands.Application.Combat.Coordination
 {
     /// <summary>
     /// Coordinates sequential turn-based game processing according to ADR-009.

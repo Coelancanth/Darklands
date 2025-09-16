@@ -1,7 +1,7 @@
 using LanguageExt;
-using Darklands.Core.Domain.Grid;
+using Darklands.Domain.Grid;
 
-namespace Darklands.Core.Application.Actor.Services
+namespace Darklands.Application.Actor.Services
 {
     /// <summary>
     /// Service interface for managing actor state including health and combat status.

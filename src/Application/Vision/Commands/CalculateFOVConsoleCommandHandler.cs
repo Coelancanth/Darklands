@@ -1,16 +1,16 @@
 using LanguageExt;
 using LanguageExt.Common;
 using MediatR;
-using Darklands.Core.Domain.Debug;
+using Darklands.Application.Common;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Text;
-using Darklands.Core.Application.Grid.Services;
-using Darklands.Core.Application.Vision.Services;
-using Darklands.Core.Domain.Vision;
+using Darklands.Application.Grid.Services;
+using Darklands.Application.Vision.Services;
+using Darklands.Domain.Vision;
 using static LanguageExt.Prelude;
 
-namespace Darklands.Core.Application.Vision.Commands
+namespace Darklands.Application.Vision.Commands
 {
     /// <summary>
     /// Handler for CalculateFOVConsoleCommand - Provides debug output for FOV testing.
@@ -175,7 +175,7 @@ namespace Darklands.Core.Application.Vision.Commands
         /// <summary>
         /// Calculates Euclidean distance between two positions.
         /// </summary>
-        private static double CalculateDistance(Darklands.Core.Domain.Grid.Position from, Darklands.Core.Domain.Grid.Position to)
+        private static double CalculateDistance(Darklands.Domain.Grid.Position from, Darklands.Domain.Grid.Position to)
         {
             var dx = to.X - from.X;
             var dy = to.Y - from.Y;

@@ -1,8 +1,8 @@
 using System.Threading.Tasks;
-using Darklands.Core.Domain.Grid;
-using Darklands.Core.Domain.Actor;
+using Darklands.Domain.Grid;
+using Darklands.Domain.Actor;
 
-namespace Darklands.Core.Presentation.Views
+namespace Darklands.Application.Presentation.Views
 {
     /// <summary>
     /// Interface for the actor view that handles character/unit visualization and positioning.

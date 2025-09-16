@@ -1,10 +1,10 @@
-using Darklands.Core.Application.Common;
-using Darklands.Core.Domain.Combat;
-using Darklands.Core.Domain.Grid;
+using Darklands.Application.Common;
+using Darklands.Domain.Combat;
+using Darklands.Domain.Grid;
 using LanguageExt;
 using MediatR;
 
-namespace Darklands.Core.Application.Combat.Commands;
+namespace Darklands.Application.Combat.Commands;
 
 /// <summary>
 /// Command to execute a melee attack between two actors in combat.

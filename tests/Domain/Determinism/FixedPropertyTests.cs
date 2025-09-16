@@ -2,7 +2,7 @@ using Xunit;
 using FluentAssertions;
 using FsCheck;
 using FsCheck.Fluent;
-using Darklands.Core.Domain.Determinism;
+using Darklands.Domain.Determinism;
 using System;
 using System.Linq;
 

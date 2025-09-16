@@ -1,12 +1,12 @@
 using LanguageExt;
 using LanguageExt.Common;
 using Microsoft.Extensions.Logging;
-using Darklands.Core.Domain.Services;
-using Darklands.Core.Domain.Grid;
+using Darklands.Application.Services;
+using Darklands.Domain.Grid;
 using System.Collections.Generic;
 using static LanguageExt.Prelude;
 
-namespace Darklands.Core.Infrastructure.Services;
+namespace Darklands.Application.Infrastructure.Services;
 
 /// <summary>
 /// Mock implementation of IAudioService for testing purposes.

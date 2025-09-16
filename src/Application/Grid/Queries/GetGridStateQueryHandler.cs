@@ -1,12 +1,12 @@
 using LanguageExt;
 using LanguageExt.Common;
 using MediatR;
-using Darklands.Core.Domain.Debug;
+using Darklands.Application.Common;
 using System.Threading;
 using System.Threading.Tasks;
-using Darklands.Core.Application.Grid.Services;
+using Darklands.Application.Grid.Services;
 
-namespace Darklands.Core.Application.Grid.Queries
+namespace Darklands.Application.Grid.Queries
 {
     /// <summary>
     /// Handler for GetGridStateQuery - Implements functional CQRS pattern with Fin&lt;T&gt; monads.

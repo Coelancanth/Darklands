@@ -1,9 +1,9 @@
 using Xunit;
 using FluentAssertions;
 using MediatR;
-using Darklands.Core.Domain.Combat;
-using Darklands.Core.Domain.Grid;
-using Darklands.Core.Domain.Actor;
+using Darklands.Domain.Combat;
+using Darklands.Domain.Grid;
+using Darklands.Domain.Actor;
 using Darklands.Core.Tests.TestUtilities;
 
 namespace Darklands.Core.Tests.Domain.Combat;

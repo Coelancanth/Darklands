@@ -1,6 +1,6 @@
-using Darklands.Core.Application.Common;
+using Darklands.Application.Common;
 
-namespace Darklands.Core.Application.Grid.Queries
+namespace Darklands.Application.Grid.Queries
 {
     /// <summary>
     /// Query to retrieve the current grid state snapshot.

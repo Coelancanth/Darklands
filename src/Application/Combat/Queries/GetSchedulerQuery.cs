@@ -1,8 +1,8 @@
 using System.Collections.Generic;
-using Darklands.Core.Application.Common;
-using Darklands.Core.Domain.Combat;
+using Darklands.Application.Common;
+using Darklands.Domain.Combat;
 
-namespace Darklands.Core.Application.Combat.Queries
+namespace Darklands.Application.Combat.Queries
 {
     /// <summary>
     /// Query to get the current turn order from the combat scheduler.

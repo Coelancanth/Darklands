@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using LanguageExt;
-using Darklands.Core.Domain.Grid;
+using Darklands.Domain.Grid;
 
-namespace Darklands.Core.Application.Combat.Services
+namespace Darklands.Application.Combat.Services
 {
     /// <summary>
     /// Composite query service that coordinates between ActorStateService and GridStateService

@@ -1,11 +1,11 @@
-using Darklands.Core.Domain.Common;
+using Darklands.Domain.Common;
 using LanguageExt;
 using LanguageExt.Common;
 using System.Collections.Immutable;
 using System.Reflection;
 using static LanguageExt.Prelude;
 
-namespace Darklands.Core.Infrastructure.Validation;
+namespace Darklands.Application.Infrastructure.Validation;
 
 /// <summary>
 /// Validates that entities comply with ADR-005 save-ready entity requirements.

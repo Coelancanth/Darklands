@@ -2,7 +2,7 @@ using NetArchTest.Rules;
 using Xunit;
 using FluentAssertions;
 using System.Reflection;
-using Darklands.Core.Infrastructure.DependencyInjection;
+using Darklands.Application.Infrastructure.DependencyInjection;
 
 namespace Darklands.Core.Tests.Architecture;
 
@@ -141,7 +141,7 @@ public class NetArchitectureTests
         // More comprehensive Godot dependency detection
         // Allow Infrastructure.Logging to use Godot as it's the logging boundary
         var result = Types.InAssembly(_coreAssembly)
-            .That().DoNotResideInNamespace("Darklands.Core.Infrastructure.Logging")
+            .That().DoNotResideInNamespace("Darklands.Application.Logging")
             .Should().NotHaveDependencyOnAny("Godot", "GodotSharp")
             .GetResult();
 
@@ -226,7 +226,7 @@ public class NetArchitectureTests
     {
         // Enforce service naming conventions (allow Operation suffix for command pattern)
         var result = Types.InAssembly(_coreAssembly)
-            .That().ResideInNamespace("Darklands.Core.Infrastructure.Services")
+            .That().ResideInNamespace("Darklands.Application.Services")
             .And().AreClasses()
             .And().AreNotAbstract()
             .Should().HaveNameEndingWith("Service").Or().HaveNameEndingWith("Operation")

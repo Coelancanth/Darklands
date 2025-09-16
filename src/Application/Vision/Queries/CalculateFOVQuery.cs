@@ -1,9 +1,9 @@
-using Darklands.Core.Application.Common;
-using Darklands.Core.Domain.Vision;
-using Darklands.Core.Domain.Grid;
-using Darklands.Core.Domain.Common;
+using Darklands.Application.Common;
+using Darklands.Domain.Vision;
+using Darklands.Domain.Grid;
+using Darklands.Domain.Common;
 
-namespace Darklands.Core.Application.Vision.Queries
+namespace Darklands.Application.Vision.Queries
 {
     /// <summary>
     /// Query to calculate field of view for an actor at a specific position.

@@ -2,13 +2,13 @@ using System;
 using System.Collections.Generic;
 using LanguageExt;
 using LanguageExt.Common;
-using Darklands.Core.Application.Combat.Common;
-using Darklands.Core.Application.Combat.Services;
-using Darklands.Core.Domain.Combat;
-using Darklands.Core.Domain.Grid;
+using Darklands.Application.Combat.Common;
+using Darklands.Application.Combat.Services;
+using Darklands.Domain.Combat;
+using Darklands.Domain.Grid;
 using static LanguageExt.Prelude;
 
-namespace Darklands.Core.Application.Combat.Services
+namespace Darklands.Application.Combat.Services
 {
     /// <summary>
     /// In-memory implementation of ICombatSchedulerService for Phase 2.

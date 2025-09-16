@@ -1,6 +1,6 @@
 using Xunit;
 using FluentAssertions;
-using Darklands.Core.Domain.Determinism;
+using Darklands.Domain.Determinism;
 
 namespace Darklands.Core.Tests.Domain.Determinism;
 

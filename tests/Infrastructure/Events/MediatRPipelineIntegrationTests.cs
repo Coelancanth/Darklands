@@ -2,8 +2,8 @@ using FluentAssertions;
 using Xunit;
 using Microsoft.Extensions.DependencyInjection;
 using MediatR;
-using Darklands.Core.Application.Events;
-using Darklands.Core.Infrastructure.DependencyInjection;
+using Darklands.Application.Events;
+using Darklands.Application.Infrastructure.DependencyInjection;
 using Darklands.Core.Tests.TestUtilities;
 using System.Reflection;
 

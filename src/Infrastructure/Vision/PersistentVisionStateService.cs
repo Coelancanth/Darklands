@@ -4,14 +4,14 @@ using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
-using Darklands.Core.Application.Vision.Services;
-using Darklands.Core.Domain.Vision;
-using Darklands.Core.Domain.Common;
-using Darklands.Core.Domain.Grid;
-using Darklands.Core.Infrastructure.Vision;
+using Darklands.Application.Vision.Services;
+using Darklands.Domain.Vision;
+using Darklands.Domain.Common;
+using Darklands.Domain.Grid;
+using Darklands.Application.Infrastructure.Vision;
 using static LanguageExt.Prelude;
 
-namespace Darklands.Core.Infrastructure.Vision;
+namespace Darklands.Application.Infrastructure.Vision;
 
 /// <summary>
 /// Enhanced vision state service with save-ready persistence and performance monitoring.
