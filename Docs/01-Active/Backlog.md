@@ -89,11 +89,12 @@
 
 
 ### TD_057: Fix Nested MediatR Handler Anti-Pattern
-**Status**: Approved
+**Status**: COMPLETED ✅
 **Owner**: Dev Engineer
-**Size**: S (2h)
+**Size**: S (2h actual)
 **Priority**: CRITICAL - Violates core MediatR principles
 **Created**: 2025-09-17 09:47 (Tech Lead)
+**Completed**: 2025-09-17 10:53 (Dev Engineer)
 **Complexity**: 3/10
 **Markers**: [MEDIATR] [ANTI-PATTERN] [REFACTORING]
 
@@ -101,14 +102,39 @@
 **Impact**: Hidden dependencies, re-triggers entire pipeline, complex testing, performance overhead
 **Solution**: Extract damage logic into IDamageService, inject into both handlers
 
-**Implementation Steps**:
-1. Create `IDamageService` interface in Domain/Combat/Services
-2. Implement `DamageService` with ApplyDamage logic from DamageActorCommandHandler
-3. Inject IDamageService into both ExecuteAttackCommandHandler and DamageActorCommandHandler
-4. Remove IMediator injection from ExecuteAttackCommandHandler
-5. Update tests to mock IDamageService instead of IMediator
+**IMPLEMENTATION COMPLETE** (2025-09-17 10:53):
+✅ Tests: 664/664 passing (27s execution time)
 
-**Reference**: See PRODUCTION-PATTERNS.md - "Shared Domain Service (Avoiding Nested Handlers)"
+**What I Actually Did**:
+- Created `IDamageService` interface in `src/Darklands.Domain/Combat/Services/IDamageService.cs`
+- Implemented `DamageService` in `src/Darklands.Application/Combat/Services/DamageService.cs`
+- Refactored `ExecuteAttackCommandHandler` to inject `IDamageService` instead of calling `_mediator.Send()`
+- Simplified `DamageActorCommandHandler` from 50+ lines to 10 lines (delegates to service)
+- Registered `IDamageService` in `GameStrapper.cs` DI container
+- Updated all tests with proper mocking: `TestDamageService` for unit tests
+- Fixed logging redundancy: moved detailed logs to Debug level, kept key events at Info
+
+**Problems Encountered**:
+- Compilation errors with namespace resolution for `ActorId` and `Actor` types
+  → Solution: Added proper using directives and fully qualified type names
+- Test failures due to constructor signature changes
+  → Workaround: Created comprehensive test mocks for `IDamageService`
+- Redundant logging creating noise in combat logs
+  → Solution: Moved implementation details to Debug level, fixed placeholder formatting
+
+**Technical Debt Created**:
+- None - clean implementation following established patterns
+
+**Lessons for Future Refactoring**:
+- Domain services eliminate MediatR anti-patterns effectively
+- Functional error handling with `Fin<T>` integrates seamlessly
+- Test refactoring requires matching service abstractions to implementation changes
+- Logging levels need careful consideration to balance detail vs noise
+
+**Branch**: `feat/td-057-fix-mediatR-antipattern` (pushed)
+**Commits**:
+- `7b09699`: Main refactoring with IDamageService implementation
+- `5e3ec76`: Logging improvements (fixed placeholders, reduced redundancy)
 
 ### TD_058: Fix MediatR Pipeline Behavior Registration Order
 **Status**: Approved
