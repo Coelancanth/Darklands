@@ -6,9 +6,9 @@ using System.Threading.Tasks;
 using Darklands.Application.Common;
 using Darklands.Application.Combat.Services;
 using Darklands.Application.Actor.Services;
-using Darklands.Application.Actor.Commands;
 using Darklands.Application.Grid.Services;
 using Darklands.Domain.Combat;
+using Darklands.Domain.Combat.Services;
 using Darklands.Domain.Grid;
 using Darklands.Domain.Actor;
 using static LanguageExt.Prelude;
@@ -32,6 +32,7 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
     private readonly IGridStateService _gridStateService;
     private readonly IActorStateService _actorStateService;
     private readonly ICombatSchedulerService _combatSchedulerService;
+    private readonly IDamageService _damageService;
     private readonly IMediator _mediator;
     private readonly ICategoryLogger _logger;
     private readonly IAttackFeedbackService? _attackFeedbackService;
@@ -41,6 +42,7 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
         IGridStateService gridStateService,
         IActorStateService actorStateService,
         ICombatSchedulerService combatSchedulerService,
+        IDamageService damageService,
         IMediator mediator,
         ICategoryLogger logger,
         IAttackFeedbackService? attackFeedbackService = null)
@@ -48,6 +50,7 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
         _gridStateService = gridStateService;
         _actorStateService = actorStateService;
         _combatSchedulerService = combatSchedulerService;
+        _damageService = damageService;
         _mediator = mediator;
         _logger = logger;
         _attackFeedbackService = attackFeedbackService;
@@ -195,60 +198,33 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
 
     private async Task<Fin<LanguageExt.Unit>> ApplyDamageAsync(ActorId targetId, int damage, string attackSource)
     {
-        // Get target HP before damage for rich logging
+        // Get current health for damage event calculation
         var targetBeforeOption = _actorStateService.GetActor(targetId);
-        var hpBefore = targetBeforeOption.Match(
-            Some: actor => actor.Health.Current,
-            None: () => 0
+        var oldHealth = targetBeforeOption.Match(
+            Some: actor => actor.Health,
+            None: () => Health.Create(0, 100).Match(h => h, _ => throw new InvalidOperationException("Should create valid health"))
         );
 
-        _logger.Log(LogLevel.Debug, LogCategory.Combat, "Applying {Damage} damage to {TargetId} from {Source} (HP: {HPBefore})",
-            damage, targetId, attackSource, hpBefore);
+        // Apply damage using the domain service (eliminates MediatR anti-pattern)
+        var damageResult = _damageService.ApplyDamage(targetId, damage, attackSource);
 
-        // Apply the damage
-        var damageCommand = DamageActorCommand.Create(targetId, damage, attackSource);
-        var result = await _mediator.Send(damageCommand);
-
-        // Log HP transition with rich formatting
-        if (result.IsSucc)
-        {
-            var targetAfterOption = _actorStateService.GetActor(targetId);
-            if (targetAfterOption.IsSome)
+        return await damageResult.Match(
+            Succ: async damagedActor =>
             {
-                var actor = targetAfterOption.Match(a => a, () => throw new InvalidOperationException("Actor should exist"));
-                var hpAfter = actor.Health.Current;
-                var maxHp = actor.Health.Maximum;
-                var actualDamage = hpBefore - hpAfter;
-
-                if (actor.IsAlive)
+                // Publish damage event for live health bar updates if damage was actually applied
+                if (damage > 0 && oldHealth.Current != damagedActor.Health.Current)
                 {
-                    _logger.Log(LogLevel.Information, LogCategory.Combat, "{TargetId} health: {HPBefore} → {HPAfter} ({ActualDamage} damage taken, {HPAfter}/{MaxHP} remaining)",
-                        targetId, hpBefore, hpAfter, actualDamage, hpAfter, maxHp);
-                }
-                else
-                {
-                    _logger.Log(LogLevel.Information, LogCategory.Combat, "{TargetId} defeated: {HPBefore} → 0 HP ({ActualDamage} damage taken, DEAD)",
-                        targetId, hpBefore, actualDamage);
-                }
-
-                // Publish damage event for live health bar updates
-                if (actualDamage > 0)
-                {
-                    var oldHealth = Health.Create(hpBefore, maxHp).Match(h => h, _ => actor.Health);
                     _logger.Log(LogLevel.Debug, LogCategory.Combat, "Publishing damage event for {TargetId}: {OldHP} → {NewHP}",
-                        targetId, oldHealth, actor.Health);
+                        targetId, oldHealth, damagedActor.Health);
 
-                    var damageEvent = ActorDamagedEvent.Create(targetId, oldHealth, actor.Health);
+                    var damageEvent = ActorDamagedEvent.Create(targetId, oldHealth, damagedActor.Health);
                     await _mediator.Publish(damageEvent);
                 }
-            }
-            else
-            {
-                _logger.Log(LogLevel.Warning, LogCategory.Combat, "Could not retrieve target {TargetId} after damage application", targetId);
-            }
-        }
 
-        return result;
+                return FinSucc(LanguageExt.Unit.Default);
+            },
+            Fail: error => Task.FromResult(FinFail<LanguageExt.Unit>(error))
+        );
     }
 
     private async Task<Fin<LanguageExt.Unit>> RescheduleAttackerAsync(ActorId attackerId, Position attackerPosition, TimeUnit actionCost)

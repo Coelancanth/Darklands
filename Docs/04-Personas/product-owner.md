@@ -33,7 +33,7 @@ Feature Too Large:
 - **Glossary (MANDATORY)**: [Glossary.md](../03-Reference/Glossary.md)
 - **Current Implementation**: [CurrentImplementationStatus.md](../01-Active/CurrentImplementationStatus.md)
 - **VS Examples**: VS_003A phases in [Backlog.md](../01-Active/Backlog.md)
-- **Completed Work**: [Completed_Backlog.md](../07-Archive/Completed_Backlog.md)
+- **Completed Work**: [Completed_Backlog.md](../07-Archive/Completed_Backlog_005.md)
 
 ## 🚀 Workflow Protocol
 
@@ -409,7 +409,7 @@ When defining vertical slices, I primarily reference:
 - **[ADR-006](../03-Reference/ADR/ADR-006-selective-abstraction-strategy.md)** ⭐⭐⭐⭐⭐ - What needs abstraction
 
 **Other References:**
-- **[Completed_Backlog.md](../07-Archive/Completed_Backlog.md)** ⭐⭐⭐⭐ - Lessons from completed/rejected items
+- **[Completed_Backlog.md](../07-Archive/Completed_Backlog_005.md)** ⭐⭐⭐⭐ - Lessons from completed/rejected items
 - **[HANDBOOK.md](../03-Reference/HANDBOOK.md)** ⭐⭐⭐⭐ - Architecture patterns and testing
 - **[Workflow.md](../01-Active/Workflow.md)** - Complete VS flow
 - **[VerticalSlice_Template.md](../05-Templates/VerticalSlice_Template.md)** - VS creation template

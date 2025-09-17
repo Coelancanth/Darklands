@@ -7,6 +7,7 @@ using Darklands.Application.Combat.Services;
 using Darklands.Application.Actor.Services;
 using Darklands.Application.Grid.Services;
 using Darklands.Domain.Combat;
+using Darklands.Domain.Combat.Services;
 using Darklands.Domain.Grid;
 using Darklands.Core.Tests.TestUtilities;
 using LanguageExt;
@@ -37,6 +38,7 @@ public class ExecuteAttackCommandHandlerTests
     private readonly Mock<IGridStateService> _gridStateService = new();
     private readonly Mock<IActorStateService> _actorStateService = new();
     private readonly Mock<ICombatSchedulerService> _combatSchedulerService = new();
+    private readonly Mock<IDamageService> _damageService = new();
     private readonly Mock<IMediator> _mediator = new();
     private readonly Mock<ICategoryLogger> _logger = new();
 
@@ -172,10 +174,11 @@ public class ExecuteAttackCommandHandlerTests
         // Act
         await handler.Handle(command, CancellationToken.None);
 
-        // Assert - Should send DamageActorCommand
-        _mediator.Verify(x => x.Send(
-            It.IsAny<IRequest<Fin<LanguageExt.Unit>>>(),
-            It.IsAny<CancellationToken>()),
+        // Assert - Should call damage service directly (eliminates MediatR anti-pattern)
+        _damageService.Verify(x => x.ApplyDamage(
+            _targetId,
+            _combatAction.BaseDamage,
+            _combatAction.Name),
             Times.Once);
     }
 
@@ -224,6 +227,7 @@ public class ExecuteAttackCommandHandlerTests
             _gridStateService.Object,
             _actorStateService.Object,
             _combatSchedulerService.Object,
+            _damageService.Object,
             _mediator.Object,
             _logger.Object);
     }
@@ -242,9 +246,9 @@ public class ExecuteAttackCommandHandlerTests
         _actorStateService.Setup(x => x.GetActor(_attackerId))
             .Returns(Some(_attacker));
 
-        // Setup successful damage application
-        _mediator.Setup(x => x.Send(It.IsAny<IRequest<Fin<LanguageExt.Unit>>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(FinSucc(LanguageExt.Unit.Default));
+        // Setup successful damage application using IDamageService
+        _damageService.Setup(x => x.ApplyDamage(It.IsAny<ActorId>(), It.IsAny<int>(), It.IsAny<string>()))
+            .Returns(FinSucc(_target.TakeDamage(25).Match(a => a, _ => _target)));
 
         // Setup successful scheduler operations
         _combatSchedulerService.Setup(x => x.ScheduleActor(It.IsAny<ActorId>(), It.IsAny<Position>(), It.IsAny<TimeUnit>()))
