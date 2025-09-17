@@ -57,26 +57,19 @@ public static class TimeUnitCalculator
         if (encumbrance < MinimumEncumbrance || encumbrance > MaximumEncumbrance)
             return Fin<TimeUnit>.Fail(Error.New($"Encumbrance must be between {MinimumEncumbrance} and {MaximumEncumbrance}, got: {encumbrance}"));
 
-        try
-        {
-            // Deterministic integer arithmetic - same result on all platforms
-            var baseTime = action.BaseCost.Value;
+        // Deterministic integer arithmetic - same result on all platforms
+        var baseTime = action.BaseCost.Value;
 
-            // Formula: (BaseTime * 100 * (10 + Encumbrance)) / (Agility * 10)
-            // This avoids all floating-point operations while preserving the original formula's intent
-            var numerator = baseTime * 100 * (10 + encumbrance);
-            var denominator = agility * 10;
+        // Formula: (BaseTime * 100 * (10 + Encumbrance)) / (Agility * 10)
+        // This avoids all floating-point operations while preserving the original formula's intent
+        var numerator = baseTime * 100 * (10 + encumbrance);
+        var denominator = agility * 10;
 
-            // Integer division with proper rounding (add half denominator for round-to-nearest)
-            var finalTime = (numerator + denominator / 2) / denominator;
+        // Integer division with proper rounding (add half denominator for round-to-nearest)
+        var finalTime = (numerator + denominator / 2) / denominator;
 
-            // Ensure result is within valid bounds
-            return TimeUnit.FromTU(finalTime);
-        }
-        catch (Exception ex)
-        {
-            return Fin<TimeUnit>.Fail(Error.New($"Failed to calculate action time: {ex.Message}", ex));
-        }
+        // Ensure result is within valid bounds
+        return TimeUnit.FromTU(finalTime);
     }
 
     /// <summary>

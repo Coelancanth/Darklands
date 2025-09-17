@@ -1,30 +1,160 @@
 # Production Patterns Catalog
 
-**Last Updated**: 2025-09-11  
-**Purpose**: Battle-tested patterns extracted from completed features  
-**Source**: Extracted from HANDBOOK.md and post-mortems for focused reference
+**Last Updated**: 2025-09-17
+**Purpose**: Battle-tested patterns extracted from completed features
+**Source**: Extracted from HANDBOOK.md, post-mortems, and MediatR best practices analysis
+
+## 🎯 MediatR Best Practices Summary
+
+### Core Principles
+- **One Handler per Request**: Each command/query has exactly one handler
+- **No Nested Handlers**: NEVER inject IMediator into handlers
+- **Pipeline Order Matters**: ErrorHandling→Logging→Caching→Validation→Transaction
+- **Domain Events are Good**: Publishing INotification from handlers is encouraged
+- **Explicit Dependencies**: Services over service locator pattern
+
+### Key Patterns We Use
+- **Fin<T> Error Handling**: All handlers return Fin<T> for functional error handling
+- **UIEventForwarder**: Generic notification handler bridges domain events to UI
+- **Pipeline Behaviors**: Cross-cutting concerns (logging, error handling)
+- **CQRS Separation**: Commands (IRequest) modify state, Queries read state
 
 ## 🎯 Pattern Index
 
 ### ✅ Recommended Patterns
-1. [Value Object Factory with Validation](#pattern-value-object-factory-with-validation-vs_001)
-2. [Thread-Safe DI Container](#pattern-thread-safe-di-container-vs_001)
-3. [Cross-Presenter Coordination](#pattern-cross-presenter-coordination-vs_010a)
-4. [Optional Feedback Service](#pattern-optional-feedback-service-vs_010b)
-5. [Death Cascade Coordination](#pattern-death-cascade-coordination-vs_010b)
-6. [Godot Node Lifecycle](#pattern-godot-node-lifecycle-vs_010a)
-7. [Queue-Based CallDeferred](#pattern-queue-based-calldeferred-td_011)
-8. [Godot Parent-Child UI Pattern](#pattern-godot-parent-child-ui-pattern-vs_011) ⭐⭐⭐
-9. [Godot API Casing Requirements](#pattern-godot-api-casing-requirements)
-10. [CallDeferred for Thread Safety](#pattern-calldeferred-for-thread-safety)
+1. [MediatR Pipeline Behavior Registration Order](#pattern-mediatr-pipeline-behavior-registration-order) ⭐⭐⭐⭐⭐
+2. [Shared Domain Service (Avoiding Nested Handlers)](#pattern-shared-domain-service-avoiding-nested-handlers) ⭐⭐⭐⭐⭐
+3. [Performance Monitoring Pipeline Behavior](#pattern-performance-monitoring-pipeline-behavior) ⭐⭐⭐⭐
+4. [Value Object Factory with Validation](#pattern-value-object-factory-with-validation-vs_001)
+5. [Thread-Safe DI Container](#pattern-thread-safe-di-container-vs_001)
+6. [Cross-Presenter Coordination](#pattern-cross-presenter-coordination-vs_010a)
+7. [Optional Feedback Service](#pattern-optional-feedback-service-vs_010b)
+8. [Death Cascade Coordination](#pattern-death-cascade-coordination-vs_010b)
+9. [Godot Node Lifecycle](#pattern-godot-node-lifecycle-vs_010a)
+10. [Queue-Based CallDeferred](#pattern-queue-based-calldeferred-td_011)
+11. [Godot Parent-Child UI Pattern](#pattern-godot-parent-child-ui-pattern-vs_011) ⭐⭐⭐
+12. [Godot API Casing Requirements](#pattern-godot-api-casing-requirements)
+13. [CallDeferred for Thread Safety](#pattern-calldeferred-for-thread-safety)
 
 ### ⚠️ Anti-Patterns (DO NOT USE)
+- ❌ [Nested MediatR Handlers](#anti-pattern-nested-mediatr-handlers) - Creates hidden dependencies
 - ❌ [Bridge Pattern for Split Views](#anti-pattern-bridge-pattern-for-split-views) - Symptom of poor architecture
 - ❌ [Static Event Router](#anti-pattern-static-event-router) - Replaced by ADR-010 UIEventBus
 
 ---
 
 ## 🔨 Extracted Production Patterns
+
+### Pattern: MediatR Pipeline Behavior Registration Order ⭐⭐⭐⭐⭐
+**Problem**: Incorrect registration order causes behaviors to miss exceptions or execute inefficiently
+**Context**: Pipeline behaviors execute in registration order - this is CRITICAL
+**Solution**: Register in specific order based on behavior interactions
+```csharp
+// CORRECT registration order in GameStrapper
+services.AddMediatR(config =>
+{
+    // 1. ErrorHandling FIRST - catches ALL exceptions
+    config.AddOpenBehavior(typeof(ErrorHandlingBehavior<,>));
+
+    // 2. Logging EARLY - for observability
+    config.AddOpenBehavior(typeof(LoggingBehavior<,>));
+
+    // 3. Caching (if implemented) - short-circuit before validation
+    config.AddOpenBehavior(typeof(CachingBehavior<,>));
+
+    // 4. Validation - ensures valid data before handler
+    config.AddOpenBehavior(typeof(ValidationBehavior<,>));
+
+    // 5. Transaction LAST - just before handler
+    config.AddOpenBehavior(typeof(TransactionBehavior<,>));
+});
+```
+**Key**: Order matters! ErrorHandling→Logging→Caching→Validation→Transaction→Handler
+
+### Pattern: Shared Domain Service (Avoiding Nested Handlers) ⭐⭐⭐⭐⭐
+**Problem**: Handler needs to trigger logic that another handler implements
+**Anti-Pattern**: Handler calling `_mediator.Send()` - creates hidden dependencies
+**Solution**: Extract shared logic into domain service injected into both handlers
+```csharp
+// ❌ WRONG - Nested handler anti-pattern
+public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand, Fin<Unit>>
+{
+    private readonly IMediator _mediator; // RED FLAG!
+
+    public async Task<Fin<Unit>> Handle(ExecuteAttackCommand request, CancellationToken ct)
+    {
+        // ... attack logic ...
+        await _mediator.Send(new DamageActorCommand(...)); // ANTI-PATTERN!
+    }
+}
+
+// ✅ CORRECT - Shared domain service
+public interface IDamageService
+{
+    Fin<Unit> ApplyDamage(ActorId target, int damage, string source);
+}
+
+public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand, Fin<Unit>>
+{
+    private readonly IDamageService _damageService; // Direct dependency
+
+    public async Task<Fin<Unit>> Handle(ExecuteAttackCommand request, CancellationToken ct)
+    {
+        // ... attack logic ...
+        return _damageService.ApplyDamage(target, damage, "sword");
+    }
+}
+
+public class DamageActorCommandHandler : IRequestHandler<DamageActorCommand, Fin<Unit>>
+{
+    private readonly IDamageService _damageService; // Same service
+
+    public Task<Fin<Unit>> Handle(DamageActorCommand request, CancellationToken ct)
+    {
+        return Task.FromResult(_damageService.ApplyDamage(request.Target, request.Damage, request.Source));
+    }
+}
+```
+**Key**: Extract shared logic to services, not nested MediatR calls
+
+### Pattern: Performance Monitoring Pipeline Behavior ⭐⭐⭐⭐
+**Problem**: Need to identify slow-running operations without adding timing code to handlers
+**Solution**: Pipeline behavior that wraps all handlers with performance monitoring
+```csharp
+public class PerformanceBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
+    where TRequest : notnull
+{
+    private readonly ICategoryLogger _logger;
+    private readonly int _warningThresholdMs;
+
+    public PerformanceBehavior(ICategoryLogger logger, int warningThresholdMs = 500)
+    {
+        _logger = logger;
+        _warningThresholdMs = warningThresholdMs;
+    }
+
+    public async Task<TResponse> Handle(
+        TRequest request,
+        RequestHandlerDelegate<TResponse> next,
+        CancellationToken cancellationToken)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var response = await next();
+        stopwatch.Stop();
+
+        if (stopwatch.ElapsedMilliseconds > _warningThresholdMs)
+        {
+            var requestName = typeof(TRequest).Name;
+            _logger.Log(LogLevel.Warning, LogCategory.Performance,
+                "Slow request: {Name} took {ElapsedMs}ms (threshold: {ThresholdMs}ms)",
+                requestName, stopwatch.ElapsedMilliseconds, _warningThresholdMs);
+        }
+
+        return response;
+    }
+}
+```
+**Key**: Automatic performance monitoring without cluttering business logic
 
 ### Pattern: Value Object Factory with Validation (VS_001)
 **Problem**: Public constructors allow invalid state (`new TimeUnit(-999)`)
@@ -424,6 +554,60 @@ public async Task HandleActorMoved(ActorMovedNotification notification) {
 ## ⚠️ Anti-Patterns (DO NOT USE)
 
 These patterns were discovered during development but represent WRONG approaches. They're documented here as warnings of what NOT to do.
+
+### Anti-Pattern: Nested MediatR Handlers
+**⛔ STATUS: DO NOT USE - Violates MediatR core principles**
+**Problem**: A handler needs to execute logic that another handler implements
+**What Happened**: ExecuteAttackCommandHandler called _mediator.Send(DamageActorCommand)
+**Wrong Solution**: Injecting IMediator into a handler to call other handlers
+
+```csharp
+// ❌ DON'T DO THIS - Creates hidden dependencies and re-triggers pipeline
+public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand, Fin<Unit>>
+{
+    private readonly IMediator _mediator; // RED FLAG!
+
+    public async Task<Fin<Unit>> Handle(ExecuteAttackCommand request, CancellationToken ct)
+    {
+        // ... validation logic ...
+
+        // This re-triggers the ENTIRE pipeline (logging, validation, error handling)
+        var damageResult = await _mediator.Send(new DamageActorCommand(...));
+
+        return damageResult;
+    }
+}
+```
+
+**Why This Is Wrong**:
+- Creates hidden, hard-to-trace dependencies between handlers
+- Re-triggers entire pipeline for nested call (performance overhead)
+- Makes unit testing complex (need to mock IMediator)
+- Violates Explicit Dependencies Principle
+- Can cause nested transactions and unexpected behavior
+
+**✅ CORRECT APPROACH**:
+Extract shared logic into a domain service:
+```csharp
+public interface IDamageService
+{
+    Fin<Unit> ApplyDamage(ActorId target, int damage, string source);
+}
+
+// Both handlers use the same service
+public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand, Fin<Unit>>
+{
+    private readonly IDamageService _damageService; // Explicit dependency
+
+    public Task<Fin<Unit>> Handle(ExecuteAttackCommand request, CancellationToken ct)
+    {
+        // Direct service call, no pipeline re-entry
+        return Task.FromResult(_damageService.ApplyDamage(target, damage, source));
+    }
+}
+```
+
+**Exception**: Publishing domain events (INotification) from handlers is acceptable and encouraged.
 
 ### Anti-Pattern: Bridge Pattern for Split Views
 **⛔ STATUS: DO NOT USE - Symptom of poor architecture**

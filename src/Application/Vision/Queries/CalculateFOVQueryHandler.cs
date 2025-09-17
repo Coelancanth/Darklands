@@ -72,135 +72,115 @@ namespace Darklands.Application.Vision.Queries
         {
             var calculationStopwatch = Stopwatch.StartNew();
 
-            try
-            {
-                // Get current grid state
-                var gridResult = _gridStateService.GetCurrentGrid();
-                if (gridResult.IsFail)
-                    return gridResult.Map<VisionState>(_ => throw new InvalidOperationException());
+            // Get current grid state
+            var gridResult = _gridStateService.GetCurrentGrid();
+            if (gridResult.IsFail)
+                return gridResult.Map<VisionState>(_ => throw new InvalidOperationException());
 
-                var grid = gridResult.IfFail(_ => throw new InvalidOperationException());
+            var grid = gridResult.IfFail(_ => throw new InvalidOperationException());
 
-                // Check cached vision state with performance tracking
-                var cacheStopwatch = Stopwatch.StartNew();
-                var cachedStateResult = _visionStateService.GetVisionState(request.ViewerId);
-                cacheStopwatch.Stop();
+            // Check cached vision state with performance tracking
+            var cacheStopwatch = Stopwatch.StartNew();
+            var cachedStateResult = _visionStateService.GetVisionState(request.ViewerId);
+            cacheStopwatch.Stop();
 
-                var previousState = cachedStateResult.Match(
-                    Succ: state => state,
-                    Fail: _ => VisionState.CreateEmpty(request.ViewerId)
-                );
+            var previousState = cachedStateResult.Match(
+                Succ: state => state,
+                Fail: _ => VisionState.CreateEmpty(request.ViewerId)
+            );
 
-                // Check if cached state is still valid
-                if (previousState != null && !previousState.NeedsRecalculation(request.CurrentTurn))
-                {
-                    calculationStopwatch.Stop();
-
-                    // Record cache hit in performance monitor
-                    _performanceMonitor.RecordFOVCalculation(
-                        request.ViewerId,
-                        calculationStopwatch.Elapsed.TotalMilliseconds,
-                        previousState.CurrentlyVisible.Count,
-                        0, // No tiles checked for cache hit
-                        wasFromCache: true
-                    );
-
-                    _logger.Log(LogLevel.Debug, LogCategory.Vision, "Using cached vision state for Actor {ActorId} (cache lookup: {CacheMs}ms)",
-                        request.ViewerId.Value.ToString()[..8], cacheStopwatch.Elapsed.TotalMilliseconds);
-
-                    return previousState;
-                }
-
-                // Calculate new FOV using shadowcasting with detailed metrics
-                var fovStopwatch = Stopwatch.StartNew();
-                var newVisionStateResult = ShadowcastingFOV.CalculateVisionState(
-                    request.ViewerId,
-                    request.Origin,
-                    request.Range,
-                    grid,
-                    previousState,
-                    request.CurrentTurn
-                );
-                fovStopwatch.Stop();
-
-                return newVisionStateResult.Match<Fin<VisionState>>(
-                    Succ: newState =>
-                    {
-                        calculationStopwatch.Stop();
-
-                        // Estimate tiles checked (for performance metrics)
-                        var estimatedTilesChecked = EstimateTilesChecked(request.Range.Value);
-
-                        // Record performance metrics
-                        _performanceMonitor.RecordFOVCalculation(
-                            request.ViewerId,
-                            fovStopwatch.Elapsed.TotalMilliseconds,
-                            newState.CurrentlyVisible.Count,
-                            estimatedTilesChecked,
-                            wasFromCache: false
-                        );
-
-                        // Cache the new vision state with enhanced persistence
-                        var cacheStopwatch2 = Stopwatch.StartNew();
-                        var cacheResult = _visionStateService.UpdateVisionState(newState);
-                        cacheStopwatch2.Stop();
-
-                        cacheResult.Match(
-                            Succ: _ =>
-                            {
-                                _logger.Log(LogLevel.Debug, LogCategory.Vision, "Cached new vision state for Actor {ActorId} (cache update: {CacheMs}ms)",
-                                    request.ViewerId.Value.ToString()[..8], cacheStopwatch2.Elapsed.TotalMilliseconds);
-                            },
-                            Fail: error =>
-                            {
-                                _logger.Log(LogLevel.Warning, LogCategory.Vision, "Failed to cache vision state for Actor {ActorId}: {Error}",
-                                    request.ViewerId.Value.ToString()[..8], error.Message);
-                            }
-                        );
-
-                        _logger.Log(LogLevel.Debug, LogCategory.Vision, "Calculated new FOV for Actor {ActorId}: {FOVMs}ms calculation, {CacheMs}ms cache lookup, {UpdateMs}ms cache update",
-                            request.ViewerId.Value.ToString()[..8],
-                            fovStopwatch.Elapsed.TotalMilliseconds,
-                            cacheStopwatch.Elapsed.TotalMilliseconds,
-                            cacheStopwatch2.Elapsed.TotalMilliseconds);
-
-                        // Always return the calculated state, regardless of caching result
-                        return Fin<VisionState>.Succ(newState);
-                    },
-                    Fail: error =>
-                    {
-                        calculationStopwatch.Stop();
-
-                        // Record failed calculation in performance monitor
-                        _performanceMonitor.RecordFOVCalculation(
-                            request.ViewerId,
-                            calculationStopwatch.Elapsed.TotalMilliseconds,
-                            0, // No tiles visible on failure
-                            0, // No tiles checked on failure
-                            wasFromCache: false
-                        );
-
-                        return Fin<VisionState>.Fail(error);
-                    }
-                );
-            }
-            catch (Exception ex)
+            // Check if cached state is still valid
+            if (previousState != null && !previousState.NeedsRecalculation(request.CurrentTurn))
             {
                 calculationStopwatch.Stop();
 
-                // Record exception in performance monitor
+                // Record cache hit in performance monitor
                 _performanceMonitor.RecordFOVCalculation(
                     request.ViewerId,
                     calculationStopwatch.Elapsed.TotalMilliseconds,
-                    0, // No tiles visible on exception
-                    0, // No tiles checked on exception
-                    wasFromCache: false
+                    previousState.CurrentlyVisible.Count,
+                    0, // No tiles checked for cache hit
+                    wasFromCache: true
                 );
 
-                var error = Error.New("Enhanced FOV calculation failed with exception", ex);
-                _logger.Log(LogLevel.Error, LogCategory.Vision, "Enhanced FOV calculation failed for Actor {ActorId}: {Exception}", request.ViewerId.Value, ex.Message);
-                return Fin<VisionState>.Fail(error);
+                _logger.Log(LogLevel.Debug, LogCategory.Vision, "Using cached vision state for Actor {ActorId} (cache lookup: {CacheMs}ms)",
+                    request.ViewerId.Value.ToString()[..8], cacheStopwatch.Elapsed.TotalMilliseconds);
+
+                return previousState;
             }
+
+            // Calculate new FOV using shadowcasting with detailed metrics
+            var fovStopwatch = Stopwatch.StartNew();
+            var newVisionStateResult = ShadowcastingFOV.CalculateVisionState(
+                request.ViewerId,
+                request.Origin,
+                request.Range,
+                grid,
+                previousState,
+                request.CurrentTurn
+            );
+            fovStopwatch.Stop();
+
+            return newVisionStateResult.Match<Fin<VisionState>>(
+                Succ: newState =>
+                {
+                    calculationStopwatch.Stop();
+
+                    // Estimate tiles checked (for performance metrics)
+                    var estimatedTilesChecked = EstimateTilesChecked(request.Range.Value);
+
+                    // Record performance metrics
+                    _performanceMonitor.RecordFOVCalculation(
+                        request.ViewerId,
+                        fovStopwatch.Elapsed.TotalMilliseconds,
+                        newState.CurrentlyVisible.Count,
+                        estimatedTilesChecked,
+                        wasFromCache: false
+                    );
+
+                    // Cache the new vision state with enhanced persistence
+                    var cacheStopwatch2 = Stopwatch.StartNew();
+                    var cacheResult = _visionStateService.UpdateVisionState(newState);
+                    cacheStopwatch2.Stop();
+
+                    cacheResult.Match(
+                        Succ: _ =>
+                        {
+                            _logger.Log(LogLevel.Debug, LogCategory.Vision, "Cached new vision state for Actor {ActorId} (cache update: {CacheMs}ms)",
+                                request.ViewerId.Value.ToString()[..8], cacheStopwatch2.Elapsed.TotalMilliseconds);
+                        },
+                        Fail: error =>
+                        {
+                            _logger.Log(LogLevel.Warning, LogCategory.Vision, "Failed to cache vision state for Actor {ActorId}: {Error}",
+                                request.ViewerId.Value.ToString()[..8], error.Message);
+                        }
+                    );
+
+                    _logger.Log(LogLevel.Debug, LogCategory.Vision, "Calculated new FOV for Actor {ActorId}: {FOVMs}ms calculation, {CacheMs}ms cache lookup, {UpdateMs}ms cache update",
+                        request.ViewerId.Value.ToString()[..8],
+                        fovStopwatch.Elapsed.TotalMilliseconds,
+                        cacheStopwatch.Elapsed.TotalMilliseconds,
+                        cacheStopwatch2.Elapsed.TotalMilliseconds);
+
+                    // Always return the calculated state, regardless of caching result
+                    return Fin<VisionState>.Succ(newState);
+                },
+                Fail: error =>
+                {
+                    calculationStopwatch.Stop();
+
+                    // Record failed calculation in performance monitor
+                    _performanceMonitor.RecordFOVCalculation(
+                        request.ViewerId,
+                        calculationStopwatch.Elapsed.TotalMilliseconds,
+                        0, // No tiles visible on failure
+                        0, // No tiles checked on failure
+                        wasFromCache: false
+                    );
+
+                    return Fin<VisionState>.Fail(error);
+                }
+            );
         }
 
         /// <summary>

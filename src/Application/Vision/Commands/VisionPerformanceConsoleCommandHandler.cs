@@ -31,40 +31,31 @@ namespace Darklands.Application.Vision.Commands
 
         public Task<Fin<string>> Handle(VisionPerformanceConsoleCommand request, CancellationToken cancellationToken)
         {
-            try
-            {
-                _logger.Log(LogLevel.Debug, LogCategory.Performance, "Generating vision performance report: {ReportType}, Actor details: {IncludeActorDetails}, Reset: {Reset}",
-                    request.ReportType, request.IncludeActorDetails, request.ResetAfterReport);
+            _logger.Log(LogLevel.Debug, LogCategory.Performance, "Generating vision performance report: {ReportType}, Actor details: {IncludeActorDetails}, Reset: {Reset}",
+                request.ReportType, request.IncludeActorDetails, request.ResetAfterReport);
 
-                var reportResult = _performanceMonitor.GetPerformanceReport();
+            var reportResult = _performanceMonitor.GetPerformanceReport();
 
-                return Task.FromResult(reportResult.Match(
-                    Succ: report =>
+            return Task.FromResult(reportResult.Match(
+                Succ: report =>
+                {
+                    var output = GenerateReport(report, request);
+
+                    if (request.ResetAfterReport)
                     {
-                        var output = GenerateReport(report, request);
-
-                        if (request.ResetAfterReport)
-                        {
-                            _performanceMonitor.Reset();
-                            _logger.Log(LogLevel.Debug, LogCategory.Performance, "Performance metrics reset after report generation");
-                        }
-
-                        return Fin<string>.Succ(output);
-                    },
-                    Fail: error =>
-                    {
-                        var errorMessage = $"Failed to generate vision performance report: {error.Message}";
-                        _logger.Log(LogLevel.Warning, LogCategory.Performance, "Vision performance report generation failed: {Error}", error.Message);
-                        return Fin<string>.Fail(Error.New(errorMessage, error));
+                        _performanceMonitor.Reset();
+                        _logger.Log(LogLevel.Debug, LogCategory.Performance, "Performance metrics reset after report generation");
                     }
-                ));
-            }
-            catch (Exception ex)
-            {
-                var error = Error.New("Vision performance console command failed", ex);
-                _logger.Log(LogLevel.Error, LogCategory.Performance, "Vision performance console command failed: {Exception}", ex.Message);
-                return Task.FromResult(Fin<string>.Fail(error));
-            }
+
+                    return FinSucc(output);
+                },
+                Fail: error =>
+                {
+                    var errorMessage = $"Failed to generate vision performance report: {error.Message}";
+                    _logger.Log(LogLevel.Warning, LogCategory.Performance, "Vision performance report generation failed: {Error}", error.Message);
+                    return FinFail<string>(Error.New(errorMessage, error));
+                }
+            ));
         }
 
         private string GenerateReport(VisionPerformanceReport report, VisionPerformanceConsoleCommand request)
