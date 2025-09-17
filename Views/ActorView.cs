@@ -41,6 +41,17 @@ namespace Darklands.Views
             Darklands.Domain.Grid.Position FromPosition, Darklands.Domain.Grid.Position ToPosition);
         private record ActorVisibilityData(Darklands.Domain.Grid.ActorId ActorId, bool IsVisible);
 
+        // Path animation data structure
+        private class PendingPathAnimation
+        {
+            public Darklands.Domain.Grid.ActorId ActorId { get; set; }
+            public List<Darklands.Domain.Grid.Position> Path { get; set; } = new();
+            public float Speed { get; set; }
+            public ColorRect ActorNode { get; set; } = null!;
+        }
+
+        private readonly Queue<PendingPathAnimation> _pendingPathAnimations = new();
+
         /// <summary>
         /// Called when the node is added to the scene tree.
         /// Sets up the actor display system.
@@ -153,6 +164,10 @@ namespace Darklands.Views
         {
             try
             {
+                _logger.Log(LogLevel.Information, LogCategory.Gameplay,
+                    "[MoveActorAsync CALLED] Actor {ActorId} from ({FromX}, {FromY}) to ({ToX}, {ToY})",
+                    actorId, fromPosition.X, fromPosition.Y, toPosition.X, toPosition.Y);
+
                 if (!_actorNodes.TryGetValue(actorId, out var actorNode) || actorNode == null)
                 {
                     _logger.Log(LogLevel.Warning, LogCategory.Gameplay, "Actor {ActorId} not found for movement", actorId);
@@ -166,6 +181,9 @@ namespace Darklands.Views
                 {
                     _pendingActorMoves.Enqueue(new ActorMoveData(actorNode, endPosition, actorId, fromPosition, toPosition));
                 }
+
+                _logger.Log(LogLevel.Information, LogCategory.Gameplay,
+                    "[MoveActorAsync QUEUED] Movement queued for deferred processing");
 
                 // Use deferred call for tween operations to ensure main thread execution
                 CallDeferred("ProcessPendingActorMoves");
@@ -186,28 +204,40 @@ namespace Darklands.Views
         {
             lock (_pendingActorMoves)
             {
+                _logger.Log(LogLevel.Information, LogCategory.Gameplay,
+                    "[ProcessPendingActorMoves CALLED] Processing {Count} queued moves",
+                    _pendingActorMoves.Count);
+
                 while (_pendingActorMoves.Count > 0)
                 {
                     var moveData = _pendingActorMoves.Dequeue();
+
+                    _logger.Log(LogLevel.Information, LogCategory.Gameplay,
+                        "[ProcessPendingActorMoves PROCESSING] Actor {ActorId} to pixel position ({X}, {Y})",
+                        moveData.ActorId, moveData.EndPosition.X, moveData.EndPosition.Y);
 
                     if (_actorNodes.ContainsKey(moveData.ActorId))
                     {
                         // Get the ACTUAL actor node from our dictionary
                         var actualActorNode = _actorNodes[moveData.ActorId];
 
-                        // Set position immediately
-                        actualActorNode.Position = moveData.EndPosition;
+                        // Create tween for smooth movement animation
+                        var tween = CreateTween();
+                        tween.TweenProperty(actualActorNode, "position", moveData.EndPosition, MoveDuration);
+
+                        _logger.Log(LogLevel.Information, LogCategory.Gameplay,
+                            "[ProcessPendingActorMoves TWEEN] Created tween with duration {Duration} seconds",
+                            MoveDuration);
+
                         // Log using Gameplay category for fine-grained filtering
                         if (DebugSystem.Instance?.Logger != null)
                         {
                             DebugSystem.Instance.Logger.Log(LogLevel.Information, LogCategory.Gameplay,
-                                "{0} moved from ({1},{2}) to ({3},{4})",
+                                "{0} animated move from ({1},{2}) to ({3},{4})",
                                 moveData.ActorId,
                                 moveData.FromPosition.X, moveData.FromPosition.Y,
                                 moveData.ToPosition.X, moveData.ToPosition.Y);
                         }
-
-                        // TODO: Re-enable tween animation once basic movement is verified working
                     }
                     else
                     {
@@ -217,6 +247,123 @@ namespace Darklands.Views
             }
         }
 
+
+        /// <summary>
+        /// Processes queued path animations on the main thread.
+        /// Creates tweens for cell-by-cell movement without blocking.
+        /// </summary>
+        private void ProcessPendingPathAnimations()
+        {
+            lock (_pendingPathAnimations)
+            {
+                while (_pendingPathAnimations.Count > 0)
+                {
+                    var animData = _pendingPathAnimations.Dequeue();
+
+                    _logger.Log(LogLevel.Information, LogCategory.Gameplay,
+                        "[PROCESS PATH ANIMATION] Processing animation for actor {ActorId} with {PathCount} positions",
+                        animData.ActorId, animData.Path.Count);
+
+                    try
+                    {
+                        // Create tween for smooth animation
+                        var tween = CreateTween();
+                        tween.SetParallel(false); // Sequential movement through path
+
+                        // Calculate duration per segment based on speed
+                        var segmentDuration = 1.0f / animData.Speed;
+
+                        // Get current position and check if we need to skip the first path position
+                        var currentPixelPos = animData.ActorNode.Position;
+                        var firstPathPixelPos = new Vector2(animData.Path[0].X * TileSize, animData.Path[0].Y * TileSize);
+                        int startIndex = currentPixelPos.IsEqualApprox(firstPathPixelPos) ? 1 : 0;
+
+                        _logger.Log(LogLevel.Information, LogCategory.Gameplay,
+                            "[CREATING TWEENS] Starting from index {StartIndex}, creating {TweenCount} tweens",
+                            startIndex, animData.Path.Count - startIndex);
+
+                        // Create tweens for each step in the path
+                        for (int i = startIndex; i < animData.Path.Count; i++)
+                        {
+                            var gridPos = animData.Path[i];
+                            var pixelPos = new Vector2(gridPos.X * TileSize, gridPos.Y * TileSize);
+
+                            _logger.Log(LogLevel.Debug, LogCategory.Gameplay,
+                                "[TWEEN {Index}] Actor {ActorId}: Grid({X},{Y}) -> Pixel({PX},{PY})",
+                                i, animData.ActorId, gridPos.X, gridPos.Y, pixelPos.X, pixelPos.Y);
+
+                            tween.TweenProperty(animData.ActorNode, "position", pixelPos, segmentDuration);
+                        }
+
+                        // The tween will run automatically - we don't wait for it
+                        _logger.Log(LogLevel.Information, LogCategory.Gameplay,
+                            "[ANIMATION STARTED] Actor {ActorId} animation running with {TweenCount} steps",
+                            animData.ActorId, animData.Path.Count - startIndex);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.Log(LogLevel.Error, LogCategory.Gameplay,
+                            "[ANIMATION ERROR] Failed to create animation for actor {ActorId}: {Error}",
+                            animData.ActorId, ex.Message);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Animates an actor moving along a path using smooth Godot Tween interpolation.
+        /// Supports multi-step paths from A* pathfinding for fluid movement visualization.
+        /// Non-blocking implementation that doesn't wait for animation completion.
+        /// </summary>
+        /// <param name="actorId">The actor to animate</param>
+        /// <param name="path">Path as grid positions for movement sequence</param>
+        /// <param name="speed">Movement speed in tiles per second (default: 3.0)</param>
+        /// <returns>Task that completes immediately after starting animation</returns>
+        public async Task AnimateMovementAsync(Darklands.Domain.Grid.ActorId actorId, List<Darklands.Domain.Grid.Position> path, float speed = 3.0f)
+        {
+            if (path == null || path.Count == 0)
+            {
+                _logger.Log(LogLevel.Warning, LogCategory.Gameplay, "AnimateMovementAsync called with empty path for actor {ActorId}", actorId);
+                return;
+            }
+
+            if (!_actorNodes.TryGetValue(actorId, out var actorNode) || actorNode == null)
+            {
+                _logger.Log(LogLevel.Warning, LogCategory.Gameplay, "Actor {ActorId} not found for animation", actorId);
+                return;
+            }
+
+            try
+            {
+                // Queue the animation data for deferred processing
+                var animationData = new PendingPathAnimation
+                {
+                    ActorId = actorId,
+                    Path = path,
+                    Speed = speed,
+                    ActorNode = actorNode
+                };
+
+                lock (_pendingPathAnimations)
+                {
+                    _pendingPathAnimations.Enqueue(animationData);
+                }
+
+                _logger.Log(LogLevel.Information, LogCategory.Gameplay,
+                    "[ANIMATION QUEUED] Queued path animation for actor {ActorId} with {PathCount} positions",
+                    actorId, path.Count);
+
+                // Use CallDeferred to process on main thread without blocking
+                CallDeferred(nameof(ProcessPendingPathAnimations));
+
+                // Return immediately - don't wait for animation to complete
+                await Task.CompletedTask;
+            }
+            catch (Exception ex)
+            {
+                _logger.Log(LogLevel.Error, LogCategory.Gameplay, "Error animating movement for actor {ActorId}: {Error}", actorId, ex.Message);
+            }
+        }
 
         /// <summary>
         /// Updates an actor's visual state or appearance.

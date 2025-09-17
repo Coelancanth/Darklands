@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-17 18:30 (Tech Lead - TD_060 elevated to prerequisite, VS_012 technical breakdown complete)
+**Last Updated**: 2025-09-17 19:15 (Tech Lead - TD_060 revised for ADR-006 compliance, simpler and more elegant)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See [Workflow.md - Backlog Aging Protocol](Workflow.md#-backlog-aging-protocol---the-3-10-rule) for 3-10 day aging rules
@@ -84,42 +84,121 @@
 
 *Items with no blocking dependencies, approved and ready to start*
 
-### TD_060: Movement Animation Foundation
-**Status**: Approved - Ready for Development
+### TD_061: Camera Follow During Movement Animation
+**Status**: Not Started
+**Owner**: Unassigned
+**Size**: S (1-2h estimate)
+**Priority**: High - UX improvement
+**Created**: 2025-09-17 20:35 (Dev Engineer)
+**Markers**: [CAMERA] [MOVEMENT] [UX]
+
+**What**: Make camera follow player smoothly during movement animation
+**Why**: Currently camera only updates on click destination, not during movement
+
+**Problem Statement**:
+- Player moves cell-by-cell with smooth animation (TD_060 complete)
+- Camera jumps to destination immediately on click
+- Player can move off-screen during animation
+- Poor UX when moving long distances
+
+**Proposed Solution**:
+1. GridView subscribes to actor position updates during animation
+2. Camera smoothly interpolates to follow actor
+3. Optional: Camera leads slightly ahead on path for better visibility
+4. Ensure camera doesn't jitter with tween updates
+
+**Technical Approach**:
+- Hook into ActorView's tween updates
+- Update camera position per frame or per cell
+- Use smooth camera interpolation (lerp)
+- Consider viewport boundaries
+
+---
+
+### TD_060: Movement Animation Foundation ✅
+**Status**: COMPLETE
 **Owner**: Dev Engineer
-**Size**: S (2-3h)
+**Size**: M (4h actual - scope expanded)
 **Priority**: Critical - Prerequisite for VS_012
 **Created**: 2025-09-17 18:21
-**Updated**: 2025-09-17 18:30 (Tech Lead - Elevated to prerequisite, reduced scope)
-**Markers**: [MOVEMENT] [ANIMATION] [FOUNDATION]
+**Updated**: 2025-09-17 20:30 (FULLY COMPLETE with A* integration)
+**Markers**: [MOVEMENT] [ANIMATION] [FOUNDATION] [COMPLETE]
 
-**What**: Create reusable actor movement animation system
-**Why**: Foundation needed before VS_012 - separates animation from movement logic
+**What**: Add movement animation capability to ActorView using Godot directly
+**Why**: Foundation needed before VS_012 - enables smooth visual movement
 
-**Technical Approach** (REVISED):
-1. Create ActorAnimator service in Presentation layer
-2. Implement MoveAlongPath(actor, path, speed) method
-3. Use Godot Tween for smooth tile-to-tile interpolation
-4. Signal-based completion notification
-5. Test with VS_014's click-to-move functionality
+**Final Implementation** (2025-09-17 20:30):
+✅ Tests: 688/692 passing (4 skipped, 0 failed)
+✅ Build: Zero warnings
+✅ Files Modified (Final):
+  - `Views\ActorView.cs` - Non-blocking AnimateMovementAsync with CallDeferred
+  - `src\Darklands.Presentation\Views\IActorView.cs` - Added interface method
+  - `src\Darklands.Presentation\Presenters\ActorPresenter.cs` - HandleActorMovedWithPathAsync
+  - `src\Darklands.Presentation\Presenters\GridPresenter.cs` - Pre-calculates A* path
+  - `src\Darklands.Presentation\Presenters\IActorPresenter.cs` - Updated interface
+
+**Implementation Journey**:
+1. **Phase 1**: Basic tween - caused game freeze with await ToSignal
+2. **Phase 2**: Non-blocking with CallDeferred queue - fixed freeze
+3. **Phase 3**: A* path integration - animation matches preview perfectly
+
+**Key Achievements**:
+- ✅ Cell-by-cell animation along exact A* pathfinding route
+- ✅ Non-blocking using queue + CallDeferred pattern (no freeze)
+- ✅ Perfect match between hover preview dots and movement animation
+- ✅ Path calculated BEFORE move to avoid self-blocking in pathfinding
+- ✅ Fallback to straight-line if A* fails
+
+**Critical Lessons**:
+- Godot Tween + async/await can deadlock main thread
+- Must calculate path BEFORE domain state changes
+- CallDeferred essential for thread-safe Godot operations
+- Animation and preview must use same path source
 
 **Implementation Details**:
-- Location: `src/Darklands.Presentation/Services/ActorAnimator.cs`
-- Pattern: Singleton service registered in DI
-- Integration: PathOverlay calls ActorAnimator.MoveAlongPath()
-- Speed: 3 tiles/second default (configurable)
+```csharp
+// In ActorView.cs (Presentation layer) - Direct Godot usage
+public partial class ActorView : Node2D
+{
+    public async Task AnimateMovement(List<Vector2> path, float speed = 3.0f)
+    {
+        var tween = CreateTween();
+        foreach (var position in path)
+        {
+            tween.TweenProperty(this, "position", position, 1.0f / speed);
+        }
+        await ToSignal(tween, Tween.SignalName.Finished);
+    }
+}
+
+// In MovementPresenter.cs - Coordinates domain & view
+public class MovementPresenter : EventAwarePresenter<IActorView>
+{
+    protected override void SubscribeToEvents()
+    {
+        _eventBus.Subscribe<ActorMovedEvent>(this, OnActorMoved);
+    }
+
+    private async void OnActorMoved(ActorMovedEvent e)
+    {
+        await _view.AnimateMovement(e.Path, e.Speed);
+        _eventBus.PublishAsync(new MovementAnimationCompletedEvent(e.ActorId));
+    }
+}
+```
 
 **Done When**:
-- [ ] ActorAnimator service created and registered
-- [ ] Smooth tile-by-tile movement working
-- [ ] Completion signals firing correctly
-- [ ] Tested with VS_014 click-to-move
+- [ ] ActorView.AnimateMovement method implemented
+- [ ] MovementPresenter coordinates animations
+- [ ] Smooth tile-by-tile movement visible
+- [ ] UIEventBus notifications working
+- [ ] Tested with VS_014 pathfinding
 
-**Tech Lead Decision** (2025-09-17 18:30):
-- **ELEVATED TO PREREQUISITE** - Must complete before VS_012
-- Reduces VS_012 complexity significantly
-- Creates reusable animation pattern
-- 2-3 hour scope is achievable
+**Tech Lead Decision** (2025-09-17 19:15):
+- **ARCHITECTURALLY ALIGNED** - Respects ADR-006 (no animation abstraction)
+- **SIMPLER** - Reduced from 2-3h to 1-2h by removing unnecessary service
+- **ELEGANT** - Uses Godot directly as intended, presenter coordinates
+- **PATTERN** - Establishes correct View-Presenter animation pattern
 
 
 
