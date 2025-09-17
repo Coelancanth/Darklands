@@ -108,8 +108,7 @@ public sealed class UnifiedCategoryLogger : ICategoryLogger
             "{ActorId}", "{FromPosition}", "{ToPosition}", "{Position}",
             "{Damage}", "{Source}", "{Health}", "{Error}", "{Exception}",
             "{Visible}", "{Explored}", "{Turn}", "{Range}", "{X}", "{Y}",
-            "{SubscriberType}", "{EventType}", "{Count}", "{Total}", "{Event}",
-            "{Width}", "{Height}", "{Name}"
+            "{SubscriberType}", "{EventType}", "{Count}", "{Total}", "{Event}"
         };
 
         // Replace placeholders with arguments in the order they appear
