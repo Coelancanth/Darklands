@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-16 22:06 (Backlog Assistant - Archived 3 completed TD items)
+**Last Updated**: 2025-09-17 09:36 (Dev Engineer - Added TD_056 logging architecture strategy)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See [Workflow.md - Backlog Aging Protocol](Workflow.md#-backlog-aging-protocol---the-3-10-rule) for 3-10 day aging rules
@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 008
-- **Next TD**: 056
+- **Next TD**: 057
 - **Next VS**: 015 
 
 
@@ -113,6 +113,48 @@
 - [ ] All 664 tests still pass
 
 **Reference Pattern**: `ExecuteAttackCommandHandler` for Fin<T> usage
+
+### TD_056: Unified Logging Architecture Strategy
+**Status**: Proposed
+**Owner**: Tech Lead
+**Size**: M (4-6h analysis + implementation)
+**Priority**: Important - Developer Experience
+**Created**: 2025-09-17 09:34 (Dev Engineer)
+**Complexity**: 7/10
+**Markers**: [LOGGING] [ARCHITECTURE] [DEVELOPER-EXPERIENCE]
+
+**Problem**: Multiple logging systems capture different messages, creating gaps in saved logs
+**Root Cause**: 4 separate logging systems running in parallel with different outputs
+
+**Current Architecture Analysis**:
+1. **Serilog System**: Infrastructure layer → `darklands-current20250917.log`
+2. **UnifiedCategoryLogger**: Business logic → `darklands-session-*.log`
+3. **GodotCategoryLogger**: Godot integration → Console only (no file)
+4. **Direct Godot**: `GD.Print()` calls → Console only (no file)
+
+**Issue**: Systems 3 & 4 deliberately don't write to files due to Godot sandbox constraints
+
+**Strategic Questions for Tech Lead**:
+- Should we accept console-only messages as architectural constraint?
+- Is a unified file output worth the complexity/risk of file conflicts?
+- Can we create safe bridge from Godot console to file system?
+- Should we standardize on fewer logging systems?
+
+**Previous Attempt**: Dev Engineer tried unification but caused file access conflicts that broke game
+
+**Options to Evaluate**:
+A) **Accept Current** (Low risk): Document architecture, improve dev workflow
+B) **Safe Bridge** (Medium risk): Forward Godot messages via IPC/queue to file
+C) **Full Unification** (High risk): Redesign all logging through single system
+
+**Success Criteria** (TBD by Tech Lead):
+- [ ] Complete logging architecture documented
+- [ ] Strategy decision made and communicated
+- [ ] Implementation plan created
+- [ ] Developer experience improved
+- [ ] No game stability regression
+
+**Files**: `GameStrapper.cs`, `UnifiedCategoryLogger.cs`, `GodotCategoryLogger.cs`
 
 
 
