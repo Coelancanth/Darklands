@@ -58,5 +58,17 @@ namespace Darklands.Application.Grid.Services
         /// Returns a dictionary mapping ActorId to Position for composite queries.
         /// </summary>
         IReadOnlyDictionary<ActorId, Position> GetAllActorPositions();
+
+        /// <summary>
+        /// Gets all positions that block movement for pathfinding.
+        /// Includes actor positions and any terrain obstacles.
+        /// </summary>
+        System.Collections.Immutable.ImmutableHashSet<Position> GetObstacles();
+
+        /// <summary>
+        /// Checks if a position is walkable (within bounds and not blocked).
+        /// Combines bounds checking with obstacle detection.
+        /// </summary>
+        bool IsWalkable(Position position);
     }
 }

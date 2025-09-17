@@ -272,6 +272,9 @@ public static class GameStrapper
             // TD_057: Damage service for shared damage logic (eliminates MediatR anti-pattern)
             services.AddSingleton<Domain.Combat.Services.IDamageService, Application.Combat.Services.DamageService>();
 
+            // VS_014: A* pathfinding algorithm for movement system
+            services.AddSingleton<Domain.Pathfinding.IPathfindingAlgorithm, Domain.Pathfinding.AStarAlgorithm>();
+
             // TD_011: Game loop coordinator for sequential turn processing
             services.AddSingleton<Application.Combat.Coordination.GameLoopCoordinator>();
 

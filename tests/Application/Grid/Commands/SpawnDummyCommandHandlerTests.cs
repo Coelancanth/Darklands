@@ -59,6 +59,12 @@ namespace Darklands.Core.Tests.Application.Grid.Commands
             public Fin<Unit> RemoveActorFromGrid(ActorId actorId) => FinSucc(Unit.Default);
             public IReadOnlyDictionary<ActorId, Position> GetAllActorPositions() =>
                 new Dictionary<ActorId, Position>();
+
+            // VS_014: New pathfinding methods
+            public System.Collections.Immutable.ImmutableHashSet<Position> GetObstacles() =>
+                System.Collections.Immutable.ImmutableHashSet<Position>.Empty;
+
+            public bool IsWalkable(Position position) => true;
         }
 
         // Test stub for IActorStateService - configurable for different test scenarios
