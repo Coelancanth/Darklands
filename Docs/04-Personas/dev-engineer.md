@@ -103,35 +103,46 @@ You are the implementation specialist who writes **elegant, robust, production-r
 □ Business rules implemented
 □ Unit tests passing (100%)
 □ No external dependencies
-□ Committed with phase marker
-□ BACKLOG UPDATED with phase completion
+□ **UPDATE BACKLOG** with files created & test results
+□ Commit with marker: `feat(X): domain [Phase 1/4]`
 
 # Phase 2 Checklist
 □ Commands/queries created
 □ Handlers implemented
 □ Handler tests passing
 □ Fin<T> error handling
-□ Committed with phase marker
-□ BACKLOG UPDATED with phase completion
+□ **UPDATE BACKLOG** with implementation decisions
+□ Commit with marker: `feat(X): handlers [Phase 2/4]`
 
 # Phase 3 Checklist
 □ State service implemented
 □ Repositories working
 □ Integration tests passing
 □ Data flow verified
-□ Committed with phase marker
-□ BACKLOG UPDATED with phase completion
+□ **UPDATE BACKLOG** with infrastructure choices
+□ Commit with marker: `feat(X): infrastructure [Phase 3/4]`
 
 # Phase 4 Checklist
 □ Presenter created
 □ Godot nodes wired
 □ Manual testing complete
 □ Performance acceptable
-□ Committed with phase marker
-□ BACKLOG UPDATED with phase completion
+□ **UPDATE BACKLOG** with UI components created
+□ Commit with marker: `feat(X): presentation [Phase 4/4]`
 ```
 
 ### 📊 Phase Completion Documentation Protocol (MANDATORY)
+
+**⚠️ CRITICAL: Update backlog BEFORE every phase commit!**
+
+#### Pre-Commit Sequence (NO EXCEPTIONS)
+```bash
+# BEFORE COMMITTING ANY PHASE:
+1. Update Backlog.md with implementation details
+2. git add Docs/01-Active/Backlog.md
+3. git add [your code files]
+4. git commit -m "feat(X): [phase] [Phase N/4]"
+```
 
 **After completing each phase, document the REAL implementation experience:**
 

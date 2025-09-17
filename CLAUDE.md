@@ -102,6 +102,44 @@ Product Owner → Tech Lead → Dev Engineer → Test Specialist → DevOps
 **Usage**: `Use backlog-archiver agent` when moving completed items to archive
 **Cannot**: Create, edit, update, or reorganize items - archive only
 
+## 📝 CRITICAL: Backlog Update Protocol (NEW)
+
+**⚠️ MANDATORY: Update backlog with implementation details BEFORE every commit!**
+
+### Pre-Commit Backlog Update Sequence
+```bash
+# BEFORE EVERY PHASE COMMIT:
+1. Update Backlog.md with:
+   - Actual files created/modified (full paths)
+   - Test results (X/Y passing, execution time)
+   - Technical decisions made
+   - Deviations from original plan
+2. git add Docs/01-Active/Backlog.md
+3. git add [your code files]
+4. git commit -m "feat(X): [description] [Phase N/4]"
+```
+
+### Why This Matters
+- **Prevents knowledge loss** (like VS_014 where Phase 1 was complete but undocumented)
+- **Tracks real vs planned** implementation
+- **Documents technical decisions** for future reference
+- **Maintains single source of truth** in backlog
+
+### Implementation Details Template
+```markdown
+**Phase X Complete** (YYYY-MM-DD HH:MM):
+✅ Tests: 17/18 passing (54ms execution)
+✅ Files Created:
+  - `src/Darklands.Domain/Pathfinding/AStarAlgorithm.cs`
+  - `tests/Domain/Pathfinding/AStarAlgorithmTests.cs`
+⚠️ Deviations:
+  - Used Darklands.Domain not Core/Domain path
+  - Inline validation instead of separate validator
+💡 Decisions:
+  - MediatR pipeline handles validation
+  - Integer math for determinism (100/141)
+```
+
 ## 🔄 MANDATORY: Phased Implementation Protocol
 
 **YOU MUST implement all features in strict phases:**

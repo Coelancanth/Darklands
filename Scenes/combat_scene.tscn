@@ -1,7 +1,8 @@
-[gd_scene load_steps=3 format=3 uid="uid://coxy82oj87fjb"]
+[gd_scene load_steps=4 format=3 uid="uid://coxy82oj87fjb"]
 
 [ext_resource type="Script" uid="uid://umtdiuyv1ifi" path="res://Views/ActorView.cs" id="2_qumoa"]
 [ext_resource type="Script" uid="uid://d17tgsg3d33q2" path="res://Views/GridView.cs" id="4_gridview"]
+[ext_resource type="PackedScene" path="res://Views/PathOverlay.tscn" id="5_pathoverlay"]
 
 [node name="CombatScene" type="Node2D"]
 
@@ -10,3 +11,5 @@ script = ExtResource("4_gridview")
 
 [node name="Actors" type="Node2D" parent="."]
 script = ExtResource("2_qumoa")
+
+[node name="PathOverlay" parent="." instance=ExtResource("5_pathoverlay")]

@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Collections.Immutable;
+using System.Linq;
 using LanguageExt;
 using LanguageExt.Common;
 using Darklands.Application.Grid.Services;
@@ -126,6 +128,7 @@ namespace Darklands.Application.Grid.Services
 
         public Fin<Unit> AddActorToGrid(ActorId actorId, Position position)
         {
+
             if (!IsValidPosition(position))
                 return FinFail<Unit>(Error.New($"INVALID_POSITION: Position {position} is outside grid bounds"));
 
@@ -168,6 +171,68 @@ namespace Darklands.Application.Grid.Services
         public IReadOnlyDictionary<ActorId, Position> GetAllActorPositions()
         {
             return new Dictionary<ActorId, Position>(_actorPositions);
+        }
+
+        public System.Collections.Immutable.ImmutableHashSet<Position> GetObstacles()
+        {
+            var obstacles = new List<Position>();
+
+            // Add actor positions as obstacles
+            obstacles.AddRange(_actorPositions.Values);
+
+            // Add impassable terrain as obstacles
+            lock (_stateLock)
+            {
+                if (_currentGrid != null)
+                {
+                    for (int x = 0; x < _currentGrid.Width; x++)
+                    {
+                        for (int y = 0; y < _currentGrid.Height; y++)
+                        {
+                            var position = new Position(x, y);
+                            var tileResult = _currentGrid.GetTile(position);
+
+                            tileResult.Match(
+                                Succ: tile =>
+                                {
+                                    if (!tile.IsPassable)
+                                    {
+                                        obstacles.Add(position);
+                                    }
+                                    return Unit.Default;
+                                },
+                                Fail: _ => Unit.Default // Ignore failed tile queries
+                            );
+                        }
+                    }
+                }
+            }
+
+            return obstacles.ToImmutableHashSet();
+        }
+
+        public bool IsWalkable(Position position)
+        {
+            // Must be within bounds
+            if (!IsValidPosition(position))
+                return false;
+
+            // Must not be occupied by an actor
+            if (!IsPositionEmpty(position))
+                return false;
+
+            // Must be passable terrain
+            lock (_stateLock)
+            {
+                if (_currentGrid == null)
+                    return false;
+
+                var tileResult = _currentGrid.GetTile(position);
+                return tileResult.Match(
+                    Succ: tile => tile.IsPassable,
+                    Fail: _ => false // If can't get tile, assume not walkable
+                );
+            }
         }
 
         private void InitializeDefaultGrid()

@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-17 09:58 (Tech Lead - Updated TD_047 with strategic boundaries, TD_056 paired approach, TD_057-059 MediatR fixes)
+**Last Updated**: 2025-09-17 18:30 (Tech Lead - TD_060 elevated to prerequisite, VS_012 technical breakdown complete)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See [Workflow.md - Backlog Aging Protocol](Workflow.md#-backlog-aging-protocol---the-3-10-rule) for 3-10 day aging rules
@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 008
-- **Next TD**: 060
+- **Next TD**: 061
 - **Next VS**: 015 
 
 
@@ -84,68 +84,42 @@
 
 *Items with no blocking dependencies, approved and ready to start*
 
-
-
-
-
-
-
-
-### TD_056: Paired Logging System Unification
-**Status**: APPROVED (Revised)
+### TD_060: Movement Animation Foundation
+**Status**: Approved - Ready for Development
 **Owner**: Dev Engineer
-**Revision Date**: 2025-09-17 09:50 (Tech Lead - Approved with paired approach)
-**Size**: S (3h total - 2h Phase 1, 1h Phase 2)
-**Priority**: Important - Developer Experience
-**Created**: 2025-09-17 09:34 (Dev Engineer)
-**Revised**: 2025-09-17 09:50 (Tech Lead)
-**Complexity**: 4/10 (reduced from 7/10)
-**Markers**: [LOGGING] [ARCHITECTURE] [DEVELOPER-EXPERIENCE]
+**Size**: S (2-3h)
+**Priority**: Critical - Prerequisite for VS_012
+**Created**: 2025-09-17 18:21
+**Updated**: 2025-09-17 18:30 (Tech Lead - Elevated to prerequisite, reduced scope)
+**Markers**: [MOVEMENT] [ANIMATION] [FOUNDATION]
 
-**Problem**: 4 separate logging systems create confusion and duplicate files
-**Solution**: Unify into 2 systems respecting the file/console boundary
+**What**: Create reusable actor movement animation system
+**Why**: Foundation needed before VS_012 - separates animation from movement logic
 
-**Current State → Target State**:
-```
-CURRENT (4 systems):                    TARGET (2 systems):
-1. Serilog → file                  →    Unified File Logger
-2. UnifiedCategoryLogger → file     →    (Serilog-based)
-3. GodotCategoryLogger → console    →    Unified Console Logger
-4. Direct GD.Print() → console      →    (GodotCategory-based)
-```
+**Technical Approach** (REVISED):
+1. Create ActorAnimator service in Presentation layer
+2. Implement MoveAlongPath(actor, path, speed) method
+3. Use Godot Tween for smooth tile-to-tile interpolation
+4. Signal-based completion notification
+5. Test with VS_014's click-to-move functionality
 
-### Phase 1: Unify File-Based Loggers (2h)
-**What**: Route UnifiedCategoryLogger through Serilog infrastructure
-**Why**: Eliminate duplicate log files, single source for file logging
-**Implementation**:
-1. Modify UnifiedCategoryLogger to use Serilog as backend
-2. Preserve category-based filtering and formatting
-3. Single output file: `darklands-{date}.log`
-4. Remove separate session log file creation
-5. Ensure all existing ICategoryLogger calls still work
+**Implementation Details**:
+- Location: `src/Darklands.Presentation/Services/ActorAnimator.cs`
+- Pattern: Singleton service registered in DI
+- Integration: PathOverlay calls ActorAnimator.MoveAlongPath()
+- Speed: 3 tiles/second default (configurable)
 
-### Phase 2: Standardize Console Loggers (1h)
-**What**: Create consistent Godot console logging
-**Why**: Standardize UI/presentation layer logging
-**Implementation**:
-1. Create `GodotLogger` static wrapper class
-2. Replace all direct `GD.Print()` calls with `GodotLogger.Log()`
-3. Add category support to console output
-4. Consistent formatting with timestamp and category
+**Done When**:
+- [ ] ActorAnimator service created and registered
+- [ ] Smooth tile-by-tile movement working
+- [ ] Completion signals firing correctly
+- [ ] Tested with VS_014 click-to-move
 
-**Success Criteria**:
-- [ ] Single log file for all C# domain/infrastructure logging
-- [ ] Consistent console output for all Godot logging
-- [ ] No file access conflicts (respects sandbox boundary)
-- [ ] Existing ICategoryLogger interface unchanged
-- [ ] All 664 tests still pass
-
-**Files**: `GameStrapper.cs`, `UnifiedCategoryLogger.cs`, `GodotCategoryLogger.cs`
-
-
-
-
-
+**Tech Lead Decision** (2025-09-17 18:30):
+- **ELEVATED TO PREREQUISITE** - Must complete before VS_012
+- Reduces VS_012 complexity significantly
+- Creates reusable animation pattern
+- 2-3 hour scope is achievable
 
 
 
@@ -153,62 +127,71 @@ CURRENT (4 systems):                    TARGET (2 systems):
 
 *Items that cannot start until blocking dependencies are resolved*
 
-### VS_014: A* Pathfinding Foundation
-**Status**: Approved - BLOCKED by TD_046
-**Owner**: Dev Engineer
-**Size**: S (3h)
-**Priority**: Critical - Foundation for movement system
-**Created**: 2025-09-11 18:12
-**Updated**: 2025-09-16 01:00 (Tech Lead - Moved to blocked section)
-**Markers**: [MOVEMENT] [PATHFINDING] [CHAIN-2-MOVEMENT] [BLOCKED]
-**Blocking Dependency**: TD_046 (project structure must be established first)
-
-**What**: Implement A* pathfinding algorithm with visual path display
-**Why**: Foundation for VS_012 movement system and all future tactical movement
-
-**DEPENDENCY CHAIN**: Chain 2 - Step 1 (Movement Foundation)
-- Blocked by: TD_046 (architectural foundation)
-- Enables: VS_012 (Vision-Based Movement)
-- Blocks: VS_013 (Enemy AI needs movement)
-
-**Done When**:
-- [ ] A* finds optimal paths deterministically
-- [ ] Diagonal movement works correctly (1.41x cost)
-- [ ] Path visualizes on grid before movement
-- [ ] Performance <10ms for typical paths (50 tiles)
-- [ ] Handles no-path-exists gracefully (returns None)
-- [ ] All tests pass including edge cases
-
-**Architectural Constraints**:
-☑ Deterministic: Consistent tie-breaking rules
-☑ Save-Ready: Paths are transient, not saved
-☑ Time-Independent: Pure algorithm
-☑ Integer Math: Use 100/141 for movement costs
-☑ Testable: Pure domain function
-
 ### VS_012: Vision-Based Movement System
-**Status**: Approved - BLOCKED by VS_014
-**Owner**: Dev Engineer
+**Status**: Approved - BLOCKED by TD_060
+**Owner**: Tech Lead → Dev Engineer
 **Size**: S (2h)
 **Priority**: Critical
 **Created**: 2025-09-11 00:10
-**Updated**: 2025-09-16 01:00 (Tech Lead - Moved to blocked section)
-**Markers**: [MOVEMENT] [VISION] [CHAIN-2-MOVEMENT] [BLOCKED]
-**Blocking Dependency**: VS_014 (A* Pathfinding Foundation)
+**Updated**: 2025-09-17 18:30 (Tech Lead - Added technical breakdown, blocked by TD_060)
+**Markers**: [MOVEMENT] [VISION] [CHAIN-2-MOVEMENT]
 
 **What**: Movement system where scheduler activates based on vision connections
 **Why**: Creates natural tactical combat without explicit modes
 
 **DEPENDENCY CHAIN**: Chain 2 - Step 2 (Vision-Based Movement)
-- Blocked by: VS_014 (needs pathfinding for non-adjacent movement)
+- Dependencies: VS_014 ✅ COMPLETE, TD_060 (Animation Foundation) ⏳
 - Enables: VS_013 (Enemy AI needs movement system)
 
 **Architectural Constraints**:
-☑ Deterministic: Fixed TU costs
-☑ Save-Ready: Position state only
-☑ Time-Independent: Turn-based
-☑ Integer Math: Tile movement
-☑ Testable: Clear state transitions
+☑ Deterministic: Fixed TU costs (integer-based)
+☑ Save-Ready: Position state only, no animation state
+☑ Time-Independent: Turn-based execution
+☑ Integer Math: All movement costs in TU (Time Units)
+☑ Testable: Clear state transitions without UI
+
+### 📐 Technical Breakdown (Tech Lead - 2025-09-17 18:30)
+
+**Complexity Score**: 4/10 - Straightforward with clear patterns
+**Pattern Reference**: `src/Application/Combat/Commands/ExecuteAttackCommand.cs`
+
+#### Phase 1: Domain Model [0.5h]
+**Location**: `src/Darklands.Domain/Movement/`
+- Create `MovementCost.cs` - Value object (TU costs per tile)
+- Create `MovementPath.cs` - Validated path with total cost
+- Create `IMovementValidator.cs` - Interface for validation rules
+- Create `MovementValidator.cs` - Vision & TU validation logic
+**Pattern**: Follow AttackDamage/AttackResult pattern
+
+#### Phase 2: Application Layer [0.5h]
+**Location**: `src/Application/Movement/Commands/`
+- Create `MoveActorCommand.cs` - Command with actor ID and target
+- Create `MoveActorCommandHandler.cs` - Orchestrate movement
+- Integration: Call CalculatePathQuery for pathfinding
+- Integration: Update GridStateService with new position
+- Integration: Publish ActorMovedNotification
+**Pattern**: Copy ExecuteAttackCommandHandler structure
+
+#### Phase 3: Infrastructure [0.5h]
+**Location**: `src/Core/Infrastructure/Services/`
+- Extend `ISchedulerService` with vision-based activation
+- Add `CheckVisionTrigger(Position from, Position to)` method
+- Implement enemy activation when player enters vision
+**Key Logic**: If enemy sees movement → activate enemy turn
+
+#### Phase 4: Presentation [0.5h]
+**Location**: `godot_project/features/movement/`
+- Create `MovementPresenter.cs` - MVP presenter
+- Integration: Use ActorAnimator from TD_060
+- Handle: Path preview → click → animation → completion
+- Update: PathOverlay to trigger actual movement
+**Critical**: Animation completes BEFORE next turn starts
+
+
+
+## 📋 Blocked - Waiting for Dependencies
+
+*Items that cannot start until blocking dependencies are resolved*
 
 ### VS_013: Basic Enemy AI
 **Status**: Proposed - BLOCKED by VS_012
