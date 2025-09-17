@@ -259,6 +259,55 @@
 - View interface abstracts all Godot-specific rendering details from business logic
 - Full compilation success confirms proper dependency integration
 
+## ⚠️ CRITICAL POST-IMPLEMENTATION ISSUES DISCOVERED (2025-09-17 17:30)
+
+### 🚨 **VS_014 Status: IMPLEMENTATION COMPLETE BUT BROKEN IN RUNTIME**
+
+**Visual Testing Results**: PathOverlay successfully integrated but pathfinding algorithm fails basic cases:
+- ❌ **A* Algorithm Broken**: "No path found" for simple horizontal paths (21,10) → (14,10)
+- ❌ **Grid Integration Issue**: GetObstacles() or IsWalkable() may be returning incorrect data
+- ❌ **Poor UX**: Click-based interaction instead of real-time hover preview
+
+**Evidence** (Screenshot analysis):
+- Red failure lines appear instead of yellow success paths
+- Console shows "No path found" for trivial straight-line movements
+- User has to click twice instead of smooth real-time overlay
+
+### 📋 **NEXT SESSION PRIORITIES (CRITICAL FIXES)**:
+
+#### **TD_XXX: Fix A* Pathfinding Runtime Failures**
+**Status**: URGENT - Core algorithm broken
+**Priority**: Critical - Blocks VS_012
+**Root Cause**: Unknown - needs investigation
+**Symptoms**:
+- Simple horizontal/vertical paths return "No path found"
+- GetObstacles() may be marking valid tiles as blocked
+- Coordinate system mismatch between UI clicks and grid positions
+
+**Debug Steps for Next Session**:
+1. Add detailed logging to AStarAlgorithm.FindPath()
+2. Verify GetObstacles() returns correct obstacle set
+3. Test WorldToPosition() coordinate conversion accuracy
+4. Validate IsWalkable() logic for basic grid tiles
+
+#### **UX_XXX: Implement Real-Time Path Preview**
+**Status**: Enhancement - Current UX is poor
+**Priority**: Important - User experience
+**What**: Replace click-based with hover-based real-time overlay
+**Why**: Dynamic path preview as mouse moves provides better UX
+
+**Requirements**:
+- Mouse hover triggers path calculation and display
+- Live path updates as mouse moves over valid destinations
+- Smooth visual feedback without click interactions
+- Clear visual distinction between valid/invalid destinations
+
+### 🎯 **SESSION HANDOFF NOTES**:
+- **Architecture**: MVP pattern implementation is solid
+- **Integration**: All DI and scene wiring works correctly
+- **Problem**: Runtime pathfinding logic has critical bugs
+- **Next Focus**: Debug A* algorithm and improve UX to real-time overlay
+
 ### VS_012: Vision-Based Movement System
 **Status**: Approved - BLOCKED by VS_014
 **Owner**: Dev Engineer
