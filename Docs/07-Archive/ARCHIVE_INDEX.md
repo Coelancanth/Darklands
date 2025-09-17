@@ -67,14 +67,19 @@ Archives are split when they reach **1000 lines** to maintain readability and pe
 - **TD_052**: Restrict Backlog-Assistant to Archive Operations - Process clarity improvement
 - **TD_049**: Size-Based Backlog Archive Protocol - Archive management at 1000-line threshold
 
-### Completed_Backlog_005.md (Current Active - 4 items)
-**Date Range**: 2025-09-17 to present
+### Completed_Backlog_005.md (4 items, archived)
+**Date Range**: 2025-09-17 to 2025-09-17
 **Status**: Contains TD_047, TD_057, TD_058, VS_014 (2025-09-17)
 **Major Items**:
 - **TD_047**: Strategic Error Handling Boundaries - Unified Application layer to pure Fin<T> functional patterns
 - **TD_057**: Fix Nested MediatR Handler Anti-Pattern - Eliminated handler-to-handler calls with IDamageService
 - **TD_058**: Fix MediatR Pipeline Behavior Registration Order - ErrorHandlingBehavior now outermost wrapper
 - **VS_014**: A* Pathfinding Foundation - Complete 4-phase implementation with runtime fixes and real-time preview
+
+### Completed_Backlog.md (Current Active - 1 item)
+**Status**: Contains TD_060 (2025-09-17)
+**Major Items**:
+- **TD_060**: Movement Animation Foundation - Cell-by-cell animation along A* pathfinding route with non-blocking CallDeferred pattern
 **Next Split**: At 1000 lines → Completed_Backlog_006.md
 
 ## 🔍 How to Find Items

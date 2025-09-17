@@ -26,6 +26,23 @@ namespace Darklands.Presentation.Presenters
         Task UpdateActorPositionAsync(ActorId actorId, Domain.Grid.Position position);
 
         /// <summary>
+        /// Handles actor movement with a precalculated A* path.
+        /// </summary>
+        /// <param name="actorId">ID of the actor that moved</param>
+        /// <param name="fromPosition">Previous position</param>
+        /// <param name="toPosition">New position</param>
+        /// <param name="path">The A* path to animate along</param>
+        Task HandleActorMovedWithPathAsync(ActorId actorId, Position fromPosition, Position toPosition, System.Collections.Generic.List<Position>? path);
+
+        /// <summary>
+        /// Handles actor movement without a path (fallback).
+        /// </summary>
+        /// <param name="actorId">ID of the actor that moved</param>
+        /// <param name="fromPosition">Previous position</param>
+        /// <param name="toPosition">New position</param>
+        Task HandleActorMovedAsync(ActorId actorId, Position fromPosition, Position toPosition);
+
+        /// <summary>
         /// Disposes of presenter resources.
         /// </summary>
         void Dispose();

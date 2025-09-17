@@ -29,6 +29,17 @@ namespace Darklands.Presentation.Views
         Task MoveActorAsync(ActorId actorId, Position fromPosition, Position toPosition);
 
         /// <summary>
+        /// Animates an actor moving along a multi-step path with smooth interpolation.
+        /// Supports complex paths from A* pathfinding for fluid movement visualization.
+        /// Used by movement system to show complete travel from start to destination.
+        /// </summary>
+        /// <param name="actorId">Unique identifier of the actor to animate</param>
+        /// <param name="path">Path as grid positions for movement sequence</param>
+        /// <param name="speed">Movement speed in tiles per second (default: 3.0)</param>
+        /// <returns>Task that completes when animation finishes</returns>
+        Task AnimateMovementAsync(ActorId actorId, System.Collections.Generic.List<Position> path, float speed = 3.0f);
+
+        /// <summary>
         /// Updates an actor's visual state or appearance.
         /// Used for showing status effects, health changes, or other state modifications.
         /// </summary>

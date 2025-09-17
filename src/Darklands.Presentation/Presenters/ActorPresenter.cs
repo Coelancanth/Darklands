@@ -176,7 +176,50 @@ namespace Darklands.Presentation.Presenters
 
 
         /// <summary>
-        /// Handles actor movement notifications from the application layer.
+        /// Handles actor movement notifications from the application layer WITH a precalculated path.
+        /// Updates the visual representation using the exact A* path that was shown in preview.
+        /// </summary>
+        /// <param name="actorId">ID of the actor that moved</param>
+        /// <param name="fromPosition">Previous position</param>
+        /// <param name="toPosition">New position</param>
+        /// <param name="path">The A* path to animate along (null for fallback)</param>
+        public async Task HandleActorMovedWithPathAsync(Domain.Grid.ActorId actorId, Domain.Grid.Position fromPosition, Domain.Grid.Position toPosition, System.Collections.Generic.List<Domain.Grid.Position>? path)
+        {
+            _logger.Log(LogLevel.Debug, LogCategory.Gameplay, "Handling actor move with path for {0} from {1} to {2}",
+                actorId, fromPosition, toPosition);
+
+            try
+            {
+                // Use the provided A* path if available
+                if (path != null && path.Count > 0)
+                {
+                    _logger.Log(LogLevel.Information, LogCategory.Gameplay,
+                        "[ActorPresenter] Using provided A* path with {Count} positions", path.Count);
+
+                    // Use the new AnimateMovementAsync with the A* path
+                    await View.AnimateMovementAsync(actorId, path, 3.0f);
+                }
+                else
+                {
+                    // Fallback to generating straight-line path if no A* path provided
+                    _logger.Log(LogLevel.Information, LogCategory.Gameplay,
+                        "[ActorPresenter] No A* path provided, using fallback straight-line path");
+
+                    await HandleActorMovedAsync(actorId, fromPosition, toPosition);
+                }
+
+                // Show brief success feedback
+                await View.ShowActorFeedbackAsync(actorId, ActorFeedbackType.ActionSuccess, "Moved");
+            }
+            catch (Exception ex)
+            {
+                _logger.Log(LogLevel.Error, LogCategory.Gameplay, "Error in HandleActorMovedWithPathAsync for {0}: {1}",
+                    actorId, ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Handles actor movement notifications from the application layer (FALLBACK).
         /// Updates the visual representation when actors move on the grid.
         /// </summary>
         /// <param name="actorId">ID of the actor that moved</param>
@@ -189,9 +232,56 @@ namespace Darklands.Presentation.Presenters
 
             try
             {
-                // Update the actor's visual position
-                // Health bar moves automatically as a child node
-                await View.MoveActorAsync(actorId, fromPosition, toPosition);
+                // IMPORTANT: By the time this is called, the actor has ALREADY moved in the domain layer
+                // So we need to calculate the path differently - the actor is now at toPosition
+                // For now, create a simple straight-line path for testing
+
+                _logger.Log(LogLevel.Information, LogCategory.Gameplay,
+                    "[ActorPresenter] Creating path from {From} to {To} for animation", fromPosition, toPosition);
+
+                // Generate a simple grid-based path (this should ideally come from the move command)
+                var pathList = new System.Collections.Generic.List<Domain.Grid.Position>();
+
+                // Add all positions in a straight line (simplified for now)
+                int startX = fromPosition.X;
+                int startY = fromPosition.Y;
+                int endX = toPosition.X;
+                int endY = toPosition.Y;
+
+                // Calculate steps needed
+                int deltaX = endX - startX;
+                int deltaY = endY - startY;
+                int steps = Math.Max(Math.Abs(deltaX), Math.Abs(deltaY));
+
+                if (steps > 0)
+                {
+                    // Generate path positions
+                    for (int i = 0; i <= steps; i++)
+                    {
+                        int x = startX + (deltaX * i / steps);
+                        int y = startY + (deltaY * i / steps);
+                        pathList.Add(new Domain.Grid.Position(x, y));
+                    }
+
+                    _logger.Log(LogLevel.Information, LogCategory.Gameplay,
+                        "[ActorPresenter] Generated simple path with {Count} positions", pathList.Count);
+
+                    // Log each position for debugging
+                    for (int i = 0; i < pathList.Count; i++)
+                    {
+                        _logger.Log(LogLevel.Debug, LogCategory.Gameplay,
+                            "[ActorPresenter] Path[{Index}]: ({X}, {Y})", i, pathList[i].X, pathList[i].Y);
+                    }
+
+                    // Use the new AnimateMovementAsync with the generated path
+                    await View.AnimateMovementAsync(actorId, pathList, 3.0f);
+                }
+                else
+                {
+                    // No movement needed
+                    _logger.Log(LogLevel.Debug, LogCategory.Gameplay,
+                        "[ActorPresenter] No movement needed - already at destination");
+                }
 
                 // Show brief success feedback
                 await View.ShowActorFeedbackAsync(actorId, ActorFeedbackType.ActionSuccess, "Moved");

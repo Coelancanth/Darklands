@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-17 18:30 (Tech Lead - TD_060 elevated to prerequisite, VS_012 technical breakdown complete)
+**Last Updated**: 2025-09-17 19:35 (Tech Lead - TD_062 approved with elegant sub-cell waypoint solution)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See [Workflow.md - Backlog Aging Protocol](Workflow.md#-backlog-aging-protocol---the-3-10-rule) for 3-10 day aging rules
@@ -84,42 +84,163 @@
 
 *Items with no blocking dependencies, approved and ready to start*
 
-### TD_060: Movement Animation Foundation
-**Status**: Approved - Ready for Development
-**Owner**: Dev Engineer
-**Size**: S (2-3h)
-**Priority**: Critical - Prerequisite for VS_012
-**Created**: 2025-09-17 18:21
-**Updated**: 2025-09-17 18:30 (Tech Lead - Elevated to prerequisite, reduced scope)
-**Markers**: [MOVEMENT] [ANIMATION] [FOUNDATION]
+### TD_062: Fix Actor Sprite Clipping Through Obstacles During Animation
+**Status**: Approved - Ready for Dev
+**Owner**: Tech Lead → Dev Engineer
+**Size**: S (2.5h revised estimate)
+**Priority**: High - Visual bug breaking immersion
+**Created**: 2025-09-17 20:45 (Dev Engineer)
+**Updated**: 2025-09-17 19:35 (Tech Lead - Approved with sub-cell waypoint solution)
+**Markers**: [ANIMATION] [PATHFINDING] [VISUAL-BUG]
 
-**What**: Create reusable actor movement animation system
-**Why**: Foundation needed before VS_012 - separates animation from movement logic
+**What**: Prevent actor sprites from visually passing through walls/obstacles during movement
+**Why**: Current linear interpolation causes sprites to overlap impassable terrain
 
-**Technical Approach** (REVISED):
-1. Create ActorAnimator service in Presentation layer
-2. Implement MoveAlongPath(actor, path, speed) method
-3. Use Godot Tween for smooth tile-to-tile interpolation
-4. Signal-based completion notification
-5. Test with VS_014's click-to-move functionality
+**Problem Statement**:
+- Actor animates linearly between grid cells
+- When path goes around a corner, sprite cuts through the obstacle
+- Example: Path goes (0,0) → (1,0) → (1,1), but sprite moves diagonally through wall at (1,0)
+- Breaks visual consistency and immersion
 
-**Implementation Details**:
-- Location: `src/Darklands.Presentation/Services/ActorAnimator.cs`
-- Pattern: Singleton service registered in DI
-- Integration: PathOverlay calls ActorAnimator.MoveAlongPath()
-- Speed: 3 tiles/second default (configurable)
+**Visual Example**:
+```
+Current (WRONG):        Should Be (CORRECT):
+█ = Wall                █ = Wall
+P = Player              P = Player
+. = Path dot            → = Movement
 
-**Done When**:
-- [ ] ActorAnimator service created and registered
-- [ ] Smooth tile-by-tile movement working
-- [ ] Completion signals firing correctly
-- [ ] Tested with VS_014 click-to-move
+█████                   █████
+█...█  Player moves     █→→.█  Player follows
+█.P.█  diagonally       █↓P.█  the actual path
+█...█  through wall     █...█  around the wall
+█████                   █████
+```
 
-**Tech Lead Decision** (2025-09-17 18:30):
-- **ELEVATED TO PREREQUISITE** - Must complete before VS_012
-- Reduces VS_012 complexity significantly
-- Creates reusable animation pattern
-- 2-3 hour scope is achievable
+**Tech Lead Decision** (2025-09-17 19:35):
+**APPROVED - Sub-Cell Waypoint Solution**
+
+**Architectural Analysis**:
+- ✅ Aligns with ADR-006: Animation stays in View layer (no abstraction)
+- ✅ Uses approved "Animation Event Bridge" pattern from ADR-006
+- ✅ Integrates with ADR-010 UIEventBus for completion events
+- ✅ Maintains perfect logic/rendering decoupling
+
+**Selected Solution: Sub-Cell Waypoints with Callbacks**
+- Generate intermediate waypoints when path changes direction
+- Add waypoints at 30% offset from cell center at corners
+- Implement IMovementAnimationEvents for precise callback control
+- Callbacks fire when reaching actual grid cells (not sub-waypoints)
+
+**Implementation Plan**:
+1. **Phase 1 (30m)**: Create IMovementAnimationEvents interface in Core/Application
+2. **Phase 2 (45m)**: Add GenerateSmoothedPath() with corner detection to ActorView
+3. **Phase 3 (45m)**: Integrate callbacks with tween system
+4. **Phase 4 (30m)**: Test and tune waypoint offsets
+
+**Key Implementation Details**:
+- Sub-cell offset: TileSize * 0.3f (tunable)
+- Detect corners: (prev.X != next.X) && (prev.Y != next.Y)
+- Callbacks at cell boundaries, not waypoints
+- UIEventBus publishes MovementCompletedEvent
+
+**Complexity Score**: 3/10 - Following established patterns
+**Pattern Match**: ADR-006 Animation Event Bridge pattern
+**Risk**: Low - Pure presentation layer change
+
+**Dependencies**:
+- Requires TD_060 (Movement Animation) - COMPLETE ✅
+- Coordinate with TD_061 (Camera Follow) - can be done in parallel
+
+---
+
+### TD_061: Progressive FOV Updates During Movement
+**Status**: Under Review
+**Owner**: Tech Lead (analyzing)
+**Size**: M (3-4h revised estimate)
+**Priority**: Critical - Game mechanic bug
+**Created**: 2025-09-17 20:35 (Dev Engineer - misdiagnosed)
+**Updated**: 2025-09-17 19:47 (Tech Lead - Identified real issue as FOV updates)
+**Markers**: [FOV] [VISION] [MOVEMENT] [GAME-LOGIC]
+
+**What**: Update Field of View progressively as actor moves cell-by-cell
+**Why**: Currently FOV updates instantly to destination, revealing areas before actor arrives
+
+**REAL Problem Statement** (Tech Lead Analysis):
+- FOV currently updates ONCE at destination (WRONG)
+- Should update at EACH cell along movement path (CORRECT)
+- Fog of war reveals destination before actor gets there
+- This is a core game mechanic issue, not just visual
+
+**Visual Example**:
+```
+Current (WRONG):              Expected (CORRECT):
+Turn 1: Click destination     Turn 1: Click destination
+  ####?                         ####?
+  #@..?  <- FOV shows           #@..?  <- FOV at start
+  #...?     destination         #...?     position only
+  ????      immediately         ????
+
+Turn 2: Actor animating       Turn 2: Actor at cell 1
+  ####.                         ####?
+  #...@  <- Actor still         #.@.?  <- FOV updates
+  #....     moving but          #...?     per cell
+  ....      FOV already         ???       progressively
+            revealed all
+```
+
+**Architectural Complexity**:
+- Requires coordinating Domain (FOV calc), Application (sequential updates), Presentation (visibility)
+- Must maintain cell-by-cell state during animation
+- Need callback system for per-cell FOV triggers
+
+**Tech Lead Assessment**:
+- This is NOT about camera smoothing (that's trivial)
+- This IS about game state updates during movement
+- Requires careful coordination between layers
+- May need new movement event pattern
+
+**Proposed Solution** (Tech Lead - 2025-09-17 19:47):
+
+**Option A: Animation Callbacks with FOV Updates** (Recommended)
+```csharp
+// Use IMovementAnimationEvents from TD_062 pattern
+public interface IMovementAnimationEvents
+{
+    void OnCellReached(ActorId actorId, Position cellPosition);
+    // When cell reached -> Trigger FOV update for that position
+}
+```
+- Leverage TD_062's callback system
+- FOV updates triggered per cell during animation
+- Maintains clean separation of concerns
+
+**Option B: Staged Movement Command** (More Complex)
+- Break movement into cell-by-cell commands
+- Each command updates FOV for one cell
+- Chain commands with animation timing
+- Risk: Complexity, save/load issues
+
+**Option C: Visual-Only Fog** (Compromised)
+- Keep instant FOV update in domain
+- Add visual fog overlay that reveals progressively
+- Simpler but less authentic
+
+**Recommendation**: Option A using animation callbacks
+- Reuses TD_062 pattern (already approved)
+- Clean architectural boundaries
+- FOV remains deterministic
+- Animation drives revelation timing
+
+**Implementation Plan**:
+1. Extend IMovementAnimationEvents with FOV trigger
+2. GridPresenter calculates FOV per cell callback
+3. Update tile visibility progressively
+4. Maintain explored vs visible distinction
+
+**Complexity Score**: 5/10 - Cross-layer coordination required
+**Dependencies**: TD_062 callback system
+
+---
 
 
 

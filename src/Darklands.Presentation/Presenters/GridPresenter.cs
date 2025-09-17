@@ -174,6 +174,38 @@ namespace Darklands.Presentation.Presenters
             // Get the player's current position BEFORE the move for visual updates
             var fromPositionOption = _gridStateService.GetActorPosition(playerId);
 
+            if (!fromPositionOption.IsSome)
+            {
+                _logger.Log(LogLevel.Warning, LogCategory.System, "Cannot move - player position unknown");
+                return;
+            }
+
+            var fromPosition = fromPositionOption.Match(p => p, () => new Domain.Grid.Position(0, 0));
+
+            // Calculate the A* path BEFORE moving (same as hover preview)
+            var pathQuery = Application.Grid.Queries.CalculatePathQuery.Create(fromPosition, targetPosition);
+            var pathResult = await _mediator.Send(pathQuery);
+
+            // Store the path for animation
+            System.Collections.Generic.List<Domain.Grid.Position>? animationPath = null;
+
+            await pathResult.Match(
+                Succ: path =>
+                {
+                    animationPath = path.ToList();
+                    _logger.Log(LogLevel.Information, LogCategory.Pathfinding,
+                        "[GridPresenter] Calculated A* path with {Count} positions for move animation", animationPath.Count);
+                    return Task.CompletedTask;
+                },
+                Fail: error =>
+                {
+                    _logger.Log(LogLevel.Warning, LogCategory.Pathfinding,
+                        "[GridPresenter] Path calculation failed, will use fallback: {Error}", error.Message);
+                    return Task.CompletedTask;
+                }
+            );
+
+            // Now execute the move
             var moveCommand = Application.Grid.Commands.MoveActorCommand.Create(playerId, targetPosition);
             var result = await _mediator.Send(moveCommand);
 
@@ -187,15 +219,14 @@ namespace Darklands.Presentation.Presenters
                     _logger.Log(LogLevel.Debug, LogCategory.Gameplay, "After move command - Player position in GridStateService: {Position}",
                         newPositionOption.Match(p => p.ToString(), () => "NOT_FOUND"));
 
-                    // Notify ActorPresenter about the successful move
-                    if (_actorPresenter != null && fromPositionOption.IsSome)
+                    // Notify ActorPresenter about the successful move WITH THE PATH
+                    if (_actorPresenter != null)
                     {
-                        var from = fromPositionOption.Match(p => p, () => new Domain.Grid.Position(0, 0));
-                        await _actorPresenter.HandleActorMovedAsync(playerId, from, targetPosition);
+                        await _actorPresenter.HandleActorMovedWithPathAsync(playerId, fromPosition, targetPosition, animationPath);
                     }
                     else
                     {
-                        _logger.Log(LogLevel.Warning, LogCategory.System, "ActorPresenter not available or from position unknown - visual update skipped");
+                        _logger.Log(LogLevel.Warning, LogCategory.System, "ActorPresenter not available - visual update skipped");
                     }
 
                     // Update player vision after movement (fog of war)
