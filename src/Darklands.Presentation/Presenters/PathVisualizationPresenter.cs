@@ -94,7 +94,7 @@ namespace Darklands.Presentation.Presenters
                 await pathResult.Match(
                     Succ: async path =>
                     {
-                        _logger.Log(LogLevel.Information, LogCategory.Pathfinding, "Path found with {PathLength} positions",
+                        _logger.Log(LogLevel.Debug, LogCategory.Pathfinding, "Path found with {PathLength} positions",
                             path.Count);
                         await View.ShowPathAsync(path, fromPosition, toPosition);
                     },

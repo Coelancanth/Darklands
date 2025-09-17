@@ -63,8 +63,6 @@ namespace Darklands.Views
             // Set initial player position for testing (in production this would come from game state)
             // TODO: Get actual player position from GridStateService
             SetPlayerPosition(new Position(15, 10)); // Center of 30x20 grid for testing
-
-            GD.Print("PathOverlay: Ready - Move mouse over grid to preview paths! Click to move player.");
         }
 
         /// <summary>
@@ -82,7 +80,11 @@ namespace Darklands.Views
         public void SetPlayerPosition(Position position)
         {
             _currentPlayerPosition = position;
-            GD.Print($"PathOverlay: Player position set to {position}");
+            // Debug-only logging - remove in production
+            if (OS.IsDebugBuild())
+            {
+                GD.Print($"[DEBUG] PathOverlay: Player position set to {position}");
+            }
         }
 
         /// <summary>
@@ -170,7 +172,7 @@ namespace Darklands.Views
             // Validate grid position is within bounds
             if (gridPos.X < 0 || gridPos.X >= 30 || gridPos.Y < 0 || gridPos.Y >= 20)
             {
-                GD.PrintErr($"PathOverlay: Click outside grid bounds: {gridPos}");
+                // Silent rejection - no need to log invalid clicks
                 return;
             }
 
@@ -217,7 +219,7 @@ namespace Darklands.Views
 
             if (_pendingPath.Length == 0)
             {
-                GD.Print($"PathOverlay: Empty path from {startPosition} to {endPosition}");
+                // Silent return - empty paths are expected for same position
                 return;
             }
 
@@ -250,7 +252,7 @@ namespace Darklands.Views
                 }
             }
 
-            GD.Print($"PathOverlay: Displayed path with {_pendingPath.Length} positions");
+            // Path display complete - no logging needed for hover events
         }
 
         /// <summary>
@@ -317,9 +319,11 @@ namespace Darklands.Views
             CreatePositionMarker(startPosition, NO_PATH_COLOR, "START");
             CreatePositionMarker(endPosition, NO_PATH_COLOR, "BLOCKED");
 
-            GD.PrintErr($"PathOverlay: No path found from {startPosition} to {endPosition}");
-            GD.PrintErr($"  Reason: {reason}");
-            GD.PrintErr($"  This usually means one of the positions is blocked or invalid");
+            // Log only in debug builds to avoid console spam
+            if (OS.IsDebugBuild())
+            {
+                GD.Print($"[DEBUG] No path: {startPosition} to {endPosition} - {reason}");
+            }
         }
 
         /// <summary>
@@ -356,7 +360,7 @@ namespace Darklands.Views
                 CreateEndpointHighlight(endpoint);
             }
 
-            GD.Print($"PathOverlay: Highlighted {_pendingEndpoints.Length} valid endpoints from {fromPosition}");
+            // Endpoint highlighting complete - no logging needed
         }
 
         /// <summary>

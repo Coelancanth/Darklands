@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-17 12:37 (Tech Lead - Added complete technical breakdown for VS_014 A* pathfinding)
+**Last Updated**: 2025-09-17 18:21 (Tech Lead - VS_014 production review complete, logging fixed, movement animation scoped to VS_012)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See [Workflow.md - Backlog Aging Protocol](Workflow.md#-backlog-aging-protocol---the-3-10-rule) for 3-10 day aging rules
@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 008
-- **Next TD**: 060
+- **Next TD**: 061
 - **Next VS**: 015 
 
 
@@ -305,6 +305,19 @@ var obstacles = allObstacles.Remove(from); // Remove start position from obstacl
 - **Runtime Issues**: All fixed (coordinate conversion, self-blocking) ✅
 - **UX Enhancement**: Real-time hover preview implemented ✅
 - **Performance**: Throttled to 10 updates/second, smooth experience ✅
+- **Logging**: Fixed to debug level, no console spam on hover ✅
+
+### Tech Lead Production Review (2025-09-17 18:21):
+✅ **Logging Issues Fixed**:
+- Converted all GD.Print() to debug-only or removed
+- Changed PathVisualizationPresenter Information level to Debug
+- No more console spam during hover events
+
+⚠️ **Movement Animation - OUT OF SCOPE**:
+- VS_014 is ONLY pathfinding visualization
+- Actual movement execution belongs in VS_012
+- Created TD_060 to track animation requirements
+- **Architectural Decision**: Maintain clear separation between pathfinding (VS_014) and movement execution (VS_012)
 
 ### Real-Time Preview Enhancement (2025-09-17 20:10):
 ✅ **Implementation Complete**:
@@ -369,6 +382,43 @@ var obstacles = allObstacles.Remove(from); // Remove start position from obstacl
 ☑ Time-Independent: Decisions based on game state not time
 ☑ Integer Math: All AI calculations use integers
 ☑ Testable: AI logic can be unit tested
+
+---
+
+### TD_060: Movement Animation System
+**Status**: Proposed
+**Owner**: Tech Lead → Dev Engineer (when VS_012 starts)
+**Size**: M (4-6h)
+**Priority**: Important - But NOT blocking
+**Created**: 2025-09-17 18:21 (Tech Lead - Identified during VS_014 review)
+**Markers**: [MOVEMENT] [ANIMATION] [UX]
+
+**What**: Implement step-by-step movement animation instead of teleportation
+**Why**: Current click-to-teleport is jarring - needs smooth movement for production quality
+
+**Technical Context**:
+- VS_014 provides pathfinding visualization (COMPLETE)
+- VS_012 will provide movement execution system (NOT STARTED)
+- Animation system should be part of VS_012, not retrofitted to VS_014
+
+**Proposed Approach**:
+1. Integrate with VS_012 movement command execution
+2. Animate actor moving tile-by-tile along calculated path
+3. Use Godot tweens for smooth interpolation
+4. Block input during movement animation
+5. Support movement speed configuration
+
+**Done When**:
+- [ ] Actor moves smoothly along path tiles
+- [ ] Movement speed configurable (tiles/second)
+- [ ] Input properly blocked during animation
+- [ ] Interruption handling implemented
+
+**Tech Lead Decision** (2025-09-17 18:21):
+- **APPROVED** but deferred to VS_012 implementation
+- Movement animation is presentation layer concern
+- Should NOT be retrofitted to VS_014 (pathfinding only)
+- Proper separation of concerns must be maintained
 
 ---
 
