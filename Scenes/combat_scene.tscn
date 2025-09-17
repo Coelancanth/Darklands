@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://umtdiuyv1ifi" path="res://Views/ActorView.cs" id="2_qumoa"]
 [ext_resource type="Script" uid="uid://d17tgsg3d33q2" path="res://Views/GridView.cs" id="4_gridview"]
-[ext_resource type="PackedScene" path="res://Views/PathOverlay.tscn" id="5_pathoverlay"]
+[ext_resource type="PackedScene" uid="uid://bb2xwpnv8xsgb" path="res://Views/PathOverlay.tscn" id="5_pathoverlay"]
 
 [node name="CombatScene" type="Node2D"]
 
