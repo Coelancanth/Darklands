@@ -91,12 +91,12 @@
 *Items that cannot start until blocking dependencies are resolved*
 
 ### VS_014: A* Pathfinding Foundation
-**Status**: COMPLETE - All 4 Phases Finished
+**Status**: COMPLETE - All 4 Phases Finished + Runtime Fix Applied
 **Owner**: Dev Engineer → Ready for VS_012
-**Size**: S (3h total, actual: 3.25h)
+**Size**: S (3h total, actual: 4h including runtime fix)
 **Priority**: Critical - Foundation for movement system
 **Created**: 2025-09-11 18:12
-**Updated**: 2025-09-17 17:15 (Dev Engineer - Phase 4 complete, VS_014 fully implemented)
+**Updated**: 2025-09-17 18:45 (Dev Engineer - Runtime coordinate conversion fixed)
 **Markers**: [MOVEMENT] [PATHFINDING] [CHAIN-2-MOVEMENT]
 
 **What**: Implement A* pathfinding algorithm with visual path display
@@ -108,12 +108,13 @@
 - Blocks: VS_013 (Enemy AI needs movement)
 
 **Done When**:
-- [x] A* finds optimal paths deterministically (17/18 tests passing)
+- [x] A* finds optimal paths deterministically (100% tests passing)
 - [x] Diagonal movement works correctly (1.41x cost = 141 integer)
-- [ ] Path visualizes on grid before movement (Phase 4 not started)
+- [x] Path visualizes on grid before movement (PathOverlay implemented)
 - [x] Performance <10ms for typical paths (test execution confirms)
 - [x] Handles no-path-exists gracefully (returns None)
-- [x] All tests pass including edge cases (94% pass rate)
+- [x] All tests pass including edge cases (100% pass rate)
+- [x] Coordinate conversion fixed in Godot runtime
 
 **Architectural Constraints**:
 ☑ Deterministic: Consistent tie-breaking rules (F→H→X→Y implemented)
@@ -259,36 +260,32 @@
 - View interface abstracts all Godot-specific rendering details from business logic
 - Full compilation success confirms proper dependency integration
 
-## ⚠️ CRITICAL POST-IMPLEMENTATION ISSUES DISCOVERED (2025-09-17 17:30)
+## ✅ VS_014 FULLY RESOLVED (2025-09-17 19:30)
 
-### 🚨 **VS_014 Status: IMPLEMENTATION COMPLETE BUT BROKEN IN RUNTIME**
+### 🎉 **VS_014 Status: COMPLETE - All Runtime Issues Fixed**
 
-**Visual Testing Results**: PathOverlay successfully integrated but pathfinding algorithm fails basic cases:
-- ❌ **A* Algorithm Broken**: "No path found" for simple horizontal paths (21,10) → (14,10)
-- ❌ **Grid Integration Issue**: GetObstacles() or IsWalkable() may be returning incorrect data
-- ❌ **Poor UX**: Click-based interaction instead of real-time hover preview
+**Two Critical Issues Found and Fixed**:
 
-**Evidence** (Screenshot analysis):
-- Red failure lines appear instead of yellow success paths
-- Console shows "No path found" for trivial straight-line movements
-- User has to click twice instead of smooth real-time overlay
+1. **Coordinate Conversion Issue (Fixed at 18:45)**:
+   - ❌ **Bug**: Used `mouseEvent.Position` (screen coordinates) directly
+   - ✅ **Fix**: Changed to `GetLocalMousePosition()` for correct node-local coordinates
 
-### 📋 **NEXT SESSION PRIORITIES (CRITICAL FIXES)**:
+2. **Actor Self-Blocking Issue (Fixed at 19:30)**:
+   - ❌ **Bug**: Player's own position was included in obstacles list
+   - ✅ **Fix**: Exclude start position from obstacles in CalculatePathQueryHandler
 
-#### **TD_XXX: Fix A* Pathfinding Runtime Failures**
-**Status**: URGENT - Core algorithm broken
-**Priority**: Critical - Blocks VS_012
-**Root Cause**: Unknown - needs investigation
-**Symptoms**:
-- Simple horizontal/vertical paths return "No path found"
-- GetObstacles() may be marking valid tiles as blocked
-- Coordinate system mismatch between UI clicks and grid positions
+**Final Solution**:
+```csharp
+// In CalculatePathQueryHandler.cs:
+var allObstacles = _gridStateService.GetObstacles();
+var obstacles = allObstacles.Remove(from); // Remove start position from obstacles
+```
 
-**Debug Steps for Next Session**:
-1. Add detailed logging to AStarAlgorithm.FindPath()
-2. Verify GetObstacles() returns correct obstacle set
-3. Test WorldToPosition() coordinate conversion accuracy
-4. Validate IsWalkable() logic for basic grid tiles
+**E2E Test Results**:
+- ✅ Pathfinding now works correctly in Godot runtime
+- ✅ Yellow path lines display properly between clicked positions
+- ✅ Player can pathfind from their own position
+- ✅ Obstacles are correctly avoided in path calculations
 
 #### **UX_XXX: Implement Real-Time Path Preview**
 **Status**: Enhancement - Current UX is poor

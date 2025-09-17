@@ -60,9 +60,13 @@ namespace Darklands.Application.Grid.Queries
         private Fin<Seq<Position>> CalculatePathWithAlgorithm(Position from, Position to)
         {
             // Get current obstacles (actors + impassable terrain)
-            var obstacles = _gridStateService.GetObstacles();
+            var allObstacles = _gridStateService.GetObstacles();
 
-            _logger.Log(LogLevel.Debug, LogCategory.Pathfinding, "Pathfinding with {ObstacleCount} obstacles", obstacles.Count);
+            // CRITICAL FIX: Remove the start position from obstacles
+            // The actor at the start position shouldn't block their own pathfinding!
+            var obstacles = allObstacles.Remove(from);
+
+            _logger.Log(LogLevel.Debug, LogCategory.Pathfinding, "Pathfinding with {ObstacleCount} obstacles (excluded start position)", obstacles.Count);
 
             // Use A* algorithm to find path
             var pathOption = _pathfindingAlgorithm.FindPath(from, to, obstacles);

@@ -128,6 +128,7 @@ namespace Darklands.Application.Grid.Services
 
         public Fin<Unit> AddActorToGrid(ActorId actorId, Position position)
         {
+
             if (!IsValidPosition(position))
                 return FinFail<Unit>(Error.New($"INVALID_POSITION: Position {position} is outside grid bounds"));
 

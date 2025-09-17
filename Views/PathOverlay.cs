@@ -74,7 +74,17 @@ namespace Darklands.Views
                 if (_presenter == null) return;
 
                 // Convert mouse position to grid position
-                var gridPos = WorldToPosition(mouseEvent.Position);
+                // CRITICAL FIX: Use GetLocalMousePosition() for correct coordinate conversion
+                // mouseEvent.Position is in screen space, we need local space relative to this Node2D
+                var localMousePos = GetLocalMousePosition();
+                var gridPos = WorldToPosition(localMousePos);
+
+                // Validate grid position is within bounds (30x20 grid)
+                if (gridPos.X < 0 || gridPos.X >= 30 || gridPos.Y < 0 || gridPos.Y >= 20)
+                {
+                    GD.PrintErr($"PathOverlay: Click outside grid bounds: {gridPos}");
+                    return;
+                }
 
                 if (_startPosition == null)
                 {
@@ -223,10 +233,12 @@ namespace Darklands.Views
             _pathContainer.AddChild(line);
 
             // Create error markers
-            CreatePositionMarker(startPosition, NO_PATH_COLOR, "X");
-            CreatePositionMarker(endPosition, NO_PATH_COLOR, "X");
+            CreatePositionMarker(startPosition, NO_PATH_COLOR, "START");
+            CreatePositionMarker(endPosition, NO_PATH_COLOR, "BLOCKED");
 
-            GD.Print($"PathOverlay: No path found from {startPosition} to {endPosition} - {reason}");
+            GD.PrintErr($"PathOverlay: No path found from {startPosition} to {endPosition}");
+            GD.PrintErr($"  Reason: {reason}");
+            GD.PrintErr($"  This usually means one of the positions is blocked or invalid");
         }
 
         /// <summary>
