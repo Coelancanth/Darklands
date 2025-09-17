@@ -229,3 +229,33 @@
 - Event stream processing
 - Visual dashboard for analysis
 **Reference**: ADR-007 Future Considerations section
+
+
+### TD_061: Camera Follow During Movement Animation
+**Status**: Not Started
+**Owner**: Unassigned
+**Size**: S (1-2h estimate)
+**Priority**: High - UX improvement
+**Created**: 2025-09-17 20:35 (Dev Engineer)
+**Markers**: [CAMERA] [MOVEMENT] [UX]
+
+**What**: Make camera follow player smoothly during movement animation
+**Why**: Currently camera only updates on click destination, not during movement
+
+**Problem Statement**:
+- Player moves cell-by-cell with smooth animation (TD_060 complete)
+- Camera jumps to destination immediately on click
+- Player can move off-screen during animation
+- Poor UX when moving long distances
+
+**Proposed Solution**:
+1. GridView subscribes to actor position updates during animation
+2. Camera smoothly interpolates to follow actor
+3. Optional: Camera leads slightly ahead on path for better visibility
+4. Ensure camera doesn't jitter with tween updates
+
+**Technical Approach**:
+- Hook into ActorView's tween updates
+- Update camera position per frame or per cell
+- Use smooth camera interpolation (lerp)
+- Consider viewport boundaries

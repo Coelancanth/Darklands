@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-17 19:15 (Tech Lead - TD_060 revised for ADR-006 compliance, simpler and more elegant)
+**Last Updated**: 2025-09-17 19:35 (Tech Lead - TD_062 approved with elegant sub-cell waypoint solution)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See [Workflow.md - Backlog Aging Protocol](Workflow.md#-backlog-aging-protocol---the-3-10-rule) for 3-10 day aging rules
@@ -84,6 +84,75 @@
 
 *Items with no blocking dependencies, approved and ready to start*
 
+### TD_062: Fix Actor Sprite Clipping Through Obstacles During Animation
+**Status**: Approved - Ready for Dev
+**Owner**: Tech Lead → Dev Engineer
+**Size**: S (2.5h revised estimate)
+**Priority**: High - Visual bug breaking immersion
+**Created**: 2025-09-17 20:45 (Dev Engineer)
+**Updated**: 2025-09-17 19:35 (Tech Lead - Approved with sub-cell waypoint solution)
+**Markers**: [ANIMATION] [PATHFINDING] [VISUAL-BUG]
+
+**What**: Prevent actor sprites from visually passing through walls/obstacles during movement
+**Why**: Current linear interpolation causes sprites to overlap impassable terrain
+
+**Problem Statement**:
+- Actor animates linearly between grid cells
+- When path goes around a corner, sprite cuts through the obstacle
+- Example: Path goes (0,0) → (1,0) → (1,1), but sprite moves diagonally through wall at (1,0)
+- Breaks visual consistency and immersion
+
+**Visual Example**:
+```
+Current (WRONG):        Should Be (CORRECT):
+█ = Wall                █ = Wall
+P = Player              P = Player
+. = Path dot            → = Movement
+
+█████                   █████
+█...█  Player moves     █→→.█  Player follows
+█.P.█  diagonally       █↓P.█  the actual path
+█...█  through wall     █...█  around the wall
+█████                   █████
+```
+
+**Tech Lead Decision** (2025-09-17 19:35):
+**APPROVED - Sub-Cell Waypoint Solution**
+
+**Architectural Analysis**:
+- ✅ Aligns with ADR-006: Animation stays in View layer (no abstraction)
+- ✅ Uses approved "Animation Event Bridge" pattern from ADR-006
+- ✅ Integrates with ADR-010 UIEventBus for completion events
+- ✅ Maintains perfect logic/rendering decoupling
+
+**Selected Solution: Sub-Cell Waypoints with Callbacks**
+- Generate intermediate waypoints when path changes direction
+- Add waypoints at 30% offset from cell center at corners
+- Implement IMovementAnimationEvents for precise callback control
+- Callbacks fire when reaching actual grid cells (not sub-waypoints)
+
+**Implementation Plan**:
+1. **Phase 1 (30m)**: Create IMovementAnimationEvents interface in Core/Application
+2. **Phase 2 (45m)**: Add GenerateSmoothedPath() with corner detection to ActorView
+3. **Phase 3 (45m)**: Integrate callbacks with tween system
+4. **Phase 4 (30m)**: Test and tune waypoint offsets
+
+**Key Implementation Details**:
+- Sub-cell offset: TileSize * 0.3f (tunable)
+- Detect corners: (prev.X != next.X) && (prev.Y != next.Y)
+- Callbacks at cell boundaries, not waypoints
+- UIEventBus publishes MovementCompletedEvent
+
+**Complexity Score**: 3/10 - Following established patterns
+**Pattern Match**: ADR-006 Animation Event Bridge pattern
+**Risk**: Low - Pure presentation layer change
+
+**Dependencies**:
+- Requires TD_060 (Movement Animation) - COMPLETE ✅
+- Coordinate with TD_061 (Camera Follow) - can be done in parallel
+
+---
+
 ### TD_061: Camera Follow During Movement Animation
 **Status**: Not Started
 **Owner**: Unassigned
@@ -114,91 +183,6 @@
 - Consider viewport boundaries
 
 ---
-
-### TD_060: Movement Animation Foundation ✅
-**Status**: COMPLETE
-**Owner**: Dev Engineer
-**Size**: M (4h actual - scope expanded)
-**Priority**: Critical - Prerequisite for VS_012
-**Created**: 2025-09-17 18:21
-**Updated**: 2025-09-17 20:30 (FULLY COMPLETE with A* integration)
-**Markers**: [MOVEMENT] [ANIMATION] [FOUNDATION] [COMPLETE]
-
-**What**: Add movement animation capability to ActorView using Godot directly
-**Why**: Foundation needed before VS_012 - enables smooth visual movement
-
-**Final Implementation** (2025-09-17 20:30):
-✅ Tests: 688/692 passing (4 skipped, 0 failed)
-✅ Build: Zero warnings
-✅ Files Modified (Final):
-  - `Views\ActorView.cs` - Non-blocking AnimateMovementAsync with CallDeferred
-  - `src\Darklands.Presentation\Views\IActorView.cs` - Added interface method
-  - `src\Darklands.Presentation\Presenters\ActorPresenter.cs` - HandleActorMovedWithPathAsync
-  - `src\Darklands.Presentation\Presenters\GridPresenter.cs` - Pre-calculates A* path
-  - `src\Darklands.Presentation\Presenters\IActorPresenter.cs` - Updated interface
-
-**Implementation Journey**:
-1. **Phase 1**: Basic tween - caused game freeze with await ToSignal
-2. **Phase 2**: Non-blocking with CallDeferred queue - fixed freeze
-3. **Phase 3**: A* path integration - animation matches preview perfectly
-
-**Key Achievements**:
-- ✅ Cell-by-cell animation along exact A* pathfinding route
-- ✅ Non-blocking using queue + CallDeferred pattern (no freeze)
-- ✅ Perfect match between hover preview dots and movement animation
-- ✅ Path calculated BEFORE move to avoid self-blocking in pathfinding
-- ✅ Fallback to straight-line if A* fails
-
-**Critical Lessons**:
-- Godot Tween + async/await can deadlock main thread
-- Must calculate path BEFORE domain state changes
-- CallDeferred essential for thread-safe Godot operations
-- Animation and preview must use same path source
-
-**Implementation Details**:
-```csharp
-// In ActorView.cs (Presentation layer) - Direct Godot usage
-public partial class ActorView : Node2D
-{
-    public async Task AnimateMovement(List<Vector2> path, float speed = 3.0f)
-    {
-        var tween = CreateTween();
-        foreach (var position in path)
-        {
-            tween.TweenProperty(this, "position", position, 1.0f / speed);
-        }
-        await ToSignal(tween, Tween.SignalName.Finished);
-    }
-}
-
-// In MovementPresenter.cs - Coordinates domain & view
-public class MovementPresenter : EventAwarePresenter<IActorView>
-{
-    protected override void SubscribeToEvents()
-    {
-        _eventBus.Subscribe<ActorMovedEvent>(this, OnActorMoved);
-    }
-
-    private async void OnActorMoved(ActorMovedEvent e)
-    {
-        await _view.AnimateMovement(e.Path, e.Speed);
-        _eventBus.PublishAsync(new MovementAnimationCompletedEvent(e.ActorId));
-    }
-}
-```
-
-**Done When**:
-- [ ] ActorView.AnimateMovement method implemented
-- [ ] MovementPresenter coordinates animations
-- [ ] Smooth tile-by-tile movement visible
-- [ ] UIEventBus notifications working
-- [ ] Tested with VS_014 pathfinding
-
-**Tech Lead Decision** (2025-09-17 19:15):
-- **ARCHITECTURALLY ALIGNED** - Respects ADR-006 (no animation abstraction)
-- **SIMPLER** - Reduced from 2-3h to 1-2h by removing unnecessary service
-- **ELEGANT** - Uses Godot directly as intended, presenter coordinates
-- **PATTERN** - Establishes correct View-Presenter animation pattern
 
 
 
