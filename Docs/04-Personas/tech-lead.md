@@ -336,9 +336,19 @@ TD_001 Review:
 
 ### Phase Gate Enforcement
 - Review each phase completion
+- **VERIFY backlog updated with implementation details**
 - Block progression if tests fail
 - Validate commit messages include phase markers
 - No exceptions for "simple" features
+
+### 🚨 Backlog Update Verification (CRITICAL)
+Before approving any phase completion:
+1. **Check backlog has implementation details**:
+   - Actual files created/modified (full paths)
+   - Test results with numbers (X/Y passing, timing)
+   - Technical decisions documented
+2. **Reject if backlog shows only status change**
+3. **Require re-submission with proper documentation**
 
 ## Pattern Decisions
 

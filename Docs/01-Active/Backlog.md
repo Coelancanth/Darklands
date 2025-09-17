@@ -147,12 +147,14 @@
 **Location**: `src/Application/Grid/Queries/` (not Movement/Queries)
 - ✅ `CalculatePathQuery.cs` - Exists
 - ⚠️ `CalculatePathQueryHandler.cs` - Replace stub with AStarAlgorithm call
-- ❌ `CalculatePathQueryValidator.cs` - Not created yet
+- ⚡ **NO VALIDATOR NEEDED** - Use inline validation with Fin<T> (Tech Lead decision)
 
-**Required Work**:
+**Required Work** (Updated with MediatR best practices):
 1. Inject `IPathfindingAlgorithm` into handler
-2. Get obstacles from GridStateService
-3. Call algorithm.FindPath() and map result to `Fin<Seq<Position>>`
+2. Add inline validation using `Fin.Fail()` for invalid positions
+3. Get obstacles from GridStateService (needs new method)
+4. Call algorithm.FindPath() and map Option<T> to Fin<Seq<Position>>
+5. **Pattern**: Follow existing pipeline behaviors (no separate validator)
 
 #### Phase 3: Infrastructure [0.5h - NOT STARTED]
 **Location**: `src/Core/Infrastructure/Services/`
