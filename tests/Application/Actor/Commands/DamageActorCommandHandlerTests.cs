@@ -4,6 +4,7 @@ using LanguageExt;
 using LanguageExt.Common;
 using Darklands.Application.Actor.Commands;
 using Darklands.Application.Actor.Services;
+using Darklands.Domain.Combat.Services;
 using Darklands.Domain.Grid;
 using Darklands.Core.Tests.TestUtilities;
 using Serilog;
@@ -17,27 +18,19 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
     [Trait("Category", "Phase2")]
     public class DamageActorCommandHandlerTests
     {
-        // Test stub for IActorStateService - minimal implementation for testing
-        private class TestActorStateService : IActorStateService
+        // Test stub for IDamageService - minimal implementation for testing
+        private class TestDamageService : IDamageService
         {
-            private readonly bool _actorExists;
             private readonly Darklands.Domain.Actor.Actor? _actor;
             private readonly bool _damageSucceeds;
 
-            public TestActorStateService(bool actorExists = true, Darklands.Domain.Actor.Actor? actor = null, bool damageSucceeds = true)
+            public TestDamageService(Darklands.Domain.Actor.Actor? actor = null, bool damageSucceeds = true)
             {
-                _actorExists = actorExists;
                 _actor = actor;
                 _damageSucceeds = damageSucceeds;
             }
 
-            public Fin<Unit> AddActor(Darklands.Domain.Actor.Actor actor)
-                => FinSucc(unit);
-
-            public Option<Darklands.Domain.Actor.Actor> GetActor(ActorId actorId)
-                => _actorExists && _actor != null ? Some(_actor) : None;
-
-            public Fin<Darklands.Domain.Actor.Actor> DamageActor(ActorId actorId, int damage)
+            public Fin<Darklands.Domain.Actor.Actor> ApplyDamage(ActorId actorId, int damage, string source)
             {
                 if (!_damageSucceeds)
                     return FinFail<Darklands.Domain.Actor.Actor>(Error.New("DAMAGE_FAILED: Simulated failure"));
@@ -45,18 +38,15 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
                 if (_actor == null)
                     return FinFail<Darklands.Domain.Actor.Actor>(Error.New("ACTOR_NOT_FOUND: Actor not found"));
 
+                if (damage < 0)
+                    return FinFail<Darklands.Domain.Actor.Actor>(Error.New("INVALID_DAMAGE: Damage amount cannot be negative"));
+
                 var result = _actor.TakeDamage(damage);
                 return result.Match(
                     Succ: damagedActor => FinSucc(damagedActor),
                     Fail: error => FinFail<Darklands.Domain.Actor.Actor>(error)
                 );
             }
-
-            // Other interface methods - not used in damage tests
-            public Fin<LanguageExt.Unit> UpdateActorHealth(ActorId actorId, Darklands.Domain.Actor.Health newHealth) => FinSucc(LanguageExt.Unit.Default);
-            public Fin<Darklands.Domain.Actor.Actor> HealActor(ActorId actorId, int healAmount) => FinSucc(_actor!);
-            public Option<bool> IsActorAlive(ActorId actorId) => Some(true);
-            public Fin<LanguageExt.Unit> RemoveDeadActor(ActorId actorId) => FinSucc(LanguageExt.Unit.Default);
         }
 
         private readonly ActorId _validActorId = ActorId.NewId(TestIdGenerator.Instance);
@@ -71,8 +61,8 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
             );
 
             var command = DamageActorCommand.Create(_validActorId, 25, "Sword Attack");
-            var actorService = new TestActorStateService(actorExists: true, actor: testActor, damageSucceeds: true);
-            var handler = new DamageActorCommandHandler(actorService, new NullCategoryLogger());
+            var damageService = new TestDamageService(actor: testActor, damageSucceeds: true);
+            var handler = new DamageActorCommandHandler(damageService, new NullCategoryLogger());
 
             // Act
             var result = await handler.Handle(command, CancellationToken.None);
@@ -86,8 +76,8 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
         {
             // Arrange
             var command = DamageActorCommand.Create(_validActorId, 25);
-            var actorService = new TestActorStateService(actorExists: false);
-            var handler = new DamageActorCommandHandler(actorService, new NullCategoryLogger());
+            var damageService = new TestDamageService(actor: null);
+            var handler = new DamageActorCommandHandler(damageService, new NullCategoryLogger());
 
             // Act
             var result = await handler.Handle(command, CancellationToken.None);
@@ -110,8 +100,8 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
             );
 
             var command = DamageActorCommand.Create(_validActorId, -10);
-            var actorService = new TestActorStateService(actorExists: true, actor: testActor);
-            var handler = new DamageActorCommandHandler(actorService, new NullCategoryLogger());
+            var damageService = new TestDamageService(actor: testActor);
+            var handler = new DamageActorCommandHandler(damageService, new NullCategoryLogger());
 
             // Act
             var result = await handler.Handle(command, CancellationToken.None);
@@ -134,8 +124,8 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
             );
 
             var command = DamageActorCommand.Create(_validActorId, 25);
-            var actorService = new TestActorStateService(actorExists: true, actor: testActor, damageSucceeds: false);
-            var handler = new DamageActorCommandHandler(actorService, new NullCategoryLogger());
+            var damageService = new TestDamageService(actor: testActor, damageSucceeds: false);
+            var handler = new DamageActorCommandHandler(damageService, new NullCategoryLogger());
 
             // Act
             var result = await handler.Handle(command, CancellationToken.None);
@@ -158,8 +148,8 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
             );
 
             var command = DamageActorCommand.Create(_validActorId, 0, "No Damage");
-            var actorService = new TestActorStateService(actorExists: true, actor: testActor);
-            var handler = new DamageActorCommandHandler(actorService, new NullCategoryLogger());
+            var damageService = new TestDamageService(actor: testActor);
+            var handler = new DamageActorCommandHandler(damageService, new NullCategoryLogger());
 
             // Act
             var result = await handler.Handle(command, CancellationToken.None);
@@ -178,8 +168,8 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
             );
 
             var command = DamageActorCommand.Create(_validActorId, 15, "Death Blow"); // More than current health
-            var actorService = new TestActorStateService(actorExists: true, actor: lowHealthActor);
-            var handler = new DamageActorCommandHandler(actorService, new NullCategoryLogger());
+            var damageService = new TestDamageService(actor: lowHealthActor);
+            var handler = new DamageActorCommandHandler(damageService, new NullCategoryLogger());
 
             // Act
             var result = await handler.Handle(command, CancellationToken.None);
@@ -198,8 +188,8 @@ namespace Darklands.Core.Tests.Application.Actor.Commands
             );
 
             var command = DamageActorCommand.Create(_validActorId, 30, "Fire Spell");
-            var actorService = new TestActorStateService(actorExists: true, actor: testActor);
-            var handler = new DamageActorCommandHandler(actorService, new NullCategoryLogger());
+            var damageService = new TestDamageService(actor: testActor);
+            var handler = new DamageActorCommandHandler(damageService, new NullCategoryLogger());
 
             // Act
             var result = await handler.Handle(command, CancellationToken.None);

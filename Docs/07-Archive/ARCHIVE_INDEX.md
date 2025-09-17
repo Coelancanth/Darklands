@@ -67,8 +67,11 @@ Archives are split when they reach **1000 lines** to maintain readability and pe
 - **TD_052**: Restrict Backlog-Assistant to Archive Operations - Process clarity improvement
 - **TD_049**: Size-Based Backlog Archive Protocol - Archive management at 1000-line threshold
 
-### Completed_Backlog.md (Current Active - Empty)
-**Status**: Fresh archive ready for new completions
+### Completed_Backlog.md (Current Active - 1 item)
+**Date Range**: 2025-09-17 to present
+**Status**: Contains TD_047 (2025-09-17)
+**Major Items**:
+- **TD_047**: Strategic Error Handling Boundaries - Unified Application layer to pure Fin<T> functional patterns
 **Next Split**: At 1000 lines → Completed_Backlog_005.md
 
 ## 🔍 How to Find Items
@@ -103,19 +106,20 @@ grep -l "BR_007" Docs/07-Archive/Completed_Backlog_*.md
 
 ## 📊 Archive Statistics
 
-- **Total Archived Items**: ~50+ major items (BR, TD, VS items)
+- **Total Archived Items**: ~51+ major items (BR, TD, VS items)
 - **Archive Files**: 4 complete + 1 active
 - **Archive Sizes**:
   - **001**: 1,000 lines (Foundation & Combat)
   - **002**: 957 lines (Grid System & Event Architecture)
   - **003**: 1,001+ lines (Save System & Vision/FOV)
   - **004**: 975+ lines (Clean Architecture & Process)
+  - **Current**: ~200+ lines (Error Handling)
 - **Key Content**:
   - **001**: Foundation architecture, async fixes, logger rewrite
   - **002**: Complete grid/movement system, event bus, deterministic random
   - **003**: Save-ready entities, vision/FOV, abstraction services
   - **004**: 4-project separation, DDD replacement, process improvements
-- **Current Active**: Empty (ready for new items)
+  - **Current**: Strategic error handling boundaries (TD_047)
 
 ## 🔄 Archive Workflow (AUTO-ROTATION)
 
@@ -149,4 +153,4 @@ Use these patterns to find related items:
 - **Next Review**: When archive 005 is created
 
 ---
-*Last Updated: 2025-09-16 22:15 - After historical archive split*
+*Last Updated: 2025-09-17 10:20 - Fixed TD_047 indexing, updated backlog-assistant requirements*

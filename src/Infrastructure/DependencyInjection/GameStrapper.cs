@@ -224,11 +224,11 @@ public static class GameStrapper
             {
                 config.RegisterServicesFromAssembly(coreAssembly);
 
+                // Add error handling pipeline behavior (MUST be first - outermost wrapper)
+                config.AddOpenBehavior(typeof(ErrorHandlingBehavior<,>));
+
                 // Add logging pipeline behavior
                 config.AddOpenBehavior(typeof(LoggingBehavior<,>));
-
-                // Add error handling pipeline behavior
-                config.AddOpenBehavior(typeof(ErrorHandlingBehavior<,>));
             });
 
             return FinSucc(LanguageExt.Unit.Default);
@@ -269,6 +269,8 @@ public static class GameStrapper
 
             // TD_009: Composite query service (coordinates ActorState + Grid services)
             services.AddSingleton<Application.Combat.Services.ICombatQueryService, Application.Combat.Services.CombatQueryService>();
+            // TD_057: Damage service for shared damage logic (eliminates MediatR anti-pattern)
+            services.AddSingleton<Domain.Combat.Services.IDamageService, Application.Combat.Services.DamageService>();
 
             // TD_011: Game loop coordinator for sequential turn processing
             services.AddSingleton<Application.Combat.Coordination.GameLoopCoordinator>();

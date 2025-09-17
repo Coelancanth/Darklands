@@ -88,69 +88,8 @@
 
 
 
-### TD_057: Fix Nested MediatR Handler Anti-Pattern
-**Status**: Approved
-**Owner**: Dev Engineer
-**Size**: S (2h)
-**Priority**: CRITICAL - Violates core MediatR principles
-**Created**: 2025-09-17 09:47 (Tech Lead)
-**Complexity**: 3/10
-**Markers**: [MEDIATR] [ANTI-PATTERN] [REFACTORING]
 
-**Problem**: ExecuteAttackCommandHandler.cs:210 calls `_mediator.Send(damageCommand)` - violates MediatR principles
-**Impact**: Hidden dependencies, re-triggers entire pipeline, complex testing, performance overhead
-**Solution**: Extract damage logic into IDamageService, inject into both handlers
 
-**Implementation Steps**:
-1. Create `IDamageService` interface in Domain/Combat/Services
-2. Implement `DamageService` with ApplyDamage logic from DamageActorCommandHandler
-3. Inject IDamageService into both ExecuteAttackCommandHandler and DamageActorCommandHandler
-4. Remove IMediator injection from ExecuteAttackCommandHandler
-5. Update tests to mock IDamageService instead of IMediator
-
-**Reference**: See PRODUCTION-PATTERNS.md - "Shared Domain Service (Avoiding Nested Handlers)"
-
-### TD_058: Fix MediatR Pipeline Behavior Registration Order
-**Status**: Approved
-**Owner**: Dev Engineer
-**Size**: XS (5 minutes)
-**Priority**: High - Exception handling broken
-**Created**: 2025-09-17 09:47 (Tech Lead)
-**Complexity**: 1/10
-**Markers**: [MEDIATR] [PIPELINE] [QUICK-FIX]
-
-**Problem**: GameStrapper.cs:227-230 registers LoggingBehavior before ErrorHandlingBehavior
-**Impact**: Exceptions from LoggingBehavior won't be caught by error handler
-**Solution**: Swap registration order - ErrorHandlingBehavior must be FIRST
-
-**Fix Location**: `src/Infrastructure/DependencyInjection/GameStrapper.cs` lines 227-230
-```csharp
-// Change from: Logging → ErrorHandling
-// Change to: ErrorHandling → Logging
-config.AddOpenBehavior(typeof(ErrorHandlingBehavior<,>));  // FIRST
-config.AddOpenBehavior(typeof(LoggingBehavior<,>));        // SECOND
-```
-
-### TD_059: Add MediatR Validation Pipeline Behavior
-**Status**: Approved
-**Owner**: Dev Engineer
-**Size**: S (2h)
-**Priority**: Important - Input validation
-**Created**: 2025-09-17 09:47 (Tech Lead)
-**Complexity**: 3/10
-**Markers**: [MEDIATR] [VALIDATION] [PIPELINE]
-
-**What**: Add ValidationBehavior to validate commands before they reach handlers
-**Why**: Currently no validation happens before handler execution, invalid data can reach business logic
-**Benefit**: Handlers can assume valid input, simpler handler logic, consistent validation
-
-**Implementation**:
-1. Create `ValidationBehavior<TRequest, TResponse>` implementing IPipelineBehavior
-2. Use FluentValidation or manual validation with Fin<T>
-3. Register in GameStrapper after ErrorHandling and Logging behaviors
-4. Create validators for critical commands (ExecuteAttackCommand, MoveActorCommand)
-
-**Reference Pattern**: See PRODUCTION-PATTERNS.md for pipeline behavior examples
 
 ### TD_056: Paired Logging System Unification
 **Status**: APPROVED (Revised)
