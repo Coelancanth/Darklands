@@ -157,16 +157,12 @@ public static class GameStrapper
             GlobalLevelSwitch.MinimumLevel = config.LogLevel;
 
             // Create fallback-safe Serilog configuration with dynamic level control
+            // NOTE: File output disabled - using UnifiedCategoryLogger with FileLogOutput for all file logging
             var loggerConfiguration = new LoggerConfiguration()
                 .MinimumLevel.ControlledBy(GlobalLevelSwitch)
                 .Enrich.FromLogContext()
                 .WriteTo.Console(
-                    outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {SourceContext}: {Message:lj}{NewLine}{Exception}")
-                .WriteTo.File(
-                    path: config.LogFilePath,
-                    rollingInterval: RollingInterval.Day,
-                    retainedFileCountLimit: 7,
-                    outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} {Level:u3}] {SourceContext}: {Message:lj}{NewLine}{Exception}");
+                    outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {SourceContext}: {Message:lj}{NewLine}{Exception}");
 
             // Add Godot console sink if provided (from Godot project layer)
             if (godotConsoleSink != null)
@@ -189,8 +185,13 @@ public static class GameStrapper
             // Register debug configuration and unified logging per ADR-007
             services.AddSingleton<IDebugConfiguration, DefaultDebugConfiguration>();
 
-            // Register empty composite output - GameManager will add GodotConsoleOutput and FileLogOutput
-            services.AddSingleton<ILogOutput>(sp => new CompositeLogOutput());
+            // Register composite output with FileLogOutput already configured
+            services.AddSingleton<ILogOutput>(sp =>
+            {
+                var composite = new CompositeLogOutput();
+                composite.AddOutput(new FileLogOutput());
+                return composite;
+            });
 
             // Register unified category logger
             services.AddSingleton<ICategoryLogger, UnifiedCategoryLogger>();
