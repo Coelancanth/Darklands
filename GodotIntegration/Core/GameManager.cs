@@ -36,8 +36,10 @@ namespace Darklands
         private Node2D? _currentScene;
         private GridView? _gridView;
         private ActorView? _actorView;
+        private PathOverlay? _pathOverlay;
         private GridPresenter? _gridPresenter;
         private ActorPresenter? _actorPresenter;
+        private PathVisualizationPresenter? _pathVisualizationPresenter;
         private ServiceProvider? _serviceProvider;
         private ICategoryLogger _logger = null!;
 
@@ -340,6 +342,7 @@ namespace Darklands
                 // Find view nodes in the current scene
                 _gridView = _currentScene.GetNode<GridView>("Grid");
                 _actorView = _currentScene.GetNode<ActorView>("Actors");
+                _pathOverlay = _currentScene.GetNode<PathOverlay>("PathOverlay");
 
                 if (_gridView == null)
                 {
@@ -351,21 +354,28 @@ namespace Darklands
                     throw new InvalidOperationException("ActorView node not found. Expected child node named 'Actors'");
                 }
 
-                _logger?.Log(DomainLogLevel.Information, LogCategory.System, "Views found successfully - Grid: \"{0}\", Actor: \"{1}\" (health consolidated into ActorView)",
-                    _gridView?.Name ?? "null", _actorView?.Name ?? "null");
+                if (_pathOverlay == null)
+                {
+                    throw new InvalidOperationException("PathOverlay node not found. Expected child node named 'PathOverlay'");
+                }
+
+                _logger?.Log(DomainLogLevel.Information, LogCategory.System, "Views found successfully - Grid: \"{0}\", Actor: \"{1}\", PathOverlay: \"{2}\"",
+                    _gridView?.Name ?? "null", _actorView?.Name ?? "null", _pathOverlay?.Name ?? "null");
 
                 // Inject logger into views for proper architectural logging
                 if (_logger != null)
                 {
                     _gridView?.SetLogger(_logger);
                     _actorView?.SetLogger(_logger);
+                    // PathOverlay doesn't need logger injection - uses presenter's logger
                 }
 
                 // Get presenters from DI container (they're registered by ServiceConfiguration)
                 _gridPresenter = _serviceProvider.GetRequiredService<IGridPresenter>() as GridPresenter;
                 _actorPresenter = _serviceProvider.GetRequiredService<IActorPresenter>() as ActorPresenter;
+                _pathVisualizationPresenter = _serviceProvider.GetRequiredService<IPathVisualizationPresenter>() as PathVisualizationPresenter;
 
-                if (_gridPresenter == null || _actorPresenter == null)
+                if (_gridPresenter == null || _actorPresenter == null || _pathVisualizationPresenter == null)
                 {
                     throw new InvalidOperationException("Failed to resolve presenters from DI container");
                 }
@@ -373,10 +383,13 @@ namespace Darklands
                 // Attach views to presenters
                 _gridPresenter.AttachView(_gridView!);
                 _actorPresenter.AttachView(_actorView!);
+                _pathVisualizationPresenter.AttachView(_pathOverlay!);
 
                 // Connect views to presenters
                 _gridView!.SetPresenter(_gridPresenter);
                 _actorView!.SetPresenter(_actorPresenter);
+                // Connect PathOverlay to presenter for test interactions
+                _pathOverlay!.SetPresenter(_pathVisualizationPresenter);
 
                 // CRITICAL: Connect presenters to each other for coordinated updates
                 // This was missing and caused the visual movement bug!
@@ -395,6 +408,7 @@ namespace Darklands
                 // Initialize presenters (this will set up initial state)
                 _gridPresenter.Initialize();
                 _actorPresenter.Initialize();
+                _pathVisualizationPresenter.Initialize();
 
                 _logger?.Log(DomainLogLevel.Information, LogCategory.System, "MVP architecture setup completed - application ready for interaction");
             }

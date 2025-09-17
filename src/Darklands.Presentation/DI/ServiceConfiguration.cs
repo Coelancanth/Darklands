@@ -42,6 +42,9 @@ namespace Darklands.Presentation.DI
                 // Attack presenter for combat action views
                 services.AddTransient<IAttackPresenter, AttackPresenter>();
 
+                // Path visualization presenter for A* pathfinding display (VS_014)
+                services.AddTransient<IPathVisualizationPresenter, PathVisualizationPresenter>();
+
                 // Note: UIDispatcher must be registered in the Godot main project
                 // as it requires Godot Node inheritance
 

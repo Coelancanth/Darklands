@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using LanguageExt;
 using Darklands.Domain.Grid;
 using Darklands.Presentation.Views;
+using Darklands.Presentation.Presenters;
 
 namespace Darklands.Views
 {
@@ -20,6 +21,10 @@ namespace Darklands.Views
         // Temporary storage for deferred operations (CallDeferred requires Variant types)
         private Position[] _pendingPath = Array.Empty<Position>();
         private Position[] _pendingEndpoints = Array.Empty<Position>();
+
+        // Simple test interaction (temporary for VS_014 validation)
+        private Position? _startPosition = null;
+        private IPathVisualizationPresenter? _presenter = null;
 
         // Visual constants for path display
         private const float TILE_SIZE = 64.0f;
@@ -47,6 +52,45 @@ namespace Darklands.Views
 
             if (_endpointContainer == null)
                 GD.PrintErr("PathOverlay: EndpointContainer node not found!");
+
+            GD.Print("PathOverlay: Ready - Click on grid to test pathfinding!");
+        }
+
+        /// <summary>
+        /// Sets the presenter for test interactions (called by GameManager).
+        /// </summary>
+        public void SetPresenter(IPathVisualizationPresenter presenter)
+        {
+            _presenter = presenter;
+        }
+
+        /// <summary>
+        /// Simple test input handler - click to set start/end positions for pathfinding.
+        /// </summary>
+        public override void _Input(InputEvent @event)
+        {
+            if (@event is InputEventMouseButton mouseEvent && mouseEvent.Pressed && mouseEvent.ButtonIndex == MouseButton.Left)
+            {
+                if (_presenter == null) return;
+
+                // Convert mouse position to grid position
+                var gridPos = WorldToPosition(mouseEvent.Position);
+
+                if (_startPosition == null)
+                {
+                    // First click - set start position
+                    _startPosition = gridPos;
+                    GD.Print($"PathOverlay: Start position set to {gridPos}");
+                    _presenter.ClearPathAsync();
+                }
+                else
+                {
+                    // Second click - calculate path to end position
+                    GD.Print($"PathOverlay: Calculating path from {_startPosition} to {gridPos}");
+                    _presenter.ShowPathAsync(_startPosition.Value, gridPos);
+                    _startPosition = null; // Reset for next test
+                }
+            }
         }
 
         /// <summary>
@@ -251,6 +295,14 @@ namespace Darklands.Views
         private Vector2 PositionToWorld(Position gridPosition)
         {
             return new Vector2(gridPosition.X * TILE_SIZE + TILE_SIZE / 2, gridPosition.Y * TILE_SIZE + TILE_SIZE / 2);
+        }
+
+        /// <summary>
+        /// Converts world coordinates to grid position.
+        /// </summary>
+        private Position WorldToPosition(Vector2 worldPosition)
+        {
+            return new Position((int)(worldPosition.X / TILE_SIZE), (int)(worldPosition.Y / TILE_SIZE));
         }
 
         /// <summary>
