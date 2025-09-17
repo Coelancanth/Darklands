@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-17 09:58 (Tech Lead - Updated TD_047 with strategic boundaries, TD_056 paired approach, TD_057-059 MediatR fixes)
+**Last Updated**: 2025-09-17 12:37 (Tech Lead - Added complete technical breakdown for VS_014 A* pathfinding)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See [Workflow.md - Backlog Aging Protocol](Workflow.md#-backlog-aging-protocol---the-3-10-rule) for 3-10 day aging rules
@@ -86,82 +86,18 @@
 
 
 
-
-
-
-
-
-### TD_056: Paired Logging System Unification
-**Status**: APPROVED (Revised)
-**Owner**: Dev Engineer
-**Revision Date**: 2025-09-17 09:50 (Tech Lead - Approved with paired approach)
-**Size**: S (3h total - 2h Phase 1, 1h Phase 2)
-**Priority**: Important - Developer Experience
-**Created**: 2025-09-17 09:34 (Dev Engineer)
-**Revised**: 2025-09-17 09:50 (Tech Lead)
-**Complexity**: 4/10 (reduced from 7/10)
-**Markers**: [LOGGING] [ARCHITECTURE] [DEVELOPER-EXPERIENCE]
-
-**Problem**: 4 separate logging systems create confusion and duplicate files
-**Solution**: Unify into 2 systems respecting the file/console boundary
-
-**Current State → Target State**:
-```
-CURRENT (4 systems):                    TARGET (2 systems):
-1. Serilog → file                  →    Unified File Logger
-2. UnifiedCategoryLogger → file     →    (Serilog-based)
-3. GodotCategoryLogger → console    →    Unified Console Logger
-4. Direct GD.Print() → console      →    (GodotCategory-based)
-```
-
-### Phase 1: Unify File-Based Loggers (2h)
-**What**: Route UnifiedCategoryLogger through Serilog infrastructure
-**Why**: Eliminate duplicate log files, single source for file logging
-**Implementation**:
-1. Modify UnifiedCategoryLogger to use Serilog as backend
-2. Preserve category-based filtering and formatting
-3. Single output file: `darklands-{date}.log`
-4. Remove separate session log file creation
-5. Ensure all existing ICategoryLogger calls still work
-
-### Phase 2: Standardize Console Loggers (1h)
-**What**: Create consistent Godot console logging
-**Why**: Standardize UI/presentation layer logging
-**Implementation**:
-1. Create `GodotLogger` static wrapper class
-2. Replace all direct `GD.Print()` calls with `GodotLogger.Log()`
-3. Add category support to console output
-4. Consistent formatting with timestamp and category
-
-**Success Criteria**:
-- [ ] Single log file for all C# domain/infrastructure logging
-- [ ] Consistent console output for all Godot logging
-- [ ] No file access conflicts (respects sandbox boundary)
-- [ ] Existing ICategoryLogger interface unchanged
-- [ ] All 664 tests still pass
-
-**Files**: `GameStrapper.cs`, `UnifiedCategoryLogger.cs`, `GodotCategoryLogger.cs`
-
-
-
-
-
-
-
-
 ## 📋 Blocked - Waiting for Dependencies
 
 *Items that cannot start until blocking dependencies are resolved*
 
 ### VS_014: A* Pathfinding Foundation
-**Status**: Approved - BLOCKED by TD_046
+**Status**: In Progress
 **Owner**: Dev Engineer
 **Size**: S (3h)
 **Priority**: Critical - Foundation for movement system
 **Created**: 2025-09-11 18:12
-**Updated**: 2025-09-16 01:00 (Tech Lead - Moved to blocked section)
-**Markers**: [MOVEMENT] [PATHFINDING] [CHAIN-2-MOVEMENT] [BLOCKED]
-**Blocking Dependency**: TD_046 (project structure must be established first)
+**Updated**: 2025-09-17 12:59 (Dev Engineer - Started Phase 1 implementation, TD_046 blocker resolved)
+**Markers**: [MOVEMENT] [PATHFINDING] [CHAIN-2-MOVEMENT]
 
 **What**: Implement A* pathfinding algorithm with visual path display
 **Why**: Foundation for VS_012 movement system and all future tactical movement
@@ -185,6 +121,50 @@ CURRENT (4 systems):                    TARGET (2 systems):
 ☑ Time-Independent: Pure algorithm
 ☑ Integer Math: Use 100/141 for movement costs
 ☑ Testable: Pure domain function
+
+### 📐 Technical Breakdown (Tech Lead - 2025-09-17)
+
+**⚠️ BLOCKING MESSAGE**: Do NOT start until TD_046 is complete!
+
+**Complexity Score**: 3/10 - Well-understood algorithm
+**Pattern Reference**: `src/Application/Combat/Commands/ExecuteAttackCommand.cs:45`
+
+#### Phase 1: Domain Model [1h - GATE: Unit tests GREEN]
+**Location**: `src/Core/Domain/Pathfinding/`
+- `PathfindingNode.cs` - Record for A* node state
+- `PathfindingResult.cs` - Value object for path result
+- `PathfindingCostTable.cs` - Static costs (100/141)
+- `IPathfindingAlgorithm.cs` - Interface for algorithms
+
+**Critical Implementation**:
+- Integer math ONLY: DiagonalCost=141, StraightCost=100
+- Deterministic tie-breaking: H score → X coord → Y coord
+- Return `Option<ImmutableList<Position>>` (None if no path)
+
+**Tests**: `tests/Domain/Pathfinding/AStarAlgorithmTests.cs`
+
+#### Phase 2: Application Layer [0.5h - GATE: Handler tests pass]
+**Location**: `src/Application/Movement/Queries/`
+- `CalculatePathQuery.cs`
+- `CalculatePathQueryHandler.cs`
+- `CalculatePathQueryValidator.cs`
+
+**Handler**: Return `Fin<PathfindingResult>` with error handling
+
+#### Phase 3: Infrastructure [0.5h - GATE: Integration tests pass]
+**Location**: `src/Core/Infrastructure/Services/`
+- Extend `GridStateService.cs` - Add GetObstacles(), IsWalkable()
+- Create `PathfindingService.cs` - Concrete A* implementation
+
+#### Phase 4: Presentation [1h - GATE: Visual path in Godot]
+**Location**: `godot_project/features/movement/`
+- `PathVisualizationPresenter.cs` - MVP presenter
+- `PathOverlay.tscn` - Visual scene
+- `PathOverlay.cs` - Godot node script
+
+**MVP Pattern**: Convert domain positions to Godot Vector2, emit signals
+
+**Validation**: Run `./scripts/core/build.ps1 test --filter "Category=Phase[N]"` after each phase
 
 ### VS_012: Vision-Based Movement System
 **Status**: Approved - BLOCKED by VS_014
