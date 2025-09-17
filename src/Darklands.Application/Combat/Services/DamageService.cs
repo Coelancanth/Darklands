@@ -52,7 +52,7 @@ namespace Darklands.Application.Combat.Services
 
                     if (damagedActor.IsAlive)
                     {
-                        _logger.Log(LogLevel.Information, LogCategory.Combat, "{ActorId} health: {HPBefore} → {HPAfter} ({ActualDamage} damage from {Source}, {HPAfter}/{MaxHP} remaining)",
+                        _logger.Log(LogLevel.Debug, LogCategory.Combat, "{ActorId} health: {HPBefore} → {HPAfter} ({ActualDamage} damage from {Source}, {CurrentHP}/{MaxHP} remaining)",
                             actorId, hpBefore, hpAfter, actualDamage, source ?? "Unknown", hpAfter, maxHp);
                     }
                     else

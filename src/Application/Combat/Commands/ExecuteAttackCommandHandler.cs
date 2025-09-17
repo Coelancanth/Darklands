@@ -154,8 +154,8 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
             return rescheduleResult;
         }
 
-        // Log attack timing information
-        _logger.Log(LogLevel.Information, LogCategory.Combat, "Attack completed: {AttackerId} next turn in +{ActionCost} TU",
+        // Log attack timing information (detailed - Debug level)
+        _logger.Log(LogLevel.Debug, LogCategory.Combat, "Attack completed: {AttackerId} next turn in +{ActionCost} TU",
             request.AttackerId, request.CombatAction.BaseCost.Value);
 
         // Step 7: Cleanup dead actor
@@ -259,7 +259,7 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
                 var removed = _combatSchedulerService.RemoveActor(targetId);
                 if (removed)
                 {
-                    _logger.Log(LogLevel.Information, LogCategory.Combat, "Removed dead actor {TargetId} from combat scheduler", targetId);
+                    _logger.Log(LogLevel.Debug, LogCategory.Combat, "Removed dead actor {TargetId} from combat scheduler", targetId);
                 }
                 else
                 {
@@ -268,13 +268,13 @@ public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand,
 
                 // Remove dead actor from grid (frees up the position)
                 _gridStateService.RemoveActorFromGrid(targetId);
-                _logger.Log(LogLevel.Information, LogCategory.Combat, "Removed dead actor {TargetId} from grid position", targetId);
+                _logger.Log(LogLevel.Debug, LogCategory.Combat, "Removed dead actor {TargetId} from grid position", targetId);
 
                 // Publish death event for UI cleanup
-                _logger.Log(LogLevel.Information, LogCategory.Combat, "Publishing death event for {TargetId} at {Position}", targetId, position);
+                _logger.Log(LogLevel.Debug, LogCategory.Combat, "Publishing death event for {TargetId} at {Position}", targetId, position);
                 var deathEvent = ActorDiedEvent.Create(targetId, position);
                 await _mediator.Publish(deathEvent);
-                _logger.Log(LogLevel.Information, LogCategory.Combat, "Death event published for {TargetId}", targetId);
+                _logger.Log(LogLevel.Debug, LogCategory.Combat, "Death event published for {TargetId}", targetId);
             }
         }
         else
