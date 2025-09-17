@@ -1,0 +1,10 @@
+[gd_scene load_steps=2 format=3 uid="uid://bb2xwpnv8xsgb"]
+
+[ext_resource type="Script" path="res://Views/PathOverlay.cs" id="1_pathoverlay"]
+
+[node name="PathOverlay" type="Node2D"]
+script = ExtResource("1_pathoverlay")
+
+[node name="PathContainer" type="Node2D" parent="."]
+
+[node name="EndpointContainer" type="Node2D" parent="."]
