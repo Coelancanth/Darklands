@@ -22,9 +22,12 @@ namespace Darklands.Views
         private Position[] _pendingPath = Array.Empty<Position>();
         private Position[] _pendingEndpoints = Array.Empty<Position>();
 
-        // Simple test interaction (temporary for VS_014 validation)
-        private Position? _startPosition = null;
+        // Real-time path preview state
+        private Position? _currentPlayerPosition = null;
+        private Position? _lastHoveredPosition = null;
         private IPathVisualizationPresenter? _presenter = null;
+        private double _lastPathCalculationTime = 0;
+        private const double PATH_CALCULATION_THROTTLE_MS = 100; // Limit path updates to 10 per second
 
         // Visual constants for path display
         private const float TILE_SIZE = 64.0f;
@@ -32,11 +35,15 @@ namespace Darklands.Views
         private const float ENDPOINT_RADIUS = 8.0f;
 
         // Colors for path visualization
-        private readonly Color PATH_COLOR = Colors.Yellow;
+        private readonly Color PREVIEW_PATH_COLOR = new Color(1.0f, 1.0f, 0.0f, 0.6f); // Semi-transparent yellow
+        private readonly Color CONFIRMED_PATH_COLOR = Colors.Yellow;
         private readonly Color START_COLOR = Colors.Green;
         private readonly Color END_COLOR = Colors.Red;
         private readonly Color ENDPOINT_COLOR = Colors.LightBlue;
         private readonly Color NO_PATH_COLOR = Colors.Red;
+
+        // Track whether we're showing a preview or confirmed path
+        private bool _isPreviewPath = true;
 
         /// <summary>
         /// Called when the node is added to the scene tree.
@@ -53,7 +60,11 @@ namespace Darklands.Views
             if (_endpointContainer == null)
                 GD.PrintErr("PathOverlay: EndpointContainer node not found!");
 
-            GD.Print("PathOverlay: Ready - Click on grid to test pathfinding!");
+            // Set initial player position for testing (in production this would come from game state)
+            // TODO: Get actual player position from GridStateService
+            SetPlayerPosition(new Position(15, 10)); // Center of 30x20 grid for testing
+
+            GD.Print("PathOverlay: Ready - Move mouse over grid to preview paths! Click to move player.");
         }
 
         /// <summary>
@@ -65,41 +76,111 @@ namespace Darklands.Views
         }
 
         /// <summary>
-        /// Simple test input handler - click to set start/end positions for pathfinding.
+        /// Sets the current player position for path calculations.
+        /// Should be called whenever the player moves to a new position.
+        /// </summary>
+        public void SetPlayerPosition(Position position)
+        {
+            _currentPlayerPosition = position;
+            GD.Print($"PathOverlay: Player position set to {position}");
+        }
+
+        /// <summary>
+        /// Handles mouse motion for real-time path preview.
+        /// Updates the displayed path as the mouse moves over valid grid tiles.
         /// </summary>
         public override void _Input(InputEvent @event)
         {
-            if (@event is InputEventMouseButton mouseEvent && mouseEvent.Pressed && mouseEvent.ButtonIndex == MouseButton.Left)
+            // Handle mouse motion for real-time path preview
+            if (@event is InputEventMouseMotion motionEvent)
             {
-                if (_presenter == null) return;
+                HandleMouseMotion(motionEvent);
+            }
+            // Keep click handling for setting player position (temporary for testing)
+            else if (@event is InputEventMouseButton mouseEvent && mouseEvent.Pressed && mouseEvent.ButtonIndex == MouseButton.Left)
+            {
+                HandleMouseClick(mouseEvent);
+            }
+        }
 
-                // Convert mouse position to grid position
-                // CRITICAL FIX: Use GetLocalMousePosition() for correct coordinate conversion
-                // mouseEvent.Position is in screen space, we need local space relative to this Node2D
-                var localMousePos = GetLocalMousePosition();
-                var gridPos = WorldToPosition(localMousePos);
+        /// <summary>
+        /// Handles mouse motion events for real-time path preview.
+        /// Throttles path calculations to prevent performance issues.
+        /// </summary>
+        private void HandleMouseMotion(InputEventMouseMotion motionEvent)
+        {
+            if (_presenter == null || _currentPlayerPosition == null) return;
 
-                // Validate grid position is within bounds (30x20 grid)
-                if (gridPos.X < 0 || gridPos.X >= 30 || gridPos.Y < 0 || gridPos.Y >= 20)
+            // Convert mouse position to grid position
+            var localMousePos = GetLocalMousePosition();
+            var gridPos = WorldToPosition(localMousePos);
+
+            // Validate grid position is within bounds (30x20 grid)
+            if (gridPos.X < 0 || gridPos.X >= 30 || gridPos.Y < 0 || gridPos.Y >= 20)
+            {
+                // Mouse is outside grid - clear any displayed path
+                if (_lastHoveredPosition != null)
                 {
-                    GD.PrintErr($"PathOverlay: Click outside grid bounds: {gridPos}");
-                    return;
-                }
-
-                if (_startPosition == null)
-                {
-                    // First click - set start position
-                    _startPosition = gridPos;
-                    GD.Print($"PathOverlay: Start position set to {gridPos}");
                     _presenter.ClearPathAsync();
+                    _lastHoveredPosition = null;
                 }
-                else
-                {
-                    // Second click - calculate path to end position
-                    GD.Print($"PathOverlay: Calculating path from {_startPosition} to {gridPos}");
-                    _presenter.ShowPathAsync(_startPosition.Value, gridPos);
-                    _startPosition = null; // Reset for next test
-                }
+                return;
+            }
+
+            // Check if we've moved to a different grid tile
+            if (_lastHoveredPosition != null && _lastHoveredPosition.Value.Equals(gridPos))
+            {
+                return; // Still on the same tile, no need to recalculate
+            }
+
+            // Throttle path calculations to prevent excessive updates
+            var currentTime = Godot.Time.GetUnixTimeFromSystem();
+            if (currentTime - _lastPathCalculationTime < PATH_CALCULATION_THROTTLE_MS / 1000.0)
+            {
+                return; // Too soon since last calculation
+            }
+
+            // Update state and calculate new path
+            _lastHoveredPosition = gridPos;
+            _lastPathCalculationTime = currentTime;
+
+            // Don't show path to current position
+            if (gridPos.Equals(_currentPlayerPosition.Value))
+            {
+                _presenter.ClearPathAsync();
+            }
+            else
+            {
+                // Show preview path from player position to mouse position
+                _isPreviewPath = true;
+                _presenter.ShowPathAsync(_currentPlayerPosition.Value, gridPos);
+            }
+        }
+
+        /// <summary>
+        /// Handles mouse click events for testing player position changes.
+        /// Temporary method for VS_014 testing - in production this would be handled by movement system.
+        /// </summary>
+        private void HandleMouseClick(InputEventMouseButton mouseEvent)
+        {
+            // Convert mouse position to grid position
+            var localMousePos = GetLocalMousePosition();
+            var gridPos = WorldToPosition(localMousePos);
+
+            // Validate grid position is within bounds
+            if (gridPos.X < 0 || gridPos.X >= 30 || gridPos.Y < 0 || gridPos.Y >= 20)
+            {
+                GD.PrintErr($"PathOverlay: Click outside grid bounds: {gridPos}");
+                return;
+            }
+
+            // Set this as the new player position
+            SetPlayerPosition(gridPos);
+
+            // Clear the current path since player has moved
+            if (_presenter != null)
+            {
+                _presenter.ClearPathAsync();
             }
         }
 
@@ -150,7 +231,7 @@ namespace Darklands.Views
                 line.AddPoint(from);
                 line.AddPoint(to);
                 line.Width = PATH_LINE_WIDTH;
-                line.DefaultColor = PATH_COLOR;
+                line.DefaultColor = _isPreviewPath ? PREVIEW_PATH_COLOR : CONFIRMED_PATH_COLOR;
                 _pathContainer.AddChild(line);
             }
 
@@ -347,7 +428,7 @@ namespace Darklands.Views
             var worldPos = PositionToWorld(position);
 
             var dot = new ColorRect();
-            dot.Color = PATH_COLOR;
+            dot.Color = _isPreviewPath ? PREVIEW_PATH_COLOR : CONFIRMED_PATH_COLOR;
             dot.Size = new Vector2(6, 6);
             dot.Position = worldPos - dot.Size / 2;
             _pathContainer.AddChild(dot);
