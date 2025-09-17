@@ -1,8 +1,11 @@
 using System.Threading;
 using System.Threading.Tasks;
+using LanguageExt;
+using LanguageExt.Common;
 using MediatR;
 using Darklands.Application.Common;
 using Darklands.Application.Infrastructure.Debug;
+using static LanguageExt.Prelude;
 
 namespace Darklands.Application.Events;
 
@@ -63,21 +66,29 @@ public sealed class UIEventForwarder<TEvent> : INotificationHandler<TEvent>
     /// <returns>Completion task for MediatR pipeline coordination</returns>
     public async Task Handle(TEvent notification, CancellationToken cancellationToken)
     {
+        var result = await ForwardEventToUI(notification);
+
+        result.Match(
+            Succ: _ => _logger.Log(LogLevel.Debug, LogCategory.Event, "[UIEventForwarder<{EventType}>] Successfully forwarded event to UI",
+                typeof(TEvent).Name),
+            Fail: error => _logger.Log(LogLevel.Error, LogCategory.Event, "[UIEventForwarder<{EventType}>] Failed to forward event to UI: {Event}. Error: {Error}",
+                typeof(TEvent).Name, notification, error.Message)
+        );
+    }
+
+    private async Task<Fin<LanguageExt.Unit>> ForwardEventToUI(TEvent notification)
+    {
         try
         {
             _logger.Log(LogLevel.Debug, LogCategory.Event, "[UIEventForwarder<{EventType}>] Forwarding event to UI subscribers: {Event}",
                 typeof(TEvent).Name, notification);
 
             await _eventBus.PublishAsync(notification);
-
-            _logger.Log(LogLevel.Debug, LogCategory.Event, "[UIEventForwarder<{EventType}>] Successfully forwarded event to UI",
-                typeof(TEvent).Name);
+            return FinSucc(unit);
         }
         catch (System.Exception ex)
         {
-            // Log but don't rethrow - UI failures shouldn't break domain event processing
-            _logger.Log(LogLevel.Error, LogCategory.Event, "[UIEventForwarder<{EventType}>] Failed to forward event to UI: {Event}. Exception: {Exception}",
-                typeof(TEvent).Name, notification, ex);
+            return FinFail<LanguageExt.Unit>(Error.New("Failed to forward event to UI", ex));
         }
     }
 }

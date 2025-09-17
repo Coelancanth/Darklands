@@ -132,6 +132,7 @@ public static class GameStrapper
             }
             catch (Exception ex)
             {
+                // ARCHITECTURAL BOUNDARY: try-catch intentionally used for system initialization
                 // Fallback logging to console if Serilog fails
                 Console.WriteLine($"CRITICAL: GameStrapper initialization failed: {ex.Message}");
                 return FinFail<ServiceProvider>(Error.New($"GameStrapper initialization failed: {ex.Message}", ex));

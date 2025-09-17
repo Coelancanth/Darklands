@@ -94,6 +94,7 @@ namespace Darklands.Presentation.Presenters
             }
             catch (Exception ex)
             {
+                // ARCHITECTURAL BOUNDARY: try-catch intentionally used for Godot integration
                 _logger.Log(LogLevel.Error, LogCategory.System, "Error during GridPresenter initialization" + ": " + ex.Message);
             }
         }

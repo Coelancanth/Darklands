@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-17 09:36 (Dev Engineer - Added TD_056 logging architecture strategy)
+**Last Updated**: 2025-09-17 09:58 (Tech Lead - Updated TD_047 with strategic boundaries, TD_056 paired approach, TD_057-059 MediatR fixes)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See [Workflow.md - Backlog Aging Protocol](Workflow.md#-backlog-aging-protocol---the-3-10-rule) for 3-10 day aging rules
@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 008
-- **Next TD**: 057
+- **Next TD**: 060
 - **Next VS**: 015 
 
 
@@ -87,72 +87,119 @@
 
 
 
-### TD_047: Unify Error Handling with LanguageExt
+
+### TD_057: Fix Nested MediatR Handler Anti-Pattern
 **Status**: Approved
 **Owner**: Dev Engineer
-**Size**: M (6-8h)
-**Priority**: Important - Debugging complexity
-**Created**: 2025-09-16 19:29 (Tech Lead)
-**Complexity**: 5/10
-**Markers**: [ERROR-HANDLING] [TECHNICAL-DEBT]
+**Size**: S (2h)
+**Priority**: CRITICAL - Violates core MediatR principles
+**Created**: 2025-09-17 09:47 (Tech Lead)
+**Complexity**: 3/10
+**Markers**: [MEDIATR] [ANTI-PATTERN] [REFACTORING]
 
-**What**: Replace all try-catch blocks with LanguageExt Fin<T> for consistent error handling
-**Why**: Mixed error handling (try-catch vs Fin<T>) breaks functional composition and makes debugging harder
+**Problem**: ExecuteAttackCommandHandler.cs:210 calls `_mediator.Send(damageCommand)` - violates MediatR principles
+**Impact**: Hidden dependencies, re-triggers entire pipeline, complex testing, performance overhead
+**Solution**: Extract damage logic into IDamageService, inject into both handlers
 
-**Scope** (System-wide):
-1. Infrastructure services (remaining try-catch blocks)
-2. Presenters (error propagation to UI)
-3. Command handlers (side effect isolation)
-4. Godot integration points (thread marshalling errors)
+**Implementation Steps**:
+1. Create `IDamageService` interface in Domain/Combat/Services
+2. Implement `DamageService` with ApplyDamage logic from DamageActorCommandHandler
+3. Inject IDamageService into both ExecuteAttackCommandHandler and DamageActorCommandHandler
+4. Remove IMediator injection from ExecuteAttackCommandHandler
+5. Update tests to mock IDamageService instead of IMediator
 
-**Done When**:
-- [ ] Zero try-catch blocks outside Godot integration boundary
-- [ ] All errors flow through Fin<T> pipeline
-- [ ] Error aggregation uses LanguageExt combinators
-- [ ] Performance unchanged (measure before/after)
-- [ ] All 664 tests still pass
+**Reference**: See PRODUCTION-PATTERNS.md - "Shared Domain Service (Avoiding Nested Handlers)"
 
-**Reference Pattern**: `ExecuteAttackCommandHandler` for Fin<T> usage
+### TD_058: Fix MediatR Pipeline Behavior Registration Order
+**Status**: Approved
+**Owner**: Dev Engineer
+**Size**: XS (5 minutes)
+**Priority**: High - Exception handling broken
+**Created**: 2025-09-17 09:47 (Tech Lead)
+**Complexity**: 1/10
+**Markers**: [MEDIATR] [PIPELINE] [QUICK-FIX]
 
-### TD_056: Unified Logging Architecture Strategy
-**Status**: Proposed
-**Owner**: Tech Lead
-**Size**: M (4-6h analysis + implementation)
+**Problem**: GameStrapper.cs:227-230 registers LoggingBehavior before ErrorHandlingBehavior
+**Impact**: Exceptions from LoggingBehavior won't be caught by error handler
+**Solution**: Swap registration order - ErrorHandlingBehavior must be FIRST
+
+**Fix Location**: `src/Infrastructure/DependencyInjection/GameStrapper.cs` lines 227-230
+```csharp
+// Change from: Logging → ErrorHandling
+// Change to: ErrorHandling → Logging
+config.AddOpenBehavior(typeof(ErrorHandlingBehavior<,>));  // FIRST
+config.AddOpenBehavior(typeof(LoggingBehavior<,>));        // SECOND
+```
+
+### TD_059: Add MediatR Validation Pipeline Behavior
+**Status**: Approved
+**Owner**: Dev Engineer
+**Size**: S (2h)
+**Priority**: Important - Input validation
+**Created**: 2025-09-17 09:47 (Tech Lead)
+**Complexity**: 3/10
+**Markers**: [MEDIATR] [VALIDATION] [PIPELINE]
+
+**What**: Add ValidationBehavior to validate commands before they reach handlers
+**Why**: Currently no validation happens before handler execution, invalid data can reach business logic
+**Benefit**: Handlers can assume valid input, simpler handler logic, consistent validation
+
+**Implementation**:
+1. Create `ValidationBehavior<TRequest, TResponse>` implementing IPipelineBehavior
+2. Use FluentValidation or manual validation with Fin<T>
+3. Register in GameStrapper after ErrorHandling and Logging behaviors
+4. Create validators for critical commands (ExecuteAttackCommand, MoveActorCommand)
+
+**Reference Pattern**: See PRODUCTION-PATTERNS.md for pipeline behavior examples
+
+### TD_056: Paired Logging System Unification
+**Status**: APPROVED (Revised)
+**Owner**: Dev Engineer
+**Revision Date**: 2025-09-17 09:50 (Tech Lead - Approved with paired approach)
+**Size**: S (3h total - 2h Phase 1, 1h Phase 2)
 **Priority**: Important - Developer Experience
 **Created**: 2025-09-17 09:34 (Dev Engineer)
-**Complexity**: 7/10
+**Revised**: 2025-09-17 09:50 (Tech Lead)
+**Complexity**: 4/10 (reduced from 7/10)
 **Markers**: [LOGGING] [ARCHITECTURE] [DEVELOPER-EXPERIENCE]
 
-**Problem**: Multiple logging systems capture different messages, creating gaps in saved logs
-**Root Cause**: 4 separate logging systems running in parallel with different outputs
+**Problem**: 4 separate logging systems create confusion and duplicate files
+**Solution**: Unify into 2 systems respecting the file/console boundary
 
-**Current Architecture Analysis**:
-1. **Serilog System**: Infrastructure layer → `darklands-current20250917.log`
-2. **UnifiedCategoryLogger**: Business logic → `darklands-session-*.log`
-3. **GodotCategoryLogger**: Godot integration → Console only (no file)
-4. **Direct Godot**: `GD.Print()` calls → Console only (no file)
+**Current State → Target State**:
+```
+CURRENT (4 systems):                    TARGET (2 systems):
+1. Serilog → file                  →    Unified File Logger
+2. UnifiedCategoryLogger → file     →    (Serilog-based)
+3. GodotCategoryLogger → console    →    Unified Console Logger
+4. Direct GD.Print() → console      →    (GodotCategory-based)
+```
 
-**Issue**: Systems 3 & 4 deliberately don't write to files due to Godot sandbox constraints
+### Phase 1: Unify File-Based Loggers (2h)
+**What**: Route UnifiedCategoryLogger through Serilog infrastructure
+**Why**: Eliminate duplicate log files, single source for file logging
+**Implementation**:
+1. Modify UnifiedCategoryLogger to use Serilog as backend
+2. Preserve category-based filtering and formatting
+3. Single output file: `darklands-{date}.log`
+4. Remove separate session log file creation
+5. Ensure all existing ICategoryLogger calls still work
 
-**Strategic Questions for Tech Lead**:
-- Should we accept console-only messages as architectural constraint?
-- Is a unified file output worth the complexity/risk of file conflicts?
-- Can we create safe bridge from Godot console to file system?
-- Should we standardize on fewer logging systems?
+### Phase 2: Standardize Console Loggers (1h)
+**What**: Create consistent Godot console logging
+**Why**: Standardize UI/presentation layer logging
+**Implementation**:
+1. Create `GodotLogger` static wrapper class
+2. Replace all direct `GD.Print()` calls with `GodotLogger.Log()`
+3. Add category support to console output
+4. Consistent formatting with timestamp and category
 
-**Previous Attempt**: Dev Engineer tried unification but caused file access conflicts that broke game
-
-**Options to Evaluate**:
-A) **Accept Current** (Low risk): Document architecture, improve dev workflow
-B) **Safe Bridge** (Medium risk): Forward Godot messages via IPC/queue to file
-C) **Full Unification** (High risk): Redesign all logging through single system
-
-**Success Criteria** (TBD by Tech Lead):
-- [ ] Complete logging architecture documented
-- [ ] Strategy decision made and communicated
-- [ ] Implementation plan created
-- [ ] Developer experience improved
-- [ ] No game stability regression
+**Success Criteria**:
+- [ ] Single log file for all C# domain/infrastructure logging
+- [ ] Consistent console output for all Godot logging
+- [ ] No file access conflicts (respects sandbox boundary)
+- [ ] Existing ICategoryLogger interface unchanged
+- [ ] All 664 tests still pass
 
 **Files**: `GameStrapper.cs`, `UnifiedCategoryLogger.cs`, `GodotCategoryLogger.cs`
 
