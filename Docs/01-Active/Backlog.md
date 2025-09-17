@@ -153,34 +153,92 @@ P = Player              P = Player
 
 ---
 
-### TD_061: Camera Follow During Movement Animation
-**Status**: Not Started
-**Owner**: Unassigned
-**Size**: S (1-2h estimate)
-**Priority**: High - UX improvement
-**Created**: 2025-09-17 20:35 (Dev Engineer)
-**Markers**: [CAMERA] [MOVEMENT] [UX]
+### TD_061: Progressive FOV Updates During Movement
+**Status**: Under Review
+**Owner**: Tech Lead (analyzing)
+**Size**: M (3-4h revised estimate)
+**Priority**: Critical - Game mechanic bug
+**Created**: 2025-09-17 20:35 (Dev Engineer - misdiagnosed)
+**Updated**: 2025-09-17 19:47 (Tech Lead - Identified real issue as FOV updates)
+**Markers**: [FOV] [VISION] [MOVEMENT] [GAME-LOGIC]
 
-**What**: Make camera follow player smoothly during movement animation
-**Why**: Currently camera only updates on click destination, not during movement
+**What**: Update Field of View progressively as actor moves cell-by-cell
+**Why**: Currently FOV updates instantly to destination, revealing areas before actor arrives
 
-**Problem Statement**:
-- Player moves cell-by-cell with smooth animation (TD_060 complete)
-- Camera jumps to destination immediately on click
-- Player can move off-screen during animation
-- Poor UX when moving long distances
+**REAL Problem Statement** (Tech Lead Analysis):
+- FOV currently updates ONCE at destination (WRONG)
+- Should update at EACH cell along movement path (CORRECT)
+- Fog of war reveals destination before actor gets there
+- This is a core game mechanic issue, not just visual
 
-**Proposed Solution**:
-1. GridView subscribes to actor position updates during animation
-2. Camera smoothly interpolates to follow actor
-3. Optional: Camera leads slightly ahead on path for better visibility
-4. Ensure camera doesn't jitter with tween updates
+**Visual Example**:
+```
+Current (WRONG):              Expected (CORRECT):
+Turn 1: Click destination     Turn 1: Click destination
+  ####?                         ####?
+  #@..?  <- FOV shows           #@..?  <- FOV at start
+  #...?     destination         #...?     position only
+  ????      immediately         ????
 
-**Technical Approach**:
-- Hook into ActorView's tween updates
-- Update camera position per frame or per cell
-- Use smooth camera interpolation (lerp)
-- Consider viewport boundaries
+Turn 2: Actor animating       Turn 2: Actor at cell 1
+  ####.                         ####?
+  #...@  <- Actor still         #.@.?  <- FOV updates
+  #....     moving but          #...?     per cell
+  ....      FOV already         ???       progressively
+            revealed all
+```
+
+**Architectural Complexity**:
+- Requires coordinating Domain (FOV calc), Application (sequential updates), Presentation (visibility)
+- Must maintain cell-by-cell state during animation
+- Need callback system for per-cell FOV triggers
+
+**Tech Lead Assessment**:
+- This is NOT about camera smoothing (that's trivial)
+- This IS about game state updates during movement
+- Requires careful coordination between layers
+- May need new movement event pattern
+
+**Proposed Solution** (Tech Lead - 2025-09-17 19:47):
+
+**Option A: Animation Callbacks with FOV Updates** (Recommended)
+```csharp
+// Use IMovementAnimationEvents from TD_062 pattern
+public interface IMovementAnimationEvents
+{
+    void OnCellReached(ActorId actorId, Position cellPosition);
+    // When cell reached -> Trigger FOV update for that position
+}
+```
+- Leverage TD_062's callback system
+- FOV updates triggered per cell during animation
+- Maintains clean separation of concerns
+
+**Option B: Staged Movement Command** (More Complex)
+- Break movement into cell-by-cell commands
+- Each command updates FOV for one cell
+- Chain commands with animation timing
+- Risk: Complexity, save/load issues
+
+**Option C: Visual-Only Fog** (Compromised)
+- Keep instant FOV update in domain
+- Add visual fog overlay that reveals progressively
+- Simpler but less authentic
+
+**Recommendation**: Option A using animation callbacks
+- Reuses TD_062 pattern (already approved)
+- Clean architectural boundaries
+- FOV remains deterministic
+- Animation drives revelation timing
+
+**Implementation Plan**:
+1. Extend IMovementAnimationEvents with FOV trigger
+2. GridPresenter calculates FOV per cell callback
+3. Update tile visibility progressively
+4. Maintain explored vs visible distinction
+
+**Complexity Score**: 5/10 - Cross-layer coordination required
+**Dependencies**: TD_062 callback system
 
 ---
 
