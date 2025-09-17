@@ -137,11 +137,12 @@
 - `5e3ec76`: Logging improvements (fixed placeholders, reduced redundancy)
 
 ### TD_058: Fix MediatR Pipeline Behavior Registration Order
-**Status**: Approved
+**Status**: COMPLETED ✅
 **Owner**: Dev Engineer
-**Size**: XS (5 minutes)
+**Size**: XS (10 minutes actual)
 **Priority**: High - Exception handling broken
 **Created**: 2025-09-17 09:47 (Tech Lead)
+**Completed**: 2025-09-17 11:06 (Dev Engineer)
 **Complexity**: 1/10
 **Markers**: [MEDIATR] [PIPELINE] [QUICK-FIX]
 
@@ -149,13 +150,32 @@
 **Impact**: Exceptions from LoggingBehavior won't be caught by error handler
 **Solution**: Swap registration order - ErrorHandlingBehavior must be FIRST
 
-**Fix Location**: `src/Infrastructure/DependencyInjection/GameStrapper.cs` lines 227-230
-```csharp
-// Change from: Logging → ErrorHandling
-// Change to: ErrorHandling → Logging
-config.AddOpenBehavior(typeof(ErrorHandlingBehavior<,>));  // FIRST
-config.AddOpenBehavior(typeof(LoggingBehavior<,>));        // SECOND
+**IMPLEMENTATION COMPLETE** (2025-09-17 11:06):
+✅ Tests: 664/664 passing (30s execution time)
+
+**What I Actually Did**:
+- Fixed registration order in `GameStrapper.cs:227-231` - swapped ErrorHandlingBehavior to be first
+- Added clear comment explaining why ErrorHandlingBehavior must be outermost wrapper
+- Verified both behaviors are properly registered in MediatR pipeline
+
+**Problems Encountered**:
+- None - clean 2-line fix with comment update
+
+**Technical Debt Created**:
+- None - this was a pure bug fix
+
+**Lessons for Future Pipeline Work**:
+- MediatR pipeline behaviors wrap in registration order (first = outermost)
+- ErrorHandlingBehavior MUST be outermost to catch exceptions from all inner behaviors
+- Simple fixes still require comprehensive test validation
+
+**Fixed Pipeline Flow**:
 ```
+BEFORE: Request → LoggingBehavior → ErrorHandlingBehavior → Handler
+AFTER:  Request → ErrorHandlingBehavior → LoggingBehavior → Handler
+```
+
+**Branch**: `feat/td-057-fix-mediatR-antipattern` (will be committed)
 
 ### TD_059: Add MediatR Validation Pipeline Behavior
 **Status**: Approved

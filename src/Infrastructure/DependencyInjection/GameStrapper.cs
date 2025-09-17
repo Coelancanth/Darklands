@@ -224,11 +224,11 @@ public static class GameStrapper
             {
                 config.RegisterServicesFromAssembly(coreAssembly);
 
+                // Add error handling pipeline behavior (MUST be first - outermost wrapper)
+                config.AddOpenBehavior(typeof(ErrorHandlingBehavior<,>));
+
                 // Add logging pipeline behavior
                 config.AddOpenBehavior(typeof(LoggingBehavior<,>));
-
-                // Add error handling pipeline behavior
-                config.AddOpenBehavior(typeof(ErrorHandlingBehavior<,>));
             });
 
             return FinSucc(LanguageExt.Unit.Default);
