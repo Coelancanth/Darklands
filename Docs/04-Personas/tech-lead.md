@@ -299,7 +299,7 @@ TD_001 Review:
 - **[ADR-010](../03-Reference/ADR/ADR-010-ui-event-bus-architecture.md)**: UI Event Bus Architecture
 - **[ADR-011](../03-Reference/ADR/ADR-011-godot-resource-bridge-pattern.md)**: Godot Resource Bridge Pattern
 - **[ADR-012](../03-Reference/ADR/ADR-012-localization-bridge-pattern.md)**: Localization Bridge Pattern
-- **[ADR-022](../03-Reference/ADR/ADR-022-three-position-model.md)**: Three-Position Model ⭐ NEW
+- **[ADR-022](../03-Reference/ADR/ADR-022-logical-visual-position-separation.md)**: Logical-Visual Position Separation ⭐ NEW
 
 ## Standard Phase Breakdown (Model-First Protocol)
 

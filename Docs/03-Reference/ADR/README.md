@@ -57,7 +57,7 @@ This directory contains Architecture Decision Records (ADRs) - documents that ca
   - Infrastructure bridge to Godot's TranslationServer for i18n
 
 ### Architecture Patterns
-- [ADR-022: Temporal Decoupling Pattern](ADR-022-temporal-decoupling-pattern.md) - **Approved** ⭐ **AMENDED 2025-09-18**
+- [ADR-022: Logical-Visual Position Separation](ADR-022-logical-visual-position-separation.md) - **Approved** ⭐ **REVISED 2025-09-18**
   - Decouples game logic timing from visual presentation timing
   - Amendment 1: Supports both discrete and interpolated visual updates
 

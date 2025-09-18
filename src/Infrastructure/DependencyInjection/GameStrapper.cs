@@ -267,6 +267,13 @@ public static class GameStrapper
                 provider.GetRequiredService<Infrastructure.Vision.VisionPerformanceMonitor>());
             services.AddSingleton<Application.Vision.Services.IVisionStateService, Infrastructure.Vision.PersistentVisionStateService>();
 
+            // TD_061: Progressive FOV movement service
+            services.AddSingleton<Application.FogOfWar.Services.IMovementProgressionService, Application.FogOfWar.Services.MovementProgressionService>();
+
+            // TD_061 Phase 3: Infrastructure timer coordination for movement progression
+            services.AddSingleton<Darklands.Infrastructure.Services.IGameTimeService, Darklands.Infrastructure.Services.GameTimeService>();
+            services.AddSingleton<Darklands.Infrastructure.Services.IMovementTimer, Darklands.Infrastructure.Services.MovementTimer>();
+
             // TD_009: Composite query service (coordinates ActorState + Grid services)
             services.AddSingleton<Application.Combat.Services.ICombatQueryService, Application.Combat.Services.CombatQueryService>();
             // TD_057: Damage service for shared damage logic (eliminates MediatR anti-pattern)

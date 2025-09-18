@@ -193,7 +193,7 @@ namespace Darklands.Presentation.Presenters
                 Succ: path =>
                 {
                     animationPath = path.ToList();
-                    _logger.Log(LogLevel.Information, LogCategory.Pathfinding,
+                    _logger.Log(LogLevel.Debug, LogCategory.Pathfinding,
                         "[GridPresenter] Calculated A* path with {Count} positions for move animation", animationPath.Count);
                     return Task.CompletedTask;
                 },
