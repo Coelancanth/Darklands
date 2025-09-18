@@ -121,7 +121,8 @@ public class LayeredGameStateManager : IGameStateManager
         {
             CombatState.PlayerTurn => true,
             CombatState.Deployment => true,
-            CombatState.TargetingMode => true,
+            CombatState.ExecutingAction => false,  // Block most input during movement
+            // Note: ESC and redirect handled separately by movement service
             _ => false
         };
     }
@@ -156,7 +157,8 @@ public class LayeredGameStateManager : IGameStateManager
                 break;
 
             case CombatState.ExecutingAction:
-                // Animation system will transition back when complete
+                // Movement progression or action animation in progress
+                // Will transition back when movement completes or action finishes
                 break;
 
             case CombatState.TurnTransition:
@@ -180,16 +182,17 @@ public class MoveActorCommandHandler
         if (!_stateManager.CanExecuteCombatAction())
             return Fin<Unit>.Fail(new Error("Cannot act in current state"));
 
+        // Calculate path
+        var path = _pathfinding.FindPath(actor.Position, command.Destination);
+        if (path.IsEmpty) return Fin<Unit>.Fail(new Error("No valid path"));
+
         // Transition to executing
         _stateManager.TransitionCombatState(CombatState.ExecutingAction);
 
-        // Start movement (instant game position)
-        actor.MoveTo(command.Destination);
+        // Start movement progression (actor stays at current position!)
+        _movementService.StartMovement(actor.Id, path);
 
-        // Start FOV progression (revealed position)
-        _fogRevealService.StartRevealProgression(actor.Id, command.Path);
-
-        // Animation complete will transition back to PlayerTurn
+        // Movement complete event will transition back to PlayerTurn
         return Fin<Unit>.Succ(Unit.Default);
     }
 }
@@ -315,8 +318,8 @@ stateDiagram-v2
 stateDiagram-v2
     [*] --> Deployment
     Deployment --> PlayerTurn: Deploy Complete
-    PlayerTurn --> ExecutingAction: Action Issued
-    ExecutingAction --> ReactionCheck: Action Complete
+    PlayerTurn --> ExecutingAction: Movement/Action Started
+    ExecutingAction --> ReactionCheck: Movement/Action Complete
     ReactionCheck --> PlayerTurn: No Reactions
     ReactionCheck --> ExecutingAction: Reaction Triggered
     PlayerTurn --> TurnTransition: End Turn
@@ -331,7 +334,7 @@ stateDiagram-v2
 - **ADR-004**: Deterministic Simulation - State transitions must be deterministic
 - **ADR-005**: Save-Ready Architecture - State enums serialize easily
 - **ADR-010**: UI Event Bus - State changes published as events
-- **ADR-022**: Logical-Visual Position Separation - ExecutingAction state during animations
+- **ADR-022**: Logical-Visual Position Separation - ExecutingAction state during movement progression
 - **ADR-006**: Selective Abstraction - State management is abstracted
 - **ADR-009**: Sequential Turn Processing - Aligns with turn states
 

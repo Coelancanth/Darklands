@@ -1,644 +1,99 @@
-A Comprehensive Analysis of Best Practices for the MediatR Library in Modern.NET Architectures
-
-
-Section 1: Foundational Principles and Core Mechanics
-
-This section establishes the fundamental concepts of MediatR, moving beyond a superficial definition to dissect its core components and messaging paradigms. It serves as the essential groundwork for understanding the more complex architectural discussions that follow.
-
-1.1 The Mediator Pattern in.NET: A Theoretical Grounding
+好的。以专业技术负责人的眼光，我对这份架构决策记录（ADR）进行审批。
 
-The Mediator pattern is a behavioral design pattern that aims to reduce chaotic dependencies between objects. It achieves this by restricting direct communication among components and compelling them to collaborate exclusively through a central mediator object.1 This architectural choice promotes loose coupling, which in turn makes individual components significantly easier to modify, extend, and reuse in different contexts.1 The core purpose of the pattern is to encapsulate how a set of objects interact, centralizing complex communication logic that would otherwise be scattered across multiple components.7 This is particularly valuable in applications with intricate user interfaces or complex back-end systems where numerous components might otherwise need to hold direct references to each other, leading to a tangled web of dependencies often described as "spaghetti code".3
-MediatR is a popular open-source library for.NET, created by Jimmy Bogard, that is frequently described as a "simple, unambitious mediator implementation".4 It functions as a central, in-process messaging hub, facilitating communication between objects without requiring them to be aware of one another.5 It is crucial to understand that MediatR represents a modern interpretation of the Mediator pattern, leveraging C# generics and dependency injection, rather than a strict implementation of the original Gang of Four (GoF) design. The classic GoF pattern often describes a concrete mediator object that maintains explicit references to its "colleague" components.1 In contrast, MediatR achieves its dispatch mechanism by using generic type definitions (e.g.,
-$IRequest<T>$, $IRequestHandler<T, U>$) and a dependency injection (DI) container to dynamically resolve the correct handler at runtime.12 This approach matches the
-problem description of the pattern—reducing chaotic dependencies—more so than its classic implementation diagram, making it a flexible and powerful tool for modern application development.13
+**总体评价：**
 
-1.2 Core Components of MediatR: Requests and Notifications
+这是一份质量极高、思考极为周密的架构决策记录。它准确地识别了战棋游戏中一个核心且棘手的问题（逻辑状态与视觉表现的分离），并提出了一个健全、可测试且符合整洁架构原则的解决方案。文档结构清晰，论证充分，对替代方案的评估也很到位，特别是与Godot集成的部分考虑得非常具体。
 
-MediatR's functionality is built upon two primary and distinct messaging paradigms: Requests and Notifications. The strict separation of these message contracts from their implementation logic is a core design choice that promotes the Single Responsibility Principle (SRP) and significantly enhances the testability of the application's components.5
-
-1.2.1 Requests and Request Handlers
-
-A Request in MediatR is a message that is dispatched to a single handler and is expected to yield a response. This one-to-one interaction model is ideal for implementing commands and queries.
-IRequest<TResponse>: This interface defines a request that will return a value of type TResponse. The request class itself is a simple data container, a Plain Old C# Object (POCO), that encapsulates all the necessary information for an operation.4 For example, a command to create a user might be defined as follows:
-C#
-// Represents a command to create a new user and returns the new user's integer ID.
-public class CreateUserCommand : IRequest<int>
-{
-    public string Name { get; set; }
-    public string Email { get; set; }
-}
-
-
-IRequest: For operations that do not return a value (often referred to as "void" operations), MediatR provides a shorthand. A class implementing IRequest is equivalent to implementing $IRequest<Unit>$, where Unit is a special MediatR type representing a void return.10
-IRequestHandler<TRequest, TResponse>: This interface defines the handler responsible for processing a specific TRequest and returning a TResponse. Each handler contains the business logic for its corresponding request.14 It exposes a single
-Handle method where the work is performed. MediatR leverages the DI container to automatically discover and map these handlers to their requests at runtime.12
-C#
-public class CreateUserCommandHandler : IRequestHandler<CreateUserCommand, int>
-{
-    private readonly IUserRepository _userRepository;
-
-    public CreateUserCommandHandler(IUserRepository userRepository)
-    {
-        _userRepository = userRepository;
-    }
-
-    public async Task<int> Handle(CreateUserCommand request, CancellationToken cancellationToken)
-    {
-        var newUser = new User { Name = request.Name, Email = request.Email };
-        var userId = await _userRepository.AddUserAsync(newUser);
-        return userId;
-    }
-}
-
-
-
-1.2.2 Notifications and Notification Handlers
-
-A Notification in MediatR is a message that is published to multiple handlers. This one-to-many, "fire-and-forget" interaction model is suited for implementing an event-driven approach within an application.
-INotification: This marker interface defines a notification message. Like requests, notifications are simple POCOs that carry data about an event that has occurred.18
-C#
-// Represents an event that is published after a user has been created.
-public class UserCreatedNotification : INotification
-{
-    public int UserId { get; }
-    public string Email { get; }
-
-    public UserCreatedNotification(int userId, string email)
-    {
-        UserId = userId;
-        Email = email;
-    }
-}
-
-
-INotificationHandler<TNotification>: This interface defines a handler that subscribes to a specific TNotification. A key distinction from request handlers is that multiple classes can implement this interface for the same notification type. When a notification is published, MediatR will invoke the Handle method on all registered handlers for that event, allowing various parts of the application to react independently.18
-C#
-// Handler to send a welcome email when a user is created.
-public class SendWelcomeEmailHandler : INotificationHandler<UserCreatedNotification>
-{
-    private readonly IEmailService _emailService;
-
-    public SendWelcomeEmailHandler(IEmailService emailService)
-    {
-        _emailService = emailService;
-    }
-
-    public Task Handle(UserCreatedNotification notification, CancellationToken cancellationToken)
-    {
-        return _emailService.SendEmailAsync(notification.Email, "Welcome!", "Thanks for joining.");
-    }
-}
-
-// Another handler to update an analytics service when a user is created.
-public class AnalyticsServiceHandler : INotificationHandler<UserCreatedNotification>
-{
-    private readonly IAnalyticsService _analyticsService;
-
-    public AnalyticsServiceHandler(IAnalyticsService analyticsService)
-    {
-        _analyticsService = analyticsService;
-    }
-
-    public Task Handle(UserCreatedNotification notification, CancellationToken cancellationToken)
-    {
-        return _analyticsService.TrackUserSignUpAsync(notification.UserId);
-    }
-}
-
-
-
-1.3 Differentiating Messaging Styles: Send vs. Publish
-
-The distinction between sending a request and publishing a notification is the most critical concept for developers to master when using MediatR. Originally combined within the IMediator interface, these operations were segregated into ISender and IPublisher interfaces in MediatR version 9.0.8 This evolution reflects a maturation of the library towards stricter adherence to SOLID principles, specifically the Interface Segregation Principle (ISP). By providing separate interfaces, MediatR allows classes to depend only on the capabilities they require. For instance, a controller action that only needs to execute a query can depend on
-ISender, making its intent clear and preventing it from being able to publish unrelated events.
-_mediator.Send(request): This method, exposed by the ISender interface, dispatches an IRequest to its single, corresponding IRequestHandler. It is an asynchronous operation that returns a Task<TResponse>, where TResponse is the result of the handler's execution.4 This method is the foundation for implementing commands and queries, where a direct and singular result is expected.22
-_mediator.Publish(notification): This method, exposed by the IPublisher interface, dispatches an INotification to all of its registered INotificationHandlers. It returns a Task that completes once all handlers have been invoked (either serially or in parallel, depending on configuration). Crucially, it does not return any value from the handlers.5 This is ideal for broadcasting domain events and triggering side effects where the publisher should remain decoupled from the subscribers and their implementations.19
-Misusing these methods is a common pitfall. Attempting to get a return value from Publish or using Send for an event that should trigger multiple independent actions indicates a misunderstanding of the library's core design.
-Feature
-Send (Request/Response)
-Publish (Notification)
-Primary Interface
-ISender
-IPublisher
-Handler Cardinality
-One
-Zero to Many
-Return Type
-$Task<TResponse>$ (or $Task<Unit>$)
-Task
-Analogy
-Direct Command, Phone Call
-Public Announcement, Broadcast
-Typical Use Case
-Commands (writes), Queries (reads)
-Domain Events, Cross-cutting side effects (e.g., cache invalidation, logging)
-Coupling
-Tightly coupled to the expectation of a single handler and a response
-Loosely coupled; publisher is unaware of subscribers
-
-
-Section 2: Architectural Synergy: CQRS and Vertical Slice Architecture
-
-MediatR transcends its role as a simple library to become a powerful enabler for specific architectural styles that are increasingly prevalent in modern.NET development. This section moves the discussion from the mechanics of MediatR to the sophisticated architectures it helps unlock, namely Command Query Responsibility Segregation (CQRS) and Vertical Slice Architecture (VSA).
-
-2.1 Facilitating Command Query Responsibility Segregation (CQRS)
-
-CQRS is an architectural pattern that separates the models and logic for modifying state (Commands) from the models and logic for reading state (Queries).24 This separation allows each side to be optimized independently. For example, the write model can be highly normalized with rich domain logic, while the read model can be denormalized and tailored for specific UI views to improve query performance.26
-MediatR provides a natural and elegant implementation mechanism for CQRS. Its IRequest/IRequestHandler pattern allows for the creation of distinct classes for every command and query, each with its own dedicated handler.4
-Commands: These represent an intent to change the state of the system, such as creating, updating, or deleting data. In MediatR, a command is typically a class implementing IRequest or $IRequest<T>$ (if an ID or status is returned). Its corresponding handler encapsulates all the logic for executing that change, including validation, interacting with domain models, and persisting data.25
-C#
-// Command
-public class UpdateProductPriceCommand : IRequest {
-    public int ProductId { get; set; }
-    public decimal NewPrice { get; set; }
-}
-
-// Handler
-public class UpdateProductPriceCommandHandler : IRequestHandler<UpdateProductPriceCommand> {
-    //... logic to update product price in the database
-}
-
-
-Queries: These represent a request for data and do not modify state. A query in MediatR is a class that implements $IRequest<TResponse>$, where TResponse is the data transfer object (DTO) or view model being requested. The query handler is responsible for fetching the data, potentially from a different, optimized read store, and mapping it to the response model.14
-C#
-// Query
-public class GetProductDetailsQuery : IRequest<ProductDetailsDto> {
-    public int ProductId { get; set; }
-}
-
-// Handler
-public class GetProductDetailsQueryHandler : IRequestHandler<GetProductDetailsQuery, ProductDetailsDto> {
-    //... logic to query a read-optimized view and return a DTO
-}
-
-
-By adopting this pattern, API controllers and other entry points to the application become remarkably thin. Their sole responsibility is to instantiate a command or query object with data from the incoming HTTP request and dispatch it using _mediator.Send().10 All complex business logic, data access, and validation are neatly encapsulated within the handlers. This structure strongly adheres to the Single Responsibility Principle and makes the system significantly easier to reason about, maintain, and test in isolation.5
-
-2.2 Enabling Vertical Slice Architecture (VSA)
-
-While layered architectures organize code by technical concern (e.g., UI, Business Logic, Data Access), Vertical Slice Architecture (VSA) organizes code by feature.30 A "vertical slice" contains all the code necessary to implement a single feature, cutting across traditional horizontal layers. This includes the API endpoint definition, the request/command object, the handler, validation rules, and any specific data access logic.30
-MediatR is a cornerstone for implementing VSA effectively. A MediatR request and its handler (CreateProductCommand and CreateProductCommandHandler, for example) can be co-located within a single feature folder, perfectly encapsulating the logic for that specific use case.32
-
-
-
-/Features
-└── /Products
-    ├── /CreateProduct
-    │   ├── CreateProduct.cs // Endpoint definition (e.g., using Minimal APIs)
-    │   ├── CreateProductCommand.cs
-    │   ├── CreateProductCommandHandler.cs
-    │   └── CreateProductCommandValidator.cs
-    └── /GetProductDetails
-        ├── GetProductDetails.cs // Endpoint definition
-        ├── GetProductDetailsQuery.cs
-        └── GetProductDetailsQueryHandler.cs
-
-
-This structure yields significant architectural benefits. It creates high cohesion within a feature (all related code is together) and low coupling between features (the CreateProduct slice has no direct knowledge of the GetProductDetails slice).30 Consequently, adding new features often involves simply adding new folders and files, with minimal risk of impacting existing, stable code.35 MediatR acts as the decoupled entry point into each slice; the API layer dispatches a request, and MediatR routes it to the correct handler within the appropriate slice, thereby preserving the isolation and boundaries between features.38
-The library's design provides a form of architectural scaffolding that naturally guides developers toward these beneficial patterns. A team might adopt MediatR simply to clean up a controller with too many dependencies.10 The requirement to create separate request and handler classes is the first step toward CQRS. The subsequent logical step of grouping these related files into a feature folder is the essence of VSA. In this way, MediatR makes abstract architectural concepts tangible and easier to adopt.
-
-2.3 Comparative Analysis: VSA vs. Layered Architecture
-
-The choice between VSA and a traditional layered architecture has profound implications for a project's maintainability and evolution. Layered architectures, such as N-Tier or Clean Architecture, group code by technical concern, resulting in folders like Controllers, Services, and Repositories.35 While this provides a clear separation of technical responsibilities, it often leads to low cohesion for features, as the code for a single business requirement becomes scattered across these different layers.35
-VSA, by contrast, prioritizes feature cohesion.31 A key advantage of this approach is implementation flexibility. Because each slice is self-contained, it can choose the best tools for its specific job. One query slice might use the full power of Entity Framework Core to track changes, while another high-performance query might use Dapper with raw SQL to return a flattened DTO. This is a stark contrast to layered architectures, which often promote a one-size-fits-all approach, such as a generic repository pattern that can be ill-suited for specialized query needs.34
-The primary role of MediatR in VSA is to enforce strict boundaries between these slices. In a layered architecture, it is common for one service (e.g., ProductService) to directly invoke another (OrderService), creating a tight coupling between features. In VSA with MediatR, the CreateProductHandler has no reference to the CreateOrderHandler and cannot call it directly. Communication between slices must occur through messages—either by sending a new MediatR request (which is often an anti-pattern, as discussed later) or, more appropriately, by publishing a domain event (INotification). This forces a more robust, event-driven communication model, preserving the low coupling that is a core promise of VSA.
-Metric
-Vertical Slice Architecture (with MediatR)
-Traditional Layered Architecture
-Primary Organizing Principle
-Feature / Use Case
-Technical Concern (UI, Logic, Data)
-Cohesion
-High (within a feature)
-Low (within a feature), High (within a layer)
-Coupling
-Low (between features)
-High (within a layer), can be high between layers
-Axis of Change
-Adding/modifying a feature touches one slice (folder)
-Adding/modifying a feature touches multiple layers (folders/projects)
-Implementation Flexibility
-High (each slice can have a tailored implementation)
-Low (often enforces a uniform pattern, e.g., generic repository)
-Developer Experience
-Easier navigation for feature-focused work
-Can involve significant "jumping around" between files/projects
-
-
-Section 3: Mastering the Pipeline for Cross-Cutting Concerns
-
-This section transitions from high-level architectural patterns to a powerful, practical feature of MediatR: pipeline behaviors. It demonstrates how to keep business logic clean by extracting common, non-functional requirements into a reusable, middleware-style pipeline.
-
-3.1 Introduction to IPipelineBehavior
-
-The $IPipelineBehavior<TRequest, TResponse>$ interface is a key feature of MediatR that allows developers to wrap a request handler with additional logic.5 This mechanism functions similarly to the middleware pipeline in ASP.NET Core, enabling the implementation of cross-cutting concerns in a clean, decoupled manner.45 It is an effective application of the Decorator and Chain of Responsibility design patterns.47
-The Handle method of a pipeline behavior is its central component. It receives the TRequest object, a cancellation token, and a special RequestHandlerDelegate<TResponse> next delegate. This next delegate represents the subsequent action in the pipeline—either the next registered behavior or, ultimately, the request handler itself.5 By calling
-await next(), the behavior passes control down the chain. This structure allows for logic to be executed both before and after the core handler runs.
-This pattern is exceptionally powerful for implementing cross-cutting concerns such as logging, validation, caching, transaction management, and authorization without cluttering the business logic of the handlers.45 It strongly adheres to the Open-Closed Principle, as new behaviors can be added to the pipeline to extend functionality without ever modifying the existing handlers.47 This shifts the responsibility for these systemic concerns from the individual feature developer to the architect of the system. Once defined and registered, these behaviors are automatically applied to every new handler, ensuring consistency and allowing feature developers to focus purely on business logic.
-
-3.2 Practical Implementation: Validation
-
-A canonical use case for pipeline behaviors is request validation, often implemented in conjunction with the FluentValidation library.46 A validation behavior centralizes the validation logic, ensuring that a handler only executes if the incoming request is valid.
-The behavior's constructor injects an $IEnumerable<IValidator<TRequest>>$. At runtime, the DI container provides all registered validators that apply to the specific TRequest being processed. The Handle method then executes these validators. If any validation rules fail, the behavior can short-circuit the pipeline by throwing a ValidationException immediately, preventing the request from ever reaching the handler.47 This ensures that handlers can operate under the assumption that they have received valid data, simplifying their internal logic.52
-
-C#
-
-
-public class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
-    where TRequest : IRequest<TResponse>
-{
-    private readonly IEnumerable<IValidator<TRequest>> _validators;
-
-    public ValidationBehavior(IEnumerable<IValidator<TRequest>> validators)
-    {
-        _validators = validators;
-    }
-
-    public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
-    {
-        if (_validators.Any())
-        {
-            var context = new ValidationContext<TRequest>(request);
-
-            var validationResults = await Task.WhenAll(
-                _validators.Select(v => v.ValidateAsync(context, cancellationToken)));
-
-            var failures = validationResults
-               .SelectMany(r => r.Errors)
-               .Where(f => f!= null)
-               .ToList();
-
-            if (failures.Count!= 0)
-            {
-                throw new ValidationException(failures);
-            }
-        }
-        return await next();
-    }
-}
-
-
-
-3.3 Practical Implementation: Logging and Performance Monitoring
-
-Pipeline behaviors are also ideal for implementing consistent, application-wide observability.
-Logging Behavior: A logging behavior can be created to log key information about every request that passes through the system. It can log the request details before calling await next() and log the response or any exceptions after the call completes. Using structured logging libraries in this behavior allows for the inclusion of request properties, correlation IDs, and other metadata, making logs highly searchable and invaluable for debugging.14
-Performance Monitoring Behavior: To monitor performance, a behavior can wrap the await next() call in a System.Diagnostics.Stopwatch. After the handler completes, the behavior can check the elapsed time and log a warning if it exceeds a predefined threshold. This helps proactively identify slow-running operations in the system without adding any performance-tracking code to the business logic itself.45
-
-C#
-
-
-public class PerformanceBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
-{
-    private readonly Stopwatch _timer;
-    private readonly ILogger<TRequest> _logger;
-
-    public PerformanceBehavior(ILogger<TRequest> logger)
-    {
-        _timer = new Stopwatch();
-        _logger = logger;
-    }
-
-    public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
-    {
-        _timer.Start();
-        var response = await next();
-        _timer.Stop();
-
-        var elapsedMilliseconds = _timer.ElapsedMilliseconds;
-        if (elapsedMilliseconds > 500) // 500ms threshold
-        {
-            var requestName = typeof(TRequest).Name;
-            _logger.LogWarning("Long Running Request: {Name} ({ElapsedMilliseconds} milliseconds) {@Request}",
-                requestName, elapsedMilliseconds, request);
-        }
-
-        return response;
-    }
-}
-
-
-
-3.4 Practical Implementation: Caching Strategies
-
-For read-intensive applications, a caching pipeline behavior can dramatically improve performance. This behavior intercepts query requests, typically identified by having them implement a custom marker interface like ICacheable.
-The logic is straightforward:
-The behavior generates a unique cache key based on the properties of the request.
-It attempts to retrieve the response from a distributed cache (e.g., Redis, via IDistributedCache).
-If a value is found in the cache (a cache hit), the behavior immediately returns the cached response, short-circuiting the pipeline and avoiding a costly database query.
-If no value is found (a cache miss), the behavior calls await next() to execute the query handler.
-Before returning the response from the handler, it stores the result in the cache with a defined expiration policy.54
-This pattern effectively decouples the caching logic from the data access logic. Query handlers remain simple and unaware of caching, while the behavior provides a centralized and reusable caching strategy.54 Cache invalidation can then be handled cleanly by
-INotificationHandlers that subscribe to events published by command handlers (e.g., an ProductUpdatedNotification invalidates the cache for GetProductByIdQuery).56
-
-3.5 The Importance of Registration Order
-
-Pipeline behaviors are executed in the precise order they are registered with the DI container.21 This order is not arbitrary; it is a critical architectural decision that dictates how cross-cutting concerns interact. An incorrect order can lead to inefficient or buggy behavior. For example, registering a transaction behavior before a validation behavior would result in opening a database transaction for a request that is ultimately invalid and will be rejected.
-The RequestHandlerDelegate next delegate is the key to the pipeline's flexibility. It allows a behavior to not only add logic before and after the core operation (decoration) but also to conditionally decide not to call the delegate at all, effectively stopping the request processing and returning a response directly (short-circuiting). This dual capability makes pipeline behaviors a versatile tool for controlling the entire flow of a request.
-A well-considered registration order ensures that behaviors compose correctly and efficiently.
-Behavior
-Purpose
-Key Implementation Detail
-Recommended Registration Order
-Exception Handling
-Catches and standardizes exceptions from the entire pipeline.
-try-catch block around await next().
-First
-Logging
-Provides consistent request/response logging for observability.
-Log before and after await next().
-Early (e.g., Second)
-Caching
-Returns cached responses for queries to avoid database access.
-Check cache before await next(); add to cache after. Short-circuits on hit.
-Early (after logging)
-Validation
-Ensures requests are valid before processing.
-Execute validators; throw or return error on failure before await next().
-After Caching
-Transaction
-Wraps the handler execution in a database transaction.
-Begin transaction before await next(); commit/rollback after.
-Late (just before the handler)
-
-
-Section 4: Advanced Messaging Patterns and Use Cases
-
-Beyond the foundational request/response and notification patterns, MediatR supports several advanced use cases that are particularly relevant in sophisticated architectures like Domain-Driven Design (DDD).
-
-4.1 Domain Events with INotification
-
-In DDD, a domain event is something that has happened in the past within the domain that other parts of the same domain need to be aware of.58 These events are a powerful tool for decoupling aggregates and coordinating business logic across different parts of a bounded context. For example, when an
-Order aggregate is finalized, it might raise an OrderPlaced domain event. Other parts of the system, such as an Inventory aggregate, might need to react to this event to reserve stock.
-MediatR's INotification system provides an excellent in-process mechanism for dispatching these domain events.59 The flow is typically as follows:
-Define the Domain Event: A domain event is created as a class that implements INotification. It contains data relevant to the event.
-C#
-public class OrderPlacedDomainEvent : INotification
-{
-    public Guid OrderId { get; }
-    public OrderPlacedDomainEvent(Guid orderId) => OrderId = orderId;
-}
-
-
-Raise the Event: Within an aggregate root's method, after a state change occurs, the domain event is created and added to a collection within the entity.
-C#
-public class Order : BaseEntity
-{
-    //... properties and methods
-    public void PlaceOrder()
-    {
-        //... logic to place the order
-        this.QueueDomainEvent(new OrderPlacedDomainEvent(this.Id));
-    }
-}
-
-
-Dispatch the Events: The events are dispatched just before the changes are persisted to the database. This is often handled within an overridden SaveChangesAsync method in the Entity Framework Core DbContext or as part of a Unit of Work pattern. The dispatcher iterates through all entities being tracked, collects their domain events, and uses _mediator.Publish() to send them.59 This ensures that event handlers are only executed if the primary transaction is successful.
-Handle the Event: One or more INotificationHandlers in the application layer subscribe to the domain event and execute the necessary side effects, such as updating another aggregate, sending an email, or invalidating a cache.58
-This pattern ensures that aggregates remain loosely coupled. The Order aggregate does not need to know about the Inventory aggregate; it simply announces that an order was placed, and any interested party can react accordingly.61
-
-4.2 Parallel Notification Processing
-
-By default, and in versions prior to MediatR v12, when an INotification was published, MediatR would invoke each registered handler serially, one after another, using a foreach loop with await.63 While this is simple and predictable, it can be inefficient if the handlers perform independent, long-running I/O operations (e.g., making separate API calls or database updates).
-MediatR v12 introduced the INotificationPublisher interface to allow customization of the publishing strategy. Two built-in implementations are provided 63:
-ForeachAwaitPublisher: The default, serial execution strategy. If one handler throws an exception, subsequent handlers will not be executed.
-TaskWhenAllPublisher: This strategy invokes all notification handlers concurrently using Task.WhenAll. This can provide a significant performance improvement for I/O-bound handlers. It also has different exception handling semantics: all handlers are executed even if one or more of them fail. Any exceptions are collected into an AggregateException.63
-The publishing strategy can be configured during MediatR's registration in the DI container:
-
-C#
-
-
-services.AddMediatR(config => {
-    config.RegisterServicesFromAssemblyContaining<Program>();
-    // Use parallel publishing for all notifications
-    config.NotificationPublisherType = typeof(TaskWhenAllPublisher);
-});
-
-
-While parallel execution offers performance benefits, it requires careful consideration. Handlers executing in parallel will share the same dependency injection scope. If they rely on services that are not thread-safe (like a non-thread-safe DbContext instance), it can lead to concurrency issues.63
-
-4.3 Streaming with IStreamRequest
-
-For scenarios that produce a sequence of results over time rather than a single response, MediatR provides a streaming API. This is built around the $IStreamRequest<TResponse>$ and $IStreamRequestHandler<TRequest, TResponse>$ interfaces, which work with C#'s $IAsyncEnumerable<T>$.21
-This is useful for cases like reading a large file, processing records from a message queue, or streaming results from a database without loading the entire dataset into memory at once. The client calls _mediator.CreateStream(request) and can then await foreach over the results as they are yielded by the handler.
-
-4.4 Sharing Context Across Pipeline Behaviors
-
-A common challenge when composing multiple pipeline behaviors is the need to share contextual information between them. For example, an authentication behavior might identify the current user, and a subsequent authorization or logging behavior might need access to that user's identity. There are two primary strategies for achieving this, each with its own trade-offs.48
-Request Hijacking: This approach involves creating a base request class that contains a context-sharing property, such as a dictionary. The first behavior in the pipeline populates this property, and later behaviors can read from it.
-C#
-public abstract class ContextualRequest<TResponse> : IRequest<TResponse>
-{
-    public IDictionary<string, object> Items { get; } = new Dictionary<string, object>();
-}
+**该ADR的核心决策是正确的，予以批准。**
 
-While functional, this method is often considered an anti-pattern as it forces an inheritance hierarchy onto request objects, violating the "favor composition over inheritance" principle.48
-Scoped Dependency Injection (Recommended): A cleaner and more flexible approach is to define a dedicated context class and register it as a scoped service in the DI container.
-C#
-public class RequestContext { /*... properties to hold context... */ }
-services.AddScoped<RequestContext>();
+然而，作为一次严格的评审，我的职责是找出其中潜在的模糊地带和未来可能演变为技术债务的薄弱环节。以下是我识别出的几点不足，需要在最终定稿或后续工作中加以明确。
 
-Any behavior that needs to read or write to the context can simply inject this scoped service via its constructor. Because the service is scoped, a single instance is shared throughout the duration of a single request pipeline, but each new request gets a fresh instance. This method uses composition, does not require modifying request objects, and aligns well with standard.NET dependency injection practices.48
+---
 
-Section 5: Comprehensive Testing Strategies
+### 潜在的不足与待明确的细节
 
-The decoupled nature of MediatR, which separates requests from their handlers, significantly enhances the testability of an application's business logic. However, it also introduces different layers that require distinct testing strategies to ensure comprehensive coverage.
+#### 1. 核心模糊点：“逻辑位置”的真实含义（实际上是“三位置模型”）
 
-5.1 Unit Testing Handlers
+这是本文档中最关键的一个模糊点。
 
-Unit tests for MediatR handlers focus on verifying the business logic within a single handler in isolation from external dependencies like databases, file systems, or APIs. There are two primary approaches to this.
+* **文档声称**: 这是一个“双位置模型”（逻辑位置 vs 视觉位置）。
+* **代码实现暗示**: 这是一个事实上的**“三位置模型”**。
 
-5.1.1 Testing Handlers in Isolation (Direct Instantiation)
+让我们来分解一下代码中的三种位置：
 
-This is the most common and "pure" form of unit testing. The handler class is instantiated directly in the test, and all its dependencies are mocked using a framework like Moq or NSubstitute.64 This allows the test to control the behavior of dependencies and verify that the handler interacts with them correctly.
+1.  **最终逻辑位置 (Final Logical Position)**: 在 `MoveActorCommandHandler` 中，`actor.MoveTo(command.Destination)` **立即**更新了Actor在领域模型中的最终位置。这个位置是存档、战斗逻辑判定（例如，是否在攻击范围内）的**最终事实来源**。
+2.  **揭示位置 (Revealed Position)**: `FogOfWarRevealService` 中 `MovementProgression` 管理的 `LogicalPosition`，它随着时间**逐步**在路径上前移。这个位置是视野计算（FOV）的**事实来源**。文档称之为“逻辑位置”，但它与Actor的最终逻辑位置并不同步。
+3.  **视觉位置 (Visual Position)**: `ActorView` 的 `position` 属性，它平滑地追赶“揭示位置”。这是**纯粹的视觉表现**。
 
-C#
+**潜在问题**:
+* **术语混淆**: 团队成员可能会对“逻辑位置”这个词产生误解。当有人问“Actor的逻辑位置是什么？”时，答案取决于上下文：“你是问它的最终目的地，还是它当前的视野揭示点？”
+* **逻辑不一致风险**: 如果处理不当，可能会出现一个Actor的视野已经揭示了某个格子，但其最终逻辑位置还在起点，此时若有范围效果发生，可能会基于错误的位置进行计算。虽然当前设计避免了这个问题，但术语上的不清晰为未来的Bug埋下了隐患。
 
+**建议**:
+在文档中明确承认这是一个事实上的“三位置模型”，并为它们提供更精确的命名，例如：
+* `AuthoritativePosition` (权威位置，即最终逻辑位置)
+* `RevealedPosition` (揭示位置，用于视野)
+* `VisualPosition` (视觉位置)
 
-[Fact]
-public async Task Handle_GivenValidRequest_ShouldReturnProduct()
-{
-    // Arrange
-    var mockRepo = new Mock<IProductRepository>();
-    var expectedProduct = new Product { Id = 1, Name = "Test Product" };
-    mockRepo.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>()))
-           .ReturnsAsync(expectedProduct);
+这样做可以极大地提升沟通的清晰度，并让新成员更快地理解系统。
 
-    var handler = new GetProductByIdQueryHandler(mockRepo.Object);
-    var query = new GetProductByIdQuery { Id = 1 };
+#### 2. 中断机制不明确
 
-    // Act
-    var result = await handler.Handle(query, CancellationToken.None);
+文档在“Positive Consequences”中提到了“Interrupt-Friendly”，这是一个非常好的优点。但是，当前的 `MovementProgressionService` 的代码示例中只展示了 `StartMovement` 和 `AdvanceGameTime`。
 
-    // Assert
-    Assert.NotNull(result);
-    Assert.Equal(expectedProduct.Id, result.Id);
-    mockRepo.Verify(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>()), Times.Once);
-}
+**潜在问题**:
+* 当一个新的移动指令下达时，现有的 `MovementProgression` 应该如何被**停止**？
+* `MovementProgressionService` 缺少一个 `StopMovement(ActorId actor)` 的方法。
+* 中断逻辑（例如，清除一个进行中的 `MovementProgression` 实例）的具体实现没有展示，这使得“对中断友好”这一声明略显空洞。
 
+**建议**:
+在文档中补充一段伪代码或文字说明，描述中断一个正在进行的移动时，系统的处理流程。例如：
+1.  `MoveActorCommandHandler` 接收到新指令。
+2.  它调用 `MovementProgressionService.StopMovement(actor.Id)`。
+3.  `StopMovement` 方法从 `_activeProgressions` 字典中移除对应的 `MovementProgression` 实例。
+4.  然后 `StartMovement` 会为新路径创建一个新的实例。
 
-This approach is fast and precise, allowing for granular testing of a handler's logic. However, its main drawback is that it does not execute the MediatR pipeline. Any cross-cutting concerns implemented in pipeline behaviors (like validation or logging) will not be tested.66
+#### 3. 视觉策略的职责蔓延 (SRP)
 
-5.1.2 Testing Through the Mediator Instance
+在 `Amendment 1` 中引入的 `IVisualPositionStrategy` 是一个绝佳的补充，它干净地解决了离散移动和插值移动的需求。
 
-An alternative approach involves setting up an in-memory dependency injection container for the test, registering the handler and its mocked dependencies, and then dispatching the request via a real IMediator instance.66
-This method has the significant advantage of executing the full MediatR pipeline, including any registered behaviors. This provides a more integrated test of the handler's behavior within the MediatR ecosystem.66 However, it requires more setup and blurs the line slightly between a pure unit test and an integration test. This is often the preferred method when the interaction with pipeline behaviors is a critical part of the feature's overall logic.
+**潜在问题**:
+在 `DiscretePositionStrategy` 的实现中，包含了 `AddVisualFeedback` 方法，这个方法做了闪烁效果。这实际上违反了**单一职责原则 (Single Responsibility Principle)**。
+* 这个策略的职责应该是**更新位置**。
+* “闪烁”、“播放粒子效果”、“播放音效”是**视觉反馈 (Visual Feedback/FX)** 的职责。
 
-5.2 Integration Testing
+将FX逻辑混入位置更新策略中，会使得未来扩展变得困难。例如，如果你想让所有“瞬移”类型的移动都播放同一个音效，你就必须去修改所有相关的策略类，而不是在一个统一的事件监听器中处理。
 
-Integration tests validate that different components of the application work together correctly, including the actual infrastructure like the database. For applications using MediatR, integration tests are crucial for verifying the entire flow from an incoming request to the database and back.
-The standard tool for this in ASP.NET Core is WebApplicationFactory. It bootstraps the application in-memory, including the real dependency injection container, routing, and middleware, while providing an HttpClient to send requests to the API endpoints.69
-An integration test for a MediatR-based feature would typically:
-Use WebApplicationFactory to create an in-memory instance of the application. Often, this involves replacing the production database connection with a connection to a test database (e.g., a Docker container managed by Testcontainers).71
-Use the provided HttpClient to send an HTTP request (e.g., a GET request to /api/products/1) to the endpoint that triggers the MediatR handler.
-The request flows through the entire real application stack: ASP.NET Core middleware, the controller action, the _mediator.Send() call, any MediatR pipeline behaviors, the handler, and the actual database.
-The test then asserts that the HTTP response and any database side effects are correct.69
-While slower than unit tests, integration tests provide the highest level of confidence that the feature works correctly end-to-end.69
+**建议**:
+保持策略类的纯粹性。`DiscretePositionStrategy` 只负责**立即**设置 `node.Position`。然后，让 `ActorView` 在其 `OnLogicalPositionChanged` 事件处理器中，在调用完 `_moveStrategy.UpdateVisualPosition` **之后**，再自行处理或调用另一个专门的FX服务来播放视觉反馈。
 
-5.3 Testing Pipeline Behaviors
+#### 4. 时间缩放（Time Scale）的缺失
 
-Pipeline behaviors themselves should also be unit tested to ensure they correctly implement their cross-cutting logic. To test a behavior in isolation, one can mock the RequestHandlerDelegate<TResponse> next delegate.
-The test can verify:
-Logic executed before next is called.
-That next is called exactly once (if it should be).
-Logic executed after next returns.
-Short-circuiting logic (i.e., that next is not called if a certain condition is met, such as a validation failure).
+`GameTimeDriver` 的设计非常干净，它将Godot的 `delta` 转换为固定的游戏刻度（Tick）。
 
-C#
+**潜在问题**:
+当前的设计没有考虑游戏时间缩放的需求，例如：
+* **慢动作回放**: 关键击杀或闪避时的慢动作效果。
+* **快进**: 在非战斗场景或等待敌人回合时，玩家可能希望加速游戏进程。
 
+`_gameTimeService.AdvanceTime((int)(delta * 1000))` 这里的 `delta` 是引擎的真实时间增量。如果要实现时间缩放，这个调用链会变得复杂。
 
-[Fact]
-public async Task ValidationBehavior_WithInvalidRequest_ShouldThrowExceptionAndNotCallNext()
-{
-    // Arrange
-    var mockValidator = new Mock<IValidator<TestRequest>>();
-    mockValidator
-       .Setup(v => v.ValidateAsync(It.IsAny<ValidationContext<TestRequest>>(), It.IsAny<CancellationToken>()))
-       .ReturnsAsync(new ValidationResult(new { new ValidationFailure("Name", "Name is required") }));
+**建议**:
+这不算是当前设计的缺陷，但可以作为一个“未来考虑”项在文档中注明。可以建议引入一个 `TimeScale` 乘数，例如：
+`_gameTimeService.AdvanceTime((int)(delta * 1000 * Global.TimeScale))`
+这提醒未来的开发者在实现相关功能时，有一个预留的扩展点。
 
-    var behavior = new ValidationBehavior<TestRequest, TestResponse>(new { mockValidator.Object });
-    var request = new TestRequest();
-    var nextDelegate = new Mock<RequestHandlerDelegate<TestResponse>>();
+---
 
-    // Act & Assert
-    await Assert.ThrowsAsync<ValidationException>(() => behavior.Handle(request, nextDelegate.Object, CancellationToken.None));
-    nextDelegate.Verify(n => n(), Times.Never); // Verify the handler was not called
-}
+### 结论与审批意见
 
+**结论**: 该ADR设计坚实，方向正确，对问题的理解深刻。它为游戏的核心机制提供了一个可维护、可测试的健壮基础。
 
+**审批意见**:
+**予以批准，但要求进行以下修订后归档：**
+1.  **明确术语**: 在文档开头部分增加一段说明，澄清这在实现上是一个“三位置模型”，并给出每个位置的精确定义（如：权威位置、揭示位置、视觉位置），以避免团队内部的沟通混淆。
+2.  **补充中断流程**: 在 `Implementation Pattern` 部分增加关于 `StopMovement` 的伪代码或流程描述，以支撑“对中断友好”的论点。
+3.  **重构视觉反馈**: 修改 `DiscretePositionStrategy` 的示例代码，将视觉反馈（FX）逻辑移出策略类，并简要说明理由，以强调单一职责原则。
+4.  **标记未来工作 (可选)**: 在“Notes”或“Consequences”部分，可以简要提及时间缩放（Time Scale）作为未来可能需要扩展的方向。
 
-Section 6: Performance Analysis and Optimization
-
-While MediatR provides significant architectural benefits, it is not without cost. The library's reliance on reflection for handler discovery and dispatch introduces a performance overhead compared to direct method calls. For the vast majority of applications, this overhead is negligible and far outweighed by the gains in maintainability. However, in high-throughput, low-latency systems or environments sensitive to cold-start times (e.g., serverless functions), it is a factor worth considering.
-
-6.1 The Overhead of MediatR
-
-MediatR's performance characteristics are primarily influenced by two factors:
-Startup Time: On application startup, MediatR scans the specified assemblies to find all implementations of its handler interfaces (IRequestHandler, INotificationHandler, etc.). It then builds an internal mapping of request types to handler types. This reflection-based scanning introduces a delay, which increases linearly with the number of handlers in the application.74
-Runtime Dispatch: When _mediator.Send() is called, MediatR uses the pre-built map to find the correct handler type, resolves it from the DI container, and invokes its Handle method via reflection. This process involves dictionary lookups and reflection, which is inherently slower than a direct, statically-compiled method call.40 It also results in additional memory allocations per request.74
-
-6.2 Benchmarking vs. Alternatives
-
-Recent benchmarks comparing MediatR with other libraries, particularly source-generated alternatives, have quantified this overhead.
-MediatR vs. Wolverine: Performance tests comparing MediatR with Wolverine (another popular library with mediator capabilities) show that out-of-the-box, MediatR can have better performance due to Wolverine's default dynamic code generation causing a slow cold start. However, when Wolverine is configured for its production-ready "Static" code generation mode, its performance becomes a "tie" with MediatR for simple mediator tasks.76 The conclusion is that for pure mediator performance, there is little difference, but Wolverine offers additional features beyond MediatR's scope.76
-MediatR vs. Source-Generated Mediators: Libraries like SwitchMediator leverage C# Source Generators to eliminate runtime reflection entirely. At compile time, they generate the dispatch logic directly, resulting in code that is nearly as fast as a direct method call. Benchmarks show dramatic improvements 74:
-Startup: A source-generated mediator can be over 100 times faster to start up, with significantly less memory allocation (e.g., ~145 KB vs. ~24 MB for 600 handlers).
-Request Dispatch (Send): Can be ~2.8x faster with 3x less memory allocation per call.
-Notification Dispatch (Publish): Can be ~6.7x faster and, remarkably, achieve zero memory allocation per call.
-These figures highlight that while MediatR is fast enough for most use cases, a measurable performance tax exists, which source generation can effectively eliminate.74
-
-6.3 Optimization Techniques
-
-For teams committed to using MediatR, several best practices can help mitigate performance concerns and ensure the application remains scalable:
-Keep Handlers Lean and Asynchronous: Handlers should be focused and delegate complex logic to other services where appropriate. Crucially, all I/O-bound operations (database calls, HTTP requests) within a handler must be asynchronous (async/await) to avoid blocking threads and ensure the application can handle concurrent requests efficiently.78
-Leverage Caching for Queries: As discussed in Section 3, implementing a caching pipeline behavior is one of the most effective ways to improve performance. By caching the results of expensive queries, you can avoid repeated database access and reduce latency for read operations dramatically.26
-Optimize Data Access: The performance bottleneck in a MediatR handler is almost always the data access, not MediatR itself.77 Ensure that database queries are efficient. Use projections (e.g.,
-Select in LINQ or AutoMapper's ProjectTo) to fetch only the data required for a specific query, avoiding over-fetching entire entities with multiple Include statements, which can lead to Cartesian explosion issues.26 For high-performance read scenarios, consider using a faster data access tool like Dapper for specific queries.26
-Profile Before Optimizing: Do not assume MediatR is the bottleneck. Always use profiling tools to measure application performance and identify the actual hotspots before undertaking premature optimizations.78 In most web applications, network latency and database performance will have a far greater impact than MediatR's dispatch overhead.
-
-Section 7: Common Anti-Patterns and Pitfalls
-
-While MediatR promotes clean architecture, its flexibility can also lead to several anti-patterns if not used with discipline. Recognizing and avoiding these pitfalls is crucial for maintaining a healthy and scalable codebase.
-
-7.1 Nested Handlers (Mediator-in-a-Handler)
-
-One of the most common and detrimental anti-patterns is calling _mediator.Send() or _mediator.Publish() from within another request or notification handler.67
-
-C#
-
-
-// ANTI-PATTERN: A handler should not call back into the mediator.
-public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, int>
-{
-    private readonly IMediator _mediator;
-    //... other dependencies
-
-    public async Task<int> Handle(CreateOrderCommand request, CancellationToken cancellationToken)
-    {
-        //... create order logic...
-
-        // This creates a hidden dependency on another handler and its entire pipeline.
-        var stockUpdateRequest = new UpdateStockCommand { ProductId = request.ProductId, Quantity = request.Quantity };
-        await _mediator.Send(stockUpdateRequest, cancellationToken);
-
-        return orderId;
-    }
-}
-
-
-This practice is problematic for several reasons:
-Hidden Dependencies: It creates a tight, yet hidden, coupling between the CreateOrderCommandHandler and the UpdateStockCommandHandler. The dependency is not visible in the constructor, making the code harder to reason about and violating the Explicit Dependencies Principle.13
-Pipeline Re-entry: Each nested Send call re-triggers the entire MediatR pipeline, including all registered behaviors (logging, validation, transactions). This can lead to unexpected and inefficient behavior, such as starting nested database transactions.67
-Complex Testing: Unit testing the outer handler becomes significantly more complex, as it now requires mocking the IMediator interface itself to control the behavior of the inner handler.81
-Solution: Shared logic should be extracted into a separate domain service or application service and injected into both handlers. For coordinating actions between different domains or aggregates, the correct pattern is to publish a domain event (INotification) from the first handler, which is then consumed by a separate handler in the other domain.67
-
-7.2 MediatR as a Service Locator
-
-MediatR is sometimes criticized for acting as a service locator, which is a known anti-pattern. A service locator obscures a class's dependencies by providing a single object through which any service can be resolved.82 While MediatR is not a true service locator (it can only resolve handlers, not arbitrary services), its misuse can lead to similar problems.13
-The pitfall occurs when a single class (like a controller or a large handler) injects IMediator and then uses it to send many different, unrelated requests. This hides the class's true dependencies and can lead to violations of the Single Responsibility Principle.40
-Solution: Adhere to the principles of VSA and CQRS. Controllers should be thin, with each action method dispatching a single request. Handlers should be small and focused on a single responsibility. If a handler grows large and starts sending multiple requests, it's a sign that it needs to be refactored.83
-
-7.3 Overusing MediatR for Simple Scenarios
-
-For small, simple CRUD applications with minimal business logic, introducing MediatR can be an unnecessary layer of abstraction and complexity.40 The additional boilerplate of creating separate request and handler classes for every operation may not provide significant benefits if the application logic is straightforward. In such cases, a traditional service layer injected directly into controllers can be a simpler and more direct approach.84
-Solution: Apply the YAGNI ("You Ain't Gonna Need It") principle. Start with a simpler architecture and introduce MediatR only when the complexity of interactions grows, when controllers become bloated with dependencies, or when a clear need for patterns like CQRS or VSA emerges.84
-
-7.4 Leaking MediatR into the Domain Layer
-
-In a Clean Architecture or DDD approach, the core Domain layer should be independent of any infrastructure or framework concerns.86 A common pitfall is to have domain entities or domain event classes directly implement MediatR interfaces like
-INotification.87
-
-C#
-
-
-// A potential violation of Clean Architecture principles.
-public class OrderPlacedDomainEvent : INotification // Coupling to MediatR
-{
-    //...
-}
-
-
-This creates a compile-time dependency from the innermost layer of the architecture to an external library. While often a pragmatic choice for implementing domain events, purists argue it violates the Dependency Rule.86
-Solution: To achieve complete decoupling, define your own domain event interfaces within the Domain layer. Then, in the Application or Infrastructure layer, create an adapter or a dispatching mechanism that wraps these domain events in a MediatR INotification before publishing them. This adds a layer of abstraction but keeps the domain pure.86 For many projects, the pragmatic approach of directly using
-INotification is deemed an acceptable trade-off.86
-
-7.5 Fat Handlers
-
-Just as controllers can become "fat" in traditional MVC, MediatR handlers can become bloated with excessive logic, violating the Single Responsibility Principle.40 A handler should act as an orchestrator or coordinator for a specific use case, not as a container for all the business logic itself.
-Solution: A handler's primary role is to orchestrate the flow of a use case. It should receive the request, use repositories to fetch domain entities, invoke methods on those domain entities (where the core business logic resides), and use services for cross-cutting or infrastructure concerns. If a handler contains complex conditional logic or business rules, that logic is often a candidate for being moved into a domain entity or a dedicated domain service.83
-
-Section 8: Conclusion and Strategic Recommendations
-
-MediatR has established itself as a cornerstone library in the modern.NET ecosystem, not merely as an implementation of a design pattern, but as a catalyst for cleaner, more maintainable, and scalable application architectures. Its core value lies in its ability to enforce a decoupled, message-based communication style for in-process operations. This fundamental shift away from direct method calls and tangled service dependencies provides a clear pathway to sophisticated architectural patterns such as Command Query Responsibility Segregation (CQRS) and Vertical Slice Architecture (VSA).
-The analysis reveals that the true power of MediatR is unlocked when it is embraced as an architectural framework rather than a simple utility. The request/handler paradigm naturally separates concerns, leading to thin controllers and focused, testable units of business logic. The pipeline behavior system is a standout feature, offering an elegant and robust solution for managing cross-cutting concerns like validation, logging, caching, and transactions. By centralizing this logic, MediatR allows feature developers to concentrate exclusively on business value, confident that systemic non-functional requirements are being applied consistently.
-However, MediatR is not a panacea. Its reliance on reflection introduces a measurable performance overhead in terms of startup time and per-request latency, a trade-off that must be evaluated in the context of high-performance or resource-constrained applications. The indirection it introduces can also increase debugging complexity, obscuring the direct call stack that developers are accustomed to. Furthermore, its flexibility can be a double-edged sword, potentially leading to anti-patterns like nested handlers or its misuse as a service locator if not governed by disciplined architectural practices.
-Based on this comprehensive analysis, the following strategic recommendations are proposed:
-Adopt MediatR for Medium-to-Large Scale Applications: MediatR is most beneficial in projects with sufficient complexity to warrant a formal separation of concerns. For applications with more than ~20 endpoints or where a clear path to CQRS or VSA is desired, the architectural benefits of maintainability and scalability will typically outweigh the initial boilerplate and performance overhead.85 For small, simple CRUD applications, the added abstraction may be considered overkill.40
-Aggressively Leverage Pipeline Behaviors: The IPipelineBehavior feature should be considered a primary reason for adopting MediatR, not an afterthought. System architects should proactively define and register behaviors for all common cross-cutting concerns. This establishes a robust application framework that guarantees consistency and frees developers from repetitive, error-prone tasks.
-Embrace Vertical Slice Architecture: To maximize the benefits of MediatR, organize the codebase around features (vertical slices) rather than technical layers. Co-locating requests, handlers, validators, and DTOs within a single feature folder creates highly cohesive and loosely coupled modules that are easy to navigate and maintain.
-Be Mindful of the Trade-offs and Avoid Anti-Patterns:
-Performance: Acknowledge the performance characteristics of MediatR. For most business applications, it is more than sufficient. If performance becomes a critical, measured bottleneck, explore optimizations like query caching or consider source-generated alternatives. Do not prematurely optimize.80
-Discipline: Strictly prohibit the anti-pattern of calling _mediator.Send() from within another handler. Enforce the use of domain services for shared logic and domain events (INotification) for inter-aggregate communication.
-Dependencies: Use the ISender and IPublisher interfaces to adhere to the Interface Segregation Principle, ensuring classes only depend on the functionality they need.
-Make a Conscious Architectural Decision: The decision to use MediatR should be a deliberate architectural choice, not a default. Teams should understand why they are using it—to enable CQRS, to structure vertical slices, to manage cross-cutting concerns—and be prepared to adhere to the discipline it encourages. With the library's move to a commercial model (albeit with a generous community license), it is also prudent to be aware of the licensing terms and the healthy ecosystem of alternative libraries that exist.88
-In conclusion, when used correctly, MediatR is a transformative tool that can guide a development team toward building applications that are not only functional but also architecturally sound, resilient, and prepared for future evolution.
+完成以上修订后，这份ADR将近乎完美。做得很好。

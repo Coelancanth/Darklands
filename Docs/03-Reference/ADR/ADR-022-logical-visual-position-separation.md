@@ -1,27 +1,27 @@
 # ADR-022: Logical-Visual Position Separation Pattern
 
-**Status**: Accepted (Revised)
-**Date**: 2025-09-17 (Revised 2025-09-18)
+**Status**: Accepted (Clarified)
+**Date**: 2025-09-17 (Clarified 2025-09-18)
 **Decision Makers**: Tech Lead, Dev Engineer, User
-**Tags**: `architecture` `state-management` `animation` `fog-of-war` `two-position-model` `event-driven`
+**Tags**: `architecture` `state-management` `fog-of-war` `two-position-model` `event-driven` `deterministic`
 
 ## Context
 
-In tactical turn-based games, we frequently encounter scenarios where game logic needs to advance incrementally (for fog of war, vision calculations) while visual representation smoothly follows behind. The initial problem arose with fog of war revealing the destination immediately while the actor was still animating movement.
+In tactical turn-based games, we frequently encounter scenarios where game logic needs to advance incrementally (for fog of war, vision calculations) while visual representation follows. The initial problem arose with fog of war revealing the destination immediately while the actor was still moving.
 
 This creates a fundamental tension:
-- **Game logic** needs instant, deterministic state changes for saves, replays, and testing
-- **Player experience** needs progressive visualization for comprehension and immersion
+- **Game logic** needs deterministic, cell-by-cell progression for FOV and combat calculations
+- **Player experience** needs clear visual feedback of position changes
 - **Clean Architecture** demands these concerns remain separated
 
 ## Decision
 
-We will separate game entity positions into two distinct concerns:
+We will separate entity positions into exactly TWO distinct concerns:
 
-1. **Logical Position** - The authoritative game state that advances cell-by-cell on a timer (used for FOV, collision, game rules)
-2. **Visual Position** - The cosmetic sprite location that animates smoothly to follow logical position (purely for player feedback)
+1. **Logical Position** - The single authoritative position that advances cell-by-cell on a timer (used for ALL game mechanics: FOV, collision, combat, saves)
+2. **Visual Position** - The sprite display location that teleports to match logical position (pure cosmetic feedback)
 
-**Core Principle**: All game mechanics (FOV, combat, collision) operate on Logical Position. Visual Position is purely cosmetic and NEVER affects game logic.
+**Core Principle**: The Logical Position IS the authoritative position for everything. There is no "destination position" in game state - only the current logical position and the path being traversed.
 
 **Event Flow**:
 - Logical position advances → Publishes event → Visual position responds
@@ -30,62 +30,117 @@ We will separate game entity positions into two distinct concerns:
 ### Implementation Pattern
 
 ```csharp
-// 1. Domain Layer - Movement progression with logical position
+// 1. Domain Layer - Movement progression (THE authoritative position)
 public class MovementProgression
 {
-    public Position LogicalPosition { get; private set; }
-    public IReadOnlyList<Position> Path { get; private set; }
+    public Position CurrentPosition { get; private set; }  // THE authoritative position
+    public IReadOnlyList<Position> RemainingPath { get; private set; }
     private int _elapsedMs;
-    private int _currentIndex;
+    private const int MillisecondsPerCell = 200;
+
+    public MovementProgression(Position startPos, IReadOnlyList<Position> path)
+    {
+        CurrentPosition = startPos;
+        RemainingPath = path;
+        _elapsedMs = 0;
+    }
 
     public Option<Position> AdvanceTime(int milliseconds)
     {
+        if (!RemainingPath.Any()) return None;
+
         _elapsedMs += milliseconds;
-        if (_elapsedMs >= MillisecondsPerCell && _currentIndex < Path.Count)
+        if (_elapsedMs >= MillisecondsPerCell)
         {
-            LogicalPosition = Path[_currentIndex++];
+            // Move to next cell in path
+            CurrentPosition = RemainingPath[0];
+            RemainingPath = RemainingPath.Skip(1).ToList();
             _elapsedMs = 0;
-            return Some(LogicalPosition);
+            return Some(CurrentPosition);
         }
         return None;
     }
 }
 
-// 2. Application Layer - Movement service that updates FOV atomically
+// 2. Application Layer - Movement service managing progression
 public interface IMovementProgressionService
 {
-    void StartMovement(ActorId actor, Path path);
+    void StartMovement(ActorId actor, IReadOnlyList<Position> path);
+    void CancelMovement(ActorId actor);  // For ESC or new destination
     void AdvanceGameTime(int milliseconds);
-    Position GetLogicalPosition(ActorId actor);
+    Position GetCurrentPosition(ActorId actor);  // THE authoritative position
 }
 
 public class MovementProgressionService : IMovementProgressionService
 {
+    private readonly Dictionary<ActorId, MovementProgression> _activeProgressions = new();
+    private readonly IEventBus _eventBus;
+    private readonly IFogOfWarService _fogOfWar;
+
+    public void StartMovement(ActorId actor, IReadOnlyList<Position> path)
+    {
+        // Get actor's current position (not destination!)
+        var currentPos = GetCurrentPosition(actor);
+
+        // Cancel any existing movement
+        CancelMovement(actor);
+
+        // Start new progression from current position
+        _activeProgressions[actor] = new MovementProgression(currentPos, path);
+    }
+
+    public void CancelMovement(ActorId actor)
+    {
+        if (_activeProgressions.ContainsKey(actor))
+        {
+            _activeProgressions.Remove(actor);
+            // Actor stays at their current position - no state change needed
+        }
+    }
+
     public void AdvanceGameTime(int milliseconds)
     {
-        foreach (var progression in _activeProgressions.Values)
+        foreach (var (actorId, progression) in _activeProgressions.ToList())
         {
             progression.AdvanceTime(milliseconds)
                 .IfSome(newPos =>
                 {
-                    // ATOMIC updates when logical position changes
-                    UpdateActorLogicalPosition(progression.ActorId, newPos);
-                    UpdateFOVFromPosition(newPos);
-                    PublishMovementEvent(progression.ActorId, newPos);
+                    // Update THE authoritative position
+                    UpdateActorPosition(actorId, newPos);
+
+                    // Update FOV from new position
+                    _fogOfWar.UpdateVision(actorId, newPos);
+
+                    // Notify presentation layer
+                    _eventBus.Publish(new ActorPositionChangedEvent(actorId, newPos));
+
+                    // Remove completed movements
+                    if (!progression.RemainingPath.Any())
+                    {
+                        _activeProgressions.Remove(actorId);
+                    }
                 });
         }
     }
+
+    public Position GetCurrentPosition(ActorId actor)
+    {
+        // Return THE authoritative position from domain
+        return _actorRepository.Get(actor).Position;
+    }
 }
 
-// 3. Presentation Layer - Visual follows logical
+// 3. Presentation Layer - Visual teleports to match logical
 public class ActorView : Node2D
 {
     public void OnLogicalPositionChanged(Position newLogicalPos)
     {
-        // Visual sprite animates to catch up with logical position
-        var worldPos = GridToWorld(newLogicalPos);
-        var tween = GetTree().CreateTween();
-        tween.TweenProperty(this, "position", worldPos, 0.2f);
+        // Visual sprite teleports instantly to logical position
+        Position = GridToWorld(newLogicalPos);
+
+        // Optional: Add brief visual feedback for the teleport
+        Modulate = Colors.White * 1.2f;
+        CreateTween().TweenProperty(this, "modulate", Colors.White, 0.1f);
     }
 }
 ```
@@ -96,36 +151,36 @@ public class ActorView : Node2D
 
 - **Clean Separation**: Logical and visual concerns completely decoupled
 - **Deterministic**: Logical position advances on fixed timer, reproducible
-- **Save-Friendly**: Only need to save logical position and timer state
-- **Testable**: Can test FOV updates without any animation system
-- **Intuitive**: Two positions (logical/visual) matches board game mental model
-- **Performance**: FOV updates at controlled intervals (5x/second), not every frame
-- **Interrupt-Friendly**: Can cleanly cancel movement and start new command
-- **Atomic Updates**: FOV and position update together, maintaining consistency
+- **Save-Friendly**: Only save current position and optional movement state
+- **Testable**: Can test all game logic without any visual system
+- **Intuitive**: Two positions match tactical board game mental model
+- **Performance**: FOV updates at controlled intervals, not every frame
+- **Interrupt-Friendly**: ESC or new command simply cancels current movement
+- **No Ambiguity**: Actor is ALWAYS at their logical position for all game rules
 
 ### Negative
 
-- **Visual Lag**: Sprite slightly behind logical position (barely noticeable at 200ms)
-- **Discrete FOV**: FOV updates in steps rather than smoothly (actually more honest for grid-based games)
+- **Discrete Movement**: Visual updates are cell-by-cell (intentional design choice)
 - **Timer Management**: Need to track elapsed time for progressions
+- **No Smooth Animation**: Teleport style may feel less polished initially (but prevents clipping)
 
 ## Alternatives Considered
 
 ### Alternative 1: Visual Position Coupling
 Update FOV based on sprite's visual position as it animates.
-- **Rejected**: Non-deterministic (frame-rate dependent), untestable, save/load nightmare
+- **Rejected**: Non-deterministic, frame-rate dependent, untestable
 
-### Alternative 2: Three-Position Model
-Track Game Position, Revealed Position, and Visual Position separately.
-- **Rejected**: Over-engineered for our needs. Two positions achieve same goals with less complexity
+### Alternative 2: Instant Destination Update
+Update actor position to destination immediately when movement starts.
+- **Rejected**: Actor could be attacked at destination before arriving, breaks tactical rules
 
 ### Alternative 3: Instant FOV Updates
-Update FOV immediately when movement command issued.
-- **Rejected**: Reveals entire path before actor moves, breaks tactical gameplay
+Update FOV for entire path when movement command issued.
+- **Rejected**: Reveals entire path before actor moves there, breaks fog of war
 
-### Alternative 4: Waypoint Events in Command Handler
-Have command handler sleep and emit events at each waypoint.
-- **Rejected**: Blocks handler, can't handle interruptions, mixes timing into business logic
+### Alternative 4: Complex Three-Position Model
+Track separate "authoritative", "revealed", and "visual" positions.
+- **Rejected**: Over-engineered. Actor IS where they are, not where they're going
 
 ## Godot Integration
 
@@ -210,33 +265,32 @@ public partial class GameTimeDriver : Node
 ### Godot Signal Flow
 
 ```csharp
-// 1. Game Position Change → Godot Signal
+// 1. Movement Command → Start Progression (NOT instant move!)
 public class MoveActorCommandHandler
 {
     public async Task<Fin<Unit>> Handle(MoveActorCommand command)
     {
-        // Update game position instantly
-        actor.MoveTo(command.Destination);
+        // Validate path
+        var path = _pathfinding.FindPath(actor.Position, command.Destination);
+        if (path.IsEmpty) return Fail("No valid path");
 
-        // Start reveal progression
-        _revealService.StartRevealProgression(actor.Id, command.Path);
+        // Start movement progression (actor stays at current position!)
+        _movementService.StartMovement(actor.Id, path);
 
-        // Notify Godot views via signal
-        _eventBus.Publish(new ActorMovedEvent(actor.Id, command.Path));
+        // Notify presentation layer that movement started
+        _eventBus.Publish(new MovementStartedEvent(actor.Id, path));
+
+        return Unit.Default;
     }
 }
 
-// 2. Revealed Position Change → FOV Update
-public class FogOfWarRevealService
+// 2. Position advances cell-by-cell → FOV Updates
+public class MovementProgressionService
 {
-    public void AdvanceTime(int gameMs)
+    public void AdvanceGameTime(int gameMs)
     {
-        // ... advance reveal position ...
-        if (positionChanged)
-        {
-            // Trigger FOV recalculation
-            _eventBus.Publish(new RevealPositionChangedEvent(actorId, newPos));
-        }
+        // As shown earlier - advances logical position incrementally
+        // Each position change triggers FOV update
     }
 }
 
@@ -269,6 +323,37 @@ public partial class ActorView : Node2D
             tween.TweenProperty(this, "position", worldPos, 0.2f);
         }
         tween.TweenCallback(Callable.From(() => EmitSignal(SignalName.MovementCompleted)));
+    }
+}
+```
+
+### Movement Cancellation (ESC Pattern)
+
+```csharp
+// Handle ESC or clicking new destination during movement
+public class GridPresenter : EventAwarePresenter
+{
+    private void OnEscPressed()
+    {
+        // Simply cancel current movement
+        _movementService.CancelMovement(_currentActorId);
+        // Actor stays at their current logical position
+    }
+
+    private void OnTileClicked(Position clickedPos)
+    {
+        if (_movementService.HasActiveMovement(_currentActorId))
+        {
+            // Cancel and start new movement from current position
+            var currentPos = _movementService.GetCurrentPosition(_currentActorId);
+            var newPath = _pathfinding.FindPath(currentPos, clickedPos);
+            _movementService.StartMovement(_currentActorId, newPath);
+        }
+        else
+        {
+            // Normal movement command
+            _mediator.Send(new MoveActorCommand(_currentActorId, clickedPos));
+        }
     }
 }
 ```
@@ -435,15 +520,21 @@ Callable.From(() => UpdateFogOfWar(newVision)).CallDeferred();
 **Problem**: Progressions outliving their associated nodes
 **Solution**: Cancel progressions in `_ExitTree()` and validate node references
 
-### Challenge 4: Save During Animation
-**Problem**: Visual position not at game position during save
-**Solution**: Only serialize game position and progression state, reconstruct visual on load
+### Challenge 4: Save During Movement
+**Problem**: Need to save mid-movement state
+**Solution**: Save current position and remaining path
 ```csharp
 public class SaveData
 {
-    public Position GamePosition { get; set; }
-    public RevealProgressionState RevealState { get; set; }
-    // Visual position is NOT saved - will catch up on load
+    public Position CurrentPosition { get; set; }  // THE authoritative position
+    public MovementSaveState? ActiveMovement { get; set; }  // Optional
+}
+
+public class MovementSaveState
+{
+    public List<Position> RemainingPath { get; set; }
+    public int ElapsedMs { get; set; }
+    // Visual position NOT saved - just teleports to current on load
 }
 ```
 
@@ -459,109 +550,50 @@ public class SaveData
 - **ADR-004**: Deterministic Simulation - Game position updates must be deterministic
 - **ADR-005**: Save-Ready Architecture - Only game and progression state need saving
 - **ADR-006**: Selective Abstraction - Visual position handled directly by Godot (NOT abstracted)
-- **ADR-010**: UI Event Bus - Events coordinate between the three positions
+- **ADR-010**: UI Event Bus - Events coordinate between the two positions
 - **ADR-016**: Embrace Scene Graph - Visual elements use parent-child relationships
 - **ADR-018**: Godot DI Lifecycle - Services properly scoped, GameTimeDriver as autoload
 - **ADR-021**: MVP Separation - Presenters bridge game logic to Godot views
 
-## Amendment 1: Discrete Visual Movement Mode (2025-09-18)
+## Visual Movement Strategy
 
-Based on TD_062 analysis, the Temporal Decoupling Pattern now supports both interpolated and discrete visual movement:
+Based on TD_062 analysis, we use discrete (teleport) movement for actors to prevent sprite clipping:
 
-### Visual Position Modes
+### Our Chosen Approach: Discrete Movement
+- Visual position teleports instantly to match logical position
+- No interpolation = no diagonal clipping possible
+- Clear cell-by-cell progression visible to player
+- Matches classic tactical games (original X-COM, early Fire Emblem)
 
-#### 1. Interpolated Mode (Original)
-- Visual position smoothly animates between positions
-- Uses Godot tweening for fluid motion
-- Best for: Projectiles, spell effects, camera panning
-- Risk: Can cause corner-clipping with diagonal paths
-
-#### 2. Discrete Mode (NEW - Default for Actors)
-- Visual position updates instantly to match revealed position
-- No interpolation = no clipping possible
-- Best for: Actor movement, teleportation, grid-based games
-- Benefit: Completely eliminates sprite clipping issues
-
-### Implementation Pattern
+### Implementation
 
 ```csharp
-public interface IVisualPositionStrategy
+public partial class ActorView : Node2D
 {
-    void UpdateVisualPosition(Node2D node, Position target, float duration);
-}
-
-public class DiscretePositionStrategy : IVisualPositionStrategy
-{
-    public void UpdateVisualPosition(Node2D node, Position target, float duration)
+    public void OnPositionChanged(ActorPositionChangedEvent evt)
     {
-        // Instant position update
-        node.Position = GridToPixel(target);
+        // Teleport to new position
+        Position = GridToPixel(evt.NewPosition);
 
-        // Optional: Add arrival feedback
-        AddVisualFeedback(node, target);
+        // Visual feedback separate from movement
+        PlayMovementFeedback();
     }
 
-    private void AddVisualFeedback(Node2D node, Position target)
+    private void PlayMovementFeedback()
     {
-        // Brief flash
-        node.Modulate = Colors.White * 1.3f;
-        node.CreateTween().TweenProperty(node, "modulate", Colors.White, 0.1f);
-
-        // Future: dust particles, sound effects
-    }
-}
-
-public class InterpolatedPositionStrategy : IVisualPositionStrategy
-{
-    public void UpdateVisualPosition(Node2D node, Position target, float duration)
-    {
-        var tween = node.CreateTween();
-        tween.TweenProperty(node, "position", GridToPixel(target), duration);
+        // Brief flash to show movement occurred
+        Modulate = Colors.White * 1.2f;
+        CreateTween().TweenProperty(this, "modulate", Colors.White, 0.1f);
     }
 }
 ```
 
-### Strategy Selection
+### Why Discrete Movement?
 
-```csharp
-public class ActorView : Node2D
-{
-    private readonly IVisualPositionStrategy _moveStrategy;
-
-    public ActorView()
-    {
-        // Actors use discrete to prevent clipping
-        _moveStrategy = new DiscretePositionStrategy();
-    }
-}
-
-public class ProjectileView : Node2D
-{
-    private readonly IVisualPositionStrategy _moveStrategy;
-
-    public ProjectileView()
-    {
-        // Projectiles use interpolation for smooth flight
-        _moveStrategy = new InterpolatedPositionStrategy();
-    }
-}
-```
-
-### Benefits of Dual-Mode Support
-
-1. **Flexibility**: Choose per entity type
-2. **Bug Prevention**: Discrete mode eliminates clipping
-3. **Polish Options**: Can mix modes for different effects
-4. **Future-Proof**: Easy to switch strategies later
-
-### Migration Path
-
-1. **Phase 1**: Convert actors to discrete (fixes TD_062)
-2. **Phase 2**: Keep projectiles interpolated
-3. **Phase 3**: Add step animations when sprites ready
-4. **Phase 4**: Per-entity strategy configuration
-
-This amendment makes the Temporal Decoupling Pattern more robust and flexible while maintaining its core architectural benefits.
+1. **No Clipping**: Eliminates diagonal sprite clipping (TD_062)
+2. **Clear State**: Actor is always at a discrete cell
+3. **Simpler Code**: No interpolation math or edge cases
+4. **Classic Feel**: Matches tactical game expectations
 
 ## Notes
 
@@ -575,9 +607,11 @@ The pattern emerged from TD_061 (Progressive FOV Updates) but applies broadly ac
 
 ### Revision History
 
-**2025-09-18 (Rev 1)**: Simplified from Three-Position Model to Two-Position Model based on user insight that FOV should be calculated from logical position with atomic updates. The simpler model achieves all architectural goals with better conceptual clarity.
+**2025-09-18 (Rev 1)**: Initial attempt incorrectly suggested three positions due to misleading code example showing `actor.MoveTo(destination)`. This was architectural astronautics.
 
-**2025-09-18 (Rev 2)**: Renamed from "Temporal Decoupling Pattern" to "Logical-Visual Position Separation" for clarity. Updated content to emphasize the one-way event flow and strict separation of concerns.
+**2025-09-18 (Rev 2)**: Clarified that there are exactly TWO positions: the logical position (which progresses cell-by-cell and IS the authoritative position) and the visual position (which teleports to match). Removed confusing "destination as authoritative" concept - actors are where they ARE, not where they're GOING.
+
+**2025-09-18 (Rev 3)**: Added ESC cancellation pattern, clarified save/load behavior, and emphasized discrete (teleport) movement to prevent sprite clipping.
 
 ## References
 

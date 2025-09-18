@@ -117,13 +117,19 @@
 □ Integer Math: N/A for this feature
 □ Testable: State machine logic testable without Godot runtime
 
-**State Transition Examples**:
+**State Transition Examples** (Per ADR-023 Layered System):
 ```
-Ready → Processing: User clicks move command
-Processing → Animating: Command validated, animation starts
-Animating → Ready: Animation complete event received
-Ready → Disabled: Dialog/menu opens
-Disabled → Ready: Dialog/menu closes
+Combat Layer:
+PlayerTurn → ExecutingAction: Movement command starts (per ADR-022)
+ExecutingAction → PlayerTurn: Movement progression completes
+PlayerTurn → TurnTransition: End turn clicked
+TurnTransition → AIThinking: AI turn begins
+
+UI Layer (stackable):
+Push TargetingMode: Ability clicked requiring target
+Pop TargetingMode: Target selected or ESC pressed
+Push ModalDialog: Important dialog appears
+Pop ModalDialog: Dialog dismissed
 ```
 
 **TECH LEAD FINAL DESIGN** (2025-09-17 22:30):
@@ -136,26 +142,33 @@ Disabled → Ready: Dialog/menu closes
 - Handles concurrent states elegantly
 - Foundation for entire game's state management
 
-**Implementation per ADR-023**:
+**Implementation per ADR-023** (Layered State System):
 ```csharp
-public enum GameState
+// Layer 1: Core game flow (mutually exclusive)
+public enum GameFlowState { MainMenu, Loading, InGame, Victory, Defeat }
+
+// Layer 2: Combat substates (only valid when InGame)
+public enum CombatState
 {
     PlayerTurn,         // Can accept input
-    AnimatingAction,    // Blocking input during animation
-    AITurn,            // AI thinking
-    DialogOpen,        // Modal UI active
-    TargetingMode      // Selecting target
+    ExecutingAction,    // Movement/animation playing (per ADR-022)
+    AIThinking,         // AI calculating
+    TurnTransition      // Between turns
 }
+
+// Layer 3: UI overlays (can stack)
+public enum UIOverlay { None, ModalDialog, Inventory, TargetingMode }
 
 public interface IGameStateManager
 {
-    GameState CurrentState { get; }
-    bool CanProcessInput { get; }
-    bool TransitionTo(GameState newState);
+    GameFlowState CurrentFlowState { get; }
+    CombatState? CurrentCombatState { get; }
+    bool CanProcessPlayerInput();
+    bool CanExecuteCombatAction();
 }
 
 // Usage in Presenter
-if (!_stateManager.CanProcessInput) return;
+if (!_stateManager.CanProcessPlayerInput()) return;
 ```
 
 **Phased Implementation**:
@@ -178,18 +191,25 @@ if (!_stateManager.CanProcessInput) return;
 - [ ] GameStateChangedEvent published on transitions
 - [ ] Unit tests for valid/invalid transitions
 
-**Dependencies**: Complements TD_061 perfectly (state changes when movement starts/ends)
-**Enables**: TD_064 (provides input state management for movement redirection)
+**Integration with Movement (TD_061/ADR-022)**:
+- When movement starts: Transition to `ExecutingAction` state
+- During movement: Input blocked except ESC (cancel) or new destination
+- Movement progresses cell-by-cell per ADR-022 (logical position advances)
+- When movement completes/cancels: Transition back to `PlayerTurn`
+- Visual teleports to match logical position (no smooth animation)
+
+**Dependencies**: Works with TD_061 (movement progression triggers state changes)
+**Enables**: TD_064 (provides state context for movement redirection)
 
 ---
 
 ### TD_061: Progressive FOV Updates During Movement
-**Status**: ✅ APPROVED (Option D with refinements)
-**Owner**: Dev Engineer (ready to implement)
-**Size**: M (4-6h with movement progression service)
+**Status**: ✅ APPROVED - Phase 1/4 Complete
+**Owner**: Dev Engineer (implementing Phase 2)
+**Size**: M (4-6h total, ~3h remaining)
 **Priority**: Critical - Game mechanic bug
 **Created**: 2025-09-17 20:35 (Dev Engineer - initial proposal)
-**Updated**: 2025-09-17 22:09 (Tech Lead - Approved Option D with refinements)
+**Updated**: 2025-09-18 21:30 (Tech Lead - Aligned with ADR-022 clarifications)
 **Markers**: [FOV] [VISION] [MOVEMENT] [GAME-LOGIC] [ARCHITECTURE]
 
 **What**: Update Field of View progressively as actor moves cell-by-cell
@@ -235,55 +255,55 @@ Turn 2: Actor animating       Turn 2: Actor at cell 1
 
 **DEV ENGINEER COUNTER-PROPOSAL: Option D - Logical Movement Progression** ⭐
 
-**Core Principle**: **Separate logical position from visual position completely**
+**Core Principle**: **Logical position IS the authoritative position - it progresses cell-by-cell**
 
 ```csharp
-// 1. Domain Layer - Pure logical movement
-public interface ILogicalMovementService
+// 1. Domain Layer - Movement progression (per ADR-022)
+public class MovementProgression
 {
-    Fin<Unit> StartMovement(ActorId actorId, IEnumerable<Position> path);
-    // Advances position cell-by-cell on fixed 200ms timer
-    // Publishes ActorLogicalPositionChanged events
+    public Position CurrentPosition { get; private set; }  // THE authoritative position
+    public IReadOnlyList<Position> RemainingPath { get; private set; }
+    // Advances on timer, returns new position when cell reached
 }
 
-// 2. Application Layer - FOV responds to logical events
-public class ActorLogicalPositionChangedEventHandler
+// 2. Application Layer - Service manages progressions
+public interface IMovementProgressionService
 {
-    public async Task Handle(ActorLogicalPositionChangedEvent evt, CancellationToken ct)
-    {
-        // Calculate FOV for new logical position
-        var fovQuery = CalculateFOVQuery.Create(evt.ActorId, evt.NewPosition, range, turn);
-        await _mediator.Send(fovQuery);
-        // Publish VisionStateChanged for UI updates
-    }
+    void StartMovement(ActorId actor, IReadOnlyList<Position> path);
+    void CancelMovement(ActorId actor);  // For ESC or redirect
+    void AdvanceGameTime(int milliseconds);
+    Position GetCurrentPosition(ActorId actor);  // Returns THE position
 }
 
-// 3. Presentation Layer - Animation syncs to logical position
-public class MovementAnimator
+// 3. Presentation Layer - Visual teleports to logical position
+public class ActorView : Node2D
 {
-    public void OnLogicalPositionChanged(ActorLogicalPositionChangedEvent evt)
+    public void OnPositionChanged(ActorPositionChangedEvent evt)
     {
-        // Smoothly animate sprite toward new logical position
-        // Animation is purely cosmetic, doesn't affect game state
+        // Teleport instantly to new position (no interpolation)
+        Position = GridToWorld(evt.NewPosition);
+        // Brief visual feedback for movement
+        PlayMovementFlash();
     }
 }
 ```
 
-**Enhanced Flow**:
-1. **User clicks** → `MoveActorCommand` with full path
-2. **Command calculates path** → Starts logical movement timer (200ms/cell)
-3. **Logical position advances** → FOV updates immediately per cell
-4. **Animation follows** → Smooth visual movement toward logical position
-5. **User sees** → Progressive FOV revelation matching logical progression
+**Enhanced Flow** (Per ADR-022):
+1. **User clicks** → `MoveActorCommand` calculates path
+2. **Movement starts** → Actor stays at current position, progression begins
+3. **Timer advances** → Every 200ms, logical position moves to next cell
+4. **FOV updates** → Calculated from new logical position (THE authoritative position)
+5. **Visual teleports** → Sprite jumps to match logical position
+6. **User sees** → Cell-by-cell movement with progressive FOV revelation
 
-**Architectural Advantages vs Tech Lead's Option A**:
+**Architectural Advantages** (Two-Position Model):
 
-✅ **Perfect Clean Architecture**: Game logic completely separate from animation
-✅ **Fully Deterministic**: Fixed 200ms timing, independent of animation framerate
-✅ **Save-Safe**: Logical position + timer state = complete game state
-✅ **Testable**: FOV updates testable without any Godot animation
-✅ **Performance**: FOV calculated every 200ms, not every animation frame
-✅ **Robust**: Animation can pause/stutter without affecting game logic
+✅ **Clean Separation**: Logical position owns ALL game logic, visual is pure feedback
+✅ **Fully Deterministic**: Fixed 200ms timer progression, no animation dependencies
+✅ **Save-Simple**: Current position + optional movement state = complete save
+✅ **Testable**: All FOV/combat logic uses logical position, no visual dependencies
+✅ **No Clipping**: Teleport movement prevents diagonal sprite clipping (TD_062)
+✅ **ESC-Friendly**: Cancel movement = stay at current position, trivial to implement
 
 **Architectural Constraints**:
 □ Deterministic: Fixed 200ms timer timing, rule-based progression ✅
@@ -292,27 +312,27 @@ public class MovementAnimator
 □ Integer Math: 200ms intervals, deterministic timing ✅
 □ Testable: Complete FOV logic testable without Godot runtime ✅
 
-**Implementation Plan** (4-6h estimate):
+**Implementation Plan** (4-6h estimate, aligned with ADR-022):
 
 **Phase 1: Domain Logic** (1.5h)
-- Create `ILogicalMovementService` with timer-based position advancement
-- Add `ActorLogicalPositionChanged` domain event
-- Unit tests for logical movement timing
+- Create `MovementProgression` class with timer-based advancement
+- Add `CurrentPosition` and `RemainingPath` properties
+- Unit tests for position progression logic
 
-**Phase 2: Application Integration** (2h)
-- Create event handler linking logical position → FOV updates
-- Modify `MoveActorCommandHandler` to use logical movement service
-- Integration tests for FOV progression
+**Phase 2: Application Service** (2h)
+- Implement `IMovementProgressionService` with Start/Cancel/Advance methods
+- Wire up FOV updates when logical position changes
+- Integration tests for movement + FOV coordination
 
-**Phase 3: Presentation Sync** (1.5h)
-- Update `MovementAnimator` to sync with logical position events
-- Ensure smooth visual animation toward logical position
-- Manual testing for user experience
+**Phase 3: Presentation Layer** (1.5h)
+- Update `ActorView` to teleport on position changes
+- Add visual feedback (flash effect) for movement
+- Manual testing for cell-by-cell visual updates
 
 **Phase 4: Edge Cases** (1h)
-- Handle interruptions (new commands during movement)
-- Save/load during movement
-- Animation performance optimization
+- ESC cancellation (actor stays at current position)
+- Click redirect (cancel + new path from current)
+- Save/load during movement (position + remaining path)
 
 **Dev Engineer Assessment**:
 - **Complexity Score**: 6/10 - Cross-layer but architecturally pure
@@ -320,19 +340,19 @@ public class MovementAnimator
 - **Testability**: Outstanding - game logic completely unit testable
 - **Robustness**: Superior - animation issues cannot break game state
 
-**TECH LEAD APPROVAL** (2025-09-17 22:09):
-✅ **APPROVED - Option D with refinements** (See **ADR-022: Logical-Visual Position Separation**)
+**TECH LEAD APPROVAL** (2025-09-17 22:09, Updated 2025-09-18 21:30):
+✅ **APPROVED - Two-Position Model** (See **ADR-022: Logical-Visual Position Separation**)
 
-**Technical Assessment**:
-- **Pattern Match**: Client-server pattern adapted for single-player - EXCELLENT
-- **Architecture**: Maintains perfect Clean Architecture boundaries
-- **Reusability**: Sets foundation for ALL progression systems (combat, abilities)
-- **Complexity Adjustment**: 5/10 (not 6) - Well-known pattern, straightforward implementation
-- **ADR Created**: ADR-022 documents the Logical-Visual Position Separation pattern
+**Technical Clarification** (After ADR-022 revision):
+- **Two Positions Only**: Logical (authoritative, progresses on timer) + Visual (teleports to match)
+- **NO Third Position**: Actor is WHERE THEY ARE, not at destination
+- **ESC Cancellation**: Trivial - actor stays at current logical position
+- **Save/Load**: Simple - current position + optional movement state
+- **Pattern**: Board game model - piece position determines everything
 
-**Required Refinements** (ENHANCED after ultra-analysis):
-1. **Better Naming**: `IFogOfWarRevealService` (crystal clear purpose)
-2. **Two-Position Model**: Logical/Visual positions separated (simplified from three)
+**Required Refinements** (Per ADR-022):
+1. **Service Naming**: `IMovementProgressionService` (manages cell-by-cell progression)
+2. **Two-Position Model**: Logical Position (authoritative, progresses on timer) + Visual Position (teleports to match)
 3. **Game-Time Based**: Not wall-clock, for pause/save support
 4. **Configurable Timing**: `MillisecondsPerCell` property (default 200ms)
 5. **Pattern Documentation**: Standard for ALL timed progressions
@@ -344,24 +364,25 @@ Considered waypoint events in command handler - rejected because:
 - Mixes timing into business logic
 - Makes testing require async delays
 
-**Enhanced Implementation Approach** (Ultra-Analysis Complete):
+**Implementation Approach** (Per ADR-022):
 ```csharp
 // Core service interface (Application layer)
 // Implements ADR-022: Logical-Visual Position Separation
-public interface IFogOfWarRevealService
+public interface IMovementProgressionService
 {
-    Position GetCurrentRevealPosition(ActorId actorId);
-    void StartRevealProgression(ActorId id, Path path);
-    void AdvanceTime(int gameMilliseconds);
+    void StartMovement(ActorId actor, IReadOnlyList<Position> path);
+    void CancelMovement(ActorId actor);  // ESC or redirect
+    void AdvanceGameTime(int milliseconds);
+    Position GetCurrentPosition(ActorId actor);  // THE authoritative position
 }
 ```
 
-**Key Improvements**:
-- Name clearly states purpose (fog reveal, not movement)
-- Two-position model keeps it simple
-- Game-time based for determinism
-- Handles interruptions cleanly
-- Optimizable with batch updates
+**Key Design Points**:
+- Logical position IS the authoritative position (no third position)
+- Visual position teleports to match (no interpolation)
+- ESC cancellation is trivial (stay at current position)
+- Save/load only needs current position + optional path
+- FOV updates from logical position only
 
 **Implementation Note**: Start with Phase 1 (Domain) immediately - no blockers
 
@@ -393,8 +414,9 @@ public interface IFogOfWarRevealService
 
 **Lessons for Phase 2**:
 - Application layer will need MediatR notification wrappers for domain events
-- Service interface should be named IFogOfWarRevealService for clarity
+- Service interface should be named IMovementProgressionService (per ADR-022)
 - Timer advancement will need game-time integration, not wall-clock time
+- Must implement CancelMovement for ESC/redirect support
 
 ---
 
