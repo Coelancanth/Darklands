@@ -22,7 +22,7 @@ namespace Darklands.Views
         private readonly ConcurrentDictionary<Darklands.Domain.Grid.ActorId, ColorRect> _actorNodes = new();
         private readonly ConcurrentDictionary<Darklands.Domain.Grid.ActorId, ProgressBar> _healthBars = new();
         private const int TileSize = 64;
-        private const float MoveDuration = 0.3f; // Seconds for movement animation
+        // Movement is now instant (discrete) - no duration needed for clipping fix
 
         // Actor colors for different types
         private readonly Color PlayerColor = new(0.1f, 0.46f, 0.82f, 1.0f); // Blue #1976D2
@@ -221,13 +221,15 @@ namespace Darklands.Views
                         // Get the ACTUAL actor node from our dictionary
                         var actualActorNode = _actorNodes[moveData.ActorId];
 
-                        // Create tween for smooth movement animation
-                        var tween = CreateTween();
-                        tween.TweenProperty(actualActorNode, "position", moveData.EndPosition, MoveDuration);
+                        // Instant position update - eliminates clipping through walls
+                        actualActorNode.Position = moveData.EndPosition;
+
+                        // Add visual feedback for discrete movement
+                        OnTileArrival(actualActorNode, moveData.EndPosition);
 
                         _logger.Log(LogLevel.Information, LogCategory.Gameplay,
-                            "[ProcessPendingActorMoves TWEEN] Created tween with duration {Duration} seconds",
-                            MoveDuration);
+                            "[ProcessPendingActorMoves INSTANT] Set position instantly to ({X}, {Y}) with feedback",
+                            moveData.EndPosition.X, moveData.EndPosition.Y);
 
                         // Log using Gameplay category for fine-grained filtering
                         if (DebugSystem.Instance?.Logger != null)
@@ -266,39 +268,16 @@ namespace Darklands.Views
 
                     try
                     {
-                        // Create tween for smooth animation
-                        var tween = CreateTween();
-                        tween.SetParallel(false); // Sequential movement through path
-
-                        // Calculate duration per segment based on speed
-                        var segmentDuration = 1.0f / animData.Speed;
-
-                        // Get current position and check if we need to skip the first path position
-                        var currentPixelPos = animData.ActorNode.Position;
-                        var firstPathPixelPos = new Vector2(animData.Path[0].X * TileSize, animData.Path[0].Y * TileSize);
-                        int startIndex = currentPixelPos.IsEqualApprox(firstPathPixelPos) ? 1 : 0;
-
-                        _logger.Log(LogLevel.Information, LogCategory.Gameplay,
-                            "[CREATING TWEENS] Starting from index {StartIndex}, creating {TweenCount} tweens",
-                            startIndex, animData.Path.Count - startIndex);
-
-                        // Create tweens for each step in the path
-                        for (int i = startIndex; i < animData.Path.Count; i++)
+                        // Progressive path animation with delays - shows tile-by-tile movement
+                        if (animData.Path.Count > 0)
                         {
-                            var gridPos = animData.Path[i];
-                            var pixelPos = new Vector2(gridPos.X * TileSize, gridPos.Y * TileSize);
+                            _logger.Log(LogLevel.Information, LogCategory.Gameplay,
+                                "[PATH ANIMATION] Starting progressive animation for {PathCount} tiles",
+                                animData.Path.Count);
 
-                            _logger.Log(LogLevel.Debug, LogCategory.Gameplay,
-                                "[TWEEN {Index}] Actor {ActorId}: Grid({X},{Y}) -> Pixel({PX},{PY})",
-                                i, animData.ActorId, gridPos.X, gridPos.Y, pixelPos.X, pixelPos.Y);
-
-                            tween.TweenProperty(animData.ActorNode, "position", pixelPos, segmentDuration);
+                            // Start the progressive animation (non-blocking)
+                            AnimatePathProgression(animData.ActorId, animData.ActorNode, animData.Path);
                         }
-
-                        // The tween will run automatically - we don't wait for it
-                        _logger.Log(LogLevel.Information, LogCategory.Gameplay,
-                            "[ANIMATION STARTED] Actor {ActorId} animation running with {TweenCount} steps",
-                            animData.ActorId, animData.Path.Count - startIndex);
                     }
                     catch (Exception ex)
                     {
@@ -929,6 +908,93 @@ namespace Darklands.Views
         private void ClearHealthBarHighlight(ProgressBar healthBar)
         {
             healthBar.Modulate = Colors.White;
+        }
+
+        /// <summary>
+        /// Provides visual feedback when an actor arrives at a tile.
+        /// Creates a brief flash effect to make discrete movement feel responsive.
+        /// Part of TD-062 discrete movement solution.
+        /// </summary>
+        /// <param name="actorNode">The actor's visual node</param>
+        /// <param name="position">The pixel position where the actor arrived</param>
+        private void OnTileArrival(ColorRect actorNode, Vector2 position)
+        {
+            try
+            {
+                // Brief flash effect - brighten actor then fade back to normal
+                actorNode.Modulate = Colors.White * 1.3f;
+                var flashTween = CreateTween();
+                flashTween.TweenProperty(actorNode, "modulate", Colors.White, 0.1f);
+
+                // TODO: Add dust particles when particle system is ready
+                // EmitDustParticles(position);
+
+                _logger.Log(LogLevel.Debug, LogCategory.Gameplay,
+                    "[TILE ARRIVAL] Flash effect applied at position ({X}, {Y})",
+                    position.X, position.Y);
+            }
+            catch (Exception ex)
+            {
+                _logger.Log(LogLevel.Error, LogCategory.Gameplay,
+                    "[TILE ARRIVAL ERROR] Failed to apply arrival feedback: {Error}", ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Animates an actor progressing through a path tile-by-tile with delays.
+        /// Each tile shows instant movement + visual feedback, creating discrete progression.
+        /// Part of TD-062 Phase 3 implementation.
+        /// </summary>
+        /// <param name="actorId">The actor being animated</param>
+        /// <param name="actorNode">The actor's visual node</param>
+        /// <param name="path">The path to animate through</param>
+        private async void AnimatePathProgression(Darklands.Domain.Grid.ActorId actorId, ColorRect actorNode, List<Darklands.Domain.Grid.Position> path)
+        {
+            try
+            {
+                const float DelayBetweenTiles = 0.2f; // 200ms delay between teleports
+
+                // Skip first position if actor is already there
+                var currentPixelPos = actorNode.Position;
+                var firstPathPixelPos = new Vector2(path[0].X * TileSize, path[0].Y * TileSize);
+                int startIndex = currentPixelPos.IsEqualApprox(firstPathPixelPos) ? 1 : 0;
+
+                _logger.Log(LogLevel.Information, LogCategory.Gameplay,
+                    "[PATH PROGRESSION] Starting from index {StartIndex}, animating through {StepCount} tiles",
+                    startIndex, path.Count - startIndex);
+
+                // Animate through each position in the path
+                for (int i = startIndex; i < path.Count; i++)
+                {
+                    var gridPos = path[i];
+                    var pixelPos = new Vector2(gridPos.X * TileSize, gridPos.Y * TileSize);
+
+                    // Wait for delay (except on first move)
+                    if (i > startIndex)
+                    {
+                        await ToSignal(GetTree().CreateTimer(DelayBetweenTiles), "timeout");
+                    }
+
+                    // Instant teleport to next tile
+                    actorNode.Position = pixelPos;
+
+                    // Apply visual feedback
+                    OnTileArrival(actorNode, pixelPos);
+
+                    _logger.Log(LogLevel.Debug, LogCategory.Gameplay,
+                        "[PATH STEP {Index}] Actor {ActorId} teleported to Grid({X},{Y}) -> Pixel({PX},{PY})",
+                        i, actorId, gridPos.X, gridPos.Y, pixelPos.X, pixelPos.Y);
+                }
+
+                _logger.Log(LogLevel.Information, LogCategory.Gameplay,
+                    "[PATH COMPLETE] Actor {ActorId} completed path animation", actorId);
+            }
+            catch (Exception ex)
+            {
+                _logger.Log(LogLevel.Error, LogCategory.Gameplay,
+                    "[PATH ANIMATION ERROR] Failed to animate path for actor {ActorId}: {Error}",
+                    actorId, ex.Message);
+            }
         }
     }
 }
