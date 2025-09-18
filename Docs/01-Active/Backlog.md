@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-18 20:20 (Tech Lead - TD_064 created and dependencies updated)
+**Last Updated**: 2025-09-18 20:52 (Tech Lead - Critical architectural alignment: ADR-022/023 and TD_061/063 synchronized)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See [Workflow.md - Backlog Aging Protocol](Workflow.md#-backlog-aging-protocol---the-3-10-rule) for 3-10 day aging rules
@@ -417,6 +417,46 @@ public interface IMovementProgressionService
 - Service interface should be named IMovementProgressionService (per ADR-022)
 - Timer advancement will need game-time integration, not wall-clock time
 - Must implement CancelMovement for ESC/redirect support
+
+**Phase 2 Complete** (2025-09-18 21:18):
+✅ Tests: 13/13 passing (332ms execution) - Application layer integration tests
+✅ Files Created:
+  - `src/Application/FogOfWar/Services/IMovementProgressionService.cs`
+  - `src/Application/FogOfWar/Services/MovementProgressionService.cs`
+  - `src/Application/FogOfWar/Events/RevealProgressionStartedNotification.cs`
+  - `src/Application/FogOfWar/Events/RevealPositionAdvancedNotification.cs`
+  - `src/Application/FogOfWar/Events/RevealProgressionCompletedNotification.cs`
+  - `src/Application/FogOfWar/Handlers/RevealProgressionStartedHandler.cs`
+  - `src/Application/FogOfWar/Handlers/RevealPositionAdvancedHandler.cs`
+  - `src/Application/FogOfWar/Handlers/RevealProgressionCompletedHandler.cs`
+  - `tests/Application/FogOfWar/Services/MovementProgressionServiceIntegrationTests.cs`
+  - `tests/Application/FogOfWar/Handlers/ProgressiveFOVCoordinationTests.cs`
+✅ DI Registration: Added IMovementProgressionService to GameStrapper
+
+**What I Actually Did**:
+- Implemented MovementProgressionService with thread-safe ConcurrentDictionary state management
+- Created comprehensive MediatR notification wrappers for all domain events
+- Built RevealPositionAdvancedHandler that triggers FOV recalculation via CalculateFOVQuery
+- Used fire-and-forget Task.Run patterns to avoid blocking synchronous methods with async notifications
+- Followed established patterns from ExecuteAttackCommandHandler for error handling
+- Used LogCategory.Gameplay for movement-related logging (no Movement category exists)
+
+**Problems Encountered**:
+- Unit type ambiguity: LanguageExt.Unit vs MediatR.Unit naming conflicts
+  → Solution: Added `using Unit = LanguageExt.Unit;` alias in all files
+- Service not registered: Integration tests failed with "No service registered"
+  → Solution: Added service registration to GameStrapper.ConfigureApplicationServices()
+- Async/await mismatch: Tests tried to await Fin<T> synchronous types
+  → Solution: Removed async keywords and await calls on Fin<T> operations
+
+**Technical Debt Created**:
+- None - Clean Application layer following established service patterns
+
+**Lessons for Phase 3**:
+- Infrastructure layer needs timer coordination for AdvanceGameTime calls
+- May need game-time service integration instead of manual timer advancement
+- Presentation layer will need to subscribe to position advancement notifications
+- Visual teleport implementation will need actor view coordination
 
 ---
 

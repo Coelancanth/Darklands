@@ -267,6 +267,9 @@ public static class GameStrapper
                 provider.GetRequiredService<Infrastructure.Vision.VisionPerformanceMonitor>());
             services.AddSingleton<Application.Vision.Services.IVisionStateService, Infrastructure.Vision.PersistentVisionStateService>();
 
+            // TD_061: Progressive FOV movement service
+            services.AddSingleton<Application.FogOfWar.Services.IMovementProgressionService, Application.FogOfWar.Services.MovementProgressionService>();
+
             // TD_009: Composite query service (coordinates ActorState + Grid services)
             services.AddSingleton<Application.Combat.Services.ICombatQueryService, Application.Combat.Services.CombatQueryService>();
             // TD_057: Damage service for shared damage logic (eliminates MediatR anti-pattern)
