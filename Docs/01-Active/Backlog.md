@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-17 22:38 (Tech Lead - Dependency chain updated with proper priority ordering)
+**Last Updated**: 2025-09-19 03:33 (Tech Lead - TD_061 replaced with TD_065, added prevention TDs 066-069, created post-mortem)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See [Workflow.md - Backlog Aging Protocol](Workflow.md#-backlog-aging-protocol---the-3-10-rule) for 3-10 day aging rules
@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 008
-- **Next TD**: 064
+- **Next TD**: 070
 - **Next VS**: 015 
 
 
@@ -74,6 +74,22 @@
 □ Integer Math: Percentages use integers not floats (ADR-004)
 □ Testable: Can be tested without Godot runtime (ADR-006)
 ```
+
+## 🚨 Critical Lessons Learned from TD_061 Incident
+
+**Post-Mortem**: [`/Docs/06-PostMortems/Inbox/2025-09-19-td061-presenter-handler-violation.md`](../06-PostMortems/Inbox/2025-09-19-td061-presenter-handler-violation.md)
+
+### Key Violations to Avoid:
+1. ❌ **NEVER** make Presenters implement `INotificationHandler<T>`
+2. ❌ **NEVER** let domain models lie about state (instant teleport vs step-by-step)
+3. ❌ **NEVER** create timer services for simple progressions
+4. ❌ **NEVER** register MediatR before custom handler registrations
+
+### Correct Patterns:
+1. ✅ Handlers in Application layer, Presenters use UIEventBus
+2. ✅ Domain models truth (actors move step-by-step)
+3. ✅ Events drive reactions (not complex orchestration)
+4. ✅ MediatR registered LAST in DI configuration
 
 ## 🔗 Dependency Chain Analysis
 
@@ -178,13 +194,176 @@ if (!_stateManager.CanProcessInput) return;
 - [ ] GameStateChangedEvent published on transitions
 - [ ] Unit tests for valid/invalid transitions
 
-**Dependencies**: Complements TD_061 perfectly (state changes when movement starts/ends)
+**Dependencies**: Complements TD_065 perfectly (state changes when movement starts/ends)
+
+---
+
+### TD_065: Domain-Driven Step-by-Step Movement
+**Status**: ✅ APPROVED - Replaces TD_061
+**Owner**: Dev Engineer
+**Size**: M (4-5h)
+**Priority**: Critical - Fixes TD_061 architectural issues
+**Created**: 2025-09-19 03:33 (Tech Lead - from architectural review)
+**Markers**: [ARCHITECTURE] [DOMAIN] [MOVEMENT] [FOV]
+
+**What**: Implement step-by-step movement in domain layer with event-driven FOV updates
+**Why**: TD_061 violated architecture with complex timer infrastructure and lying domain model
+
+**Problem Statement**:
+- Domain instantly teleports actors (lies about reality)
+- Complex timer services fake intermediate positions
+- Presenters handle domain notifications (violates Clean Architecture)
+- 12+ hours spent on 4-hour problem due to wrong architecture
+
+**Technical Approach**:
+```csharp
+// DOMAIN - Actor moves step by step (truth)
+public class Actor {
+    public Position Position { get; private set; }
+    public Path? ActivePath { get; private set; }
+
+    public void StartMovement(Path path) {
+        ActivePath = path;
+        RaiseDomainEvent(new MovementStartedEvent(Id, path));
+    }
+
+    public void AdvanceMovement() {
+        if (ActivePath == null) return;
+        Position = ActivePath.GetNext();
+        RaiseDomainEvent(new ActorMovedEvent(Id, Position));
+        if (ActivePath.IsComplete) {
+            ActivePath = null;
+            RaiseDomainEvent(new MovementCompletedEvent(Id));
+        }
+    }
+}
+```
+
+**Implementation Plan**:
+1. **Domain Layer** (2h): Actor with step-by-step movement
+2. **Application Layer** (1h): Event handlers for movement/FOV
+3. **Game Loop** (1h): Simple ticker to advance movement
+4. **Presentation** (30m): UIEventBus subscription (no handlers!)
+
+**Done When**:
+- [ ] Domain actor moves step-by-step through path
+- [ ] FOV updates at each position change
+- [ ] No timer services or complex orchestration
+- [ ] Presenters subscribe to UI events only
+- [ ] Movement can be cancelled/redirected cleanly
+
+---
+
+### TD_066: Architectural Boundary Enforcement Tests
+**Status**: ✅ APPROVED
+**Owner**: Dev Engineer
+**Size**: S (2-3h)
+**Priority**: Important - Prevents future violations
+**Created**: 2025-09-19 03:33 (Tech Lead - from lessons learned)
+**Markers**: [ARCHITECTURE] [TESTING] [QUALITY]
+
+**What**: Add NetArchTest rules to enforce Clean Architecture boundaries
+**Why**: TD_061's 12+ hour struggle was caused by presenters violating layer boundaries
+
+**Technical Approach**:
+```csharp
+[Test]
+public void Presenters_Should_Not_Be_Handlers() {
+    Types.InNamespace("Presentation.Presenters")
+        .Should().NotImplementInterface(typeof(INotificationHandler<>))
+        .GetResult().IsSuccessful.Should().BeTrue();
+}
+
+[Test]
+public void Handlers_Must_Be_In_Application_Layer() {
+    Types.That().ImplementInterface(typeof(IRequestHandler<,>))
+        .Should().ResideInNamespace("Application")
+        .GetResult().IsSuccessful.Should().BeTrue();
+}
+```
+
+**Done When**:
+- [ ] Test enforcing presenters aren't handlers
+- [ ] Test enforcing handlers in Application layer
+- [ ] Test enforcing domain independence
+- [ ] Tests run in CI pipeline
+
+---
+
+### TD_067: MediatR Registration Pattern Documentation
+**Status**: ✅ APPROVED
+**Owner**: Dev Engineer
+**Size**: S (2h)
+**Priority**: Important - Prevents future DI issues
+**Created**: 2025-09-19 03:33 (Tech Lead - from post-mortem)
+**Markers**: [DOCUMENTATION] [MEDIATR] [DI] [PATTERNS]
+
+**What**: Document and enforce correct MediatR registration patterns
+**Why**: TD_061 failed due to registration order issues and handler lifetime confusion
+
+**Documentation to Create**:
+1. **MediatR Best Practices** guide
+2. **Registration order** rules
+3. **Handler lifetime** guidelines
+4. **Anti-patterns** to avoid
+
+**Done When**:
+- [ ] Helper method for standardized registration
+- [ ] Documentation with examples
+- [ ] Update existing registration code
+
+---
+
+### TD_068: DI Registration Order Standardization
+**Status**: ✅ APPROVED
+**Owner**: DevOps Engineer
+**Size**: S (3h)
+**Priority**: Important - Prevents registration conflicts
+**Created**: 2025-09-19 03:33 (Tech Lead - from root cause analysis)
+**Markers**: [DI] [INFRASTRUCTURE] [PATTERNS]
+
+**What**: Standardize and enforce DI registration order across all projects
+**Why**: Registration order conflicts caused BR_022 and wasted 12+ hours
+
+**Enforcement**:
+1. Create startup analyzer for order issues
+2. Add build-time warnings for violations
+3. Unit test to verify registration order
+
+**Done When**:
+- [ ] Standardized registration methods
+- [ ] Order enforcement tests
+- [ ] Update all ServiceConfiguration files
+
+---
+
+### TD_069: Persona Protocol ADR Compliance Update
+**Status**: ✅ APPROVED
+**Owner**: Tech Lead → All Personas
+**Size**: M (4-5h)
+**Priority**: Critical - Prevents future violations
+**Created**: 2025-09-19 03:33 (Tech Lead - from lessons learned)
+**Markers**: [DOCUMENTATION] [ARCHITECTURE] [PROCESS]
+
+**What**: Update all persona protocols to include ADR compliance checks
+**Why**: TD_061 violation could have been prevented with proper protocol checks
+
+**Updates Required**:
+- Architecture review checklists
+- Smell detection guidelines
+- Phase 2 review requirements
+- ADR compliance verification
+
+**Done When**:
+- [ ] All persona protocols updated
+- [ ] Review checklists added
+- [ ] All personas acknowledge
 
 ---
 
 ### TD_061: Progressive FOV Updates During Movement
-**Status**: ✅ APPROVED (Option D with refinements)
-**Owner**: Dev Engineer (ready to implement)
+**Status**: ❌ REPLACED BY TD_065
+**Owner**: ~~Dev Engineer~~ → See TD_065
 **Size**: M (4-6h with movement progression service)
 **Priority**: Critical - Game mechanic bug
 **Created**: 2025-09-17 20:35 (Dev Engineer - initial proposal)
