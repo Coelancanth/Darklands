@@ -1,6 +1,6 @@
 # Current Implementation Status
 
-**Last Updated**: 2025-09-16 18:45 (Tech Lead - TD_046 Verified Complete)
+**Last Updated**: 2025-09-19 03:45 (Tech Lead - Added TD_065 movement control flow)
 **Owner**: Product Owner (maintaining implementation truth)
 **Purpose**: Ground truth of what's actually built vs what's planned
 
@@ -147,22 +147,124 @@ public override void _Ready()
 - Input handling
 - Turn order display
 
+## 🎮 Movement System Control Flow (TD_065 Architecture)
+
+### Complete Movement Flow (Click to Animation)
+```mermaid
+sequenceDiagram
+    participant User
+    participant GridView
+    participant GridPresenter
+    participant MediatR
+    participant MoveCommand
+    participant Actor
+    participant GameLoop
+    participant MovedHandler
+    participant UIEventBus
+    participant ActorView
+    participant Tween
+
+    Note over User,Tween: USER INPUT PHASE
+    User->>GridView: Click target tile
+    GridView->>GridPresenter: OnTileClicked(position)
+    GridPresenter->>MediatR: Send(MoveActorCommand)
+    MediatR->>MoveCommand: Handle()
+    MoveCommand->>Actor: StartMovement(path)
+    Actor-->>Actor: Store path, stay at position
+    MoveCommand-->>GridPresenter: Success
+
+    Note over GameLoop,Tween: GAME LOOP PHASE (every 200ms)
+    loop Every 200ms (configurable)
+        GameLoop->>Actor: AdvanceMovement()
+        Actor->>Actor: Position = path.GetNext()
+        Actor->>MediatR: Raise(ActorMovedEvent)
+
+        Note over MediatR,UIEventBus: APPLICATION LAYER
+        MediatR->>MovedHandler: Handle(ActorMovedEvent)
+        MovedHandler->>MovedHandler: Calculate FOV
+        MovedHandler->>UIEventBus: Publish(UpdatePositionUIEvent)
+
+        Note over UIEventBus,Tween: PRESENTATION LAYER
+        UIEventBus->>GridPresenter: OnPositionUpdate (subscribed)
+        GridPresenter->>ActorView: UpdatePosition(newPos)
+        ActorView->>Tween: Animate(180ms)
+        Note over Tween: 180ms < 200ms prevents overlap
+    end
+```
+
+### Timing Configuration (Not Magic Numbers!)
+
+**Why 200ms?** It's a game design choice, not architecture:
+- **Fast enough**: 5 moves/second feels responsive
+- **Slow enough**: Players can see each step
+- **Configurable**: Can be adjusted per actor/action/terrain
+- **Industry standard**: Most tactical games use 150-250ms
+
+```csharp
+// Domain/Configuration/MovementTimings.cs
+public static class MovementTimings
+{
+    // Base movement speeds (all configurable)
+    public const int WalkSpeed = 200;        // ms per cell
+    public const int RunSpeed = 100;         // ms per cell
+    public const int SneakSpeed = 400;       // ms per cell
+
+    // Terrain modifiers
+    public const float DifficultTerrainModifier = 2.0f;  // 2x slower
+    public const float RoadModifier = 0.75f;             // 25% faster
+
+    // Animation timing (slightly less than tick rate)
+    public const float AnimationBufferRatio = 0.9f;  // 90% of tick time
+}
+
+// Different actions have different timings
+public class CombatTimings
+{
+    public const int QuickAttack = 500;   // Dagger
+    public const int NormalAttack = 800;  // Sword
+    public const int HeavyAttack = 1200;  // Axe
+    public const int SpellCast = 1000;    // Magic
+}
+```
+
+### Layer Communication (ADR-010 Compliant)
+
+```
+Domain Events (MediatR) ──→ Application Handlers
+                                    ↓
+                            UI Events (UIEventBus)
+                                    ↓
+                            Presenter Subscriptions
+                                    ↓
+                            View Updates (Godot)
+```
+
+**Critical Rule**: Presenters NEVER implement INotificationHandler!
+- ❌ `GridPresenter : INotificationHandler<DomainEvent>`
+- ✅ `GridPresenter` subscribes to UIEventBus only
+
 ## 🎯 Next Logical Steps
 
-1. **VS_014** (A* Pathfinding): NOW UNBLOCKED - Can begin immediately
-   - TD_046 complete means architectural foundation is solid
+1. **TD_065** (Domain-Driven Movement): PRIORITY - Replaces TD_061
+   - Implement correct step-by-step domain movement
+   - 4-5 hour estimate (simpler than TD_061's 12+ hours)
+   - No complex timer infrastructure needed
+
+2. **TD_066** (Architectural Tests): Prevent future violations
+   - Add NetArchTest boundary enforcement
+   - 2-3 hour implementation
+   - Prevents presenter-handler violations
+
+3. **VS_014** (A* Pathfinding): Foundation for movement
+   - Can begin after TD_065
    - 3-hour implementation estimate
-   - Will provide foundation for movement system
+   - Provides path for movement system
 
-2. **TD_035** (Error Handling): Can run in parallel with VS_014
-   - 3-hour implementation to standardize error handling
-   - Different code areas so no conflicts
-
-3. **VS_012** (Vision-Based Movement): After VS_014
-   - Depends on pathfinding foundation
+4. **VS_012** (Vision-Based Movement): After TD_065 + VS_014
+   - Depends on correct FOV updates
    - 2-hour estimate
 
-4. **VS_013** (Enemy AI): After VS_012
+5. **VS_013** (Enemy AI): After VS_012
    - Depends on movement being complete
    - 2-hour estimate
 

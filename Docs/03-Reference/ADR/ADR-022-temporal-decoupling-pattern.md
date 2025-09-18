@@ -1,59 +1,93 @@
-# ADR-022: Temporal Decoupling Pattern
+# ADR-022: Two-Position Model (Domain Truth Pattern)
 
-**Status**: Accepted
-**Date**: 2025-09-17
+**Status**: Revised
+**Date**: 2025-09-17 (Revised 2025-09-19)
 **Decision Makers**: Tech Lead, Dev Engineer
-**Tags**: `architecture` `state-management` `animation` `fog-of-war` `temporal-decoupling`
+**Tags**: `architecture` `state-management` `animation` `fog-of-war` `domain-truth`
+
+## Revision Note (2025-09-19)
+
+**This ADR has been significantly revised.** The original "Three-Position Model" with instant domain updates was architecturally flawed. After implementing TD_061 and discovering fundamental issues (12+ hours of debugging), we realized:
+
+1. **The domain was lying** - Actors don't teleport, they move step-by-step
+2. **Three positions were unnecessary** - We only need Logical (truth) and Visual (display)
+3. **Complex timer services were a symptom** - The real problem was the lying domain model
+
+See Post-Mortem: `/Docs/06-PostMortems/Inbox/2025-09-19-td061-presenter-handler-violation.md`
 
 ## Context
 
-In tactical turn-based games, we frequently encounter scenarios where game state changes instantly (for determinism and simplicity) but the visual representation must progress over time (for player comprehension and polish). The initial problem arose with fog of war revealing the destination immediately while the actor was still animating movement.
+In tactical turn-based games, we need to model both the logical progression of game state and its visual representation. The initial problem arose with fog of war revealing the destination immediately while the actor was still visually moving, which revealed a fundamental misunderstanding: we were making the domain lie about reality.
 
-This creates a fundamental tension:
-- **Game logic** needs instant, deterministic state changes for saves, replays, and testing
-- **Player experience** needs progressive visualization for comprehension and immersion
-- **Clean Architecture** demands these concerns remain separated
+**The key insight**: When an actor moves from (5,5) to (8,8), they don't teleport - they move through (6,6), (7,7), etc. The domain should model this truth.
+
+This creates a clear separation:
+- **Domain logic** models what actually happens (step-by-step progression)
+- **Visual representation** displays this to players (can be instant or animated)
+- **Clean Architecture** keeps these concerns properly separated
 
 ## Decision
 
-We will implement a **Temporal Decoupling Pattern** (originally called "Three-Position Model") that separates state changes into three temporal layers:
+We will implement a **Two-Position Model** that properly separates logical truth from visual representation:
 
-1. **Game State** - The authoritative, instant state in game logic (positions, health, resources)
-2. **Revealed State** - The state used for view calculations (progresses over time)
-3. **Visual State** - The state displayed to players (discrete jumps or smooth interpolation)
+1. **Logical Position** - The actual, authoritative position in the domain (progresses step-by-step)
+2. **Visual Position** - The displayed position in the UI (follows logical position)
+
+**Critical Principle**: The domain must model truth. If an actor moves from (5,5) to (8,8), they actually move through each intermediate position. The domain should reflect this reality, not lie about it with instant teleportation.
 
 ### Implementation Pattern
 
 ```csharp
-// 1. Domain Layer - Instant authoritative state
+// 1. Domain Layer - Models the truth (step-by-step movement)
 public class Actor
 {
-    public Position Position { get; private set; } // Game Position
+    public Position Position { get; private set; } // Logical Position - THE truth
+    public Path? ActivePath { get; private set; }
 
-    public void MoveTo(Position destination)
+    public void StartMovement(Path path)
     {
-        Position = destination; // Instant update
-        DomainEvents.Raise(new ActorMovedEvent(Id, destination));
+        ActivePath = path;
+        RaiseDomainEvent(new MovementStartedEvent(Id, path));
+    }
+
+    public void AdvanceMovement()
+    {
+        if (ActivePath == null) return;
+
+        Position = ActivePath.GetNext(); // Move one step
+        RaiseDomainEvent(new ActorMovedEvent(Id, Position));
+
+        if (ActivePath.IsComplete)
+        {
+            ActivePath = null;
+            RaiseDomainEvent(new MovementCompletedEvent(Id));
+        }
     }
 }
 
-// 2. Application Layer - Progressive reveal state
-public interface IFogOfWarRevealService
+// 2. Application Layer - Orchestrates domain events
+public class ActorMovedHandler : INotificationHandler<ActorMovedEvent>
 {
-    Position GetCurrentRevealPosition(ActorId actorId); // Revealed Position
-    void StartRevealProgression(ActorId id, Path path);
-    void AdvanceTime(int gameMilliseconds);
+    public Task Handle(ActorMovedEvent evt)
+    {
+        // Calculate FOV for new position
+        var fov = _fovCalculator.Calculate(evt.Position);
+        _visionService.Update(evt.ActorId, fov);
+
+        // Notify UI layer
+        _uiEventBus.Publish(new UpdatePositionUIEvent(evt.ActorId, evt.Position, fov));
+        return Task.CompletedTask;
+    }
 }
 
-// 3. Presentation Layer - Visual interpolation
+// 3. Presentation Layer - Visual representation
 public class ActorView : Node2D
 {
-    private Vector2 _targetVisualPosition; // Visual Position
-
-    public void AnimateToPosition(Vector2 target)
+    public void OnPositionUpdate(UpdatePositionUIEvent evt)
     {
-        var tween = GetTree().CreateTween();
-        tween.TweenProperty(this, "position", target, 0.2f);
+        // Visual can teleport instantly or animate smoothly
+        Position = GridToWorld(evt.Position); // Instant visual update
+        // OR: AnimateToPosition(evt.Position); // Smooth animation
     }
 }
 ```
@@ -62,146 +96,118 @@ public class ActorView : Node2D
 
 ### Positive
 
-- **Clean Separation**: Each layer handles exactly one concern
-- **Deterministic**: Game logic is instant and reproducible
-- **Save-Friendly**: Only need to save game position and progression state
-- **Testable**: Can test game logic without any animation or timing concerns
-- **Extensible**: Pattern applies to any progressive state change (combat, abilities, etc.)
-- **Performance**: View calculations (like FOV) happen at controlled intervals, not every frame
-- **Interrupt-Friendly**: Can cleanly cancel and restart progressions
+- **Domain Truth**: Domain model reflects reality - actors really move step-by-step
+- **Clean Separation**: Domain logic vs visual representation clearly separated
+- **Event-Driven**: Natural event flow as position actually changes
+- **Testable**: Domain movement testable without any UI
+- **Save-Friendly**: Current position + optional path = complete state
+- **Interrupt-Friendly**: Can cancel at any position (actor stays where they are)
+- **FOV Correctness**: FOV updates naturally as position changes
 
 ### Negative
 
-- **Complexity**: Three positions to track instead of one
-- **Synchronization**: Must ensure positions eventually converge
-- **Mental Model**: Developers must understand the three-position separation
-- **Debugging**: More state to inspect when issues arise
+- **Perceived Complexity**: Seems more complex than instant teleport (but actually simpler)
+- **Game Loop Required**: Need mechanism to advance movement over time
+- **Initial Confusion**: Developers may expect instant movement
 
-## Alternatives Considered
+## Alternatives Considered (and Why They Failed)
 
-### Alternative 1: Animation-Driven Updates
-Let animation callbacks trigger game state changes.
-- **Rejected**: Couples game logic to rendering, non-deterministic
+### Alternative 1: Three-Position Model (Original Incorrect Approach)
+Have instant domain updates with a separate "Revealed Position" for FOV.
+- **Rejected**: Makes domain lie about reality, creates unnecessary complexity
+- **Lesson**: This is what TD_061 tried and it led to 12+ hours of architectural issues
 
-### Alternative 2: Delayed Command Processing
-Queue commands and process them over time.
-- **Rejected**: Makes game logic async, complicates save/load
+### Alternative 2: Animation-Driven Updates
+Let animation callbacks trigger FOV updates.
+- **Rejected**: Couples game logic to rendering, non-deterministic, violates Clean Architecture
 
-### Alternative 3: Two-Position Model
-Just Game and Visual positions, no intermediate Revealed position.
-- **Rejected**: Doesn't solve the FOV problem, less flexible
+### Alternative 3: Complex Timer Infrastructure
+Create GameTimeService, MovementTimer, MovementProgressionService to fake progression.
+- **Rejected**: Over-engineered solution for simple problem, domain still lies about state
+
+### Alternative 4: Instant Domain Teleportation (What We Initially Built)
+Actor instantly moves to destination, services fake intermediate positions.
+- **Rejected**: Domain doesn't model truth, requires complex orchestration
 
 ## Godot Integration
 
 ### CRITICAL: Architectural Boundary Alignment
 
-Per ADR-006 and ADR-010, the Temporal Decoupling Pattern must respect these boundaries:
+Per ADR-006 and ADR-010, the Two-Position Model must respect these boundaries:
 
-1. **Game Position** → Domain Layer (pure C#)
-2. **Revealed Position** → Application Layer (services, no Godot)
-3. **Visual Position** → Presentation Layer (Godot animations)
+1. **Logical Position** → Domain Layer (pure C#, progresses step-by-step)
+2. **Event Handling** → Application Layer (handlers, not presenters!)
+3. **Visual Position** → Presentation Layer (Godot display)
 
-**WARNING**: Game time advancement is APPLICATION logic, not PRESENTATION logic. Presenters must NOT drive game time - they only respond to events.
+**WARNING**: Presenters must NOT implement INotificationHandler. They subscribe to UI events via UIEventBus (ADR-010).
 
-### Coordinating with Godot's Update Loop
+### Simple Game Loop Integration
 
-The Temporal Decoupling Pattern must integrate with Godot's frame-based update system while respecting architectural boundaries:
+The Two-Position Model uses a simple game loop to advance movement:
 
 ```csharp
-// APPLICATION LAYER: Game time service (NOT in Presenter!)
-public interface IGameTimeService
+// APPLICATION LAYER: Simple game loop
+public class GameLoop : IHostedService
 {
-    void AdvanceTime(int deltaMs);
-    event Action<int> TimeAdvanced;
-}
-
-public class GameTimeService : IGameTimeService
-{
-    private readonly IFogOfWarRevealService _revealService;
+    private Timer _timer;
+    private readonly IActorRepository _actors;
     private readonly IMediator _mediator;
-    private int _accumulatedMs = 0;
-    private const int TickMs = 50; // 20 ticks per second
 
-    public void AdvanceTime(int deltaMs)
+    public Task StartAsync(CancellationToken cancellationToken)
     {
-        _accumulatedMs += deltaMs;
+        // Tick every 200ms for movement progression
+        _timer = new Timer(OnTick, null, 0, 200);
+        return Task.CompletedTask;
+    }
 
-        while (_accumulatedMs >= TickMs)
+    private void OnTick(object? state)
+    {
+        // Advance all moving actors
+        var movingActors = _actors.GetMovingActors();
+        foreach (var actor in movingActors)
         {
-            // Advance all time-based systems
-            _revealService.AdvanceTime(TickMs);
-            _mediator.Publish(new GameTickEvent(TickMs));
-            _accumulatedMs -= TickMs;
-
-            TimeAdvanced?.Invoke(TickMs);
+            actor.AdvanceMovement();
         }
+
+        // Dispatch domain events
+        _mediator.DispatchPendingEvents();
     }
 }
 
-// INFRASTRUCTURE: Bridge from Godot to Application (Autoload)
-public partial class GameTimeDriver : Node
-{
-    private IGameTimeService _gameTimeService;
-    private IScopeManager _scopeManager;
-
-    public override void _Ready()
-    {
-        // GameTimeDriver is registered as autoload in project.godot
-        Name = "GameTimeDriver";
-
-        // Get services through proper DI (per ADR-018)
-        var serviceLocator = GetNode<ServiceLocator>("/root/ServiceLocator");
-        _scopeManager = serviceLocator.ScopeManager;
-        _gameTimeService = this.GetService<IGameTimeService>();
-
-        ProcessMode = ProcessModeEnum.Always;
-    }
-
-    public override void _Process(double delta)
-    {
-        if (!GetTree().Paused)
-        {
-            // Convert Godot delta to milliseconds and advance game time
-            _gameTimeService.AdvanceTime((int)(delta * 1000));
-        }
-    }
-}
+// No complex timer infrastructure needed!
+// Domain events flow naturally as actors move
 ```
 
-### Godot Signal Flow
+### Event Flow (Clean and Simple)
 
 ```csharp
-// 1. Game Position Change → Godot Signal
+// 1. Command starts movement
 public class MoveActorCommandHandler
 {
     public async Task<Fin<Unit>> Handle(MoveActorCommand command)
     {
-        // Update game position instantly
-        actor.MoveTo(command.Destination);
-
-        // Start reveal progression
-        _revealService.StartRevealProgression(actor.Id, command.Path);
-
-        // Notify Godot views via signal
-        _eventBus.Publish(new ActorMovedEvent(actor.Id, command.Path));
+        var path = _pathfinder.FindPath(actor.Position, command.Target);
+        actor.StartMovement(path);
+        return FinSucc(unit);
     }
 }
 
-// 2. Revealed Position Change → FOV Update
-public class FogOfWarRevealService
+// 2. Domain advances step-by-step
+// Actor.AdvanceMovement() called by game loop
+// Raises ActorMovedEvent for each step
+
+// 3. Application layer handles domain event
+public class ActorMovedHandler : INotificationHandler<ActorMovedEvent>
 {
-    public void AdvanceTime(int gameMs)
+    public Task Handle(ActorMovedEvent evt)
     {
-        // ... advance reveal position ...
-        if (positionChanged)
-        {
-            // Trigger FOV recalculation
-            _eventBus.Publish(new RevealPositionChangedEvent(actorId, newPos));
-        }
+        var fov = _fovCalculator.Calculate(evt.Position);
+        _uiEventBus.Publish(new UpdateFOVUIEvent(evt.ActorId, fov));
+        return Task.CompletedTask;
     }
 }
 
-// 3. Visual Position → Godot Scene Graph (per ADR-016)
+// 4. Visual Position → Godot Scene Graph (per ADR-016)
 public partial class ActorView : Node2D
 {
     [Signal]
@@ -524,19 +530,26 @@ public class ProjectileView : Node2D
 
 This amendment makes the Temporal Decoupling Pattern more robust and flexible while maintaining its core architectural benefits.
 
+## Key Lessons from This Revision
+
+1. **Domain models must tell truth** - If actors move step-by-step in reality, model it that way
+2. **Complexity is a smell** - Complex timer services were a symptom of wrong architecture
+3. **Events should flow naturally** - When domain position changes, events fire naturally
+4. **Presenters are not handlers** - They subscribe to UI events, not domain notifications
+5. **Two positions are enough** - Logical (truth) and Visual (display)
+
 ## Notes
 
-This pattern is widely used in game development:
-- **Unity/Unreal**: "Gameplay Position" vs "Visual Position"
-- **Multiplayer Games**: "Authoritative Position" vs "Predicted Position" vs "Interpolated Position"
-- **RTS Games**: Fog of war controllers separate from unit positions
-- **Roguelikes**: Discrete movement (NetHack, DCSS, Cogmind) vs interpolated (ToME4)
+This pattern is standard in professional game development:
+- **Battle Brothers/XCOM**: Authoritative game state with visual feedback
+- **Multiplayer Games**: Server authoritative + client interpolation
+- **The key principle**: Domain models reality, visuals follow
 
-The pattern emerged from TD_061 (Progressive FOV Updates) but applies broadly across the codebase.
+The original Three-Position Model was our mistake. The corrected Two-Position Model aligns with industry standards.
 
 ## References
 
-- Original discussion: TD_061 in Backlog.md
-- Discrete movement decision: TD_062 in Backlog.md
-- Implementation example: `IFogOfWarRevealService` (to be implemented)
-- Pattern inspiration: [Client-Side Prediction](https://developer.valvesoftware.com/wiki/Source_Multiplayer_Networking)
+- Post-Mortem: `/Docs/06-PostMortems/Inbox/2025-09-19-td061-presenter-handler-violation.md`
+- Correct Implementation: TD_065 in Backlog.md
+- Original (failed) attempt: TD_061 (12+ hours of issues)
+- Pattern standard: Every professional tactical game uses this approach
