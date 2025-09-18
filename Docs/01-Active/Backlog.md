@@ -458,6 +458,48 @@ public interface IMovementProgressionService
 - Presentation layer will need to subscribe to position advancement notifications
 - Visual teleport implementation will need actor view coordination
 
+**Phase 3 Complete** (2025-09-18 21:51):
+✅ Tests: 428/428 passing (837ms execution) - All existing tests still pass, no regression
+✅ Build: Clean compilation with zero warnings
+
+**What I Actually Did**:
+- Implemented IGameTimeService and GameTimeService with deterministic timing and pause/resume support
+- Created IMovementTimer and MovementTimer for coordinating timer events with MovementProgressionService
+- Built thread-safe event subscription model: GameTimeService.TimeAdvanced → MovementTimer → MovementProgressionService.AdvanceGameTime
+- Registered both services as singletons in GameStrapper.ConfigureApplicationServices()
+- Used proper LanguageExt v5 patterns: FinFail<T>, FinSucc, Error.New() throughout
+- Added comprehensive logging with AppLogLevel aliases to avoid namespace conflicts
+
+**Files Created**:
+- `src/Infrastructure/Services/IGameTimeService.cs` - Core game time management interface
+- `src/Infrastructure/Services/GameTimeService.cs` - Production implementation with System.Threading.Timer
+- `src/Infrastructure/Services/IMovementTimer.cs` - Movement timer coordination interface
+- `src/Infrastructure/Services/MovementTimer.cs` - Bridges GameTimeService → MovementProgressionService
+- Updated `src/Infrastructure/DependencyInjection/GameStrapper.cs` - Added service registrations
+
+**Problems Encountered**:
+- LanguageExt namespace conflicts: Microsoft.Extensions.Logging.LogLevel vs Darklands.Application.Common.LogLevel
+  → Solution: Used `using AppLogLevel = Darklands.Application.Common.LogLevel;` alias pattern
+- Missing Prelude imports for FinFail/FinSucc: Infrastructure services needed `using static LanguageExt.Prelude;`
+  → Solution: Added proper imports and followed existing MovementProgressionService patterns
+- GameStrapper namespace mismatch: Used `Darklands.Infrastructure.Services` instead of full namespace
+  → Solution: Updated to `Darklands.Infrastructure.Services.IGameTimeService` registration
+- LogLevel.Trace doesn't exist: Application.Common.LogLevel only has Debug/Information/Warning/Error
+  → Solution: Changed Trace usages to Debug level for detailed diagnostic logging
+
+**Technical Architecture Achieved**:
+- **Two-service coordination**: GameTimeService (timing) + MovementTimer (coordination)
+- **Clean event model**: Timer events flow through proper abstraction layers
+- **Deterministic timing**: 200ms default configurable per ADR-022, pausable for save/load
+- **Thread-safe implementation**: All services use proper locking and disposal patterns
+- **Performance monitoring**: MovementTimer tracks advancement count, timing, and error statistics
+
+**Lessons for Phase 4**:
+- Presentation layer needs to subscribe to position advancement events for visual updates
+- Actor visual teleporting will need coordination with logical position changes
+- GameTimeService should be started/stopped based on game state (playing vs paused)
+- MovementTimer.CurrentTurn property needs integration with turn management system
+
 ---
 
 
