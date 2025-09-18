@@ -170,7 +170,7 @@ public class LayeredGameStateManager : IGameStateManager
 
 ### Integration with Existing Systems
 
-#### With Three-Position Model (ADR-022)
+#### With Logical-Visual Position Separation (ADR-022)
 ```csharp
 public class MoveActorCommandHandler
 {
@@ -331,7 +331,7 @@ stateDiagram-v2
 - **ADR-004**: Deterministic Simulation - State transitions must be deterministic
 - **ADR-005**: Save-Ready Architecture - State enums serialize easily
 - **ADR-010**: UI Event Bus - State changes published as events
-- **ADR-022**: Temporal Decoupling Pattern - ExecutingAction state during animations
+- **ADR-022**: Logical-Visual Position Separation - ExecutingAction state during animations
 - **ADR-006**: Selective Abstraction - State management is abstracted
 - **ADR-009**: Sequential Turn Processing - Aligns with turn states
 

@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-17 22:38 (Tech Lead - Dependency chain updated with proper priority ordering)
+**Last Updated**: 2025-09-18 20:20 (Tech Lead - TD_064 created and dependencies updated)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See [Workflow.md - Backlog Aging Protocol](Workflow.md#-backlog-aging-protocol---the-3-10-rule) for 3-10 day aging rules
@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 008
-- **Next TD**: 064
+- **Next TD**: 065
 - **Next VS**: 015 
 
 
@@ -179,6 +179,7 @@ if (!_stateManager.CanProcessInput) return;
 - [ ] Unit tests for valid/invalid transitions
 
 **Dependencies**: Complements TD_061 perfectly (state changes when movement starts/ends)
+**Enables**: TD_064 (provides input state management for movement redirection)
 
 ---
 
@@ -320,18 +321,18 @@ public class MovementAnimator
 - **Robustness**: Superior - animation issues cannot break game state
 
 **TECH LEAD APPROVAL** (2025-09-17 22:09):
-✅ **APPROVED - Option D with refinements** (See **ADR-022: Three-Position Model**)
+✅ **APPROVED - Option D with refinements** (See **ADR-022: Logical-Visual Position Separation**)
 
 **Technical Assessment**:
 - **Pattern Match**: Client-server pattern adapted for single-player - EXCELLENT
 - **Architecture**: Maintains perfect Clean Architecture boundaries
 - **Reusability**: Sets foundation for ALL progression systems (combat, abilities)
 - **Complexity Adjustment**: 5/10 (not 6) - Well-known pattern, straightforward implementation
-- **ADR Created**: ADR-022 documents the Three-Position Model pattern
+- **ADR Created**: ADR-022 documents the Logical-Visual Position Separation pattern
 
 **Required Refinements** (ENHANCED after ultra-analysis):
 1. **Better Naming**: `IFogOfWarRevealService` (crystal clear purpose)
-2. **Three-Position Model**: Game/Revealed/Visual positions separated
+2. **Two-Position Model**: Logical/Visual positions separated (simplified from three)
 3. **Game-Time Based**: Not wall-clock, for pause/save support
 4. **Configurable Timing**: `MillisecondsPerCell` property (default 200ms)
 5. **Pattern Documentation**: Standard for ALL timed progressions
@@ -346,7 +347,7 @@ Considered waypoint events in command handler - rejected because:
 **Enhanced Implementation Approach** (Ultra-Analysis Complete):
 ```csharp
 // Core service interface (Application layer)
-// Implements ADR-022: Three-Position Model
+// Implements ADR-022: Logical-Visual Position Separation
 public interface IFogOfWarRevealService
 {
     Position GetCurrentRevealPosition(ActorId actorId);
@@ -357,7 +358,7 @@ public interface IFogOfWarRevealService
 
 **Key Improvements**:
 - Name clearly states purpose (fog reveal, not movement)
-- Three-position model prevents confusion
+- Two-position model keeps it simple
 - Game-time based for determinism
 - Handles interruptions cleanly
 - Optimizable with batch updates
@@ -365,6 +366,7 @@ public interface IFogOfWarRevealService
 **Implementation Note**: Start with Phase 1 (Domain) immediately - no blockers
 
 **Dependencies**: None (can be implemented independently)
+**Enables**: TD_064 (Interruptible Movement - extends with cancellation support)
 
 **Recommendation**: Implement Option D for superior architecture and maintainability
 
@@ -401,6 +403,91 @@ public interface IFogOfWarRevealService
 ## 📋 Blocked - Waiting for Dependencies
 
 *Items that cannot start until blocking dependencies are resolved*
+
+### TD_064: Interruptible Movement System
+**Status**: Proposed - BLOCKED by TD_061 (Phase 2-4) and TD_063
+**Owner**: Tech Lead (review) → Dev Engineer (implement)
+**Size**: S (2-3h for implementation)
+**Priority**: Important - Enhanced player experience
+**Created**: 2025-09-18 20:15 (Tech Lead - architectural analysis complete)
+**Markers**: [MOVEMENT] [INPUT] [STATE-COORDINATION] [BLOCKED]
+
+**What**: Enable cancellation and redirection of movement while in progress
+**Why**: Players expect to change destination mid-movement for responsive controls
+
+**Problem Statement**:
+- Currently no way to cancel movement once started
+- Players must wait for movement to complete before issuing new command
+- Feels unresponsive compared to modern tactical games
+- Path recalculation from partial position unclear
+
+**Technical Approach** (Hard Cancel Pattern):
+```csharp
+public class MovementRedirectHandler
+{
+    public Fin<Unit> HandleMovementRedirect(ActorId actorId, Position newDest)
+    {
+        // 1. Check input state allows redirect (TD_063)
+        if (!_inputStateManager.AllowsMovementRedirect())
+            return Fail("Input locked");
+
+        // 2. Check game state allows redirect (ADR-023)
+        if (!_gameStateManager.CanExecuteMovementCommand())
+            return Fail("Invalid state");
+
+        // 3. Cancel at current logical position
+        var currentPos = _movementService.CancelMovement(actorId);
+
+        // 4. Recalculate and start new path
+        var newPath = _pathfinding.CalculatePath(currentPos, newDest);
+        return _movementService.StartMovement(actorId, newPath);
+    }
+}
+```
+
+**System Coordination Required**:
+- **TD_061**: Provides movement progression mechanics (HOW to redirect)
+- **TD_063**: Controls input acceptance (IF redirect allowed)
+- **ADR-023**: Validates game state (WHEN redirect valid)
+- **VS_014**: A* pathfinding from discrete logical position
+
+**Why "Hard Cancel" Approach**:
+- **Simplest**: Always at discrete cell (logical position)
+- **Deterministic**: No sub-cell interpolation math
+- **Testable**: Clear state at all times
+- **Save-friendly**: Position always well-defined
+
+**Rejected Alternatives**:
+- **Smooth Redirect**: Complex state tracking for marginal UX gain
+- **Sub-cell Interpolation**: A* requires discrete cells, not fractional positions
+- **Command Queuing**: Feels laggy for movement (OK for abilities)
+
+**Architectural Constraints**:
+☑ Deterministic: Cancel at discrete logical position
+☑ Save-Ready: Clear position state at all times
+☑ Time-Independent: Based on logical position not animation
+☑ Integer Math: Grid positions only
+☑ Testable: State transitions without Godot
+
+**Implementation Steps**:
+1. **MovementProgressionService**: Add `CancelMovement()` method
+2. **InputStateManager**: Configure `ProcessingMove` to allow redirects
+3. **GameStateManager**: Validate redirect during `PlayerTurn`
+4. **GridPresenter**: Handle new click during movement
+5. **Tests**: Cancellation, state validation, edge cases
+
+**Complexity Score**: 3/10 (straightforward with clear patterns)
+**Pattern Match**: Common in tactical games (XCOM, Divinity, BG3)
+
+**Done When**:
+- [ ] Movement can be cancelled mid-path
+- [ ] New destination triggers path recalculation
+- [ ] State validation prevents invalid redirects
+- [ ] Visual feedback shows redirect occurred
+- [ ] Edge cases handled (same cell, no path, etc.)
+- [ ] Unit tests for state coordination
+
+**Dependencies**: TD_061 (movement progression), TD_063 (input states), ADR-023 (game states)
 
 ### VS_012: Vision-Based Movement System
 **Status**: Approved - BLOCKED by TD_060

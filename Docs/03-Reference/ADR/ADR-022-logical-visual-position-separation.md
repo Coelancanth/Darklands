@@ -1,13 +1,13 @@
-# ADR-022: Temporal Decoupling Pattern
+# ADR-022: Logical-Visual Position Separation Pattern
 
-**Status**: Accepted
-**Date**: 2025-09-17
-**Decision Makers**: Tech Lead, Dev Engineer
-**Tags**: `architecture` `state-management` `animation` `fog-of-war` `temporal-decoupling`
+**Status**: Accepted (Revised)
+**Date**: 2025-09-17 (Revised 2025-09-18)
+**Decision Makers**: Tech Lead, Dev Engineer, User
+**Tags**: `architecture` `state-management` `animation` `fog-of-war` `two-position-model` `event-driven`
 
 ## Context
 
-In tactical turn-based games, we frequently encounter scenarios where game state changes instantly (for determinism and simplicity) but the visual representation must progress over time (for player comprehension and polish). The initial problem arose with fog of war revealing the destination immediately while the actor was still animating movement.
+In tactical turn-based games, we frequently encounter scenarios where game logic needs to advance incrementally (for fog of war, vision calculations) while visual representation smoothly follows behind. The initial problem arose with fog of war revealing the destination immediately while the actor was still animating movement.
 
 This creates a fundamental tension:
 - **Game logic** needs instant, deterministic state changes for saves, replays, and testing
@@ -16,44 +16,76 @@ This creates a fundamental tension:
 
 ## Decision
 
-We will implement a **Temporal Decoupling Pattern** (originally called "Three-Position Model") that separates state changes into three temporal layers:
+We will separate game entity positions into two distinct concerns:
 
-1. **Game State** - The authoritative, instant state in game logic (positions, health, resources)
-2. **Revealed State** - The state used for view calculations (progresses over time)
-3. **Visual State** - The state displayed to players (discrete jumps or smooth interpolation)
+1. **Logical Position** - The authoritative game state that advances cell-by-cell on a timer (used for FOV, collision, game rules)
+2. **Visual Position** - The cosmetic sprite location that animates smoothly to follow logical position (purely for player feedback)
+
+**Core Principle**: All game mechanics (FOV, combat, collision) operate on Logical Position. Visual Position is purely cosmetic and NEVER affects game logic.
+
+**Event Flow**:
+- Logical position advances → Publishes event → Visual position responds
+- Direction is ALWAYS: Application Layer → Presentation Layer (never reverse)
 
 ### Implementation Pattern
 
 ```csharp
-// 1. Domain Layer - Instant authoritative state
-public class Actor
+// 1. Domain Layer - Movement progression with logical position
+public class MovementProgression
 {
-    public Position Position { get; private set; } // Game Position
+    public Position LogicalPosition { get; private set; }
+    public IReadOnlyList<Position> Path { get; private set; }
+    private int _elapsedMs;
+    private int _currentIndex;
 
-    public void MoveTo(Position destination)
+    public Option<Position> AdvanceTime(int milliseconds)
     {
-        Position = destination; // Instant update
-        DomainEvents.Raise(new ActorMovedEvent(Id, destination));
+        _elapsedMs += milliseconds;
+        if (_elapsedMs >= MillisecondsPerCell && _currentIndex < Path.Count)
+        {
+            LogicalPosition = Path[_currentIndex++];
+            _elapsedMs = 0;
+            return Some(LogicalPosition);
+        }
+        return None;
     }
 }
 
-// 2. Application Layer - Progressive reveal state
-public interface IFogOfWarRevealService
+// 2. Application Layer - Movement service that updates FOV atomically
+public interface IMovementProgressionService
 {
-    Position GetCurrentRevealPosition(ActorId actorId); // Revealed Position
-    void StartRevealProgression(ActorId id, Path path);
-    void AdvanceTime(int gameMilliseconds);
+    void StartMovement(ActorId actor, Path path);
+    void AdvanceGameTime(int milliseconds);
+    Position GetLogicalPosition(ActorId actor);
 }
 
-// 3. Presentation Layer - Visual interpolation
+public class MovementProgressionService : IMovementProgressionService
+{
+    public void AdvanceGameTime(int milliseconds)
+    {
+        foreach (var progression in _activeProgressions.Values)
+        {
+            progression.AdvanceTime(milliseconds)
+                .IfSome(newPos =>
+                {
+                    // ATOMIC updates when logical position changes
+                    UpdateActorLogicalPosition(progression.ActorId, newPos);
+                    UpdateFOVFromPosition(newPos);
+                    PublishMovementEvent(progression.ActorId, newPos);
+                });
+        }
+    }
+}
+
+// 3. Presentation Layer - Visual follows logical
 public class ActorView : Node2D
 {
-    private Vector2 _targetVisualPosition; // Visual Position
-
-    public void AnimateToPosition(Vector2 target)
+    public void OnLogicalPositionChanged(Position newLogicalPos)
     {
+        // Visual sprite animates to catch up with logical position
+        var worldPos = GridToWorld(newLogicalPos);
         var tween = GetTree().CreateTween();
-        tween.TweenProperty(this, "position", target, 0.2f);
+        tween.TweenProperty(this, "position", worldPos, 0.2f);
     }
 }
 ```
@@ -62,46 +94,53 @@ public class ActorView : Node2D
 
 ### Positive
 
-- **Clean Separation**: Each layer handles exactly one concern
-- **Deterministic**: Game logic is instant and reproducible
-- **Save-Friendly**: Only need to save game position and progression state
-- **Testable**: Can test game logic without any animation or timing concerns
-- **Extensible**: Pattern applies to any progressive state change (combat, abilities, etc.)
-- **Performance**: View calculations (like FOV) happen at controlled intervals, not every frame
-- **Interrupt-Friendly**: Can cleanly cancel and restart progressions
+- **Clean Separation**: Logical and visual concerns completely decoupled
+- **Deterministic**: Logical position advances on fixed timer, reproducible
+- **Save-Friendly**: Only need to save logical position and timer state
+- **Testable**: Can test FOV updates without any animation system
+- **Intuitive**: Two positions (logical/visual) matches board game mental model
+- **Performance**: FOV updates at controlled intervals (5x/second), not every frame
+- **Interrupt-Friendly**: Can cleanly cancel movement and start new command
+- **Atomic Updates**: FOV and position update together, maintaining consistency
 
 ### Negative
 
-- **Complexity**: Three positions to track instead of one
-- **Synchronization**: Must ensure positions eventually converge
-- **Mental Model**: Developers must understand the three-position separation
-- **Debugging**: More state to inspect when issues arise
+- **Visual Lag**: Sprite slightly behind logical position (barely noticeable at 200ms)
+- **Discrete FOV**: FOV updates in steps rather than smoothly (actually more honest for grid-based games)
+- **Timer Management**: Need to track elapsed time for progressions
 
 ## Alternatives Considered
 
-### Alternative 1: Animation-Driven Updates
-Let animation callbacks trigger game state changes.
-- **Rejected**: Couples game logic to rendering, non-deterministic
+### Alternative 1: Visual Position Coupling
+Update FOV based on sprite's visual position as it animates.
+- **Rejected**: Non-deterministic (frame-rate dependent), untestable, save/load nightmare
 
-### Alternative 2: Delayed Command Processing
-Queue commands and process them over time.
-- **Rejected**: Makes game logic async, complicates save/load
+### Alternative 2: Three-Position Model
+Track Game Position, Revealed Position, and Visual Position separately.
+- **Rejected**: Over-engineered for our needs. Two positions achieve same goals with less complexity
 
-### Alternative 3: Two-Position Model
-Just Game and Visual positions, no intermediate Revealed position.
-- **Rejected**: Doesn't solve the FOV problem, less flexible
+### Alternative 3: Instant FOV Updates
+Update FOV immediately when movement command issued.
+- **Rejected**: Reveals entire path before actor moves, breaks tactical gameplay
+
+### Alternative 4: Waypoint Events in Command Handler
+Have command handler sleep and emit events at each waypoint.
+- **Rejected**: Blocks handler, can't handle interruptions, mixes timing into business logic
 
 ## Godot Integration
 
 ### CRITICAL: Architectural Boundary Alignment
 
-Per ADR-006 and ADR-010, the Temporal Decoupling Pattern must respect these boundaries:
+Per ADR-006 and ADR-010, the Logical-Visual Separation must respect these boundaries:
 
-1. **Game Position** → Domain Layer (pure C#)
-2. **Revealed Position** → Application Layer (services, no Godot)
-3. **Visual Position** → Presentation Layer (Godot animations)
+1. **Logical Position** → Domain/Application Layers (pure C#, deterministic)
+2. **Visual Position** → Presentation Layer (Godot animations, cosmetic only)
 
-**WARNING**: Game time advancement is APPLICATION logic, not PRESENTATION logic. Presenters must NOT drive game time - they only respond to events.
+**MANDATORY RULES**:
+- Logical position NEVER depends on visual position
+- Visual updates happen via one-way events (Application → Presentation)
+- Game logic NEVER waits for animations to complete
+- Presenters NEVER drive game state changes
 
 ### Coordinating with Godot's Update Loop
 
@@ -533,6 +572,12 @@ This pattern is widely used in game development:
 - **Roguelikes**: Discrete movement (NetHack, DCSS, Cogmind) vs interpolated (ToME4)
 
 The pattern emerged from TD_061 (Progressive FOV Updates) but applies broadly across the codebase.
+
+### Revision History
+
+**2025-09-18 (Rev 1)**: Simplified from Three-Position Model to Two-Position Model based on user insight that FOV should be calculated from logical position with atomic updates. The simpler model achieves all architectural goals with better conceptual clarity.
+
+**2025-09-18 (Rev 2)**: Renamed from "Temporal Decoupling Pattern" to "Logical-Visual Position Separation" for clarity. Updated content to emphasize the one-way event flow and strict separation of concerns.
 
 ## References
 
