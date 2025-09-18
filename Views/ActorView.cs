@@ -124,7 +124,7 @@ namespace Darklands.Views
                 // Log using Gameplay category for fine-grained filtering
                 if (DebugSystem.Instance?.Logger != null)
                 {
-                    DebugSystem.Instance.Logger.Log(LogLevel.Information, LogCategory.Gameplay,
+                    DebugSystem.Instance.Logger.Log(LogLevel.Debug, LogCategory.Gameplay,
                         "{0} created at ({1},{2})", actorId, position.X, position.Y);
                 }
 
@@ -262,7 +262,7 @@ namespace Darklands.Views
                 {
                     var animData = _pendingPathAnimations.Dequeue();
 
-                    _logger.Log(LogLevel.Information, LogCategory.Gameplay,
+                    _logger.Log(LogLevel.Debug, LogCategory.Gameplay,
                         "[PROCESS PATH ANIMATION] Processing animation for actor {ActorId} with {PathCount} positions",
                         animData.ActorId, animData.Path.Count);
 
@@ -271,7 +271,7 @@ namespace Darklands.Views
                         // Progressive path animation with delays - shows tile-by-tile movement
                         if (animData.Path.Count > 0)
                         {
-                            _logger.Log(LogLevel.Information, LogCategory.Gameplay,
+                            _logger.Log(LogLevel.Debug, LogCategory.Gameplay,
                                 "[PATH ANIMATION] Starting progressive animation for {PathCount} tiles",
                                 animData.Path.Count);
 
@@ -328,7 +328,7 @@ namespace Darklands.Views
                     _pendingPathAnimations.Enqueue(animationData);
                 }
 
-                _logger.Log(LogLevel.Information, LogCategory.Gameplay,
+                _logger.Log(LogLevel.Debug, LogCategory.Gameplay,
                     "[ANIMATION QUEUED] Queued path animation for actor {ActorId} with {PathCount} positions",
                     actorId, path.Count);
 
@@ -959,7 +959,7 @@ namespace Darklands.Views
                 var firstPathPixelPos = new Vector2(path[0].X * TileSize, path[0].Y * TileSize);
                 int startIndex = currentPixelPos.IsEqualApprox(firstPathPixelPos) ? 1 : 0;
 
-                _logger.Log(LogLevel.Information, LogCategory.Gameplay,
+                _logger.Log(LogLevel.Debug, LogCategory.Gameplay,
                     "[PATH PROGRESSION] Starting from index {StartIndex}, animating through {StepCount} tiles",
                     startIndex, path.Count - startIndex);
 
@@ -986,7 +986,7 @@ namespace Darklands.Views
                         i, actorId, gridPos.X, gridPos.Y, pixelPos.X, pixelPos.Y);
                 }
 
-                _logger.Log(LogLevel.Information, LogCategory.Gameplay,
+                _logger.Log(LogLevel.Debug, LogCategory.Gameplay,
                     "[PATH COMPLETE] Actor {ActorId} completed path animation", actorId);
             }
             catch (Exception ex)
