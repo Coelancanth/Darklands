@@ -56,6 +56,14 @@ This directory contains Architecture Decision Records (ADRs) - documents that ca
 - [ADR-012: Localization Bridge Pattern](ADR-012-localization-bridge-pattern.md) - **Approved**
   - Infrastructure bridge to Godot's TranslationServer for i18n
 
+### Architecture Patterns
+- [ADR-022: Temporal Decoupling Pattern](ADR-022-temporal-decoupling-pattern.md) - **Approved** ⭐ **AMENDED 2025-09-18**
+  - Decouples game logic timing from visual presentation timing
+  - Amendment 1: Supports both discrete and interpolated visual updates
+
+- [ADR-023: Layered Game State Management](ADR-023-game-state-management.md) - **Approved**
+  - Three-layer state system for game flow, combat, and UI overlays
+
 ### Game Design
 - [ADR-003: TileMap Variant Selection Strategy](ADR-003-tilemap-variant-selection-strategy.md) - **Approved**
   - Domain decides WHAT tiles, Godot autotiling selects WHICH variants

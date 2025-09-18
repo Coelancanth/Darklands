@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-17 19:35 (Tech Lead - TD_062 approved with elegant sub-cell waypoint solution)
+**Last Updated**: 2025-09-17 22:38 (Tech Lead - Dependency chain updated with proper priority ordering)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See [Workflow.md - Backlog Aging Protocol](Workflow.md#-backlog-aging-protocol---the-3-10-rule) for 3-10 day aging rules
@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 008
-- **Next TD**: 061
+- **Next TD**: 064
 - **Next VS**: 015 
 
 
@@ -84,92 +84,127 @@
 
 *Items with no blocking dependencies, approved and ready to start*
 
-### TD_062: Fix Actor Sprite Clipping Through Obstacles During Animation
-**Status**: Approved - Ready for Dev
-**Owner**: Tech Lead → Dev Engineer
-**Size**: S (2.5h revised estimate)
-**Priority**: High - Visual bug breaking immersion
-**Created**: 2025-09-17 20:45 (Dev Engineer)
-**Updated**: 2025-09-17 19:35 (Tech Lead - Approved with sub-cell waypoint solution)
-**Markers**: [ANIMATION] [PATHFINDING] [VISUAL-BUG]
 
-**What**: Prevent actor sprites from visually passing through walls/obstacles during movement
-**Why**: Current linear interpolation causes sprites to overlap impassable terrain
+### TD_063: Layered Game State Management
+**Status**: ✅ APPROVED (See ADR-023)
+**Owner**: Dev Engineer (implement per ADR-023)
+**Size**: M (6h for complete implementation)
+**Priority**: High - Foundational system needed before AI turns
+**Created**: 2025-09-17 21:55 (Dev Engineer - initial proposal)
+**Updated**: 2025-09-17 22:30 (Tech Lead - ADR-023 created with layered architecture)
+**Markers**: [STATE-MACHINE] [FOUNDATION] [ARCHITECTURE] [ADR-023]
+
+**What**: Implement input state management to lock user interactions during ongoing work operations
+**Why**: Users can currently click/interact while animations, commands, or other work is in progress, causing conflicts and inconsistent state
 
 **Problem Statement**:
-- Actor animates linearly between grid cells
-- When path goes around a corner, sprite cuts through the obstacle
-- Example: Path goes (0,0) → (1,0) → (1,1), but sprite moves diagonally through wall at (1,0)
-- Breaks visual consistency and immersion
+- User can click tiles while actor is moving, causing command queuing issues
+- Input events can interrupt ongoing operations (attacks, movement, etc.)
+- No visual feedback when system is "busy" vs ready for input
+- Race conditions between user input and system state changes
 
-**Visual Example**:
+**Technical Approach** (State Machine Pattern):
+- Create `IInputStateManager` service in Application layer
+- State machine with states: `Ready`, `Processing`, `Animating`, `Disabled`
+- Each state defines what input events are allowed/blocked
+- Presenter layer queries state before processing user input
+- Visual feedback shows when input is locked (cursor changes, UI graying, etc.)
+
+**Architectural Constraints**:
+□ Deterministic: State changes based on clear triggers, not timing
+□ Save-Ready: State can be serialized if needed for save games
+□ Time-Independent: Uses game events not wall-clock time
+□ Integer Math: N/A for this feature
+□ Testable: State machine logic testable without Godot runtime
+
+**State Transition Examples**:
 ```
-Current (WRONG):        Should Be (CORRECT):
-█ = Wall                █ = Wall
-P = Player              P = Player
-. = Path dot            → = Movement
-
-█████                   █████
-█...█  Player moves     █→→.█  Player follows
-█.P.█  diagonally       █↓P.█  the actual path
-█...█  through wall     █...█  around the wall
-█████                   █████
+Ready → Processing: User clicks move command
+Processing → Animating: Command validated, animation starts
+Animating → Ready: Animation complete event received
+Ready → Disabled: Dialog/menu opens
+Disabled → Ready: Dialog/menu closes
 ```
 
-**Tech Lead Decision** (2025-09-17 19:35):
-**APPROVED - Sub-Cell Waypoint Solution**
+**TECH LEAD FINAL DESIGN** (2025-09-17 22:30):
+✅ **APPROVED - See ADR-023 for Complete Architecture**
 
-**Architectural Analysis**:
-- ✅ Aligns with ADR-006: Animation stays in View layer (no abstraction)
-- ✅ Uses approved "Animation Event Bridge" pattern from ADR-006
-- ✅ Integrates with ADR-010 UIEventBus for completion events
-- ✅ Maintains perfect logic/rendering decoupling
+**Why Layered State System**:
+- **Layer 1**: Game flow (MainMenu, InGame, Victory)
+- **Layer 2**: Combat states (PlayerTurn, AITurn, Executing)
+- **Layer 3**: UI overlays (Dialog, Inventory, Targeting)
+- Handles concurrent states elegantly
+- Foundation for entire game's state management
 
-**Selected Solution: Sub-Cell Waypoints with Callbacks**
-- Generate intermediate waypoints when path changes direction
-- Add waypoints at 30% offset from cell center at corners
-- Implement IMovementAnimationEvents for precise callback control
-- Callbacks fire when reaching actual grid cells (not sub-waypoints)
+**Implementation per ADR-023**:
+```csharp
+public enum GameState
+{
+    PlayerTurn,         // Can accept input
+    AnimatingAction,    // Blocking input during animation
+    AITurn,            // AI thinking
+    DialogOpen,        // Modal UI active
+    TargetingMode      // Selecting target
+}
 
-**Implementation Plan**:
-1. **Phase 1 (30m)**: Create IMovementAnimationEvents interface in Core/Application
-2. **Phase 2 (45m)**: Add GenerateSmoothedPath() with corner detection to ActorView
-3. **Phase 3 (45m)**: Integrate callbacks with tween system
-4. **Phase 4 (30m)**: Test and tune waypoint offsets
+public interface IGameStateManager
+{
+    GameState CurrentState { get; }
+    bool CanProcessInput { get; }
+    bool TransitionTo(GameState newState);
+}
 
-**Key Implementation Details**:
-- Sub-cell offset: TileSize * 0.3f (tunable)
-- Detect corners: (prev.X != next.X) && (prev.Y != next.Y)
-- Callbacks at cell boundaries, not waypoints
-- UIEventBus publishes MovementCompletedEvent
+// Usage in Presenter
+if (!_stateManager.CanProcessInput) return;
+```
 
-**Complexity Score**: 3/10 - Following established patterns
-**Pattern Match**: ADR-006 Animation Event Bridge pattern
-**Risk**: Low - Pure presentation layer change
+**Phased Implementation**:
+1. **Phase 1** (2h): Core state manager with basic states
+2. **Phase 2** (1h): Integration with command handlers
+3. **Phase 3** (1h): UI feedback (cursor changes)
+4. **Phase 4** (2h): Testing and state validation
 
-**Dependencies**:
-- Requires TD_060 (Movement Animation) - COMPLETE ✅
-- Coordinate with TD_061 (Camera Follow) - can be done in parallel
+**Complexity Score**: 4/10 (balanced approach)
+**Time Estimate**: 4-6h (foundational system)
+**Pattern Match**: Standard FSM pattern, used in all tactical games
+
+**Done When**:
+- [ ] IGameStateManager interface and implementation
+- [ ] Basic states defined (PlayerTurn, AnimatingAction, AITurn minimum)
+- [ ] State transitions validated (can't go from AITurn to TargetingMode)
+- [ ] Integration with command handlers
+- [ ] Presenters check CanProcessInput before accepting input
+- [ ] Cursor changes based on state
+- [ ] GameStateChangedEvent published on transitions
+- [ ] Unit tests for valid/invalid transitions
+
+**Dependencies**: Complements TD_061 perfectly (state changes when movement starts/ends)
 
 ---
 
 ### TD_061: Progressive FOV Updates During Movement
-**Status**: Under Review
-**Owner**: Tech Lead (analyzing)
-**Size**: M (3-4h revised estimate)
+**Status**: ✅ APPROVED (Option D with refinements)
+**Owner**: Dev Engineer (ready to implement)
+**Size**: M (4-6h with movement progression service)
 **Priority**: Critical - Game mechanic bug
-**Created**: 2025-09-17 20:35 (Dev Engineer - misdiagnosed)
-**Updated**: 2025-09-17 19:47 (Tech Lead - Identified real issue as FOV updates)
-**Markers**: [FOV] [VISION] [MOVEMENT] [GAME-LOGIC]
+**Created**: 2025-09-17 20:35 (Dev Engineer - initial proposal)
+**Updated**: 2025-09-17 22:09 (Tech Lead - Approved Option D with refinements)
+**Markers**: [FOV] [VISION] [MOVEMENT] [GAME-LOGIC] [ARCHITECTURE]
 
 **What**: Update Field of View progressively as actor moves cell-by-cell
 **Why**: Currently FOV updates instantly to destination, revealing areas before actor arrives
 
-**REAL Problem Statement** (Tech Lead Analysis):
-- FOV currently updates ONCE at destination (WRONG)
-- Should update at EACH cell along movement path (CORRECT)
-- Fog of war reveals destination before actor gets there
-- This is a core game mechanic issue, not just visual
+**PROBLEM IDENTIFIED** (Dev Engineer Ultra-Analysis):
+**Root Cause**: `GridPresenter.cs:236` - FOV updates after entire move completes
+```csharp
+// CURRENT BROKEN FLOW:
+var result = await _mediator.Send(moveCommand);  // Move completes instantly
+result.Match(
+    Succ: async _ => {
+        await UpdatePlayerVisionAsync(_currentTurn);  // FOV reveals destination immediately!
+    }
+);
+```
 
 **Visual Example**:
 ```
@@ -188,57 +223,150 @@ Turn 2: Actor animating       Turn 2: Actor at cell 1
             revealed all
 ```
 
-**Architectural Complexity**:
-- Requires coordinating Domain (FOV calc), Application (sequential updates), Presentation (visibility)
-- Must maintain cell-by-cell state during animation
-- Need callback system for per-cell FOV triggers
+**CRITICAL ARCHITECTURAL ISSUE WITH TECH LEAD'S OPTION A**:
 
-**Tech Lead Assessment**:
-- This is NOT about camera smoothing (that's trivial)
-- This IS about game state updates during movement
-- Requires careful coordination between layers
-- May need new movement event pattern
+❌ **Couples Game Logic to Animation Timing**
+- FOV updates driven by animation callbacks
+- Game state becomes dependent on visual timing
+- Violates Clean Architecture separation
+- Creates save/load complexity (animation state in saves?)
+- Makes testing require animation system
 
-**Proposed Solution** (Tech Lead - 2025-09-17 19:47):
+**DEV ENGINEER COUNTER-PROPOSAL: Option D - Logical Movement Progression** ⭐
 
-**Option A: Animation Callbacks with FOV Updates** (Recommended)
+**Core Principle**: **Separate logical position from visual position completely**
+
 ```csharp
-// Use IMovementAnimationEvents from TD_062 pattern
-public interface IMovementAnimationEvents
+// 1. Domain Layer - Pure logical movement
+public interface ILogicalMovementService
 {
-    void OnCellReached(ActorId actorId, Position cellPosition);
-    // When cell reached -> Trigger FOV update for that position
+    Fin<Unit> StartMovement(ActorId actorId, IEnumerable<Position> path);
+    // Advances position cell-by-cell on fixed 200ms timer
+    // Publishes ActorLogicalPositionChanged events
+}
+
+// 2. Application Layer - FOV responds to logical events
+public class ActorLogicalPositionChangedEventHandler
+{
+    public async Task Handle(ActorLogicalPositionChangedEvent evt, CancellationToken ct)
+    {
+        // Calculate FOV for new logical position
+        var fovQuery = CalculateFOVQuery.Create(evt.ActorId, evt.NewPosition, range, turn);
+        await _mediator.Send(fovQuery);
+        // Publish VisionStateChanged for UI updates
+    }
+}
+
+// 3. Presentation Layer - Animation syncs to logical position
+public class MovementAnimator
+{
+    public void OnLogicalPositionChanged(ActorLogicalPositionChangedEvent evt)
+    {
+        // Smoothly animate sprite toward new logical position
+        // Animation is purely cosmetic, doesn't affect game state
+    }
 }
 ```
-- Leverage TD_062's callback system
-- FOV updates triggered per cell during animation
-- Maintains clean separation of concerns
 
-**Option B: Staged Movement Command** (More Complex)
-- Break movement into cell-by-cell commands
-- Each command updates FOV for one cell
-- Chain commands with animation timing
-- Risk: Complexity, save/load issues
+**Enhanced Flow**:
+1. **User clicks** → `MoveActorCommand` with full path
+2. **Command calculates path** → Starts logical movement timer (200ms/cell)
+3. **Logical position advances** → FOV updates immediately per cell
+4. **Animation follows** → Smooth visual movement toward logical position
+5. **User sees** → Progressive FOV revelation matching logical progression
 
-**Option C: Visual-Only Fog** (Compromised)
-- Keep instant FOV update in domain
-- Add visual fog overlay that reveals progressively
-- Simpler but less authentic
+**Architectural Advantages vs Tech Lead's Option A**:
 
-**Recommendation**: Option A using animation callbacks
-- Reuses TD_062 pattern (already approved)
-- Clean architectural boundaries
-- FOV remains deterministic
-- Animation drives revelation timing
+✅ **Perfect Clean Architecture**: Game logic completely separate from animation
+✅ **Fully Deterministic**: Fixed 200ms timing, independent of animation framerate
+✅ **Save-Safe**: Logical position + timer state = complete game state
+✅ **Testable**: FOV updates testable without any Godot animation
+✅ **Performance**: FOV calculated every 200ms, not every animation frame
+✅ **Robust**: Animation can pause/stutter without affecting game logic
 
-**Implementation Plan**:
-1. Extend IMovementAnimationEvents with FOV trigger
-2. GridPresenter calculates FOV per cell callback
-3. Update tile visibility progressively
-4. Maintain explored vs visible distinction
+**Architectural Constraints**:
+□ Deterministic: Fixed 200ms timer timing, rule-based progression ✅
+□ Save-Ready: Logical position + timer = serializable game state ✅
+□ Time-Independent: Uses fixed intervals, not wall-clock time ✅
+□ Integer Math: 200ms intervals, deterministic timing ✅
+□ Testable: Complete FOV logic testable without Godot runtime ✅
 
-**Complexity Score**: 5/10 - Cross-layer coordination required
-**Dependencies**: TD_062 callback system
+**Implementation Plan** (4-6h estimate):
+
+**Phase 1: Domain Logic** (1.5h)
+- Create `ILogicalMovementService` with timer-based position advancement
+- Add `ActorLogicalPositionChanged` domain event
+- Unit tests for logical movement timing
+
+**Phase 2: Application Integration** (2h)
+- Create event handler linking logical position → FOV updates
+- Modify `MoveActorCommandHandler` to use logical movement service
+- Integration tests for FOV progression
+
+**Phase 3: Presentation Sync** (1.5h)
+- Update `MovementAnimator` to sync with logical position events
+- Ensure smooth visual animation toward logical position
+- Manual testing for user experience
+
+**Phase 4: Edge Cases** (1h)
+- Handle interruptions (new commands during movement)
+- Save/load during movement
+- Animation performance optimization
+
+**Dev Engineer Assessment**:
+- **Complexity Score**: 6/10 - Cross-layer but architecturally pure
+- **Maintainability**: Excellent - clear separation of concerns
+- **Testability**: Outstanding - game logic completely unit testable
+- **Robustness**: Superior - animation issues cannot break game state
+
+**TECH LEAD APPROVAL** (2025-09-17 22:09):
+✅ **APPROVED - Option D with refinements** (See **ADR-022: Three-Position Model**)
+
+**Technical Assessment**:
+- **Pattern Match**: Client-server pattern adapted for single-player - EXCELLENT
+- **Architecture**: Maintains perfect Clean Architecture boundaries
+- **Reusability**: Sets foundation for ALL progression systems (combat, abilities)
+- **Complexity Adjustment**: 5/10 (not 6) - Well-known pattern, straightforward implementation
+- **ADR Created**: ADR-022 documents the Three-Position Model pattern
+
+**Required Refinements** (ENHANCED after ultra-analysis):
+1. **Better Naming**: `IFogOfWarRevealService` (crystal clear purpose)
+2. **Three-Position Model**: Game/Revealed/Visual positions separated
+3. **Game-Time Based**: Not wall-clock, for pause/save support
+4. **Configurable Timing**: `MillisecondsPerCell` property (default 200ms)
+5. **Pattern Documentation**: Standard for ALL timed progressions
+
+**Why Not Simpler?**
+Considered waypoint events in command handler - rejected because:
+- Blocks handler during movement
+- Can't handle interruptions cleanly
+- Mixes timing into business logic
+- Makes testing require async delays
+
+**Enhanced Implementation Approach** (Ultra-Analysis Complete):
+```csharp
+// Core service interface (Application layer)
+// Implements ADR-022: Three-Position Model
+public interface IFogOfWarRevealService
+{
+    Position GetCurrentRevealPosition(ActorId actorId);
+    void StartRevealProgression(ActorId id, Path path);
+    void AdvanceTime(int gameMilliseconds);
+}
+```
+
+**Key Improvements**:
+- Name clearly states purpose (fog reveal, not movement)
+- Three-position model prevents confusion
+- Game-time based for determinism
+- Handles interruptions cleanly
+- Optimizable with batch updates
+
+**Implementation Note**: Start with Phase 1 (Domain) immediately - no blockers
+
+**Dependencies**: None (can be implemented independently)
+
+**Recommendation**: Implement Option D for superior architecture and maintainability
 
 ---
 

@@ -102,3 +102,134 @@ public class MovementPresenter : EventAwarePresenter<IActorView>
 - **ELEGANT** - Uses Godot directly as intended, presenter coordinates
 - **PATTERN** - Establishes correct View-Presenter animation pattern
 ---
+
+### TD_062: Fix Actor Sprite Clipping Through Obstacles During Animation
+**Archived**: 2025-09-18
+**Final Status**: Completed
+---
+### TD_062: Fix Actor Sprite Clipping Through Obstacles During Animation
+**Status**: ✅ DONE
+**Owner**: Tech Lead → Dev Engineer
+**Size**: S (45min revised estimate)
+**Priority**: High - Visual bug breaking immersion
+**Created**: 2025-09-17 20:45 (Dev Engineer)
+**Updated**: 2025-09-18 (Tech Lead - REVISED to discrete movement solution)
+**Markers**: [ANIMATION] [PATHFINDING] [VISUAL-BUG]
+
+**What**: Prevent actor sprites from visually passing through walls/obstacles during movement
+**Why**: Current linear interpolation causes sprites to overlap impassable terrain
+
+**Problem Statement**:
+- Actor animates linearly between grid cells
+- When path goes around a corner, sprite cuts through the obstacle
+- Example: Path goes (0,0) → (1,0) → (1,1), but sprite moves diagonally through wall at (1,0)
+- Breaks visual consistency and immersion
+
+**Visual Example**:
+```
+Current (WRONG):        Fixed (DISCRETE):
+█ = Wall                █ = Wall
+P = Player              P = Player
+. = Path dot            → = Instant jump
+
+█████                   █████
+█...█  Player slides    █...█  Frame 0: P at (0,0)
+█.P.█  diagonally       █.P.█  Frame 1: P at (1,0) *pop*
+█...█  through wall     █...█  Frame 2: P at (1,1) *pop*
+█████  (CLIPPING!)      █████  (NO CLIPPING!)
+```
+
+**Tech Lead Decision** (2025-09-18):
+**REVISED - Discrete Movement Solution (Option B)**
+
+**Root Cause Analysis**:
+- Linear tweening between positions creates diagonal paths through obstacles
+- Any interpolation-based solution risks edge cases
+- Discrete movement eliminates the problem entirely
+
+**Selected Solution: Option B - Discrete with Feedback**
+- Remove all position tweening/interpolation
+- Actor instantly updates position (teleports tile-to-tile)
+- Add visual feedback: brief flash + dust particles on arrival
+- Future enhancement (Option C): Add step animations when sprites ready
+
+**Architectural Benefits**:
+- ✅ Completely eliminates clipping (impossible by design)
+- ✅ Simplifies code (removes 50+ lines of tweening logic)
+- ✅ Aligns with ADR-022 (Temporal Decoupling Pattern - discrete mode)
+- ✅ Genre-appropriate for roguelike tactical games
+- ✅ Zero technical risk (simpler = fewer bugs)
+
+**Implementation Plan (45 minutes total)**:
+
+**Phase 1: Core Fix (15 min)**
+```csharp
+// ActorView.cs - Remove all tweening
+public async Task MoveActorAsync(ActorId id, Position from, Position to)
+{
+    var pixelPos = new Vector2(to.X * TileSize, to.Y * TileSize);
+    actorNode.Position = pixelPos; // Instant update
+}
+```
+
+**Phase 2: Visual Feedback (20 min)**
+```csharp
+// Add on arrival at each tile
+private void OnTileArrival(ColorRect actorNode, Vector2 position)
+{
+    // Brief flash effect
+    actorNode.Modulate = Colors.White * 1.3f;
+    CreateTween().TweenProperty(actorNode, "modulate", Colors.White, 0.1f);
+
+    // Dust particles (if particle system ready)
+    // EmitDustParticles(position);
+}
+```
+
+**Phase 3: Path Animation (10 min)**
+```csharp
+// Process full path with delays
+public async Task AnimateMovePath(ActorId id, List<Position> path)
+{
+    foreach(var pos in path)
+    {
+        await ToSignal(GetTree().CreateTimer(0.2f), "timeout");
+        MoveActorAsync(id, null, pos);
+        OnTileArrival(_actorNodes[id], GridToPixel(pos));
+    }
+}
+```
+
+**Future Enhancement (Option C - when sprites ready)**:
+- Add sprite-based step animations
+- Play "step_north", "step_diagonal_ne" etc before position update
+- Estimated additional 2 hours when character sprites available
+
+**Key Implementation Details**:
+- Sub-cell offset: TileSize * 0.3f (tunable)
+- Detect corners: (prev.X != next.X) && (prev.Y != next.Y)
+- Callbacks at cell boundaries, not waypoints
+- UIEventBus publishes MovementCompletedEvent
+
+**Complexity Score**: 3/10 - Following established patterns
+**Pattern Match**: ADR-006 Animation Event Bridge pattern
+**Risk**: Low - Pure presentation layer change
+
+**Dependencies**:
+- Requires TD_060 (Movement Animation) - COMPLETE ✅
+- Coordinate with TD_061 (Camera Follow) - can be done in parallel
+
+**✅ IMPLEMENTATION COMPLETE** (2025-09-18 16:57):
+**Phase 1**: ✅ Removed all tweening from ActorView.cs:225-226, 269-296
+**Phase 2**: ✅ Added OnTileArrival() visual feedback with flash effects
+**Phase 3**: ✅ Added AnimatePathProgression() for tile-by-tile movement
+✅ **Build**: 0 errors, 0 warnings (5.59s execution)
+✅ **Files Modified**:
+  - `Views/ActorView.cs` - Replaced tween interpolation with instant position + feedback
+⚠️ **Deviations**: None - followed Tech Lead's Option B plan exactly
+💡 **Technical Decisions**:
+  - Flash effect uses 1.3f brightness multiplier with 0.1f fade
+  - Path progression uses 0.2f delays between teleports
+  - Dust particles placeholder added for future enhancement
+  - Maintained thread-safe deferred call pattern
+---

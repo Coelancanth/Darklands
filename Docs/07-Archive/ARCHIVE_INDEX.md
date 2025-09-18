@@ -76,10 +76,11 @@ Archives are split when they reach **1000 lines** to maintain readability and pe
 - **TD_058**: Fix MediatR Pipeline Behavior Registration Order - ErrorHandlingBehavior now outermost wrapper
 - **VS_014**: A* Pathfinding Foundation - Complete 4-phase implementation with runtime fixes and real-time preview
 
-### Completed_Backlog.md (Current Active - 1 item)
-**Status**: Contains TD_060 (2025-09-17)
+### Completed_Backlog.md (Current Active - 2 items)
+**Status**: Contains TD_060, TD_062 (2025-09-17 to 2025-09-18)
 **Major Items**:
 - **TD_060**: Movement Animation Foundation - Cell-by-cell animation along A* pathfinding route with non-blocking CallDeferred pattern
+- **TD_062**: Fix Actor Sprite Clipping Through Obstacles During Animation - Discrete movement solution eliminating visual clipping
 **Next Split**: At 1000 lines → Completed_Backlog_006.md
 
 ## 🔍 How to Find Items
@@ -121,13 +122,13 @@ grep -l "BR_007" Docs/07-Archive/Completed_Backlog_*.md
   - **002**: 957 lines (Grid System & Event Architecture)
   - **003**: 1,001+ lines (Save System & Vision/FOV)
   - **004**: 975+ lines (Clean Architecture & Process)
-  - **Current**: ~200+ lines (Error Handling)
+  - **Current**: ~230+ lines (Animation & Error Handling)
 - **Key Content**:
   - **001**: Foundation architecture, async fixes, logger rewrite
   - **002**: Complete grid/movement system, event bus, deterministic random
   - **003**: Save-ready entities, vision/FOV, abstraction services
   - **004**: 4-project separation, DDD replacement, process improvements
-  - **Current**: Strategic error handling boundaries (TD_047)
+  - **Current**: Strategic error handling boundaries (TD_047), movement animation clipping fix (TD_062)
 
 ## 🔄 Archive Workflow (AUTO-ROTATION)
 
@@ -161,4 +162,4 @@ Use these patterns to find related items:
 - **Next Review**: When archive 005 is created
 
 ---
-*Last Updated: 2025-09-17 10:20 - Fixed TD_047 indexing, updated backlog-assistant requirements*
+*Last Updated: 2025-09-18 - Added TD_062 to current active archive*
