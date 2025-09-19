@@ -51,6 +51,14 @@ We will implement a **TimeUnit-based GameLoop** that is completely independent o
 3. **Scheduler** manages actor turn order based on TimeUnits
 4. **Complete separation** between game time and wall-clock time
 
+### Alignment with Core ADRs
+
+This GameLoop architecture implements key requirements from:
+
+- **ADR-006 (Selective Abstraction)**: GameLoop implements the required `IGameClock` abstraction for deterministic time management
+- **ADR-010 (UI Event Bus)**: All domain events flow through `IUIEventBus` to reach presenters
+- **ADR-022 (Two-Position Model)**: Logic and visual representation have separate timing
+
 ### Architecture Components
 
 ```
@@ -86,23 +94,34 @@ We will implement a **TimeUnit-based GameLoop** that is completely independent o
 ### Implementation Pattern
 
 ```csharp
-// 1. TimeUnit - Universal time currency (already implemented)
+// 1. IGameClock - Core abstraction (per ADR-006)
+public interface IGameClock
+{
+    TimeUnit CurrentTime { get; }
+    bool IsPaused { get; }
+    void Pause();
+    void Resume();
+    void SetSpeed(GameSpeed speed);
+    event Action<TimeUnit> TimeAdvanced;
+}
+
+// 2. TimeUnit - Universal time currency (already implemented)
 public readonly record struct TimeUnit
 {
     public int Value { get; }
-    // 100 TU = 1 second of game time (configurable)
     // Movement might cost 25 TU per tile
     // Attack might cost 50 TU
 }
 
-// 2. GameLoop - Advances game time deterministically
-public class GameLoop : IHostedService
+// 3. GameLoop - Implements IGameClock abstraction
+public class GameLoop : IHostedService, IGameClock
 {
     private Timer? _timer;
     private TimeUnit _currentGameTime = TimeUnit.Zero;
     private readonly ISchedulerService _scheduler;
     private readonly IMovementService _movement;
     private readonly IGameStateService _gameState;
+    private readonly IUIEventBus _uiEventBus; // Per ADR-010
 
     // Game always advances by exactly 1 TU per tick
     private const int TimeUnitsPerGameTick = 1;
@@ -209,40 +228,62 @@ public class MovementService
 4. **Determinism First**: No floating point, no wall-clock dependencies
 5. **Save-Friendly**: Current time + scheduler state = complete temporal state
 
-### Synchronization with Visual Representation (ADR-022)
+### Event Flow Architecture (ADR-010 + ADR-022)
 
-Per **ADR-022: Two-Position Model**, we maintain separation between logical game time and visual representation:
+Per **ADR-010** and **ADR-022**, events flow from GameLoop through proper architectural layers:
 
 ```csharp
-// GameLoop advances logical state
+// 1. GameLoop triggers domain logic
 private async void CheckForGameAdvancement(object? state)
 {
     _currentGameTime += TimeUnit.CreateUnsafe(1);
 
-    // Domain: Actor position updates immediately in logic
-    actor.AdvanceMovement(); // Logical position changes
+    // Domain logic executes
+    actor.AdvanceMovement();
 
-    // Event raised to update visual representation
-    await _eventBus.PublishAsync(new ActorMovedEvent(actor.Position));
+    // Domain event raised
+    await _mediator.Publish(new ActorMovedEvent(actor.Id, newPosition));
 }
 
-// Presenter handles visual update (separate timing)
-public class ActorPresenter
+// 2. Application handler processes domain event
+public class ActorMovedHandler : INotificationHandler<ActorMovedEvent>
 {
-    public void OnActorMoved(ActorMovedEvent evt)
+    private readonly IUIEventBus _uiEventBus;
+
+    public async Task Handle(ActorMovedEvent evt, CancellationToken ct)
     {
-        // Visual can animate smoothly between positions
-        // while logic has already updated
-        _view.AnimateToPosition(evt.NewPosition);
+        // Update domain services
+        _gridStateService.UpdatePosition(evt.ActorId, evt.NewPosition);
+
+        // Publish to UI layer via event bus (per ADR-010)
+        await _uiEventBus.PublishAsync(new ActorPositionUIEvent(
+            evt.ActorId, evt.NewPosition));
+    }
+}
+
+// 3. Presenter receives UI event (separate from domain)
+public class ActorPresenter : EventAwarePresenter<IActorView>
+{
+    protected override void SubscribeToEvents()
+    {
+        // Subscribes via UIEventBus, not MediatR
+        EventBus.Subscribe<ActorPositionUIEvent>(this, OnActorPositionChanged);
+    }
+
+    private void OnActorPositionChanged(ActorPositionUIEvent evt)
+    {
+        // Visual update (can animate while logic continues)
+        View.AnimateToPosition(evt.NewPosition);
     }
 }
 ```
 
-**Key Points**:
-- **Logic updates discretely**: Position changes instantly in domain (1 tile per movement)
-- **Visual interpolates**: Animation plays smoothly between discrete positions
-- **No blocking**: Visual animation doesn't block game logic advancement
-- **Truth in domain**: Domain position is always the authoritative state
+**Critical Flow**:
+1. GameLoop → Domain Logic (synchronous, deterministic)
+2. Domain → Application Handler via MediatR (domain events)
+3. Application → UIEventBus (UI events, per ADR-010)
+4. UIEventBus → Presenter (decoupled from domain)
+5. Presenter → Godot View (visual representation)
 
 ### ⚠️ CRITICAL: No Wall-Clock Time in Game Logic
 
@@ -340,17 +381,28 @@ Actors accumulate energy each tick until they can act.
 
 ### Integration with Existing Systems
 
-1. **Movement System (TD_065)**:
+1. **Dependency Injection (ADR-006)**:
+   - GameLoop registered as both `IHostedService` and `IGameClock`
+   - Domain/Application layers depend on `IGameClock` abstraction
+   - Infrastructure provides concrete `GameLoop` implementation
+   ```csharp
+   // In GameStrapper.cs
+   services.AddSingleton<GameLoop>();
+   services.AddSingleton<IGameClock>(provider => provider.GetRequiredService<GameLoop>());
+   services.AddHostedService(provider => provider.GetRequiredService<GameLoop>());
+   ```
+
+2. **Movement System (TD_065)**:
    - Each tile movement costs TimeUnits (e.g., 25 TU)
    - Movement progresses incrementally as time advances
    - Actor scheduled for next action when movement completes
 
-2. **State Management (ADR-023)**:
+3. **State Management (ADR-023)**:
    - GameLoop only advances during appropriate states
    - Paused during menus, dialogs, etc.
    - State machine controls when time can advance
 
-3. **Scheduler (ADR-009)**:
+4. **Scheduler (ADR-009)**:
    - Already uses TimeUnit-based scheduling
    - GameLoop queries scheduler each tick
    - Clean separation of concerns maintained
@@ -382,10 +434,15 @@ public class GameTimeConfig
 
 ## References
 
+### Core Architectural Dependencies
+- [ADR-006: Selective Abstraction](ADR-006-selective-abstraction-strategy.md) - **GameLoop implements IGameClock abstraction**
+- [ADR-010: UI Event Bus](ADR-010-ui-event-bus-architecture.md) - **All UI events flow through UIEventBus**
+- [ADR-004: Deterministic Simulation](ADR-004-deterministic-simulation.md) - Determinism requirements
+
+### Related Patterns
 - [ADR-009: Sequential Turn Processing](ADR-009-sequential-turn-processing.md) - Scheduler pattern
 - [ADR-022: Two-Position Model](ADR-022-temporal-decoupling-pattern.md) - Movement truth
 - [ADR-023: Game State Management](ADR-023-game-state-management.md) - State control
-- [ADR-004: Deterministic Simulation](ADR-004-deterministic-simulation.md) - Determinism requirements
 - [Battle Brothers Wiki - Initiative System](https://battlebrothers.fandom.com/wiki/Initiative) - Industry example
 - [XCOM 2 Time Units](https://xcom.fandom.com/wiki/Time_Units) - Classic TU system
 - [Roguelike Dev - Time Systems](https://www.roguebasin.com/index.php/Time_Systems) - Various approaches
