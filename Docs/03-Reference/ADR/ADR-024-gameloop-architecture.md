@@ -57,15 +57,16 @@ We will implement a **TimeUnit-based GameLoop** that is completely independent o
 ┌─────────────────────────────────────────────────────────────┐
 │                        Godot Engine                          │
 │  _process(delta) → Rendering, Input, Audio                   │
-└───────────────────┬─────────────────────────────────────────┘
-                    │ Triggers periodically (e.g., 200ms)
-                    ↓
+│  Runs at variable frame rate (30-144 fps)                   │
+└──────────────────────────────────────────────────────────────┘
+                    ║ COMPLETELY SEPARATE ║
 ┌─────────────────────────────────────────────────────────────┐
-│                    GameLoop (Timer-based)                    │
-│  Advances game time by 1 TU per tick                        │
-│  Completely independent of frame rate                        │
+│                GameLoop (Independent Timer)                  │
+│  Runs independently of rendering                             │
+│  Advances game time by exactly 1 TU when triggered           │
+│  Trigger rate controls game speed, NOT time advancement      │
 └───────────────────┬─────────────────────────────────────────┘
-                    │ Each tick
+                    │ Each tick advances exactly 1 TU
                     ↓
 ┌─────────────────────────────────────────────────────────────┐
 │                    Scheduler Service                         │
@@ -94,7 +95,7 @@ public readonly record struct TimeUnit
     // Attack might cost 50 TU
 }
 
-// 2. GameLoop - Advances game time (CORRECTED: No wall-clock dependency)
+// 2. GameLoop - Advances game time deterministically
 public class GameLoop : IHostedService
 {
     private Timer? _timer;
@@ -103,16 +104,16 @@ public class GameLoop : IHostedService
     private readonly IMovementService _movement;
     private readonly IGameStateService _gameState;
 
-    // Timer is just a trigger, not a time source!
-    private const int CheckIntervalMs = 50; // How often to check, NOT game speed
-
-    // Game time advances based on game state, not real time
-    private const int TimeUnitsPerGameTick = 1; // Deterministic advancement
+    // Game always advances by exactly 1 TU per tick
+    private const int TimeUnitsPerGameTick = 1;
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        // Timer only triggers checks, doesn't determine game time
-        _timer = new Timer(CheckForGameAdvancement, null, 0, CheckIntervalMs);
+        // Implementation detail: timer triggers advancement
+        // The actual interval is configurable for game speed
+        _timer = new Timer(CheckForGameAdvancement, null,
+            dueTime: TimeSpan.Zero,
+            period: GetGameSpeedInterval());
         return Task.CompletedTask;
     }
 
@@ -208,6 +209,41 @@ public class MovementService
 4. **Determinism First**: No floating point, no wall-clock dependencies
 5. **Save-Friendly**: Current time + scheduler state = complete temporal state
 
+### Synchronization with Visual Representation (ADR-022)
+
+Per **ADR-022: Two-Position Model**, we maintain separation between logical game time and visual representation:
+
+```csharp
+// GameLoop advances logical state
+private async void CheckForGameAdvancement(object? state)
+{
+    _currentGameTime += TimeUnit.CreateUnsafe(1);
+
+    // Domain: Actor position updates immediately in logic
+    actor.AdvanceMovement(); // Logical position changes
+
+    // Event raised to update visual representation
+    await _eventBus.PublishAsync(new ActorMovedEvent(actor.Position));
+}
+
+// Presenter handles visual update (separate timing)
+public class ActorPresenter
+{
+    public void OnActorMoved(ActorMovedEvent evt)
+    {
+        // Visual can animate smoothly between positions
+        // while logic has already updated
+        _view.AnimateToPosition(evt.NewPosition);
+    }
+}
+```
+
+**Key Points**:
+- **Logic updates discretely**: Position changes instantly in domain (1 tile per movement)
+- **Visual interpolates**: Animation plays smoothly between discrete positions
+- **No blocking**: Visual animation doesn't block game logic advancement
+- **Truth in domain**: Domain position is always the authoritative state
+
 ### ⚠️ CRITICAL: No Wall-Clock Time in Game Logic
 
 The timer in GameLoop is **ONLY** a trigger mechanism, not a time source:
@@ -237,19 +273,25 @@ private async void CheckForGameAdvancement(object? state)
 
 **Game Speed Control**:
 ```csharp
-// Speed is controlled by timer frequency, not TU advancement
+// Speed is controlled by how often we check, not by TU advancement
 public void SetGameSpeed(GameSpeed speed)
 {
-    _timer?.Change(0, speed switch
-    {
-        GameSpeed.Paused => Timeout.Infinite,
-        GameSpeed.Slow => 200,   // Check every 200ms
-        GameSpeed.Normal => 50,   // Check every 50ms
-        GameSpeed.Fast => 20,     // Check every 20ms
-        _ => 50
-    });
-    // Note: Still advances by 1 TU per tick regardless of speed!
+    // Change check frequency, not time advancement amount
+    var newInterval = GetIntervalForSpeed(speed);
+    _timer?.Change(TimeSpan.Zero, newInterval);
+
+    // CRITICAL: Game ALWAYS advances by 1 TU per tick
+    // Speed only affects how often ticks occur
 }
+
+private TimeSpan GetIntervalForSpeed(GameSpeed speed) => speed switch
+{
+    GameSpeed.Paused => Timeout.InfiniteTimeSpan,
+    GameSpeed.Slow => TimeSpan.FromMilliseconds(200),   // Slower checks
+    GameSpeed.Normal => TimeSpan.FromMilliseconds(50),  // Normal speed
+    GameSpeed.Fast => TimeSpan.FromMilliseconds(20),    // Faster checks
+    _ => TimeSpan.FromMilliseconds(50)
+};
 ```
 
 ## Consequences
@@ -318,15 +360,23 @@ Actors accumulate energy each tick until they can act.
 ```csharp
 public class GameTimeConfig
 {
-    // Game time settings
-    public const int TimeUnitsPerSecond = 100;  // 1 game second = 100 TU
-    public const int TicksPerSecond = 20;       // 20 ticks/second realtime
-    public const int TimeUnitsPerTick = 1;      // 1 TU per tick
+    // Game time is measured in TimeUnits, not seconds
+    public const int TimeUnitsPerGameTick = 1;  // ALWAYS advance by 1 TU
 
-    // Action costs (in TimeUnits)
-    public const int MovementCostPerTile = 25;  // 0.25 seconds per tile
-    public const int BasicAttackCost = 50;      // 0.5 seconds per attack
-    public const int SpellCastCost = 100;       // 1.0 second to cast
+    // Action costs in TimeUnits (game balance)
+    public const int MovementCostPerTile = 25;  // 25 TU to move one tile
+    public const int BasicAttackCost = 50;      // 50 TU to attack
+    public const int SpellCastCost = 100;       // 100 TU to cast spell
+
+    // Speed settings (implementation detail)
+    // These control check frequency, NOT game time advancement
+    public static readonly Dictionary<GameSpeed, TimeSpan> SpeedIntervals = new()
+    {
+        [GameSpeed.Paused] = Timeout.InfiniteTimeSpan,
+        [GameSpeed.Slow] = TimeSpan.FromMilliseconds(200),
+        [GameSpeed.Normal] = TimeSpan.FromMilliseconds(50),
+        [GameSpeed.Fast] = TimeSpan.FromMilliseconds(20)
+    };
 }
 ```
 
