@@ -644,6 +644,33 @@ public void FOV_CalculatedForAllActors_DisplayedForPlayerOnly()
 **Complexity Score**: 3/10 (reduced from 4/10 - single-actor simplification)
 **Revised Time**: 4h total (Phase 1: 2h, Phase 2: 1h, Phase 3: 0.5h, Phase 4: 0.5h)
 
+#### ✅ Phase 1 Complete (2025-09-19 19:30)
+**Tests**: 256/258 passing (427ms execution time, 2 skipped FOV tests expected)
+
+**What I Actually Did**:
+- Extended Actor domain with movement state: `ActivePath`, `CurrentPathStep`, `HasActivePath`, `NextPosition`, `RemainingPath`
+- Added pure movement methods: `StartMovement()`, `AdvanceMovement()`, `CancelMovement()`, `InterruptMovement()`
+- Created 3 movement domain events following MediatR INotification pattern: `MovementStartedEvent`, `ActorMovedEvent`, `MovementCompletedEvent`
+- Implemented 14 comprehensive unit tests covering all movement scenarios and edge cases
+- Maintained Actor immutability and save-ready state (IPersistentEntity pattern)
+
+**Problems Encountered**:
+- Namespace collision: `Actor` class vs `Actor` namespace in tests
+  → Solution: Used alias `using ActorEntity = Darklands.Domain.Actor.Actor;`
+- LanguageExt delegate signature: `IfFail(() => ...)` incorrect syntax
+  → Solution: Updated to `IfFail(error => ...)` with proper Error parameter
+
+**Technical Decisions Made**:
+- Actor tracks movement state but doesn't manage position (GridStateService remains source of truth)
+- Domain events published in Application layer (not Domain) following existing patterns
+- Movement state is save-ready (all properties serializable) per ADR-005
+- Path representation uses `ImmutableList<Position>` from existing PathfindingResult
+
+**Lessons for Phase 2**:
+- Application handlers will need to coordinate position updates and FOV calculation
+- Events follow pattern: Domain changes state → Application publishes events → Handlers react
+- MoveActorCommandHandler needs modification to call `Actor.StartMovement()` instead of instant teleport
+
 ---
 
 ### TD_066: Architectural Boundary Enforcement Tests

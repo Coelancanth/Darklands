@@ -5,6 +5,7 @@ using Darklands.Domain.Grid;
 using Darklands.Domain.Common;
 using System.Collections.Immutable;
 using System.Text.Json.Serialization;
+using System.Linq;
 using static LanguageExt.Prelude;
 
 namespace Darklands.Domain.Actor
@@ -23,7 +24,9 @@ namespace Darklands.Domain.Actor
         ActorId Id,
         Health Health,
         string Name,
-        ImmutableDictionary<string, string> ModData
+        ImmutableDictionary<string, string> ModData,
+        ImmutableList<Position>? ActivePath = null,
+        int CurrentPathStep = 0
     ) : IPersistentEntity
     {
         /// <summary>
@@ -42,6 +45,87 @@ namespace Darklands.Domain.Actor
         /// Indicates whether this actor is alive (not dead).
         /// </summary>
         public bool IsAlive => !Health.IsDead;
+
+        /// <summary>
+        /// Indicates whether this actor has an active movement path in progress.
+        /// </summary>
+        public bool HasActivePath => ActivePath?.Any() == true && CurrentPathStep < ActivePath.Count;
+
+        /// <summary>
+        /// Indicates whether this actor is currently moving (has steps remaining).
+        /// </summary>
+        public bool IsMoving => HasActivePath;
+
+        /// <summary>
+        /// Gets the next position in the movement path, if any.
+        /// </summary>
+        public Position? NextPosition => HasActivePath ? ActivePath![CurrentPathStep] : null;
+
+        /// <summary>
+        /// Gets the remaining steps in the current movement path.
+        /// </summary>
+        public ImmutableList<Position> RemainingPath =>
+            HasActivePath ? ActivePath!.Skip(CurrentPathStep).ToImmutableList() : ImmutableList<Position>.Empty;
+
+        /// <summary>
+        /// Starts movement along the specified path.
+        /// The actor will begin moving step-by-step through the path positions.
+        /// </summary>
+        /// <param name="path">The path to follow (must not be empty)</param>
+        /// <returns>New Actor instance with movement started or validation error</returns>
+        public Fin<Actor> StartMovement(ImmutableList<Position> path)
+        {
+            if (path.IsEmpty)
+                return Error.New("INVALID_MOVEMENT: Cannot start movement with empty path");
+
+            if (HasActivePath)
+                return Error.New("INVALID_MOVEMENT: Actor is already moving");
+
+            if (!IsAlive)
+                return Error.New("INVALID_MOVEMENT: Dead actors cannot move");
+
+            return this with { ActivePath = path, CurrentPathStep = 0 };
+        }
+
+        /// <summary>
+        /// Advances movement by one step along the active path.
+        /// Returns the actor at the new position or an error if movement cannot advance.
+        /// </summary>
+        /// <returns>New Actor instance at next step or validation error</returns>
+        public Fin<Actor> AdvanceMovement()
+        {
+            if (!HasActivePath)
+                return Error.New("INVALID_MOVEMENT: No active movement to advance");
+
+            if (!IsAlive)
+                return Error.New("INVALID_MOVEMENT: Dead actors cannot move");
+
+            var nextStep = CurrentPathStep + 1;
+
+            // If we've reached the end of the path, clear movement state
+            if (nextStep >= ActivePath!.Count)
+            {
+                return this with { ActivePath = null, CurrentPathStep = 0 };
+            }
+
+            // Continue to next step
+            return this with { CurrentPathStep = nextStep };
+        }
+
+        /// <summary>
+        /// Cancels any active movement and clears the movement path.
+        /// </summary>
+        /// <returns>Actor with movement cleared</returns>
+        public Actor CancelMovement() =>
+            this with { ActivePath = null, CurrentPathStep = 0 };
+
+        /// <summary>
+        /// Interrupts movement at the current position.
+        /// Similar to cancel but may have different semantic meaning for game logic.
+        /// </summary>
+        /// <returns>Actor with movement interrupted</returns>
+        public Actor InterruptMovement() =>
+            this with { ActivePath = null, CurrentPathStep = 0 };
 
         /// <summary>
         /// Creates a new Actor with validation.
