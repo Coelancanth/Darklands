@@ -57,7 +57,12 @@ This GameLoop architecture implements key requirements from:
 
 - **ADR-006 (Selective Abstraction)**: GameLoop implements the required `IGameClock` abstraction for deterministic time management
 - **ADR-010 (UI Event Bus)**: All domain events flow through `IUIEventBus` to reach presenters
+- **ADR-018 (DI Lifecycle)**: GameLoop registered as SINGLETON in root DI container, NOT scoped to scenes
+- **ADR-021 (Project Separation)**: GameLoop lives in `Darklands.Core` (Infrastructure layer), not Presentation
+- **ADR-016 (Scene Graph)**: GameLoop is INDEPENDENT of Godot's scene graph - runs as background service
 - **ADR-022 (Two-Position Model)**: Logic and visual representation have separate timing
+
+**NOTE**: ADR-019 was REJECTED - we follow ADR-021's simpler 4-project structure instead
 
 ### Architecture Components
 
@@ -381,28 +386,39 @@ Actors accumulate energy each tick until they can act.
 
 ### Integration with Existing Systems
 
-1. **Dependency Injection (ADR-006)**:
-   - GameLoop registered as both `IHostedService` and `IGameClock`
+1. **Dependency Injection and Lifecycle (ADR-018, ADR-021)**:
+   - GameLoop registered as SINGLETON in root DI container (per ADR-018)
+   - NOT scoped to scenes - runs independently of scene lifecycle
+   - Lives in `Darklands.Core/Infrastructure` (per ADR-021)
    - Domain/Application layers depend on `IGameClock` abstraction
-   - Infrastructure provides concrete `GameLoop` implementation
    ```csharp
-   // In GameStrapper.cs
-   services.AddSingleton<GameLoop>();
+   // In GameStrapper.cs (root DI setup)
+   services.AddSingleton<GameLoop>();  // Singleton, not scoped!
    services.AddSingleton<IGameClock>(provider => provider.GetRequiredService<GameLoop>());
    services.AddHostedService(provider => provider.GetRequiredService<GameLoop>());
+
+   // File location per ADR-021:
+   // Darklands.Core/Infrastructure/GameLoop/GameLoop.cs
+   // Darklands.Core/Application/Common/IGameClock.cs
    ```
 
-2. **Movement System (TD_065)**:
+2. **Scene Graph Independence (ADR-016)**:
+   - GameLoop is NOT a Godot Node
+   - Runs as background IHostedService
+   - No parent-child relationships with UI elements
+   - Completely separate from scene tree lifecycle
+
+3. **Movement System (TD_065)**:
    - Each tile movement costs TimeUnits (e.g., 25 TU)
    - Movement progresses incrementally as time advances
    - Actor scheduled for next action when movement completes
 
-3. **State Management (ADR-023)**:
+4. **State Management (ADR-023)**:
    - GameLoop only advances during appropriate states
    - Paused during menus, dialogs, etc.
    - State machine controls when time can advance
 
-4. **Scheduler (ADR-009)**:
+5. **Scheduler (ADR-009)**:
    - Already uses TimeUnit-based scheduling
    - GameLoop queries scheduler each tick
    - Clean separation of concerns maintained
@@ -437,6 +453,9 @@ public class GameTimeConfig
 ### Core Architectural Dependencies
 - [ADR-006: Selective Abstraction](ADR-006-selective-abstraction-strategy.md) - **GameLoop implements IGameClock abstraction**
 - [ADR-010: UI Event Bus](ADR-010-ui-event-bus-architecture.md) - **All UI events flow through UIEventBus**
+- [ADR-018: DI Lifecycle](ADR-018-godot-di-lifecycle-alignment.md) - **GameLoop is singleton in root DI, not scoped**
+- [ADR-021: Project Separation](ADR-021-minimal-project-separation.md) - **GameLoop in Core/Infrastructure layer**
+- [ADR-016: Scene Graph](ADR-016-embrace-engine-scene-graph.md) - **GameLoop independent of scene tree**
 - [ADR-004: Deterministic Simulation](ADR-004-deterministic-simulation.md) - Determinism requirements
 
 ### Related Patterns
