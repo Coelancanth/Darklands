@@ -141,23 +141,39 @@ public class GameLoop : IHostedService, IGameClock
         return Task.CompletedTask;
     }
 
-    private async void CheckForGameAdvancement(object? state)
+    // CRITICAL: Proper error handling for timer callback
+    private void CheckForGameAdvancement(object? state)
     {
-        // Only advance if game is running (not paused, not in menu)
-        if (!_gameState.ShouldAdvanceTime()) return;
+        // Fire and forget with proper error handling
+        _ = SafeGameAdvancementAsync();
+    }
 
-        // Advance by fixed amount regardless of real time elapsed
-        _currentGameTime += TimeUnit.CreateUnsafe(TimeUnitsPerGameTick);
-
-        // Process any actors ready at this time
-        while (_scheduler.HasActorReadyAt(_currentGameTime))
+    private async Task SafeGameAdvancementAsync()
+    {
+        try
         {
-            var actor = await _scheduler.GetNextActorAsync(_currentGameTime);
-            await ProcessActor(actor);
-        }
+            // Only advance if game is running (not paused, not in menu)
+            if (!_gameState.ShouldAdvanceTime()) return;
 
-        // Process ongoing activities (movement)
-        await _movement.AdvanceActiveMovements(TimeUnitsPerGameTick);
+            // Advance by fixed amount regardless of real time elapsed
+            _currentGameTime += TimeUnit.CreateUnsafe(TimeUnitsPerGameTick);
+
+            // Process ONE actor per tick to avoid race conditions
+            // Multiple actors at same TimeUnit are processed over multiple ticks
+            if (_scheduler.HasActorReadyAt(_currentGameTime))
+            {
+                var actor = await _scheduler.GetNextActorAsync(_currentGameTime);
+                await ProcessActor(actor);
+            }
+
+            // Process ongoing activities (movement)
+            await _movement.AdvanceActiveMovements(TimeUnitsPerGameTick);
+        }
+        catch (Exception ex)
+        {
+            // MUST catch exceptions to prevent process termination
+            _logger.LogError(ex, "Error in GameLoop tick at {Time}", _currentGameTime);
+        }
     }
 
     private async Task ProcessActor(Actor actor)
@@ -176,26 +192,33 @@ public class GameLoop : IHostedService, IGameClock
     }
 }
 
-// 3. Scheduler - Manages turn order
+// 3. Scheduler - Manages turn order (EFFICIENT IMPLEMENTATION)
 public class CombatScheduler
 {
-    private SortedSet<(TimeUnit Time, ActorId Actor)> _timeline;
+    // Use List with BinarySearch for O(log n) operations
+    private readonly List<ISchedulable> _timeline = new();
 
     public bool HasActorReadyAt(TimeUnit currentTime)
     {
-        return _timeline.Any(entry => entry.Time <= currentTime);
+        // O(1) - just check first element
+        return _timeline.Count > 0 && _timeline[0].NextTurn <= currentTime;
     }
 
-    public Actor GetNextActor(TimeUnit currentTime)
+    public ISchedulable GetNextActor()
     {
-        var next = _timeline.First(entry => entry.Time <= currentTime);
-        _timeline.Remove(next);
-        return next.Actor;
+        // O(1) removal from front
+        var next = _timeline[0];
+        _timeline.RemoveAt(0);
+        return next;
     }
 
-    public void ScheduleActor(ActorId actor, TimeUnit nextTurn)
+    public void ScheduleActor(ISchedulable entity)
     {
-        _timeline.Add((nextTurn, actor));
+        // O(log n) insertion to maintain sorted order
+        var insertIndex = _timeline.BinarySearch(entity, TimeComparer.Instance);
+        if (insertIndex < 0)
+            insertIndex = ~insertIndex;
+        _timeline.Insert(insertIndex, entity);
     }
 }
 
@@ -407,6 +430,33 @@ Actors accumulate energy each tick until they can act.
    - Runs as background IHostedService
    - No parent-child relationships with UI elements
    - Completely separate from scene tree lifecycle
+
+   **IHostedService Lifecycle Management**:
+   ```csharp
+   // In GameStrapper.cs (called from Godot root node)
+   public partial class GameStrapper : Node
+   {
+       private IHost? _host;
+
+       public override void _Ready()
+       {
+           // Build and start the .NET Host
+           _host = Host.CreateDefaultBuilder()
+               .ConfigureServices(ConfigureServices)
+               .Build();
+
+           // Start background services (including GameLoop)
+           _host.StartAsync();
+       }
+
+       public override void _ExitTree()
+       {
+           // Gracefully stop all hosted services
+           _host?.StopAsync().Wait(TimeSpan.FromSeconds(5));
+           _host?.Dispose();
+       }
+   }
+   ```
 
 3. **Movement System (TD_065)**:
    - Each tile movement costs TimeUnits (e.g., 25 TU)
