@@ -530,6 +530,249 @@ public class ProjectileView : Node2D
 
 This amendment makes the Temporal Decoupling Pattern more robust and flexible while maintaining its core architectural benefits.
 
+## Amendment 2: CallMethod Track Integration (2025-09-19)
+
+Based on TD_065 implementation planning, the Two-Position Model explicitly supports Godot's CallMethod tracks for enhanced visual feedback without violating architectural boundaries.
+
+### What Are CallMethod Tracks?
+
+CallMethod tracks in Godot's AnimationPlayer allow animations to trigger methods at specific frames. They're perfect for adding polish and game feel while maintaining clean architecture.
+
+### Architectural Alignment
+
+CallMethod tracks fit perfectly into the Two-Position Model because they:
+1. **Are Reactive**: Triggered BY animations, don't control game state
+2. **Enhance Presentation**: Add polish without coupling to domain logic
+3. **Respect Boundaries**: Stay within the Presentation layer
+4. **Fire and Forget**: Don't wait for return values or block execution
+
+### Integration Pattern
+
+```csharp
+// Presentation Layer - ActorView.cs
+public partial class ActorView : Node2D
+{
+    private AnimationPlayer _animationPlayer;
+    private bool _isAnimating;
+
+    public override void _Ready()
+    {
+        _animationPlayer = GetNode<AnimationPlayer>("AnimationPlayer");
+
+        // Animation setup with CallMethod tracks
+        // Frame 0: Start of movement animation
+        // Frame 10: CallMethod → OnFootPlant()
+        // Frame 20: CallMethod → OnStepComplete()
+    }
+
+    // Called by CallMethod track at frame 10
+    public void OnFootPlant()
+    {
+        // Visual/Audio feedback only - no domain updates!
+        PlayFootstepSound();
+        SpawnDustParticles();
+        FlashTileHighlight();
+    }
+
+    // Called by CallMethod track at frame 20
+    public void OnStepComplete()
+    {
+        // Mark animation complete for presentation layer
+        _isAnimating = false;
+
+        // Optional: Trigger arrival effects
+        ShowArrivalFeedback();
+    }
+
+    private void PlayFootstepSound()
+    {
+        // Per ADR-006: Direct Godot audio usage in presentation
+        var audioPlayer = GetNode<AudioStreamPlayer2D>("FootstepAudio");
+        audioPlayer.Stream = GD.Load<AudioStream>("res://audio/footstep.ogg");
+        audioPlayer.Play();
+    }
+}
+```
+
+### Animation Setup Example
+
+```
+AnimationPlayer Structure:
+└─ Animation: "move_step" (200ms duration)
+    ├─ Transform Track: position
+    │   ├─ 0ms: Start position
+    │   └─ 200ms: End position (one tile over)
+    ├─ CallMethod Track: ActorView
+    │   ├─ 50ms: OnFootLift()      # Prepare step
+    │   ├─ 100ms: OnMidStep()       # Peak of movement
+    │   ├─ 150ms: OnFootPlant()     # Contact with ground
+    │   └─ 200ms: OnStepComplete()  # Ready for next
+    └─ Property Track: modulate
+        ├─ 150ms: Flash white (1.3x)
+        └─ 200ms: Return to normal
+```
+
+### Approved Use Cases
+
+✅ **Visual Effects**
+```csharp
+public void OnSpellImpact()
+{
+    SpawnParticles("res://effects/spell_impact.tscn");
+    Camera.AddTrauma(0.2f);  // Screen shake
+}
+```
+
+✅ **Audio Feedback**
+```csharp
+public void OnSwordSwing()
+{
+    AudioManager.PlaySfx("sword_whoosh");
+}
+```
+
+✅ **Animation State Management**
+```csharp
+public void OnAnimationMidpoint()
+{
+    _currentFrame = AnimationFrame.Middle;
+    _canInterrupt = true;  // Allow animation canceling
+}
+```
+
+✅ **Visual Polish**
+```csharp
+public void OnFootstep()
+{
+    // Spawn dust at current position
+    var dust = DustScene.Instantiate<CPUParticles2D>();
+    dust.GlobalPosition = GlobalPosition;
+    dust.Emitting = true;
+    GetTree().CurrentScene.AddChild(dust);
+}
+```
+
+### Prohibited Use Cases
+
+❌ **Domain State Updates**
+```csharp
+// NEVER DO THIS!
+public void OnAttackHit()
+{
+    _actor.Health -= 10;  // Domain logic in view!
+    _mediator.Send(new DamageCommand());  // Commands from view!
+}
+```
+
+❌ **Service Calls**
+```csharp
+// NEVER DO THIS!
+public void OnMovementComplete()
+{
+    _gridService.UpdatePosition();  // Service calls from animation!
+    _fogOfWarService.Recalculate();  // Coupling to application layer!
+}
+```
+
+❌ **Game Logic Control**
+```csharp
+// NEVER DO THIS!
+public void OnAnimationEnd()
+{
+    GameManager.EndTurn();  // Animation controlling game flow!
+    NextPlayer.StartTurn();  // View driving game logic!
+}
+```
+
+### Benefits of CallMethod Track Integration
+
+1. **Precise Timing**: Effects trigger at exact animation frames
+2. **Decoupled Polish**: Add game feel without architectural violations
+3. **Designer-Friendly**: Animators can adjust timing in Godot editor
+4. **Performance**: More efficient than polling animation state
+5. **Maintainable**: Effects clearly tied to specific animation moments
+
+### Implementation Guidelines
+
+1. **Naming Convention**: Prefix CallMethod track methods with "On"
+   - `OnFootPlant()`, `OnSwordContact()`, `OnSpellRelease()`
+
+2. **Keep Methods Small**: Each should do one specific thing
+   ```csharp
+   public void OnStepComplete()
+   {
+       _isAnimating = false;  // Single responsibility
+   }
+   ```
+
+3. **No Return Values**: CallMethod tracks ignore return values
+   ```csharp
+   public void OnEffect()  // void return only
+   {
+       // Effects here
+   }
+   ```
+
+4. **Thread Safety**: CallMethod tracks run on main thread
+   ```csharp
+   public void OnParticleSpawn()
+   {
+       // Safe to modify scene tree
+       AddChild(particleInstance);
+   }
+   ```
+
+### Testing Considerations
+
+```csharp
+[Test]
+public void CallMethodTracks_DoNotUpdateDomain()
+{
+    // Verify view methods don't modify domain state
+    var view = new ActorView();
+    var initialState = GetDomainState();
+
+    view.OnFootPlant();
+    view.OnStepComplete();
+
+    var finalState = GetDomainState();
+    Assert.AreEqual(initialState, finalState);
+}
+```
+
+### Migration from TD_061
+
+TD_061's complex timer infrastructure tried to coordinate animation with game state. With CallMethod tracks:
+
+**Before (TD_061 - Complex)**:
+```csharp
+// Timer service trying to sync animation with FOV
+_timerService.OnTick += () => {
+    UpdatePosition();
+    if (AnimationAtFrame(10)) PlaySound();
+    if (AnimationComplete()) UpdateFOV();
+};
+```
+
+**After (TD_065 with CallMethod - Simple)**:
+```csharp
+// Animation plays, triggers methods at specific frames
+public void OnFootPlant() => PlaySound();
+public void OnStepComplete() => _isAnimating = false;
+// FOV updates from domain events, not animation!
+```
+
+### Key Principle
+
+CallMethod tracks are for **enhancement**, not **control**:
+- Domain advances state (truth)
+- Events notify of changes
+- Animations visualize changes
+- CallMethod tracks enhance visualization
+- They NEVER feed back to domain
+
+This maintains the core principle of the Two-Position Model: domain tells truth, presentation follows.
+
 ## Key Lessons from This Revision
 
 1. **Domain models must tell truth** - If actors move step-by-step in reality, model it that way

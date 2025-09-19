@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 008
-- **Next TD**: 070
+- **Next TD**: 071
 - **Next VS**: 015 
 
 
@@ -201,14 +201,47 @@ if (!_stateManager.CanProcessInput) return;
 ### TD_065: Domain-Driven Step-by-Step Movement
 **Status**: ✅ APPROVED - Replaces TD_061
 **Owner**: Dev Engineer
-**Size**: M (4-5h)
+**Size**: S (4h) - Reduced from 5h due to single-actor simplification
 **Priority**: Critical - Fixes TD_061 architectural issues
 **Created**: 2025-09-19 03:33 (Tech Lead - from architectural review)
-**Updated**: 2025-09-19 (Dev Engineer - detailed implementation plan after analysis)
-**Markers**: [ARCHITECTURE] [DOMAIN] [MOVEMENT] [FOV]
+**Updated**: 2025-09-19 17:45 (Tech Lead - clarified single-actor movement and FOV distinction)
+**Markers**: [ARCHITECTURE] [DOMAIN] [MOVEMENT] [FOV] [SCHEDULER-BASED]
 
-**What**: Implement step-by-step movement in domain layer with event-driven FOV updates
-**Why**: TD_061 violated architecture with complex timer infrastructure and lying domain model
+#### 🎯 Core Insight
+**The domain was lying.** When an actor moves from (5,5) to (8,8), they don't teleport - they physically move through (6,6), (7,7), etc. TD_061 failed because it tried to fake this truth with complex timer infrastructure instead of modeling reality in the domain.
+
+#### 🎮 Critical Design Clarifications
+**Single-Actor Movement**: This is a scheduler-based game (like Battle Brothers). Only ONE actor moves at a time - the scheduler's current actor. No concurrent movement handling needed.
+
+**FOV Logic vs Visualization**:
+- Calculate FOV for ALL actors (AI needs vision data)
+- Update fog display ONLY for player (no spoilers!)
+- Enemy vision is tracked but never shown
+
+#### 📐 Architectural Alignment
+- **ADR-022**: Domain models step-by-step truth, events flow naturally
+- **ADR-010**: Domain events → Application handlers → UIEventBus → Presenters
+- **ADR-006**: No Godot types in Domain/Application, direct usage in Views
+
+#### 🔄 Control Flow
+```
+Scheduler.CurrentActor → User Click → GridPresenter → MoveActorCommand → Domain.StartMovement()
+                                                                                ↓
+Game Loop (200ms) → CurrentActor.AdvanceMovement() → Position changes → ActorMovedEvent
+                            ↓ (only one actor)                                 ↓
+                    If movement complete → Scheduler.NextActor      ActorMovedHandler
+                                                                           ↓
+                                                            Calculate FOV (ALL actors)
+                                                                           ↓
+                                                            If Player: Update fog display
+                                                            If Enemy: Store vision only
+```
+
+#### ✅ Current View Infrastructure (Ready!)
+- **GridView.UpdateFogOfWarAsync()** - FOV visualization works perfectly
+- **ActorView.AnimatePathProgression()** - Discrete tile animation with flash
+- **ActorView.OnTileArrival()** - Visual feedback per step
+- **Call Method Tracks** - Can trigger at precise animation moments
 
 **Problem Statement**:
 - Domain instantly teleports actors (lies about reality)
@@ -223,102 +256,393 @@ if (!_stateManager.CanProcessInput) return;
 - MovementPresenter is dead code: Subscribes to ActorMovedEvent that's never published
 ⚠️ **Problem**: Domain lies (instant teleport) while visual shows step-by-step truth
 
-**Detailed Implementation Plan**:
+---
 
-### Phase 1: Domain Layer (2h)
-**Goal**: Make Actor track its own position and movement state (truth)
+## 📋 Refined Implementation Plan
+
+### Phase 1: Domain Truth (2h)
+**Goal**: Actor owns position and movement state (THE fundamental fix)
+
 ```csharp
-// NEW: Actor owns position and path
-public sealed record Actor {
-    public Position Position { get; private set; }  // Moved from GridStateService
-    public Path? ActivePath { get; private set; }   // Currently executing movement
+// src/Darklands.Domain/Actor/Actor.cs
+public sealed record Actor
+{
+    public Position Position { get; private set; }     // THE truth
+    public Path? ActivePath { get; private set; }      // Current movement
+    public bool HasActivePath => ActivePath != null && !ActivePath.IsComplete;
+    private readonly List<IDomainEvent> _domainEvents = new();
 
-    public void StartMovement(Path path) {
+    public void StartMovement(Path path)
+    {
         ActivePath = path;
-        RaiseDomainEvent(new MovementStartedEvent(Id, path));
+        _domainEvents.Add(new MovementStartedEvent(Id, Position, path));
     }
 
-    public void AdvanceMovement() {
-        if (ActivePath == null) return;
+    public void AdvanceMovement()
+    {
+        if (ActivePath == null || ActivePath.IsComplete) return;
+
+        var previousPosition = Position;
         Position = ActivePath.GetNextStep();
-        RaiseDomainEvent(new ActorMovedEvent(Id, Position));
-        if (ActivePath.IsComplete) {
+        _domainEvents.Add(new ActorMovedEvent(Id, previousPosition, Position));
+
+        if (ActivePath.IsComplete)
+        {
             ActivePath = null;
-            RaiseDomainEvent(new MovementCompletedEvent(Id, Position));
+            _domainEvents.Add(new MovementCompletedEvent(Id, Position));
+        }
+    }
+
+    public void InterruptMovement(string reason)
+    {
+        if (ActivePath != null)
+        {
+            var remainingPath = ActivePath.GetRemainingSteps();
+            ActivePath = null;
+            _domainEvents.Add(new MovementInterruptedEvent(Id, Position, remainingPath, reason));
+        }
+    }
+
+    public void CancelMovement()
+    {
+        if (ActivePath != null)
+        {
+            ActivePath = null;
+            _domainEvents.Add(new MovementCancelledEvent(Id, Position));
         }
     }
 }
+
+// src/Darklands.Domain/Movement/Path.cs
+public sealed record Path
+{
+    private readonly ImmutableList<Position> _steps;
+    private int _currentIndex = 0;
+
+    public Path(IEnumerable<Position> steps)
+    {
+        _steps = steps.ToImmutableList();
+    }
+
+    public Position GetNextStep()
+    {
+        if (IsComplete) throw new InvalidOperationException("Path is complete");
+        return _steps[++_currentIndex];
+    }
+
+    public ImmutableList<Position> GetRemainingSteps()
+    {
+        return _steps.Skip(_currentIndex + 1).ToImmutableList();
+    }
+
+    public bool IsComplete => _currentIndex >= _steps.Count - 1;
+    public Position CurrentPosition => _steps[_currentIndex];
+    public Position FinalDestination => _steps.Last();
+}
 ```
-**Files to modify**:
-- `src/Darklands.Domain/Actor/Actor.cs` - Add Position and movement methods
-- `src/Darklands.Domain/Movement/Path.cs` - Create path value object
-- `src/Darklands.Domain/Events/` - Movement domain events
 
-### Phase 2: Application Layer (1h)
-**Goal**: Handle domain events and update services
+**Files to Create/Modify**:
+- `src/Darklands.Domain/Actor/Actor.cs` - Add Position, ActivePath, movement methods
+- `src/Darklands.Domain/Movement/Path.cs` - Path value object
+- `src/Darklands.Domain/Events/MovementStartedEvent.cs`
+- `src/Darklands.Domain/Events/ActorMovedEvent.cs`
+- `src/Darklands.Domain/Events/MovementCompletedEvent.cs`
+- `src/Darklands.Domain/Events/MovementInterruptedEvent.cs` - NEW for interruptions
+- `src/Darklands.Domain/Events/MovementCancelledEvent.cs`
+
+---
+
+### Phase 2: Application Orchestration (1h - reduced from 1.5h)
+**Goal**: Handle domain events, update services, calculate FOV per step
+
+**🎯 CRITICAL FOV DISTINCTION**:
+- Calculate FOV for ALL actors (AI needs to know what they see)
+- Update visual fog ONLY for player-controlled actors
+- Enemy FOV is stored but never displayed (no spoilers!)
+
 ```csharp
-// Event handler in Application layer (NOT presenter!)
-public class ActorMovedHandler : INotificationHandler<ActorMovedEvent> {
-    public Task Handle(ActorMovedEvent evt) {
-        // Update GridStateService with new position
-        _gridStateService.UpdateActorPosition(evt.ActorId, evt.Position);
+// src/Application/Grid/Handlers/ActorMovedHandler.cs
+public class ActorMovedHandler : INotificationHandler<ActorMovedEvent>
+{
+    private readonly IGridStateService _gridState;
+    private readonly IGameStateService _gameState;
+    private readonly IFOVCalculator _fovCalculator;
+    private readonly IVisionService _visionService;
+    private readonly IUIEventBus _uiEventBus;
+    private readonly ICategoryLogger _logger;
 
-        // Calculate and update FOV for new position
-        var fov = _fovCalculator.Calculate(evt.Position);
-        _visionService.Update(evt.ActorId, fov);
+    public async Task Handle(ActorMovedEvent evt, CancellationToken ct)
+    {
+        // Update grid state (single source of truth for queries)
+        _gridState.UpdateActorPosition(evt.ActorId, evt.NewPosition);
 
-        // Publish UI event for presentation layer
-        _uiEventBus.Publish(new ActorPositionChangedUIEvent(evt.ActorId, evt.Position));
+        // Calculate FOV for new position (ALL actors need this for AI!)
+        var fov = _fovCalculator.Calculate(evt.NewPosition, _gridState.GetGrid());
+        _visionService.UpdateVision(evt.ActorId, fov);
+
+        // CRITICAL: Only send vision state for player-controlled actors
+        if (_gameState.IsPlayerControlled(evt.ActorId))
+        {
+            // Player movement - include FOV for display update
+            var visionState = _visionService.GetVisionState(evt.ActorId);
+
+            await _uiEventBus.PublishAsync(new ActorPositionChangedUIEvent(
+                evt.ActorId,
+                evt.PreviousPosition,
+                evt.NewPosition,
+                visionState  // Player gets fog update
+            ));
+
+            _logger.Log(LogLevel.Debug, LogCategory.Movement,
+                "Player {ActorId} moved to {To}, FOV updated visually",
+                evt.ActorId, evt.NewPosition);
+        }
+        else
+        {
+            // Enemy movement - NO vision display update
+            await _uiEventBus.PublishAsync(new ActorPositionChangedUIEvent(
+                evt.ActorId,
+                evt.PreviousPosition,
+                evt.NewPosition,
+                null  // Enemy vision not displayed!
+            ));
+
+            _logger.Log(LogLevel.Debug, LogCategory.Movement,
+                "Enemy {ActorId} moved to {To}, FOV calculated for AI only",
+                evt.ActorId, evt.NewPosition);
+        }
+    }
+}
+
+// src/Application/Grid/Commands/MoveActorCommandHandler.cs (Modified)
+public async Task<Fin<Unit>> Handle(MoveActorCommand command, CancellationToken ct)
+{
+    // Get actor and validate
+    var actor = await _actorRepository.GetByIdAsync(command.ActorId);
+    if (actor == null) return Error.New("Actor not found");
+
+    // Calculate path using A*
+    var pathResult = await _mediator.Send(new CalculatePathQuery(
+        actor.Position, command.Target));
+
+    if (pathResult.IsFail) return pathResult.Map(_ => unit);
+
+    // Start movement (domain will handle progression)
+    var path = new Path(pathResult.IfFail(Seq<Position>.Empty));
+    actor.StartMovement(path);
+
+    // Save and dispatch events
+    await _actorRepository.SaveAsync(actor);
+    await _eventDispatcher.DispatchDomainEventsAsync(actor);
+
+    return unit;
+}
+```
+
+**Files to Create/Modify**:
+- `src/Application/Grid/Handlers/ActorMovedHandler.cs` - NEW
+- `src/Application/Grid/Handlers/MovementStartedHandler.cs` - NEW
+- `src/Application/Grid/Handlers/MovementCompletedHandler.cs` - NEW
+- `src/Application/Grid/Commands/MoveActorCommandHandler.cs` - Modify to start movement
+- `src/Application/Grid/Services/IGridStateService.cs` - Add UpdateActorPosition
+
+---
+
+### Phase 3: Game Loop (0.5h - reduced from 1h)
+**Goal**: Simple timer to advance movement (no complex infrastructure!)
+
+**🎮 Single-Actor Design**: Only the scheduler's current actor can move at any time
+
+```csharp
+// src/Application/Common/GameLoop.cs
+public class GameLoop : IHostedService
+{
+    private Timer? _timer;
+    private readonly ISchedulerService _scheduler;
+    private readonly IGameStateService _gameState;
+    private readonly IActorRepository _actors;
+    private readonly IEventDispatcher _eventDispatcher;
+    private readonly ICategoryLogger _logger;
+    private const int TickIntervalMs = 200; // 5 steps per second
+
+    public Task StartAsync(CancellationToken cancellationToken)
+    {
+        _logger.Log(LogLevel.Information, LogCategory.System,
+            "Game loop started with {Interval}ms tick", TickIntervalMs);
+
+        _timer = new Timer(OnTick, null, 0, TickIntervalMs);
+        return Task.CompletedTask;
+    }
+
+    private async void OnTick(object? state)
+    {
+        try
+        {
+            // Check if game is paused
+            if (_gameState.IsPaused) return;
+
+            // Get THE SINGLE currently active actor (scheduler-based!)
+            var currentActor = await _scheduler.GetCurrentActorAsync();
+
+            if (currentActor?.HasActivePath == true)
+            {
+                // Only ONE actor advances per tick
+                currentActor.AdvanceMovement();
+
+                // Save and dispatch events
+                await _actors.SaveAsync(currentActor);
+                await _eventDispatcher.DispatchDomainEventsAsync(currentActor);
+
+                // If movement complete, notify scheduler
+                if (!currentActor.HasActivePath)
+                {
+                    await _scheduler.OnActorActionCompleteAsync(currentActor.Id);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Log(LogLevel.Error, LogCategory.System,
+                "Game loop tick error: {Error}", ex.Message);
+        }
+    }
+
+    public Task StopAsync(CancellationToken cancellationToken)
+    {
+        _timer?.Dispose();
         return Task.CompletedTask;
     }
 }
+
+// Register in DI (GameStrapper.cs)
+services.AddHostedService<GameLoop>();
 ```
-**Files to modify**:
-- `src/Application/Grid/Handlers/ActorMovedHandler.cs` - NEW handler
-- `src/Application/Grid/Commands/MoveActorCommandHandler.cs` - Start movement instead of teleport
-- `src/Application/Grid/Services/IGridStateService.cs` - Add UpdateActorPosition method
 
-### Phase 3: Game Loop (1h)
-**Goal**: Simple timer to advance movement state
+---
+
+### Phase 4: Presentation Integration (30m)
+**Goal**: Clean integration with existing view infrastructure
+
 ```csharp
-public class GameLoop : IHostedService {
-    private Timer _timer;
+// ActorPresenter subscribes to UI events (already correct!)
+public class ActorPresenter : EventAwarePresenter<IActorView>
+{
+    protected override void SubscribeToEvents()
+    {
+        // Subscribe to UI events via bus
+        _eventBus.Subscribe<ActorPositionChangedUIEvent>(this, OnActorPositionChanged);
+        _eventBus.Subscribe<VisionStateChangedUIEvent>(this, OnVisionStateChanged);
+    }
 
-    private void OnTick(object? state) {
-        // Get all actors with active movement
-        var movingActors = _actorRepository.GetMovingActors();
-        foreach (var actor in movingActors) {
-            actor.AdvanceMovement();
-        }
-        // Domain events will fire naturally
+    private void OnActorPositionChanged(ActorPositionChangedUIEvent evt)
+    {
+        // View already has the animation methods!
+        _view?.AnimatePathProgression(evt.ActorId, new List<Position> { evt.NewPosition });
+    }
+}
+
+// Optional: Enhanced with Call Method Tracks
+public partial class ActorView : Node2D
+{
+    private AnimationPlayer? _stepAnimationPlayer;
+
+    // Called by animation via call method track at frame 10
+    public void OnFootPlant()
+    {
+        // Trigger existing arrival feedback
+        OnTileArrival(_actorNodes[_currentActorId], Position);
+
+        // Optional: Play footstep sound
+        GameServices.Audio?.PlaySound(SoundId.Footstep, _currentGridPosition);
+    }
+
+    // Called by animation via call method track at frame 20
+    public void OnStepComplete()
+    {
+        // Ready for next step
+        _isAnimating = false;
     }
 }
 ```
-**Files to create**:
-- `src/Application/Common/GameLoop.cs` - Simple ticker service
-- Register in DI configuration
 
-### Phase 4: Presentation Cleanup (30m)
-**Goal**: Remove architectural violations, preserve working animation
-- **KEEP**: GridPresenter → ActorPresenter → ActorView animation flow (works perfectly!)
-- **KEEP**: Discrete tile-by-tile animation with flash feedback
-- **REMOVE**: MovementPresenter (dead code, never receives events)
-- **REMOVE**: ActorMovedEvent from Presentation layer (move to Domain)
-- **ENSURE**: Presenters subscribe via UIEventBus, NOT INotificationHandler
+**Cleanup Tasks**:
+- ❌ **REMOVE**: MovementPresenter (dead code)
+- ❌ **REMOVE**: Any INotificationHandler in Presenters
+- ✅ **KEEP**: Current animation (discrete with flash)
+- ✅ **KEEP**: Current FOV visualization
+- ✅ **VERIFY**: All events flow through UIEventBus
 
-**Animation Behavior**:
-⚠️ **NO CHANGES** to visual animation - stays exactly as is (discrete jumps with flash)
-- Only difference: Animation triggered by real domain state changes, not fake path
+---
 
-**Done When**:
-- [ ] Actor domain model tracks Position and ActivePath
-- [ ] Domain events fire as actor moves step-by-step
-- [ ] FOV updates at each intermediate position (not just destination)
-- [ ] GridStateService no longer owns actor positions
-- [ ] MovementPresenter removed (dead code)
-- [ ] Animation stays exactly the same (discrete tile-by-tile with flash)
-- [ ] No complex timer services
-- [ ] Tests verify step-by-step progression
+### 🧪 Testing Strategy
+
+```csharp
+[Test]
+public void Actor_AdvanceMovement_UpdatesPosition()
+{
+    // Arrange
+    var actor = Actor.Create(/* ... */);
+    var path = new Path(new[] { new Position(0,0), new Position(1,0), new Position(2,0) });
+    actor.StartMovement(path);
+
+    // Act
+    actor.AdvanceMovement();
+
+    // Assert
+    actor.Position.Should().Be(new Position(1,0));
+    actor.HasActivePath.Should().BeTrue();
+}
+
+[Test]
+public void Actor_InterruptMovement_StoresRemainingPath()
+{
+    // Arrange
+    var actor = Actor.Create(position: new Position(0,0));
+    var path = new Path(new[] { new Position(0,0), new Position(1,0), new Position(2,0) });
+    actor.StartMovement(path);
+    actor.AdvanceMovement(); // Now at (1,0)
+
+    // Act
+    actor.InterruptMovement("Hit by arrow");
+
+    // Assert
+    actor.HasActivePath.Should().BeFalse();
+    var evt = actor.GetDomainEvents().OfType<MovementInterruptedEvent>().Single();
+    evt.RemainingPath.Should().ContainSingle().Which.Should().Be(new Position(2,0));
+}
+
+[Test]
+public void GameLoop_AdvancesOnlyCurrentActor()
+{
+    // Test that game loop only advances scheduler's current actor
+}
+
+[Test]
+public void FOV_CalculatedForAllActors_DisplayedForPlayerOnly()
+{
+    // Critical test - enemy FOV calculated but not displayed
+}
+```
+
+---
+
+### ✅ Done When
+- [ ] Actor owns Position and ActivePath (domain truth)
+- [ ] Path value object tracks progression with GetRemainingSteps()
+- [ ] Movement interruption handled (InterruptMovement method)
+- [ ] Domain events fire naturally per step
+- [ ] Game loop advances ONLY current actor (scheduler-based)
+- [ ] Pause state checked in game loop
+- [ ] FOV calculated for ALL actors (AI needs it)
+- [ ] FOV display updated for PLAYER ONLY
+- [ ] GridStateService updated BY events (not driving)
+- [ ] Animation unchanged (discrete with flash)
+- [ ] No complex timer infrastructure
+- [ ] Architecture tests prevent violations
+- [ ] 15+ unit tests pass
+
+**Complexity Score**: 3/10 (reduced from 4/10 - single-actor simplification)
+**Revised Time**: 4h total (Phase 1: 2h, Phase 2: 1h, Phase 3: 0.5h, Phase 4: 0.5h)
 
 ---
 
@@ -426,6 +750,60 @@ public void Handlers_Must_Be_In_Application_Layer() {
 - [ ] All persona protocols updated
 - [ ] Review checklists added
 - [ ] All personas acknowledge
+
+---
+
+### TD_070: Dynamic Movement Control (Smooth Rerouting)
+**Status**: Proposed - Follow-up to TD_065
+**Owner**: Tech Lead → Dev Engineer
+**Size**: S (2-3h)
+**Priority**: Important - Quality of life improvement
+**Created**: 2025-09-19 17:49 (Tech Lead - from TD_065 review)
+**Markers**: [MOVEMENT] [UX] [DOMAIN]
+
+**What**: Add smooth destination changing without movement interruption
+**Why**: Current design requires cancel-then-restart which causes movement stuttering
+
+**Problem Statement**:
+- TD_065 supports `CancelMovement()` and `InterruptMovement()`
+- Changing destination requires: stop → calculate new path → start
+- This creates visible "hiccup" in movement
+- Players expect smooth rerouting (like Battle Brothers, XCOM)
+
+**Technical Approach**:
+```csharp
+// Add to Actor class
+public void ChangeDestination(Path newPath)
+{
+    if (ActivePath != null)
+    {
+        var oldDestination = ActivePath.FinalDestination;
+        ActivePath = newPath;  // Seamless transition
+        _domainEvents.Add(new DestinationChangedEvent(
+            Id, Position, oldDestination, newPath.FinalDestination));
+    }
+    else
+    {
+        StartMovement(newPath);
+    }
+}
+```
+
+**Implementation Pattern**:
+- Domain: Add `ChangeDestination()` method to Actor
+- Application: Update `MoveActorCommandHandler` to detect rerouting
+- Events: Create `DestinationChangedEvent`
+- UI: No change needed (already handles path updates)
+
+**Done When**:
+- [ ] `ChangeDestination()` method added to Actor
+- [ ] `DestinationChangedEvent` created and handled
+- [ ] Command handler uses smart rerouting logic
+- [ ] Movement transitions smoothly when destination changes
+- [ ] Tests verify no position jump or reset
+- [ ] Player can click new destination while moving
+
+**Dependencies**: Requires TD_065 complete (domain movement foundation)
 
 
 
