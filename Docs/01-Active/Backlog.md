@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-19 19:26 (Tech Lead - Completed TD_071, created ADR-024 for GameLoop architecture)
+**Last Updated**: 2025-09-19 21:16 (Tech Lead - Added TD_072 for UIEventBus FIFO queue with concurrency)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See [Workflow.md - Backlog Aging Protocol](Workflow.md#-backlog-aging-protocol---the-3-10-rule) for 3-10 day aging rules
@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 008
-- **Next TD**: 072
+- **Next TD**: 073
 - **Next VS**: 015 
 
 
@@ -902,8 +902,88 @@ public void ChangeDestination(Path newPath)
 
 📄 **Deliverable**: `Docs/03-Reference/ADR/ADR-024-gameloop-architecture.md`
 
+---
 
+### TD_072: UIEventBus FIFO Queue with Concurrent Processing
+**Status**: Proposed
+**Owner**: Tech Lead → Dev Engineer
+**Size**: M (6h)
+**Priority**: Important - Event ordering affects entire system
+**Created**: 2025-09-19 21:16 (Tech Lead - from ADR-024 review discussions)
+**Markers**: [ARCHITECTURE] [EVENTS] [CONCURRENCY] [ADR-010]
 
+**What**: Implement proper FIFO event queue with support for concurrent processing of independent events
+**Why**: Current UIEventBus lacks ordering guarantees and could process events out of sequence, breaking causality
+
+**Problem Statement**:
+- Events can be processed out of order, breaking cause-and-effect relationships
+- Example: ActorMoved → ActorAttacked → ActorMoved could process as Move→Move→Attack
+- No event sequencing for animations (move animation could start after death animation)
+- But also need concurrent processing for performance (particle updates shouldn't block combat events)
+
+**Technical Approach**:
+```csharp
+public class UIEventBus : IUIEventBus
+{
+    // Event queue with sequence numbers
+    private readonly PriorityQueue<QueuedEvent, long> _eventQueue;
+    private long _sequenceNumber = 0;
+
+    // Channel-based concurrency (independent streams)
+    private readonly Dictionary<EventChannel, Queue<QueuedEvent>> _channels;
+
+    public async Task PublishAsync<TEvent>(TEvent evt, EventChannel channel = EventChannel.Default)
+    {
+        var queued = new QueuedEvent
+        {
+            Event = evt,
+            Sequence = Interlocked.Increment(ref _sequenceNumber),
+            Channel = channel
+        };
+
+        // Events in same channel are FIFO
+        // Events in different channels can process concurrently
+        _channels[channel].Enqueue(queued);
+    }
+}
+
+// Usage:
+await PublishAsync(new ActorMovedEvent(), EventChannel.Combat);     // FIFO with other combat
+await PublishAsync(new ParticleEvent(), EventChannel.Visual);       // Concurrent with combat
+await PublishAsync(new UIUpdateEvent(), EventChannel.Interface);    // Concurrent with both
+```
+
+**Architectural Constraints**:
+☑ Deterministic: Event ordering must be reproducible
+☑ Thread-Safe: Multiple producers, safe concurrent processing
+☑ Performance: Independent events should process in parallel
+☑ Testable: Can verify FIFO ordering in tests
+
+**Implementation Plan**:
+1. Add event sequencing with atomic counter
+2. Implement channel-based queues for independent event streams
+3. Add configurable concurrency level per channel
+4. Preserve FIFO within channels, allow parallelism across channels
+5. Update ADR-010 to document new guarantees
+
+**Done When**:
+- [ ] FIFO ordering guaranteed within event channels
+- [ ] Concurrent processing across independent channels
+- [ ] Sequence numbers for debugging/tracing
+- [ ] Unit tests verify ordering and concurrency
+- [ ] Performance tests show improved throughput
+- [ ] ADR-010 updated with new architecture
+- [ ] No race conditions or event reordering bugs
+
+**Dependencies**: None - can be implemented independently
+
+**TECH LEAD NOTES** (2025-09-19 21:16):
+- Critical for animation sequencing and game logic consistency
+- Channels allow us to separate concerns (combat vs UI vs particles)
+- Must maintain backward compatibility with existing event publishers
+- Consider using System.Threading.Channels for implementation
+
+---
 
 ## 📋 Blocked - Waiting for Dependencies
 
