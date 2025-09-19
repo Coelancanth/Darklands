@@ -64,6 +64,10 @@ This directory contains Architecture Decision Records (ADRs) - documents that ca
 - [ADR-023: Layered Game State Management](ADR-023-game-state-management.md) - **Approved**
   - Three-layer state system for game flow, combat, and UI overlays
 
+- [ADR-024: GameLoop Architecture](ADR-024-gameloop-architecture.md) - **Approved** ⭐ **FOUNDATIONAL**
+  - TimeUnit-based game loop independent of frame rate
+  - Defines separation between GameLoop (WHEN) and Scheduler (WHO)
+
 ### Game Design
 - [ADR-003: TileMap Variant Selection Strategy](ADR-003-tilemap-variant-selection-strategy.md) - **Approved**
   - Domain decides WHAT tiles, Godot autotiling selects WHICH variants

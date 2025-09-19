@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-19 03:33 (Tech Lead - TD_061 replaced with TD_065, added prevention TDs 066-069, created post-mortem)
+**Last Updated**: 2025-09-19 19:26 (Tech Lead - Completed TD_071, created ADR-024 for GameLoop architecture)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See [Workflow.md - Backlog Aging Protocol](Workflow.md#-backlog-aging-protocol---the-3-10-rule) for 3-10 day aging rules
@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 008
-- **Next TD**: 071
+- **Next TD**: 072
 - **Next VS**: 015 
 
 
@@ -857,6 +857,50 @@ public void ChangeDestination(Path newPath)
 - [ ] Player can click new destination while moving
 
 **Dependencies**: Requires TD_065 complete (domain movement foundation)
+
+---
+
+### TD_071: GameLoop Architecture Documentation (ADR)
+**Status**: ✅ COMPLETE
+**Owner**: Tech Lead
+**Size**: XS (1h)
+**Priority**: Important - Architecture documentation
+**Created**: 2025-09-19 20:15 (Dev Engineer - from TD_065 Phase 3 discussion)
+**Completed**: 2025-09-19 19:26 (Tech Lead - ADR-024 created)
+**Markers**: [ARCHITECTURE] [DOCUMENTATION] [GAMELOOP]
+
+**What**: Create ADR documenting GameLoop vs Engine Loop vs Scheduler architecture
+**Why**: Critical architectural decision that affects determinism and save/replay
+
+**Problem Statement**:
+- Unclear separation between Godot's frame loop and game logic loop
+- Need to document why we use TimeUnits not milliseconds
+- Clarify relationship between GameLoop, Scheduler, and TimeUnit system
+
+**Technical Approach**:
+- Document why custom GameLoop is industry standard for turn-based games
+- Explain TimeUnit as universal time currency
+- Clarify GameLoop advances by small increments (1 TU), not large chunks
+- Show how Scheduler tracks WHO acts, GameLoop manages WHEN to tick
+
+**Done When**:
+- [x] ADR created explaining GameLoop architecture
+- [x] TimeUnit vs real-time distinction documented
+- [x] Scheduler vs GameLoop responsibilities clarified
+- [x] Industry examples included (Battle Brothers, XCOM, etc.)
+
+**Dependencies**: Insights from TD_065 Phase 3 implementation
+
+**TECH LEAD COMPLETION** (2025-09-19 19:26):
+✅ Created comprehensive ADR-024 documenting:
+- TimeUnit-based game loop architecture
+- Complete separation from Godot's frame loop
+- Clear distinction: GameLoop manages WHEN, Scheduler manages WHO
+- Industry examples from Battle Brothers, XCOM, DCSS, ToME
+- Integration patterns with existing systems (TD_065, ADR-023)
+- Configuration examples and implementation guidance
+
+📄 **Deliverable**: `Docs/03-Reference/ADR/ADR-024-gameloop-architecture.md`
 
 
 
