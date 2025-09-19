@@ -94,26 +94,35 @@ public readonly record struct TimeUnit
     // Attack might cost 50 TU
 }
 
-// 2. GameLoop - Advances game time
+// 2. GameLoop - Advances game time (CORRECTED: No wall-clock dependency)
 public class GameLoop : IHostedService
 {
     private Timer? _timer;
     private TimeUnit _currentGameTime = TimeUnit.Zero;
     private readonly ISchedulerService _scheduler;
     private readonly IMovementService _movement;
-    private const int TickIntervalMs = 50; // Real-time tick rate
-    private const int TimeUnitsPerTick = 1; // Game time per tick
+    private readonly IGameStateService _gameState;
+
+    // Timer is just a trigger, not a time source!
+    private const int CheckIntervalMs = 50; // How often to check, NOT game speed
+
+    // Game time advances based on game state, not real time
+    private const int TimeUnitsPerGameTick = 1; // Deterministic advancement
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        _timer = new Timer(OnTick, null, 0, TickIntervalMs);
+        // Timer only triggers checks, doesn't determine game time
+        _timer = new Timer(CheckForGameAdvancement, null, 0, CheckIntervalMs);
         return Task.CompletedTask;
     }
 
-    private async void OnTick(object? state)
+    private async void CheckForGameAdvancement(object? state)
     {
-        // Advance game time
-        _currentGameTime += TimeUnit.CreateUnsafe(TimeUnitsPerTick);
+        // Only advance if game is running (not paused, not in menu)
+        if (!_gameState.ShouldAdvanceTime()) return;
+
+        // Advance by fixed amount regardless of real time elapsed
+        _currentGameTime += TimeUnit.CreateUnsafe(TimeUnitsPerGameTick);
 
         // Process any actors ready at this time
         while (_scheduler.HasActorReadyAt(_currentGameTime))
@@ -123,7 +132,7 @@ public class GameLoop : IHostedService
         }
 
         // Process ongoing activities (movement)
-        await _movement.AdvanceActiveMovements(TimeUnitsPerTick);
+        await _movement.AdvanceActiveMovements(TimeUnitsPerGameTick);
     }
 
     private async Task ProcessActor(Actor actor)
@@ -198,6 +207,50 @@ public class MovementService
 3. **State Machine Integration**: GameLoop respects game states (see ADR-023)
 4. **Determinism First**: No floating point, no wall-clock dependencies
 5. **Save-Friendly**: Current time + scheduler state = complete temporal state
+
+### ⚠️ CRITICAL: No Wall-Clock Time in Game Logic
+
+The timer in GameLoop is **ONLY** a trigger mechanism, not a time source:
+
+```csharp
+// ❌ WRONG: Game time tied to real time
+private async void OnTick(object? state)
+{
+    var elapsed = DateTime.Now - _lastTick;  // NO!
+    _gameTime += elapsed.TotalSeconds * 100; // NEVER DO THIS!
+}
+
+// ✅ CORRECT: Fixed advancement per game tick
+private async void CheckForGameAdvancement(object? state)
+{
+    if (!_gameState.ShouldAdvanceTime()) return;
+    _gameTime += TimeUnit.CreateUnsafe(1); // Always advance by exactly 1 TU
+}
+```
+
+**Why This Matters**:
+- **Determinism**: Game advances by exactly 1 TU per tick, always
+- **Replay**: Can reproduce exact sequences by tracking TU count
+- **Testing**: Can advance time programmatically without waiting
+- **Speed Control**: Change timer frequency, not TU advancement
+- **Saves**: Game time is just an integer counter
+
+**Game Speed Control**:
+```csharp
+// Speed is controlled by timer frequency, not TU advancement
+public void SetGameSpeed(GameSpeed speed)
+{
+    _timer?.Change(0, speed switch
+    {
+        GameSpeed.Paused => Timeout.Infinite,
+        GameSpeed.Slow => 200,   // Check every 200ms
+        GameSpeed.Normal => 50,   // Check every 50ms
+        GameSpeed.Fast => 20,     // Check every 20ms
+        _ => 50
+    });
+    // Note: Still advances by 1 TU per tick regardless of speed!
+}
+```
 
 ## Consequences
 
