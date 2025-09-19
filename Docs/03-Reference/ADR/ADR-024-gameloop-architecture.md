@@ -141,7 +141,9 @@ public class GameLoop : IHostedService, IGameClock
         return Task.CompletedTask;
     }
 
-    // CRITICAL: Proper error handling for timer callback
+    // CRITICAL: Prevent re-entrancy with SemaphoreSlim
+    private readonly SemaphoreSlim _tickLock = new(1, 1);
+
     private void CheckForGameAdvancement(object? state)
     {
         // Fire and forget with proper error handling
@@ -150,6 +152,9 @@ public class GameLoop : IHostedService, IGameClock
 
     private async Task SafeGameAdvancementAsync()
     {
+        // Prevent re-entrancy - skip tick if previous still running
+        if (!await _tickLock.WaitAsync(0)) return;
+
         try
         {
             // Only advance if game is running (not paused, not in menu)
@@ -174,14 +179,20 @@ public class GameLoop : IHostedService, IGameClock
             // MUST catch exceptions to prevent process termination
             _logger.LogError(ex, "Error in GameLoop tick at {Time}", _currentGameTime);
         }
+        finally
+        {
+            _tickLock.Release();
+        }
     }
 
     private async Task ProcessActor(Actor actor)
     {
         if (actor.IsPlayerControlled)
         {
-            // Enable input, wait for player action
-            await _gameState.EnablePlayerInput(actor);
+            // NON-BLOCKING: Just changes state, doesn't wait
+            _gameState.SetWaitingForInput(actor);
+            // GameLoop continues, but ShouldAdvanceTime() returns false
+            // Player action will trigger state change back to running
         }
         else
         {
@@ -192,10 +203,11 @@ public class GameLoop : IHostedService, IGameClock
     }
 }
 
-// 3. Scheduler - Manages turn order (EFFICIENT IMPLEMENTATION)
+// 3. Scheduler - Manages turn order (CORRECTED IMPLEMENTATION)
 public class CombatScheduler
 {
-    // Use List with BinarySearch for O(log n) operations
+    // IMPORTANT: List.RemoveAt(0) is O(n), not O(1)!
+    // For production, use PriorityQueue<TElement, TPriority> (.NET 6+)
     private readonly List<ISchedulable> _timeline = new();
 
     public bool HasActorReadyAt(TimeUnit currentTime)
@@ -206,9 +218,10 @@ public class CombatScheduler
 
     public ISchedulable GetNextActor()
     {
-        // O(1) removal from front
+        // WARNING: O(n) operation - shifts all remaining elements
+        // TODO: Replace with PriorityQueue for O(log n)
         var next = _timeline[0];
-        _timeline.RemoveAt(0);
+        _timeline.RemoveAt(0);  // This is O(n), not O(1)!
         return next;
     }
 
@@ -219,6 +232,24 @@ public class CombatScheduler
         if (insertIndex < 0)
             insertIndex = ~insertIndex;
         _timeline.Insert(insertIndex, entity);
+    }
+}
+
+// BETTER: Use PriorityQueue (.NET 6+)
+public class EfficientCombatScheduler
+{
+    private readonly PriorityQueue<ISchedulable, (TimeUnit, Guid)> _queue = new();
+
+    public void ScheduleActor(ISchedulable entity)
+    {
+        // O(log n) enqueue with deterministic tie-breaking
+        _queue.Enqueue(entity, (entity.NextTurn, entity.Id));
+    }
+
+    public ISchedulable GetNextActor()
+    {
+        // O(log n) dequeue
+        return _queue.Dequeue();
     }
 }
 
@@ -255,6 +286,8 @@ public class MovementService
 3. **State Machine Integration**: GameLoop respects game states (see ADR-023)
 4. **Determinism First**: No floating point, no wall-clock dependencies
 5. **Save-Friendly**: Current time + scheduler state = complete temporal state
+6. **Deterministic Tie-Breaking**: When multiple actors have same TimeUnit, order by Guid
+7. **Non-Blocking Player Input**: GameLoop never waits for input, just changes state
 
 ### Event Flow Architecture (ADR-010 + ADR-022)
 
