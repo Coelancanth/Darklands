@@ -4,7 +4,7 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Darklands.Domain", "src\Darklands.Domain\Darklands.Domain.csproj", "{A1B2C3D4-E5F6-7890-1234-567890ABCDEF}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Darklands.Application", "src\Darklands.Application.csproj", "{B2C3D4E5-F6A7-8901-2345-67890ABCDEF0}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Darklands.Application", "src\Darklands.Application\Darklands.Application.csproj", "{B2C3D4E5-F6A7-8901-2345-67890ABCDEF0}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Darklands.Presentation", "src\Darklands.Presentation\Darklands.Presentation.csproj", "{C3D4E5F6-A7B8-9012-3456-7890ABCDEF01}"
 EndProject

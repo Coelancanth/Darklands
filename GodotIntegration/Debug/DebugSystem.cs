@@ -91,7 +91,7 @@ public partial class DebugSystem : Node
     /// </summary>
     private void InitializeConfiguration()
     {
-        const string configPath = "res://debug_config.tres";
+        const string configPath = "res://Resources/debug_config.tres";
 
         if (ResourceLoader.Exists(configPath))
         {
@@ -309,7 +309,7 @@ public partial class DebugSystem : Node
     /// <param name="propertyName">Name of the property that changed (optional, for logging)</param>
     private void SaveConfiguration(string? propertyName = null)
     {
-        const string configPath = "res://debug_config.tres";
+        const string configPath = "res://Resources/debug_config.tres";
         
         var result = ResourceSaver.Save(Config, configPath);
         if (result == Error.Ok)

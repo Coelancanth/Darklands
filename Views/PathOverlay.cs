@@ -1,5 +1,6 @@
 using Godot;
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using LanguageExt;
 using Darklands.Domain.Grid;
@@ -194,7 +195,7 @@ namespace Darklands.Views
             {
                 // Store data for deferred execution
                 var pathArray = path.ToArray();
-                CallDeferred(nameof(ShowPathInternal), pathArray.Length, startPosition.X, startPosition.Y, endPosition.X, endPosition.Y);
+                CallDeferred("ShowPathInternal", pathArray.Length, startPosition.X, startPosition.Y, endPosition.X, endPosition.Y);
 
                 // Store path data in a field for the deferred method to access
                 _pendingPath = pathArray;

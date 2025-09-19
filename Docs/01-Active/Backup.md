@@ -259,3 +259,291 @@
 - Update camera position per frame or per cell
 - Use smooth camera interpolation (lerp)
 - Consider viewport boundaries
+
+
+
+### TD_066: Architectural Boundary Enforcement Tests
+**Status**: ✅ APPROVED
+**Owner**: Dev Engineer
+**Size**: S (2-3h)
+**Priority**: Important - Prevents future violations
+**Created**: 2025-09-19 03:33 (Tech Lead - from lessons learned)
+**Markers**: [ARCHITECTURE] [TESTING] [QUALITY]
+
+**What**: Add NetArchTest rules to enforce Clean Architecture boundaries
+**Why**: TD_061's 12+ hour struggle was caused by presenters violating layer boundaries
+
+**Technical Approach**:
+```csharp
+[Test]
+public void Presenters_Should_Not_Be_Handlers() {
+    Types.InNamespace("Presentation.Presenters")
+        .Should().NotImplementInterface(typeof(INotificationHandler<>))
+        .GetResult().IsSuccessful.Should().BeTrue();
+}
+
+[Test]
+public void Handlers_Must_Be_In_Application_Layer() {
+    Types.That().ImplementInterface(typeof(IRequestHandler<,>))
+        .Should().ResideInNamespace("Application")
+        .GetResult().IsSuccessful.Should().BeTrue();
+}
+```
+
+**Done When**:
+- [ ] Test enforcing presenters aren't handlers
+- [ ] Test enforcing handlers in Application layer
+- [ ] Test enforcing domain independence
+- [ ] Tests run in CI pipeline
+
+---
+
+### TD_067: MediatR Registration Pattern Documentation
+**Status**: ✅ APPROVED
+**Owner**: Dev Engineer
+**Size**: S (2h)
+**Priority**: Important - Prevents future DI issues
+**Created**: 2025-09-19 03:33 (Tech Lead - from post-mortem)
+**Markers**: [DOCUMENTATION] [MEDIATR] [DI] [PATTERNS]
+
+**What**: Document and enforce correct MediatR registration patterns
+**Why**: TD_061 failed due to registration order issues and handler lifetime confusion
+
+**Documentation to Create**:
+1. **MediatR Best Practices** guide
+2. **Registration order** rules
+3. **Handler lifetime** guidelines
+4. **Anti-patterns** to avoid
+
+**Done When**:
+- [ ] Helper method for standardized registration
+- [ ] Documentation with examples
+- [ ] Update existing registration code
+
+---
+
+### TD_068: DI Registration Order Standardization
+**Status**: ✅ APPROVED
+**Owner**: DevOps Engineer
+**Size**: S (3h)
+**Priority**: Important - Prevents registration conflicts
+**Created**: 2025-09-19 03:33 (Tech Lead - from root cause analysis)
+**Markers**: [DI] [INFRASTRUCTURE] [PATTERNS]
+
+**What**: Standardize and enforce DI registration order across all projects
+**Why**: Registration order conflicts caused BR_022 and wasted 12+ hours
+
+**Enforcement**:
+1. Create startup analyzer for order issues
+2. Add build-time warnings for violations
+3. Unit test to verify registration order
+
+**Done When**:
+- [ ] Standardized registration methods
+- [ ] Order enforcement tests
+- [ ] Update all ServiceConfiguration files
+
+---
+
+### TD_069: Persona Protocol ADR Compliance Update
+**Status**: ✅ APPROVED
+**Owner**: Tech Lead → All Personas
+**Size**: M (4-5h)
+**Priority**: Critical - Prevents future violations
+**Created**: 2025-09-19 03:33 (Tech Lead - from lessons learned)
+**Markers**: [DOCUMENTATION] [ARCHITECTURE] [PROCESS]
+
+**What**: Update all persona protocols to include ADR compliance checks
+**Why**: TD_061 violation could have been prevented with proper protocol checks
+
+**Updates Required**:
+- Architecture review checklists
+- Smell detection guidelines
+- Phase 2 review requirements
+- ADR compliance verification
+
+**Done When**:
+- [ ] All persona protocols updated
+- [ ] Review checklists added
+- [ ] All personas acknowledge
+
+---
+
+### TD_070: Dynamic Movement Control (Smooth Rerouting)
+**Status**: Proposed - Follow-up to TD_065
+**Owner**: Tech Lead → Dev Engineer
+**Size**: S (2-3h)
+**Priority**: Important - Quality of life improvement
+**Created**: 2025-09-19 17:49 (Tech Lead - from TD_065 review)
+**Markers**: [MOVEMENT] [UX] [DOMAIN]
+
+**What**: Add smooth destination changing without movement interruption
+**Why**: Current design requires cancel-then-restart which causes movement stuttering
+
+**Problem Statement**:
+- TD_065 supports `CancelMovement()` and `InterruptMovement()`
+- Changing destination requires: stop → calculate new path → start
+- This creates visible "hiccup" in movement
+- Players expect smooth rerouting (like Battle Brothers, XCOM)
+
+**Technical Approach**:
+```csharp
+// Add to Actor class
+public void ChangeDestination(Path newPath)
+{
+    if (ActivePath != null)
+    {
+        var oldDestination = ActivePath.FinalDestination;
+        ActivePath = newPath;  // Seamless transition
+        _domainEvents.Add(new DestinationChangedEvent(
+            Id, Position, oldDestination, newPath.FinalDestination));
+    }
+    else
+    {
+        StartMovement(newPath);
+    }
+}
+```
+
+**Implementation Pattern**:
+- Domain: Add `ChangeDestination()` method to Actor
+- Application: Update `MoveActorCommandHandler` to detect rerouting
+- Events: Create `DestinationChangedEvent`
+- UI: No change needed (already handles path updates)
+
+**Done When**:
+- [ ] `ChangeDestination()` method added to Actor
+- [ ] `DestinationChangedEvent` created and handled
+- [ ] Command handler uses smart rerouting logic
+- [ ] Movement transitions smoothly when destination changes
+- [ ] Tests verify no position jump or reset
+- [ ] Player can click new destination while moving
+
+**Dependencies**: Requires TD_065 complete (domain movement foundation)
+
+---
+
+### TD_071: GameLoop Architecture Documentation (ADR)
+**Status**: ✅ COMPLETE
+**Owner**: Tech Lead
+**Size**: XS (1h)
+**Priority**: Important - Architecture documentation
+**Created**: 2025-09-19 20:15 (Dev Engineer - from TD_065 Phase 3 discussion)
+**Completed**: 2025-09-19 19:26 (Tech Lead - ADR-024 created)
+**Markers**: [ARCHITECTURE] [DOCUMENTATION] [GAMELOOP]
+
+**What**: Create ADR documenting GameLoop vs Engine Loop vs Scheduler architecture
+**Why**: Critical architectural decision that affects determinism and save/replay
+
+**Problem Statement**:
+- Unclear separation between Godot's frame loop and game logic loop
+- Need to document why we use TimeUnits not milliseconds
+- Clarify relationship between GameLoop, Scheduler, and TimeUnit system
+
+**Technical Approach**:
+- Document why custom GameLoop is industry standard for turn-based games
+- Explain TimeUnit as universal time currency
+- Clarify GameLoop advances by small increments (1 TU), not large chunks
+- Show how Scheduler tracks WHO acts, GameLoop manages WHEN to tick
+
+**Done When**:
+- [x] ADR created explaining GameLoop architecture
+- [x] TimeUnit vs real-time distinction documented
+- [x] Scheduler vs GameLoop responsibilities clarified
+- [x] Industry examples included (Battle Brothers, XCOM, etc.)
+
+**Dependencies**: Insights from TD_065 Phase 3 implementation
+
+**TECH LEAD COMPLETION** (2025-09-19 19:26):
+✅ Created comprehensive ADR-024 documenting:
+- TimeUnit-based game loop architecture
+- Complete separation from Godot's frame loop
+- Clear distinction: GameLoop manages WHEN, Scheduler manages WHO
+- Industry examples from Battle Brothers, XCOM, DCSS, ToME
+- Integration patterns with existing systems (TD_065, ADR-023)
+- Configuration examples and implementation guidance
+
+📄 **Deliverable**: `Docs/03-Reference/ADR/ADR-024-gameloop-architecture.md`
+
+---
+
+### TD_072: UIEventBus FIFO Queue with Concurrent Processing
+**Status**: Proposed
+**Owner**: Tech Lead → Dev Engineer
+**Size**: M (6h)
+**Priority**: Important - Event ordering affects entire system
+**Created**: 2025-09-19 21:16 (Tech Lead - from ADR-024 review discussions)
+**Markers**: [ARCHITECTURE] [EVENTS] [CONCURRENCY] [ADR-010]
+
+**What**: Implement proper FIFO event queue with support for concurrent processing of independent events
+**Why**: Current UIEventBus lacks ordering guarantees and could process events out of sequence, breaking causality
+
+**Problem Statement**:
+- Events can be processed out of order, breaking cause-and-effect relationships
+- Example: ActorMoved → ActorAttacked → ActorMoved could process as Move→Move→Attack
+- No event sequencing for animations (move animation could start after death animation)
+- But also need concurrent processing for performance (particle updates shouldn't block combat events)
+
+**Technical Approach**:
+```csharp
+public class UIEventBus : IUIEventBus
+{
+    // Event queue with sequence numbers
+    private readonly PriorityQueue<QueuedEvent, long> _eventQueue;
+    private long _sequenceNumber = 0;
+
+    // Channel-based concurrency (independent streams)
+    private readonly Dictionary<EventChannel, Queue<QueuedEvent>> _channels;
+
+    public async Task PublishAsync<TEvent>(TEvent evt, EventChannel channel = EventChannel.Default)
+    {
+        var queued = new QueuedEvent
+        {
+            Event = evt,
+            Sequence = Interlocked.Increment(ref _sequenceNumber),
+            Channel = channel
+        };
+
+        // Events in same channel are FIFO
+        // Events in different channels can process concurrently
+        _channels[channel].Enqueue(queued);
+    }
+}
+
+// Usage:
+await PublishAsync(new ActorMovedEvent(), EventChannel.Combat);     // FIFO with other combat
+await PublishAsync(new ParticleEvent(), EventChannel.Visual);       // Concurrent with combat
+await PublishAsync(new UIUpdateEvent(), EventChannel.Interface);    // Concurrent with both
+```
+
+**Architectural Constraints**:
+☑ Deterministic: Event ordering must be reproducible
+☑ Thread-Safe: Multiple producers, safe concurrent processing
+☑ Performance: Independent events should process in parallel
+☑ Testable: Can verify FIFO ordering in tests
+
+**Implementation Plan**:
+1. Add event sequencing with atomic counter
+2. Implement channel-based queues for independent event streams
+3. Add configurable concurrency level per channel
+4. Preserve FIFO within channels, allow parallelism across channels
+5. Update ADR-010 to document new guarantees
+
+**Done When**:
+- [ ] FIFO ordering guaranteed within event channels
+- [ ] Concurrent processing across independent channels
+- [ ] Sequence numbers for debugging/tracing
+- [ ] Unit tests verify ordering and concurrency
+- [ ] Performance tests show improved throughput
+- [ ] ADR-010 updated with new architecture
+- [ ] No race conditions or event reordering bugs
+
+**Dependencies**: None - can be implemented independently
+
+**TECH LEAD NOTES** (2025-09-19 21:16):
+- Critical for animation sequencing and game logic consistency
+- Channels allow us to separate concerns (combat vs UI vs particles)
+- Must maintain backward compatibility with existing event publishers
+- Consider using System.Threading.Channels for implementation
+
+---

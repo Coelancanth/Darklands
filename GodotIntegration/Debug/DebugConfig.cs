@@ -157,7 +157,7 @@ public partial class DebugConfig : Resource, IDebugConfiguration
     /// <returns>The configured log level, or Information as fallback</returns>
     public static Serilog.Events.LogEventLevel LoadInitialLogLevel()
     {
-        const string configPath = "res://debug_config.tres";
+        const string configPath = "res://Resources/debug_config.tres";
         
         try
         {

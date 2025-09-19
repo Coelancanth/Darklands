@@ -10,7 +10,7 @@
 
   <ItemGroup>
     <!-- Reference Application project for commands/queries -->
-    <ProjectReference Include="..\Darklands.Application.csproj" />
+    <ProjectReference Include="..\Darklands.Application\Darklands.Application.csproj" />
   </ItemGroup>
 
   <ItemGroup>

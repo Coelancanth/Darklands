@@ -67,6 +67,12 @@ This directory contains Architecture Decision Records (ADRs) - documents that ca
 - [ADR-024: GameLoop Architecture](ADR-024-gameloop-architecture.md) - **Approved** ⭐ **FOUNDATIONAL**
   - TimeUnit-based game loop independent of frame rate
   - Defines separation between GameLoop (WHEN) and Scheduler (WHO)
+  - Uses Adapter Pattern to maintain Clean Architecture boundaries
+
+- [ADR-025: Godot Adapter Pattern](ADR-025-godot-adapter-pattern.md) - **Approved** ⭐ **FOUNDATIONAL**
+  - Standard pattern for bridging Clean Architecture with Godot
+  - Keeps business logic pure and testable
+  - Used throughout: GameLoop, UIEventBus, ResourceLoader, DI Scopes
 
 ### Game Design
 - [ADR-003: TileMap Variant Selection Strategy](ADR-003-tilemap-variant-selection-strategy.md) - **Approved**

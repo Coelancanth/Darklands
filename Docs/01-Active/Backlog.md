@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 008
-- **Next TD**: 073
+- **Next TD**: 074
 - **Next VS**: 015 
 
 
@@ -227,7 +227,7 @@ if (!_stateManager.CanProcessInput) return;
 ```
 Scheduler.CurrentActor → User Click → GridPresenter → MoveActorCommand → Domain.StartMovement()
                                                                                 ↓
-Game Loop (200ms) → CurrentActor.AdvanceMovement() → Position changes → ActorMovedEvent
+Game Loop (ticks) → Advance by 1 TU → Actor accumulates TU → At 25 TU: AdvanceMovement → ActorMovedEvent
                             ↓ (only one actor)                                 ↓
                     If movement complete → Scheduler.NextActor      ActorMovedHandler
                                                                            ↓
@@ -261,7 +261,9 @@ Game Loop (200ms) → CurrentActor.AdvanceMovement() → Position changes → Ac
 ## 📋 Refined Implementation Plan
 
 ### Phase 1: Domain Truth (2h)
-**Goal**: Actor owns position and movement state (THE fundamental fix)
+**Goal**: Actor owns position and movement state with TimeUnit-based progress tracking
+
+**⚠️ ADR-024 CRITICAL**: Actor must track MovementProgress in TimeUnits!
 
 ```csharp
 // src/Darklands.Domain/Actor/Actor.cs
@@ -269,26 +271,38 @@ public sealed record Actor
 {
     public Position Position { get; private set; }     // THE truth
     public Path? ActivePath { get; private set; }      // Current movement
+    public int MovementProgress { get; private set; }  // TU accumulated (0-24)
     public bool HasActivePath => ActivePath != null && !ActivePath.IsComplete;
     private readonly List<IDomainEvent> _domainEvents = new();
+    private const int MovementCostPerTile = 25; // 25 TU per tile (from ADR-024)
 
     public void StartMovement(Path path)
     {
         ActivePath = path;
+        MovementProgress = 0; // Reset TU accumulation
         _domainEvents.Add(new MovementStartedEvent(Id, Position, path));
+    }
+
+    public void AccumulateMovementTime(int timeUnits)
+    {
+        if (ActivePath == null || ActivePath.IsComplete) return;
+        MovementProgress += timeUnits;
     }
 
     public void AdvanceMovement()
     {
         if (ActivePath == null || ActivePath.IsComplete) return;
+        if (MovementProgress < MovementCostPerTile) return; // Not enough TU yet
 
         var previousPosition = Position;
         Position = ActivePath.GetNextStep();
+        MovementProgress -= MovementCostPerTile; // Spend 25 TU
         _domainEvents.Add(new ActorMovedEvent(Id, previousPosition, Position));
 
         if (ActivePath.IsComplete)
         {
             ActivePath = null;
+            MovementProgress = 0; // Clear any leftover TU
             _domainEvents.Add(new MovementCompletedEvent(Id, Position));
         }
     }
@@ -449,121 +463,107 @@ public async Task<Fin<Unit>> Handle(MoveActorCommand command, CancellationToken 
 ---
 
 ### Phase 3: Game Loop (0.5h - reduced from 1h)
-**Goal**: Simple timer to advance movement (no complex infrastructure!)
+**Goal**: TimeUnit-based game loop per ADR-024 (advances by 1 TU per tick)
 
 **🎮 Single-Actor Design**: Only the scheduler's current actor can move at any time
 
+**⚠️ CRITICAL ADR-024 Alignment**:
+- Game advances by EXACTLY 1 TU per tick (never more, never less)
+- Movement costs 25 TU per tile (accumulated over multiple ticks)
+- Timer frequency controls game speed, NOT time advancement
+- Actor needs MovementProgress field to track TU accumulation
+
+### 📐 Technical Breakdown (Tech Lead - 2025-09-17 18:30)
+
+**Complexity Score**: 4/10 - Straightforward with clear patterns
+**Pattern Reference**: `src/Application/Combat/Commands/ExecuteAttackCommand.cs`
+
+#### Phase 1: Domain Model [1.5h] ✅ COMPLETE
+**Location**: `src/Darklands.Domain/Movement/` and `src/Darklands.Domain/Actors/`
+**Completed** (2025-09-19 05:03):
+✅ Added `ActiveMovement` to Actor entity (step-by-step movement state)
+✅ Created `StartMovement()`, `AdvanceMovement()`, `CancelMovement()` methods
+✅ Movement advances one tile per 25 TU (configurable)
+✅ Domain events: `MovementStartedEvent`, `ActorMovedEvent`, `MovementCompletedEvent`
+✅ Full test coverage with deterministic validation
+
+#### Phase 2: Application Layer [1.5h] ✅ COMPLETE
+**Location**: `src/Application/Movement/`
+**Completed** (2025-09-19 06:41):
+✅ Created `MoveActorCommand` and `MoveActorCommandHandler`
+✅ Integrated with `IPathfindingService` for path calculation
+✅ Created `AdvanceMovementCommandHandler` for time-based progression
+✅ FOV calculation on EVERY move (all actors need vision data)
+✅ Fog display updates ONLY for player (no enemy vision spoilers)
+✅ Full handler test coverage
+
+#### Phase 3: Game Loop Integration (Adapter Pattern) [1h] 🚧 IN PROGRESS
+**Updated per ADR-024 & ADR-025 (Godot Adapter Pattern)**:
+
+**A. Pure Game Loop Coordinator** (Application Layer)
+**Location**: `src/Application/Combat/Coordination/GameLoopCoordinator.cs`
+- ✅ Already exists with pure C# logic
+- Add `ProcessMovements(TimeUnit deltaTime)` method
+- Integrate with movement service to advance active movements
+- NO Godot dependencies (pure business logic)
+
+**B. Godot Game Loop Adapter** (GodotIntegration Layer)
+**Location**: `GodotIntegration/Infrastructure/GameLoop/GameLoop.cs`
+- ✅ Already exists as thin Node adapter
+- Inherits from Node for `_Process(delta)`
+- Uses fixed timestep accumulator (50Hz)
+- Delegates ALL logic to GameLoopCoordinator
+
+**C. Movement Service** (Application Layer)
+**Location**: `src/Application/Movement/Services/MovementService.cs`
 ```csharp
-// src/Application/Common/GameLoop.cs
-public class GameLoop : IHostedService
+public class MovementService : IMovementService
 {
-    private Timer? _timer;
-    private readonly ISchedulerService _scheduler;
-    private readonly IGameStateService _gameState;
-    private readonly IActorRepository _actors;
-    private readonly IEventDispatcher _eventDispatcher;
-    private readonly ICategoryLogger _logger;
-    private const int TickIntervalMs = 200; // 5 steps per second
+    private readonly IActorStateService _actorState;
+    private readonly IMediator _mediator;
 
-    public Task StartAsync(CancellationToken cancellationToken)
+    public async Task ProcessActiveMovements(TimeUnit deltaTime)
     {
-        _logger.Log(LogLevel.Information, LogCategory.System,
-            "Game loop started with {Interval}ms tick", TickIntervalMs);
+        var actors = await _actorState.GetActorsWithActiveMovement();
 
-        _timer = new Timer(OnTick, null, 0, TickIntervalMs);
-        return Task.CompletedTask;
-    }
-
-    private async void OnTick(object? state)
-    {
-        try
+        foreach (var actor in actors)
         {
-            // Check if game is paused
-            if (_gameState.IsPaused) return;
+            actor.AccumulateMovementTime(deltaTime.Value);
 
-            // Get THE SINGLE currently active actor (scheduler-based!)
-            var currentActor = await _scheduler.GetCurrentActorAsync();
-
-            if (currentActor?.HasActivePath == true)
+            if (actor.MovementProgress >= 25) // Ready to move
             {
-                // Only ONE actor advances per tick
-                currentActor.AdvanceMovement();
-
-                // Save and dispatch events
-                await _actors.SaveAsync(currentActor);
-                await _eventDispatcher.DispatchDomainEventsAsync(currentActor);
-
-                // If movement complete, notify scheduler
-                if (!currentActor.HasActivePath)
-                {
-                    await _scheduler.OnActorActionCompleteAsync(currentActor.Id);
-                }
+                await _mediator.Send(new AdvanceMovementCommand(actor.Id));
             }
         }
-        catch (Exception ex)
-        {
-            _logger.Log(LogLevel.Error, LogCategory.System,
-                "Game loop tick error: {Error}", ex.Message);
-        }
-    }
-
-    public Task StopAsync(CancellationToken cancellationToken)
-    {
-        _timer?.Dispose();
-        return Task.CompletedTask;
-    }
-}
-
-// Register in DI (GameStrapper.cs)
-services.AddHostedService<GameLoop>();
-```
-
----
-
-### Phase 4: Presentation Integration (30m)
-**Goal**: Clean integration with existing view infrastructure
-
-```csharp
-// ActorPresenter subscribes to UI events (already correct!)
-public class ActorPresenter : EventAwarePresenter<IActorView>
-{
-    protected override void SubscribeToEvents()
-    {
-        // Subscribe to UI events via bus
-        _eventBus.Subscribe<ActorPositionChangedUIEvent>(this, OnActorPositionChanged);
-        _eventBus.Subscribe<VisionStateChangedUIEvent>(this, OnVisionStateChanged);
-    }
-
-    private void OnActorPositionChanged(ActorPositionChangedUIEvent evt)
-    {
-        // View already has the animation methods!
-        _view?.AnimatePathProgression(evt.ActorId, new List<Position> { evt.NewPosition });
-    }
-}
-
-// Optional: Enhanced with Call Method Tracks
-public partial class ActorView : Node2D
-{
-    private AnimationPlayer? _stepAnimationPlayer;
-
-    // Called by animation via call method track at frame 10
-    public void OnFootPlant()
-    {
-        // Trigger existing arrival feedback
-        OnTileArrival(_actorNodes[_currentActorId], Position);
-
-        // Optional: Play footstep sound
-        GameServices.Audio?.PlaySound(SoundId.Footstep, _currentGridPosition);
-    }
-
-    // Called by animation via call method track at frame 20
-    public void OnStepComplete()
-    {
-        // Ready for next step
-        _isAnimating = false;
     }
 }
 ```
+
+**Key Architecture Points**:
+- GameLoop : Node lives in Godot project (adapter)
+- GameLoopCoordinator lives in Application (pure logic)
+- Separation enforced by project references
+- Business logic 100% testable without Godot
+
+#### Phase 4: Presentation Layer [0.5h]
+**Location**: Presenters and Views
+**MVP Pattern Implementation**:
+
+**A. Movement Presenter** (Presentation Layer)
+**Location**: `src/Presentation/Presenters/MovementPresenter.cs`
+- Subscribes to movement events via UIEventBus
+- Translates domain events to view updates
+- NO Godot dependencies
+
+**B. Actor View Updates** (Godot Project)
+**Location**: `Views/Actors/ActorView.cs`
+- Implements IActorView interface
+- Handles movement animations
+- Uses Godot tweens/animations directly
+- Receives commands from presenter
+
+
+
 
 **Cleanup Tasks**:
 - ❌ **REMOVE**: MovementPresenter (dead code)
@@ -699,289 +699,62 @@ public void FOV_CalculatedForAllActors_DisplayedForPlayerOnly()
 
 ---
 
-### TD_066: Architectural Boundary Enforcement Tests
+
+### TD_073: Replace Timer with Fixed Timestep Accumulator for Core GameLoop
 **Status**: ✅ APPROVED
 **Owner**: Dev Engineer
-**Size**: S (2-3h)
-**Priority**: Important - Prevents future violations
-**Created**: 2025-09-19 03:33 (Tech Lead - from lessons learned)
-**Markers**: [ARCHITECTURE] [TESTING] [QUALITY]
+**Size**: M (4-6h)
+**Priority**: CRITICAL - Affects determinism and replay
+**Created**: 2025-09-19 21:57 (Tech Lead - from Chinese reviewer's timing drift analysis)
+**Markers**: [ARCHITECTURE] [DETERMINISM] [GAMELOOP] [ADR-024]
 
-**What**: Add NetArchTest rules to enforce Clean Architecture boundaries
-**Why**: TD_061's 12+ hour struggle was caused by presenters violating layer boundaries
-
-**Technical Approach**:
-```csharp
-[Test]
-public void Presenters_Should_Not_Be_Handlers() {
-    Types.InNamespace("Presentation.Presenters")
-        .Should().NotImplementInterface(typeof(INotificationHandler<>))
-        .GetResult().IsSuccessful.Should().BeTrue();
-}
-
-[Test]
-public void Handlers_Must_Be_In_Application_Layer() {
-    Types.That().ImplementInterface(typeof(IRequestHandler<,>))
-        .Should().ResideInNamespace("Application")
-        .GetResult().IsSuccessful.Should().BeTrue();
-}
-```
-
-**Done When**:
-- [ ] Test enforcing presenters aren't handlers
-- [ ] Test enforcing handlers in Application layer
-- [ ] Test enforcing domain independence
-- [ ] Tests run in CI pipeline
-
----
-
-### TD_067: MediatR Registration Pattern Documentation
-**Status**: ✅ APPROVED
-**Owner**: Dev Engineer
-**Size**: S (2h)
-**Priority**: Important - Prevents future DI issues
-**Created**: 2025-09-19 03:33 (Tech Lead - from post-mortem)
-**Markers**: [DOCUMENTATION] [MEDIATR] [DI] [PATTERNS]
-
-**What**: Document and enforce correct MediatR registration patterns
-**Why**: TD_061 failed due to registration order issues and handler lifetime confusion
-
-**Documentation to Create**:
-1. **MediatR Best Practices** guide
-2. **Registration order** rules
-3. **Handler lifetime** guidelines
-4. **Anti-patterns** to avoid
-
-**Done When**:
-- [ ] Helper method for standardized registration
-- [ ] Documentation with examples
-- [ ] Update existing registration code
-
----
-
-### TD_068: DI Registration Order Standardization
-**Status**: ✅ APPROVED
-**Owner**: DevOps Engineer
-**Size**: S (3h)
-**Priority**: Important - Prevents registration conflicts
-**Created**: 2025-09-19 03:33 (Tech Lead - from root cause analysis)
-**Markers**: [DI] [INFRASTRUCTURE] [PATTERNS]
-
-**What**: Standardize and enforce DI registration order across all projects
-**Why**: Registration order conflicts caused BR_022 and wasted 12+ hours
-
-**Enforcement**:
-1. Create startup analyzer for order issues
-2. Add build-time warnings for violations
-3. Unit test to verify registration order
-
-**Done When**:
-- [ ] Standardized registration methods
-- [ ] Order enforcement tests
-- [ ] Update all ServiceConfiguration files
-
----
-
-### TD_069: Persona Protocol ADR Compliance Update
-**Status**: ✅ APPROVED
-**Owner**: Tech Lead → All Personas
-**Size**: M (4-5h)
-**Priority**: Critical - Prevents future violations
-**Created**: 2025-09-19 03:33 (Tech Lead - from lessons learned)
-**Markers**: [DOCUMENTATION] [ARCHITECTURE] [PROCESS]
-
-**What**: Update all persona protocols to include ADR compliance checks
-**Why**: TD_061 violation could have been prevented with proper protocol checks
-
-**Updates Required**:
-- Architecture review checklists
-- Smell detection guidelines
-- Phase 2 review requirements
-- ADR compliance verification
-
-**Done When**:
-- [ ] All persona protocols updated
-- [ ] Review checklists added
-- [ ] All personas acknowledge
-
----
-
-### TD_070: Dynamic Movement Control (Smooth Rerouting)
-**Status**: Proposed - Follow-up to TD_065
-**Owner**: Tech Lead → Dev Engineer
-**Size**: S (2-3h)
-**Priority**: Important - Quality of life improvement
-**Created**: 2025-09-19 17:49 (Tech Lead - from TD_065 review)
-**Markers**: [MOVEMENT] [UX] [DOMAIN]
-
-**What**: Add smooth destination changing without movement interruption
-**Why**: Current design requires cancel-then-restart which causes movement stuttering
+**What**: Replace System.Threading.Timer with fixed timestep accumulator for core game loop
+**Why**: Timer-based approach causes timing drift that breaks determinism and replay functionality
 
 **Problem Statement**:
-- TD_065 supports `CancelMovement()` and `InterruptMovement()`
-- Changing destination requires: stop → calculate new path → start
-- This creates visible "hiccup" in movement
-- Players expect smooth rerouting (like Battle Brothers, XCOM)
+- Current ADR-024 implementation uses Timer for core game loop
+- Timer has "best effort" timing that accumulates drift over time
+- After 1 minute at 50Hz, might execute 2998-3002 ticks instead of 3000
+- This breaks save/replay consistency and determinism
 
 **Technical Approach**:
 ```csharp
-// Add to Actor class
-public void ChangeDestination(Path newPath)
+// CORRECT: Fixed timestep accumulator in _Process
+public override void _Process(double delta)
 {
-    if (ActivePath != null)
+    _accumulator += (float)delta * speedMultiplier;
+    while (_accumulator >= FixedTimestepSeconds)
     {
-        var oldDestination = ActivePath.FinalDestination;
-        ActivePath = newPath;  // Seamless transition
-        _domainEvents.Add(new DestinationChangedEvent(
-            Id, Position, oldDestination, newPath.FinalDestination));
-    }
-    else
-    {
-        StartMovement(newPath);
+        _currentGameTime += TimeUnit.CreateUnsafe(1);
+        AdvanceGameLogic();
+        _accumulator -= FixedTimestepSeconds;
     }
 }
 ```
 
 **Implementation Pattern**:
-- Domain: Add `ChangeDestination()` method to Actor
-- Application: Update `MoveActorCommandHandler` to detect rerouting
-- Events: Create `DestinationChangedEvent`
-- UI: No change needed (already handles path updates)
+- Core GameLoop becomes a Godot Node using _Process
+- Accumulates actual delta time from frames
+- Executes exact number of ticks based on accumulated time
+- Leftover time carries to next frame (no drift!)
+
+**Keep Timer for Non-Core Loops**:
+- AI decision loops can still use Timer (background processing)
+- World simulation can use Timer (rough timing OK)
+- Only core game logic needs perfect timing
 
 **Done When**:
-- [ ] `ChangeDestination()` method added to Actor
-- [ ] `DestinationChangedEvent` created and handled
-- [ ] Command handler uses smart rerouting logic
-- [ ] Movement transitions smoothly when destination changes
-- [ ] Tests verify no position jump or reset
-- [ ] Player can click new destination while moving
+- [ ] GameLoop refactored to inherit from Node
+- [ ] Fixed timestep accumulator implemented
+- [ ] Timer approach removed from core loop
+- [ ] Non-core loops still use Timer (AI, world sim)
+- [ ] Tests verify deterministic tick count
+- [ ] ADR-024 updated with implementation
 
-**Dependencies**: Requires TD_065 complete (domain movement foundation)
+**Dependencies**: None - Can start immediately
 
----
-
-### TD_071: GameLoop Architecture Documentation (ADR)
-**Status**: ✅ COMPLETE
-**Owner**: Tech Lead
-**Size**: XS (1h)
-**Priority**: Important - Architecture documentation
-**Created**: 2025-09-19 20:15 (Dev Engineer - from TD_065 Phase 3 discussion)
-**Completed**: 2025-09-19 19:26 (Tech Lead - ADR-024 created)
-**Markers**: [ARCHITECTURE] [DOCUMENTATION] [GAMELOOP]
-
-**What**: Create ADR documenting GameLoop vs Engine Loop vs Scheduler architecture
-**Why**: Critical architectural decision that affects determinism and save/replay
-
-**Problem Statement**:
-- Unclear separation between Godot's frame loop and game logic loop
-- Need to document why we use TimeUnits not milliseconds
-- Clarify relationship between GameLoop, Scheduler, and TimeUnit system
-
-**Technical Approach**:
-- Document why custom GameLoop is industry standard for turn-based games
-- Explain TimeUnit as universal time currency
-- Clarify GameLoop advances by small increments (1 TU), not large chunks
-- Show how Scheduler tracks WHO acts, GameLoop manages WHEN to tick
-
-**Done When**:
-- [x] ADR created explaining GameLoop architecture
-- [x] TimeUnit vs real-time distinction documented
-- [x] Scheduler vs GameLoop responsibilities clarified
-- [x] Industry examples included (Battle Brothers, XCOM, etc.)
-
-**Dependencies**: Insights from TD_065 Phase 3 implementation
-
-**TECH LEAD COMPLETION** (2025-09-19 19:26):
-✅ Created comprehensive ADR-024 documenting:
-- TimeUnit-based game loop architecture
-- Complete separation from Godot's frame loop
-- Clear distinction: GameLoop manages WHEN, Scheduler manages WHO
-- Industry examples from Battle Brothers, XCOM, DCSS, ToME
-- Integration patterns with existing systems (TD_065, ADR-023)
-- Configuration examples and implementation guidance
-
-📄 **Deliverable**: `Docs/03-Reference/ADR/ADR-024-gameloop-architecture.md`
-
----
-
-### TD_072: UIEventBus FIFO Queue with Concurrent Processing
-**Status**: Proposed
-**Owner**: Tech Lead → Dev Engineer
-**Size**: M (6h)
-**Priority**: Important - Event ordering affects entire system
-**Created**: 2025-09-19 21:16 (Tech Lead - from ADR-024 review discussions)
-**Markers**: [ARCHITECTURE] [EVENTS] [CONCURRENCY] [ADR-010]
-
-**What**: Implement proper FIFO event queue with support for concurrent processing of independent events
-**Why**: Current UIEventBus lacks ordering guarantees and could process events out of sequence, breaking causality
-
-**Problem Statement**:
-- Events can be processed out of order, breaking cause-and-effect relationships
-- Example: ActorMoved → ActorAttacked → ActorMoved could process as Move→Move→Attack
-- No event sequencing for animations (move animation could start after death animation)
-- But also need concurrent processing for performance (particle updates shouldn't block combat events)
-
-**Technical Approach**:
-```csharp
-public class UIEventBus : IUIEventBus
-{
-    // Event queue with sequence numbers
-    private readonly PriorityQueue<QueuedEvent, long> _eventQueue;
-    private long _sequenceNumber = 0;
-
-    // Channel-based concurrency (independent streams)
-    private readonly Dictionary<EventChannel, Queue<QueuedEvent>> _channels;
-
-    public async Task PublishAsync<TEvent>(TEvent evt, EventChannel channel = EventChannel.Default)
-    {
-        var queued = new QueuedEvent
-        {
-            Event = evt,
-            Sequence = Interlocked.Increment(ref _sequenceNumber),
-            Channel = channel
-        };
-
-        // Events in same channel are FIFO
-        // Events in different channels can process concurrently
-        _channels[channel].Enqueue(queued);
-    }
-}
-
-// Usage:
-await PublishAsync(new ActorMovedEvent(), EventChannel.Combat);     // FIFO with other combat
-await PublishAsync(new ParticleEvent(), EventChannel.Visual);       // Concurrent with combat
-await PublishAsync(new UIUpdateEvent(), EventChannel.Interface);    // Concurrent with both
-```
-
-**Architectural Constraints**:
-☑ Deterministic: Event ordering must be reproducible
-☑ Thread-Safe: Multiple producers, safe concurrent processing
-☑ Performance: Independent events should process in parallel
-☑ Testable: Can verify FIFO ordering in tests
-
-**Implementation Plan**:
-1. Add event sequencing with atomic counter
-2. Implement channel-based queues for independent event streams
-3. Add configurable concurrency level per channel
-4. Preserve FIFO within channels, allow parallelism across channels
-5. Update ADR-010 to document new guarantees
-
-**Done When**:
-- [ ] FIFO ordering guaranteed within event channels
-- [ ] Concurrent processing across independent channels
-- [ ] Sequence numbers for debugging/tracing
-- [ ] Unit tests verify ordering and concurrency
-- [ ] Performance tests show improved throughput
-- [ ] ADR-010 updated with new architecture
-- [ ] No race conditions or event reordering bugs
-
-**Dependencies**: None - can be implemented independently
-
-**TECH LEAD NOTES** (2025-09-19 21:16):
-- Critical for animation sequencing and game logic consistency
-- Channels allow us to separate concerns (combat vs UI vs particles)
-- Must maintain backward compatibility with existing event publishers
-- Consider using System.Threading.Channels for implementation
+**Complexity Score**: 5/10 (well-understood pattern)
+**Pattern Match**: Industry standard (Unity FixedUpdate, Godot physics)
 
 ---
 
@@ -1012,42 +785,6 @@ await PublishAsync(new UIUpdateEvent(), EventChannel.Interface);    // Concurren
 ☑ Integer Math: All movement costs in TU (Time Units)
 ☑ Testable: Clear state transitions without UI
 
-### 📐 Technical Breakdown (Tech Lead - 2025-09-17 18:30)
-
-**Complexity Score**: 4/10 - Straightforward with clear patterns
-**Pattern Reference**: `src/Application/Combat/Commands/ExecuteAttackCommand.cs`
-
-#### Phase 1: Domain Model [0.5h]
-**Location**: `src/Darklands.Domain/Movement/`
-- Create `MovementCost.cs` - Value object (TU costs per tile)
-- Create `MovementPath.cs` - Validated path with total cost
-- Create `IMovementValidator.cs` - Interface for validation rules
-- Create `MovementValidator.cs` - Vision & TU validation logic
-**Pattern**: Follow AttackDamage/AttackResult pattern
-
-#### Phase 2: Application Layer [0.5h]
-**Location**: `src/Application/Movement/Commands/`
-- Create `MoveActorCommand.cs` - Command with actor ID and target
-- Create `MoveActorCommandHandler.cs` - Orchestrate movement
-- Integration: Call CalculatePathQuery for pathfinding
-- Integration: Update GridStateService with new position
-- Integration: Publish ActorMovedNotification
-**Pattern**: Copy ExecuteAttackCommandHandler structure
-
-#### Phase 3: Infrastructure [0.5h]
-**Location**: `src/Core/Infrastructure/Services/`
-- Extend `ISchedulerService` with vision-based activation
-- Add `CheckVisionTrigger(Position from, Position to)` method
-- Implement enemy activation when player enters vision
-**Key Logic**: If enemy sees movement → activate enemy turn
-
-#### Phase 4: Presentation [0.5h]
-**Location**: `godot_project/features/movement/`
-- Create `MovementPresenter.cs` - MVP presenter
-- Integration: Use ActorAnimator from TD_060
-- Handle: Path preview → click → animation → completion
-- Update: PathOverlay to trigger actual movement
-**Critical**: Animation completes BEFORE next turn starts
 
 
 

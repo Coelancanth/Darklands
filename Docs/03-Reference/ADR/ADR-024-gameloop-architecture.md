@@ -44,25 +44,89 @@ This approach:
 
 ## Decision
 
-We will implement a **TimeUnit-based GameLoop** that is completely independent of Godot's rendering loop:
+We will implement a **TimeUnit-based GameLoop** using different timing mechanisms for different subsystems:
 
-1. **TimeUnits (TU)** are the universal currency of time in the game
-2. **GameLoop** advances the game by small time increments (not frames)
-3. **Scheduler** manages actor turn order based on TimeUnits
-4. **Complete separation** between game time and wall-clock time
+1. **Core Game Loop**: Fixed timestep accumulator driven by Godot's `_Process` (mathematically perfect timing)
+2. **Non-Core Loops**: `System.Threading.Timer` for AI decisions, world simulation (background processing)
+3. **TimeUnits (TU)** are the universal currency of time in the game
+4. **Scheduler** manages actor turn order based on TimeUnits
+5. **Complete separation** between game time and wall-clock time
+
+### Critical: Why Fixed Timestep Accumulator for Core Loop
+
+The core game loop MUST use a fixed timestep accumulator pattern, NOT a timer, to prevent timing drift:
+
+| Approach | Timer-Based (WRONG for core) | Fixed Timestep Accumulator (CORRECT) |
+|----------|------------------------------|---------------------------------------|
+| **Precision** | "Best effort" timing, accumulates drift | Mathematically perfect, no drift |
+| **After 1 minute at 50Hz** | Might execute 2998-3002 ticks | Exactly 3000 ticks, always |
+| **Determinism** | Breaks replay and save consistency | Perfect determinism |
+| **Thread Safety** | Requires complex synchronization | Runs on main thread, simpler |
+
+**The Drift Problem Example**:
+```
+Target: Execute exactly 50 ticks/second (20ms per tick)
+
+Timer Approach (WRONG for core loop):
+Frame 1: Timer fires at 21ms → Execute tick 1
+Frame 2: Timer fires at 19ms → Execute tick 2
+Frame 3: GC pause, timer fires at 35ms → Execute tick 3
+After 60 seconds: Executed ~2,985 ticks (WRONG! Should be 3,000)
+
+Fixed Timestep Accumulator (CORRECT):
+Frame 1: delta=0.016s, accumulator=0.016 → No tick yet
+Frame 2: delta=0.017s, accumulator=0.033 → Execute 1 tick, accumulator=0.013
+Frame 3: delta=0.050s (lag), accumulator=0.063 → Execute 3 ticks, accumulator=0.003
+After 60 seconds: Executed exactly 3,000 ticks (PERFECT!)
+```
 
 ### Alignment with Core ADRs
 
 This GameLoop architecture implements key requirements from:
 
+- **ADR-001 (Strict Model-View Separation)**: GameLoop uses Adapter Pattern - Godot Node in GodotIntegration, pure logic in Application layer
 - **ADR-006 (Selective Abstraction)**: GameLoop implements the required `IGameClock` abstraction for deterministic time management
-- **ADR-010 (UI Event Bus)**: All domain events flow through `IUIEventBus` to reach presenters
-- **ADR-018 (DI Lifecycle)**: GameLoop registered as SINGLETON in root DI container, NOT scoped to scenes
-- **ADR-021 (Project Separation)**: GameLoop lives in `Darklands.Core` (Infrastructure layer), not Presentation
-- **ADR-016 (Scene Graph)**: GameLoop is INDEPENDENT of Godot's scene graph - runs as background service
+- **ADR-010 (UI Event Bus)**: All domain events flow through `IUIEventBus` to reach presenters (also uses Adapter Pattern)
+- **ADR-018 (DI Lifecycle)**: GameLoopCoordinator registered as SINGLETON in root DI container, NOT scoped to scenes
+- **ADR-021 (Project Separation)**: GameLoopCoordinator lives in Application layer (pure C#), GameLoop Node adapter in Godot project
+- **ADR-016 (Scene Graph)**: GameLoopCoordinator is INDEPENDENT of Godot's scene graph - pure business logic
 - **ADR-022 (Two-Position Model)**: Logic and visual representation have separate timing
 
 **NOTE**: ADR-019 was REJECTED - we follow ADR-021's simpler 4-project structure instead
+
+### The Adapter Pattern in Clean Architecture
+
+This ADR demonstrates the **Adapter Pattern** - a critical pattern for maintaining Clean Architecture with Godot:
+
+```
+┌─────────────────────────────────────────┐
+│         Godot Project                   │
+│  ┌─────────────────────────────────┐   │
+│  │   GameLoop : Node (Adapter)     │   │  ← Thin adapter, frame timing only
+│  │   - Inherits from Node          │   │
+│  │   - Uses _Process(delta)        │   │
+│  │   - Delegates to Coordinator    │   │
+│  └──────────────┬──────────────────┘   │
+│                 │                       │
+└─────────────────┼───────────────────────┘
+                  │ Calls into
+┌─────────────────┼───────────────────────┐
+│  Application Layer (Pure C#)            │
+│  ┌──────────────▼──────────────────┐   │
+│  │  GameLoopCoordinator            │   │  ← Pure logic, no Godot
+│  │  - Implements IGameClock        │   │
+│  │  - Contains all game logic      │   │
+│  │  - Fully testable              │   │
+│  └─────────────────────────────────┘   │
+└──────────────────────────────────────────┘
+```
+
+This same Adapter Pattern is used throughout the architecture:
+- **ADR-010**: UIEventBus adapts between MediatR and Godot lifecycle
+- **ADR-011**: Resource Bridge adapts Godot resources to domain models
+- **ADR-018**: ScopeManager adapts MS.DI scopes to Godot scene tree
+
+The pattern ensures Godot dependencies NEVER leak into business logic layers.
 
 ### Architecture Components
 
@@ -96,10 +160,15 @@ This GameLoop architecture implements key requirements from:
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### Implementation Pattern
+### Implementation Pattern (Adapter Pattern for Clean Architecture)
+
+**CRITICAL**: To maintain Clean Architecture separation, the GameLoop is split into two components:
+1. **GameLoopNode** (Godot Adapter) - Thin adapter in Godot project that handles frame timing
+2. **GameLoopCoordinator** (Pure Logic) - Business logic in Application layer with no Godot dependencies
 
 ```csharp
 // 1. IGameClock - Core abstraction (per ADR-006)
+// Location: src/Application/Common/Interfaces/IGameClock.cs
 public interface IGameClock
 {
     TimeUnit CurrentTime { get; }
@@ -111,6 +180,7 @@ public interface IGameClock
 }
 
 // 2. TimeUnit - Universal time currency (already implemented)
+// Location: src/Domain/Common/TimeUnit.cs
 public readonly record struct TimeUnit
 {
     public int Value { get; }
@@ -118,71 +188,114 @@ public readonly record struct TimeUnit
     // Attack might cost 50 TU
 }
 
-// 3. GameLoop - Implements IGameClock abstraction
-public class GameLoop : IHostedService, IGameClock
+// 3a. GameLoopNode - GODOT ADAPTER (Lives in Godot project ONLY)
+// Location: GodotIntegration/Infrastructure/GameLoop/GameLoop.cs
+public partial class GameLoop : Node
 {
-    private Timer? _timer;
+    private GameLoopCoordinator? _coordinator; // Pure C# from Application layer
+    private float _accumulator = 0.0f;
+    private const float FixedTimestepSeconds = 0.02f; // 50Hz (20ms per tick)
+
+    public override void _Ready()
+    {
+        // Resolve the pure C# coordinator using service locator
+        _coordinator = this.GetService<GameLoopCoordinator>();
+    }
+
+    // CRITICAL: This is the CORRECT pattern for deterministic timing
+    public override void _Process(double delta)
+    {
+        // Godot ONLY provides frame timing
+        _accumulator += (float)delta;
+
+        // Delegate ALL logic to pure C# coordinator
+        while (_accumulator >= FixedTimestepSeconds)
+        {
+            _coordinator?.ProcessTick(FixedTimestepSeconds);
+            _accumulator -= FixedTimestepSeconds;
+        }
+        // _accumulator now holds leftover time for next frame
+        // This prevents any timing drift!
+    }
+}
+
+// 3b. GameLoopCoordinator - PURE BUSINESS LOGIC (No Godot dependencies!)
+// Location: src/Application/Combat/Coordination/GameLoopCoordinator.cs
+public class GameLoopCoordinator : IGameClock
+{
     private TimeUnit _currentGameTime = TimeUnit.Zero;
     private readonly ISchedulerService _scheduler;
     private readonly IMovementService _movement;
     private readonly IGameStateService _gameState;
     private readonly IUIEventBus _uiEventBus; // Per ADR-010
+    private GameSpeed _currentSpeed = GameSpeed.Normal;
 
-    // Game always advances by exactly 1 TU per tick
-    private const int TimeUnitsPerGameTick = 1;
+    public TimeUnit CurrentTime => _currentGameTime;
+    public bool IsPaused { get; private set; }
+
+    public event Action<TimeUnit>? TimeAdvanced;
+
+    // Called by Godot adapter - contains ALL game logic
+    public void ProcessTick(float timestepSeconds)
+    {
+        // Only process when game should advance
+        if (IsPaused || !_gameState.ShouldAdvanceTime())
+            return;
+
+        // Apply speed multiplier
+        var timeUnitsToAdvance = CalculateTimeUnits(timestepSeconds, _currentSpeed);
+
+        // Advance game time
+        _currentGameTime += TimeUnit.CreateUnsafe(timeUnitsToAdvance);
+
+        // Process game logic (pure C#, no Godot)
+        AdvanceGameLogic(timeUnitsToAdvance);
+
+        // Notify listeners
+        TimeAdvanced?.Invoke(_currentGameTime);
+    }
+
+    private void AdvanceGameLogic(int timeUnits)
+    {
+        // Process ONE actor per tick to maintain determinism
+        if (_scheduler.HasActorReadyAt(_currentGameTime))
+        {
+            var actor = _scheduler.GetNextActor(_currentGameTime);
+            ProcessActor(actor);
+        }
+
+        // Process ongoing activities (movement)
+        _movement.AdvanceActiveMovements(timeUnits);
+    }
+
+    private int CalculateTimeUnits(float timestep, GameSpeed speed) => speed switch
+    {
+        GameSpeed.Paused => 0,
+        GameSpeed.Slow => 1,  // Half speed achieved by skipping ticks
+        GameSpeed.Normal => 1,
+        GameSpeed.Fast => 2,
+        GameSpeed.VeryFast => 4,
+        _ => 1
+    };
+
+    public void Pause() => IsPaused = true;
+    public void Resume() => IsPaused = false;
+    public void SetSpeed(GameSpeed speed) => _currentSpeed = speed;
+}
+
+// 3b. Non-Core Loops - Timer is FINE for these
+public class AIDecisionLoop : IHostedService
+{
+    private Timer? _aiTimer;
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        // Implementation detail: timer triggers advancement
-        // The actual interval is configurable for game speed
-        _timer = new Timer(CheckForGameAdvancement, null,
+        // Timer is PERFECT for AI decisions - runs in background
+        // Doesn't need frame-perfect timing
+        _aiTimer = new Timer(ProcessAIDecisions, null,
             dueTime: TimeSpan.Zero,
-            period: GetGameSpeedInterval());
+            period: TimeSpan.FromMilliseconds(100)); // 10Hz is fine for AI
         return Task.CompletedTask;
-    }
-
-    // CRITICAL: Prevent re-entrancy with SemaphoreSlim
-    private readonly SemaphoreSlim _tickLock = new(1, 1);
-
-    private void CheckForGameAdvancement(object? state)
-    {
-        // Fire and forget with proper error handling
-        _ = SafeGameAdvancementAsync();
-    }
-
-    private async Task SafeGameAdvancementAsync()
-    {
-        // Prevent re-entrancy - skip tick if previous still running
-        if (!await _tickLock.WaitAsync(0)) return;
-
-        try
-        {
-            // Only advance if game is running (not paused, not in menu)
-            if (!_gameState.ShouldAdvanceTime()) return;
-
-            // Advance by fixed amount regardless of real time elapsed
-            _currentGameTime += TimeUnit.CreateUnsafe(TimeUnitsPerGameTick);
-
-            // Process ONE actor per tick to avoid race conditions
-            // Multiple actors at same TimeUnit are processed over multiple ticks
-            if (_scheduler.HasActorReadyAt(_currentGameTime))
-            {
-                var actor = await _scheduler.GetNextActorAsync(_currentGameTime);
-                await ProcessActor(actor);
-            }
-
-            // Process ongoing activities (movement)
-            await _movement.AdvanceActiveMovements(TimeUnitsPerGameTick);
-        }
-        catch (Exception ex)
-        {
-            // MUST catch exceptions to prevent process termination
-            _logger.LogError(ex, "Error in GameLoop tick at {Time}", _currentGameTime);
-        }
-        finally
-        {
-            _tickLock.Release();
-        }
     }
 
     private async Task ProcessActor(Actor actor)
@@ -396,6 +509,27 @@ private TimeSpan GetIntervalForSpeed(GameSpeed speed) => speed switch
 };
 ```
 
+## When to Use Which Approach
+
+### Decision Guide
+
+| Loop Type | Use Fixed Timestep Accumulator | Use Timer | Reason |
+|-----------|----------------------------------|-----------|---------|
+| **Core Game Logic** | ✅ YES | ❌ NO | Needs perfect determinism, replay support |
+| **Movement Processing** | ✅ YES | ❌ NO | Part of core game state |
+| **Combat Resolution** | ✅ YES | ❌ NO | Must be deterministic |
+| **FOV Calculations** | ✅ YES | ❌ NO | Affects gameplay decisions |
+| **AI Decision Making** | ❌ NO | ✅ YES | Can run async, doesn't need perfect timing |
+| **World Simulation** | ❌ NO | ✅ YES | Background processing, rough timing OK |
+| **Ambient Sounds** | ❌ NO | ✅ YES | Non-gameplay, timing flexibility |
+| **Analytics/Telemetry** | ❌ NO | ✅ YES | Background data collection |
+
+### Rule of Thumb
+- **Affects save/replay?** → Use Fixed Timestep Accumulator
+- **Must be deterministic?** → Use Fixed Timestep Accumulator
+- **Background processing?** → Use Timer
+- **Can tolerate timing variance?** → Use Timer
+
 ## Consequences
 
 ### Positive
@@ -443,50 +577,57 @@ Actors accumulate energy each tick until they can act.
 ### Integration with Existing Systems
 
 1. **Dependency Injection and Lifecycle (ADR-018, ADR-021)**:
-   - GameLoop registered as SINGLETON in root DI container (per ADR-018)
-   - NOT scoped to scenes - runs independently of scene lifecycle
+   - GameLoop IS a Godot Node for core loop (uses _Process for timing)
+   - Registered as SINGLETON in root DI container (per ADR-018)
    - Lives in `Darklands.Core/Infrastructure` (per ADR-021)
    - Domain/Application layers depend on `IGameClock` abstraction
    ```csharp
    // In GameStrapper.cs (root DI setup)
    services.AddSingleton<GameLoop>();  // Singleton, not scoped!
    services.AddSingleton<IGameClock>(provider => provider.GetRequiredService<GameLoop>());
-   services.AddHostedService(provider => provider.GetRequiredService<GameLoop>());
 
-   // File location per ADR-021:
-   // Darklands.Core/Infrastructure/GameLoop/GameLoop.cs
+   // Non-core loops still use IHostedService
+   services.AddHostedService<AIDecisionLoop>();  // Background timer
+   services.AddHostedService<WorldSimulationLoop>();  // Background timer
+
+   // File locations per ADR-021:
+   // Darklands.Core/Infrastructure/GameLoop/GameLoop.cs (Godot Node)
+   // Darklands.Core/Infrastructure/GameLoop/AIDecisionLoop.cs (IHostedService)
    // Darklands.Core/Application/Common/IGameClock.cs
    ```
 
-2. **Scene Graph Independence (ADR-016)**:
-   - GameLoop is NOT a Godot Node
-   - Runs as background IHostedService
-   - No parent-child relationships with UI elements
-   - Completely separate from scene tree lifecycle
+2. **Hybrid Architecture**:
+   - **Core GameLoop**: Godot Node using fixed timestep accumulator
+   - **Non-Core Loops**: IHostedService using Timer
+   - Both registered in DI, different lifecycle patterns
 
-   **IHostedService Lifecycle Management**:
+   **Lifecycle Management**:
    ```csharp
-   // In GameStrapper.cs (called from Godot root node)
-   public partial class GameStrapper : Node
+   // GameLoop.cs - Core loop as Godot Node
+   public partial class GameLoop : Node, IGameClock
    {
-       private IHost? _host;
-
        public override void _Ready()
        {
-           // Build and start the .NET Host
-           _host = Host.CreateDefaultBuilder()
-               .ConfigureServices(ConfigureServices)
-               .Build();
-
-           // Start background services (including GameLoop)
-           _host.StartAsync();
+           // Initialize game clock
+           // Services injected via constructor
        }
 
-       public override void _ExitTree()
+       public override void _Process(double delta)
        {
-           // Gracefully stop all hosted services
-           _host?.StopAsync().Wait(TimeSpan.FromSeconds(5));
-           _host?.Dispose();
+           // Fixed timestep accumulator pattern
+           // Mathematically perfect timing
+       }
+   }
+
+   // AIDecisionLoop.cs - Non-core as IHostedService
+   public class AIDecisionLoop : IHostedService
+   {
+       public Task StartAsync(CancellationToken ct)
+       {
+           // Start timer for background processing
+           _timer = new Timer(ProcessAI, null,
+               TimeSpan.Zero, TimeSpan.FromMilliseconds(100));
+           return Task.CompletedTask;
        }
    }
    ```
