@@ -66,7 +66,9 @@ namespace Darklands.Core.Tests.Application.Grid.Commands
 
             // Use test stub that simulates successful scenario
             var gridStateService = new TestGridStateService(actorExists: true, validMove: true);
-            var handler = new MoveActorCommandHandler(gridStateService, new NullCategoryLogger());
+            // TODO Phase 4: Update test to include IActorStateService and IMediator mocks
+            // var handler = new MoveActorCommandHandler(gridStateService, actorStateService, mediator, new NullCategoryLogger());
+            var handler = new MoveActorCommandHandler(gridStateService, null!, null!, new NullCategoryLogger());
 
             // Act
             var result = await handler.Handle(command, CancellationToken.None);
@@ -85,7 +87,9 @@ namespace Darklands.Core.Tests.Application.Grid.Commands
 
             // Use test stub that simulates actor not found
             var gridStateService = new TestGridStateService(actorExists: false);
-            var handler = new MoveActorCommandHandler(gridStateService, new NullCategoryLogger());
+            // TODO Phase 4: Update test to include IActorStateService and IMediator mocks
+            // var handler = new MoveActorCommandHandler(gridStateService, actorStateService, mediator, new NullCategoryLogger());
+            var handler = new MoveActorCommandHandler(gridStateService, null!, null!, new NullCategoryLogger());
 
             // Act
             var result = await handler.Handle(command, CancellationToken.None);

@@ -671,6 +671,32 @@ public void FOV_CalculatedForAllActors_DisplayedForPlayerOnly()
 - Events follow pattern: Domain changes state → Application publishes events → Handlers react
 - MoveActorCommandHandler needs modification to call `Actor.StartMovement()` instead of instant teleport
 
+#### ✅ Phase 2 Complete (2025-09-19 20:15)
+**Tests**: 14/14 movement tests passing (21ms execution time)
+
+**What I Actually Did**:
+- Created 3 application event handlers: `MovementStartedHandler`, `ActorMovedHandler`, `MovementCompletedHandler`
+- Transformed `MoveActorCommandHandler` from instant teleportation to step-by-step movement initiation
+- Handlers coordinate infrastructure services: GridStateService, ActorStateService, FOV calculation
+- Used generic `UIEventForwarder` pattern for automatic MediatR → UIEventBus → Presenter bridging
+
+**Problems Encountered**:
+- LogCategory.Movement doesn't exist → Solution: Used LogCategory.Gameplay
+- Unit namespace ambiguity (LanguageExt vs MediatR) → Solution: Explicit LanguageExt.Unit
+- Test constructor changes → Solution: Temporary null! placeholders for Phase 4 test updates
+- CalculatePathQuery returns Fin<Seq<Position>>, not PathfindingResult → Solution: Updated handler logic
+
+**Technical Decisions Made**:
+- ActorMovedHandler coordinates all infrastructure updates (position, state, FOV)
+- MovementStartedHandler prepares for future game state transitions (TD_063)
+- MovementCompletedHandler signals scheduler for turn progression
+- Command handler uses pathfinding → domain movement → event publication flow
+
+**Lessons for Phase 3**:
+- GameLoop needs to call `actor.AdvanceMovement()` and publish `ActorMovedEvent`
+- FOV recalculation placeholder ready for actual implementation
+- Test mocks need proper IActorStateService and IMediator setup
+
 ---
 
 ### TD_066: Architectural Boundary Enforcement Tests
