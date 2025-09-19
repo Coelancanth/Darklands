@@ -204,6 +204,7 @@ if (!_stateManager.CanProcessInput) return;
 **Size**: M (4-5h)
 **Priority**: Critical - Fixes TD_061 architectural issues
 **Created**: 2025-09-19 03:33 (Tech Lead - from architectural review)
+**Updated**: 2025-09-19 (Dev Engineer - detailed implementation plan after analysis)
 **Markers**: [ARCHITECTURE] [DOMAIN] [MOVEMENT] [FOV]
 
 **What**: Implement step-by-step movement in domain layer with event-driven FOV updates
@@ -215,12 +216,22 @@ if (!_stateManager.CanProcessInput) return;
 - Presenters handle domain notifications (violates Clean Architecture)
 - 12+ hours spent on 4-hour problem due to wrong architecture
 
-**Technical Approach**:
+**Current Animation Analysis** (2025-09-19):
+✅ **Animation Already Works**: The discrete tile-by-tile animation with flash feedback is perfect
+- GridPresenter orchestrates: Calculates A* path → Sends MoveCommand → Calls ActorPresenter
+- ActorView animates correctly: Discrete jumps with OnTileArrival() flash effect (from TD_062)
+- MovementPresenter is dead code: Subscribes to ActorMovedEvent that's never published
+⚠️ **Problem**: Domain lies (instant teleport) while visual shows step-by-step truth
+
+**Detailed Implementation Plan**:
+
+### Phase 1: Domain Layer (2h)
+**Goal**: Make Actor track its own position and movement state (truth)
 ```csharp
-// DOMAIN - Actor moves step by step (truth)
-public class Actor {
-    public Position Position { get; private set; }
-    public Path? ActivePath { get; private set; }
+// NEW: Actor owns position and path
+public sealed record Actor {
+    public Position Position { get; private set; }  // Moved from GridStateService
+    public Path? ActivePath { get; private set; }   // Currently executing movement
 
     public void StartMovement(Path path) {
         ActivePath = path;
@@ -229,28 +240,85 @@ public class Actor {
 
     public void AdvanceMovement() {
         if (ActivePath == null) return;
-        Position = ActivePath.GetNext();
+        Position = ActivePath.GetNextStep();
         RaiseDomainEvent(new ActorMovedEvent(Id, Position));
         if (ActivePath.IsComplete) {
             ActivePath = null;
-            RaiseDomainEvent(new MovementCompletedEvent(Id));
+            RaiseDomainEvent(new MovementCompletedEvent(Id, Position));
         }
     }
 }
 ```
+**Files to modify**:
+- `src/Darklands.Domain/Actor/Actor.cs` - Add Position and movement methods
+- `src/Darklands.Domain/Movement/Path.cs` - Create path value object
+- `src/Darklands.Domain/Events/` - Movement domain events
 
-**Implementation Plan**:
-1. **Domain Layer** (2h): Actor with step-by-step movement
-2. **Application Layer** (1h): Event handlers for movement/FOV
-3. **Game Loop** (1h): Simple ticker to advance movement
-4. **Presentation** (30m): UIEventBus subscription (no handlers!)
+### Phase 2: Application Layer (1h)
+**Goal**: Handle domain events and update services
+```csharp
+// Event handler in Application layer (NOT presenter!)
+public class ActorMovedHandler : INotificationHandler<ActorMovedEvent> {
+    public Task Handle(ActorMovedEvent evt) {
+        // Update GridStateService with new position
+        _gridStateService.UpdateActorPosition(evt.ActorId, evt.Position);
+
+        // Calculate and update FOV for new position
+        var fov = _fovCalculator.Calculate(evt.Position);
+        _visionService.Update(evt.ActorId, fov);
+
+        // Publish UI event for presentation layer
+        _uiEventBus.Publish(new ActorPositionChangedUIEvent(evt.ActorId, evt.Position));
+        return Task.CompletedTask;
+    }
+}
+```
+**Files to modify**:
+- `src/Application/Grid/Handlers/ActorMovedHandler.cs` - NEW handler
+- `src/Application/Grid/Commands/MoveActorCommandHandler.cs` - Start movement instead of teleport
+- `src/Application/Grid/Services/IGridStateService.cs` - Add UpdateActorPosition method
+
+### Phase 3: Game Loop (1h)
+**Goal**: Simple timer to advance movement state
+```csharp
+public class GameLoop : IHostedService {
+    private Timer _timer;
+
+    private void OnTick(object? state) {
+        // Get all actors with active movement
+        var movingActors = _actorRepository.GetMovingActors();
+        foreach (var actor in movingActors) {
+            actor.AdvanceMovement();
+        }
+        // Domain events will fire naturally
+    }
+}
+```
+**Files to create**:
+- `src/Application/Common/GameLoop.cs` - Simple ticker service
+- Register in DI configuration
+
+### Phase 4: Presentation Cleanup (30m)
+**Goal**: Remove architectural violations, preserve working animation
+- **KEEP**: GridPresenter → ActorPresenter → ActorView animation flow (works perfectly!)
+- **KEEP**: Discrete tile-by-tile animation with flash feedback
+- **REMOVE**: MovementPresenter (dead code, never receives events)
+- **REMOVE**: ActorMovedEvent from Presentation layer (move to Domain)
+- **ENSURE**: Presenters subscribe via UIEventBus, NOT INotificationHandler
+
+**Animation Behavior**:
+⚠️ **NO CHANGES** to visual animation - stays exactly as is (discrete jumps with flash)
+- Only difference: Animation triggered by real domain state changes, not fake path
 
 **Done When**:
-- [ ] Domain actor moves step-by-step through path
-- [ ] FOV updates at each position change
-- [ ] No timer services or complex orchestration
-- [ ] Presenters subscribe to UI events only
-- [ ] Movement can be cancelled/redirected cleanly
+- [ ] Actor domain model tracks Position and ActivePath
+- [ ] Domain events fire as actor moves step-by-step
+- [ ] FOV updates at each intermediate position (not just destination)
+- [ ] GridStateService no longer owns actor positions
+- [ ] MovementPresenter removed (dead code)
+- [ ] Animation stays exactly the same (discrete tile-by-tile with flash)
+- [ ] No complex timer services
+- [ ] Tests verify step-by-step progression
 
 ---
 
