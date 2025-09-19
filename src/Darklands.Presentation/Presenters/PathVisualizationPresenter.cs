@@ -100,7 +100,7 @@ namespace Darklands.Presentation.Presenters
                     },
                     Fail: async error =>
                     {
-                        _logger.Log(LogLevel.Warning, LogCategory.Pathfinding, "No path found: {Error}", error.Message);
+                        _logger.Log(LogLevel.Debug, LogCategory.Pathfinding, "No path found: {Error}", error.Message);
                         await View.ShowNoPathFoundAsync(fromPosition, toPosition, error.Message);
                     }
                 );

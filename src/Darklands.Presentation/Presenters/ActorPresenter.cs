@@ -193,8 +193,6 @@ namespace Darklands.Presentation.Presenters
                 // Use the provided A* path if available
                 if (path != null && path.Count > 0)
                 {
-                    _logger.Log(LogLevel.Information, LogCategory.Gameplay,
-                        "[ActorPresenter] Using provided A* path with {Count} positions", path.Count);
 
                     // Use the new AnimateMovementAsync with the A* path
                     await View.AnimateMovementAsync(actorId, path, 3.0f);

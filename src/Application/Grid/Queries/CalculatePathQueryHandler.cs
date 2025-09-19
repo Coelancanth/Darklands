@@ -80,7 +80,7 @@ namespace Darklands.Application.Grid.Queries
                 },
                 None: () =>
                 {
-                    _logger.Log(LogLevel.Warning, LogCategory.Pathfinding, "No path found from {From} to {To}", from, to);
+                    _logger.Log(LogLevel.Debug, LogCategory.Pathfinding, "No path found from {From} to {To}", from, to);
                     return FinFail<Seq<Position>>(Error.New(404, $"No path found from {from} to {to}"));
                 }
             );

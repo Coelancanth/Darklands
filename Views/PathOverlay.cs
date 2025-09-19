@@ -80,11 +80,6 @@ namespace Darklands.Views
         public void SetPlayerPosition(Position position)
         {
             _currentPlayerPosition = position;
-            // Debug-only logging - remove in production
-            if (OS.IsDebugBuild())
-            {
-                GD.Print($"[DEBUG] PathOverlay: Player position set to {position}");
-            }
         }
 
         /// <summary>
@@ -319,11 +314,6 @@ namespace Darklands.Views
             CreatePositionMarker(startPosition, NO_PATH_COLOR, "START");
             CreatePositionMarker(endPosition, NO_PATH_COLOR, "BLOCKED");
 
-            // Log only in debug builds to avoid console spam
-            if (OS.IsDebugBuild())
-            {
-                GD.Print($"[DEBUG] No path: {startPosition} to {endPosition} - {reason}");
-            }
         }
 
         /// <summary>

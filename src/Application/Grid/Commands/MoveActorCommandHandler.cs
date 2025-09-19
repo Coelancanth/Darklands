@@ -60,7 +60,10 @@ namespace Darklands.Application.Grid.Commands
                 return Task.FromResult(FinFail<LanguageExt.Unit>(error));
             }
 
-            // Note: Visual actor movement logging handled by ActorView - no need for duplicate logging here
+            // Log successful movement
+            _logger.Log(LogLevel.Information, LogCategory.Gameplay,
+                "Move actor {ActorId} from {FromPosition} to {ToPosition}",
+                request.ActorId, currentPosition, request.ToPosition);
 
             return Task.FromResult(FinSucc(LanguageExt.Unit.Default));
         }
