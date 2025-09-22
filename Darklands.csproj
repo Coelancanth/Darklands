@@ -23,6 +23,9 @@
   
   <ItemGroup>
     <!-- Exclude tests folder from Godot compilation -->
+    <PackageReference Include="Godot.SourceGenerators" Version="4.5.0" />
+  <PackageReference Include="GodotSharp" Version="4.5.0" />
+  <PackageReference Include="GodotSharpEditor" Version="4.5.0" />
     <Compile Remove="tests\**" />
     <EmbeddedResource Remove="tests\**" />
     <None Remove="tests\**" />

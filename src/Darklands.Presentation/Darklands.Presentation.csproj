@@ -15,8 +15,8 @@
 
   <ItemGroup>
     <!-- MVP Pattern dependencies - NO Godot! -->
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.8" />
-    <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.8" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.9" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.9" />
     <PackageReference Include="LanguageExt.Core" Version="5.0.0-beta-54" />
     <PackageReference Include="MediatR" Version="13.0.0" />
   </ItemGroup>
