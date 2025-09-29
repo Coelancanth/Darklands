@@ -21,8 +21,8 @@
     <PackageReference Include="Serilog.Extensions.Logging" Version="8.0.0" />
 
     <!-- Dependency Injection -->
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.9" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.9" />
   </ItemGroup>
 
   <!-- CRITICAL: Husky.NET auto-installation -->
