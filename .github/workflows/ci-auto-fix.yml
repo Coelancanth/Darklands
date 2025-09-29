@@ -43,10 +43,10 @@ jobs:
     - name: 🔍 Verify code formatting
       run: |
         echo "🔍 Verifying local hooks did their job..."
-        
+
         # Check if code would be changed by formatting
-        dotnet format src/Darklands.Core.csproj --verify-no-changes --verbosity diagnostic
-        dotnet format tests/Darklands.Core.Tests.csproj --verify-no-changes --verbosity diagnostic
+        dotnet format src/Darklands.Core/Darklands.Core.csproj --verify-no-changes --verbosity diagnostic
+        dotnet format tests/Darklands.Core.Tests/Darklands.Core.Tests.csproj --verify-no-changes --verbosity diagnostic
         
         echo "✅ Code formatting is correct (local hooks worked!)"
         
@@ -75,9 +75,9 @@ jobs:
       
     - name: 🏗️ Build projects
       run: |
-        dotnet build src/Darklands.Core.csproj --configuration Release
-        dotnet build tests/Darklands.Core.Tests.csproj --configuration Release
-        
+        dotnet build src/Darklands.Core/Darklands.Core.csproj --configuration Release
+        dotnet build tests/Darklands.Core.Tests/Darklands.Core.Tests.csproj --configuration Release
+
         # Godot project (optional - may need Godot runtime)
         dotnet build Darklands.csproj --configuration Release || {
           echo "ℹ️ Godot project build skipped (requires Godot runtime)"
@@ -85,7 +85,7 @@ jobs:
         
     - name: 🧪 Run tests
       run: |
-        dotnet test tests/Darklands.Core.Tests.csproj \
+        dotnet test tests/Darklands.Core.Tests/Darklands.Core.Tests.csproj \
           --configuration Release \
           --logger "console;verbosity=normal" \
           --collect:"XPlat Code Coverage" \
