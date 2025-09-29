@@ -23,6 +23,13 @@
   
   <ItemGroup>
     <!-- Exclude tests folder from Godot compilation -->
+    <PackageReference Include="Godot.SourceGenerators" Version="4.5.0" />
+  <PackageReference Include="GodotSharp" Version="4.5.0" />
+  <PackageReference Include="GodotSharpEditor" Version="4.5.0" />
+  <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.9" />
+  <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.9" />
+  <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.9" />
+  <PackageReference Include="System.Reactive" Version="6.0.2" />
     <Compile Remove="tests\**" />
     <EmbeddedResource Remove="tests\**" />
     <None Remove="tests\**" />
