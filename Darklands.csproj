@@ -8,7 +8,7 @@
   </PropertyGroup>
   
   <ItemGroup>
-    <ProjectReference Include="src\Darklands.Core.csproj" />
+    <ProjectReference Include="src\Darklands.Core\Darklands.Core.csproj" />
   </ItemGroup>
   
   <ItemGroup>

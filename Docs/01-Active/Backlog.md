@@ -9,9 +9,9 @@
 ## 🔢 Next Item Numbers by Type
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
-- **Next BR**: 002
-- **Next TD**: 020  
-- **Next VS**: 011 
+- **Next BR**: 001
+- **Next TD**: 001
+- **Next VS**: 002 
 
 
 **Protocol**: Check your type's counter → Use that number → Increment the counter → Update timestamp
@@ -68,129 +68,129 @@
 ## 🔥 Critical (Do First)
 *Blockers preventing other work, production bugs, dependencies for other features*
 
+### VS_01: Architectural Skeleton - Walking Skeleton Implementation [ARCHITECTURE] [Score: 30/100]
+**Status**: Proposed
+**Owner**: Product Owner → Tech Lead (breakdown)
+**Size**: M (6-8h)
+**Priority**: Critical (Foundation for all other work)
+**Markers**: [ARCHITECTURE] [FRESH-START] [WALKING-SKELETON]
+**Created**: 2025-09-30
 
+**What**: Implement minimal walking skeleton following new ADR-001, ADR-002, ADR-003 architecture
+**Why**: Fresh start with clean architecture - need proven foundation before building features
 
-### TD_018: Integration Tests for C# Event Infrastructure [TESTING] [Score: 65/100]
-**Status**: Approved ✅
-**Owner**: Test Specialist
-**Size**: M (4-6h)
-**Priority**: Important (Prevent DI/MediatR integration failures)
-**Markers**: [TESTING] [INTEGRATION] [MEDIATR] [EVENT-BUS]
-**Created**: 2025-09-08 16:40
-**Approved**: 2025-09-08 20:15
+**Context**:
+- Deleted ALL existing source code for fresh start
+- Created 3 new ADRs defining clean architecture
+- Need to prove architecture works end-to-end with simplest possible feature
+- Follow "Walking Skeleton" pattern: thinnest possible slice through all layers
 
-**What**: Integration tests for MediatR→UIEventBus pipeline WITHOUT Godot runtime
-**Why**: TD_017 post-mortem revealed 5 cascade failures that pure C# integration tests could catch
+**Scope** (Minimal Health System):
+1. **Domain Layer** (Pure C#):
+   - Health value object with Create/Reduce/Increase
+   - IHealthComponent interface
+   - HealthComponent implementation
 
-**Problem Statement**:
-- TD_017 incident had 5 failures, 3 were pure C# infrastructure issues
-- Current unit tests with mocks don't catch DI lifecycle problems
-- MediatR auto-discovery conflicts not covered by tests
-- WeakReference cleanup behavior untested
-- Thread safety of event bus never validated
+2. **Application Layer** (CQRS):
+   - TakeDamageCommand + Handler
+   - HealthChangedEvent
+   - Simple in-memory component registry
 
-**Integration Test Definition** (for this codebase):
-> Tests that verify REAL interaction between C# components (MediatR, UIEventBus, UIEventForwarder, DI container) WITHOUT mocking these infrastructure pieces, but WITHOUT requiring Godot runtime.
+3. **Infrastructure Layer**:
+   - GameStrapper (DI container setup)
+   - GodotEventBus implementation
+   - EventAwareNode base class
+   - ServiceLocatorBridge
+   - SelectMany extensions for CSharpFunctionalExtensions
 
-**Scope** (C# Infrastructure Only):
-1. **MediatR Pipeline Tests**
-   - Real MediatR → UIEventForwarder → UIEventBus flow
-   - Handler auto-discovery validation
-   - No duplicate handler registration
-   
-2. **DI Container Tests**
-   - Service lifetime verification (singleton vs transient)
-   - Registration conflict detection
-   - Container initialization order
-   
-3. **UIEventBus Infrastructure**
-   - WeakReference cleanup with mock subscribers (not Godot nodes)
-   - Concurrent event publishing thread safety
-   - Multiple subscriber scenarios
-   
-4. **NOT Testing** (Requires GDUnit/Manual):
-   - Actual Godot node lifecycle
-   - CallDeferred thread marshalling  
-   - UI presenter updates
-   - Scene tree integration
+4. **Presentation Layer** (Godot):
+   - Simple test scene with one actor
+   - HealthComponentNode (shows health bar)
+   - Button to damage actor
+   - Verify: Click button → Health bar updates
+
+5. **Tests**:
+   - Health value object tests
+   - TakeDamageCommandHandler tests
+   - EventBus subscription tests
+
+**NOT in Scope** (defer to later):
+- Grid system
+- Movement
+- Combat mechanics
+- Multiple actors
+- AI
+- Turn system
+- Complex UI
+
+**How** (Implementation Order):
+1. **Phase 1: Domain** (~2h)
+   - Create Health value object with tests
+   - Create IHealthComponent + HealthComponent
+   - Tests: Health.Create, Reduce, validation
+
+2. **Phase 2: Application** (~2h)
+   - TakeDamageCommand + Handler
+   - HealthChangedEvent
+   - ComponentRegistry service
+   - Tests: Handler logic with mocked registry
+
+3. **Phase 3: Infrastructure** (~2h)
+   - GameStrapper with DI setup
+   - GodotEventBus + UIEventForwarder
+   - EventAwareNode base class
+   - SelectMany extensions
+
+4. **Phase 4: Presentation** (~2h)
+   - Simple scene (1 sprite + health bar + damage button)
+   - HealthComponentNode
+   - Wire everything together
+   - Manual test: Click button → health bar updates
 
 **Done When**:
-- Integration test suite covers C# event infrastructure
-- Tests use real DI container and MediatR pipeline (no mocks)
-- Concurrent publishing scenarios validated
-- WeakReference memory management verified
-- All tests run in CI without Godot dependency
-- Would have caught 3/5 issues from TD_017 incident
+- ✅ Build succeeds (dotnet build)
+- ✅ Core tests pass (dotnet test)
+- ✅ Godot project loads without errors
+- ✅ Can click "Damage" button and health bar updates
+- ✅ No Godot references in Darklands.Core project
+- ✅ GodotEventBus routes events correctly
+- ✅ CSharpFunctionalExtensions Result<T> works end-to-end
+- ✅ All 3 ADRs validated with working code
+- ✅ Code committed with message: "feat: architectural skeleton [VS_011]"
 
-**Depends On**: None (TD_017 already complete)
+**Depends On**: None (fresh start)
 
-**Tech Lead Decision** (2025-09-08 20:15):
-- **APPROVED WITH FOCUSED SCOPE** - Pure C# integration tests only
-- 80% value for 20% complexity (no Godot runtime needed)
-- Catches critical DI/MediatR issues that caused TD_017 incident
-- Defer Godot UI testing to future GDUnit initiative
-- Test Specialist should implement immediately after current work
+**Product Owner Notes** (2025-09-30):
+- This is the FOUNDATION - everything else builds on this
+- Keep it MINIMAL - resist adding features
+- Validate architecture first, optimize later
+- Success = simple but complete end-to-end flow
+
+**Acceptance Test Script**:
+```
+1. Run: dotnet build src/Darklands.Core/Darklands.Core.csproj
+   Expected: Build succeeds, no warnings
+
+2. Run: dotnet test tests/Darklands.Core.Tests/Darklands.Core.Tests.csproj
+   Expected: All tests pass
+
+3. Open Godot project
+   Expected: No errors in console
+
+4. Run test scene
+   Expected: See sprite with health bar above it
+
+5. Click "Damage" button
+   Expected: Health bar decreases, animation plays
+
+6. Click repeatedly until health reaches 0
+   Expected: Sprite disappears or "Dead" appears
+```
 
 ---
 
 
-### TD_013: Extract Test Data from Production Presenters [SEPARATION] [Score: 40/100]
-**Status**: Approved ✅
-**Owner**: Dev Engineer
-**Size**: S (2-3h)
-**Priority**: Critical (Test code in production)
-**Markers**: [SEPARATION-OF-CONCERNS] [SIMPLIFICATION]
-**Created**: 2025-09-08 14:42
-**Revised**: 2025-09-08 20:35
 
-**What**: Extract test actor creation to simple IActorFactory
-**Why**: ActorPresenter contains 90+ lines of hardcoded test setup, violating SRP
-
-**Problem Statement**:
-- ActorPresenter.InitializeTestPlayer() creates hardcoded test actors
-- Static TestPlayerId field exposes test state globally
-- Presenter directly creating domain objects violates Clean Architecture
-- 90+ lines of test initialization code in production presenter
-
-**How** (SIMPLIFIED APPROACH):
-- Create simple IActorFactory interface with CreatePlayer/CreateDummy methods
-- Factory internally uses existing MediatR commands (follow SpawnDummyCommand pattern)
-- Each scene handles its own initialization in _Ready()
-- Remove ALL test code from ActorPresenter
-- NO TestScenarioService needed (over-engineering)
-
-**Implementation**:
-```csharp
-// Simple factory interface
-public interface IActorFactory
-{
-    Task<Fin<ActorId>> CreatePlayerAsync(Position position, string name = "Player");
-    Task<Fin<ActorId>> CreateDummyAsync(Position position, int health = 50);
-}
-
-// Scene decides what it needs
-public override void _Ready() 
-{
-    await _actorFactory.CreatePlayerAsync(new Position(0, 0));
-    await _actorFactory.CreateDummyAsync(new Position(5, 5));
-}
-```
-
-**Done When**:
-- No test initialization code in presenters
-- IActorFactory handles all actor creation via commands
-- Each scene initializes its own actors
-- Static TestPlayerId completely removed
-- Clean separation achieved with minimal complexity
-
-**Depends On**: None
-
-**Tech Lead Decision** (2025-09-08 20:35):
-- **REVISED TO SIMPLER APPROACH** - TestScenarioService is over-engineering
-- Simple IActorFactory + scene-driven init is sufficient
-- Follows YAGNI principle - don't build what we don't need
-- Reduces complexity from 85/100 to 40/100
-- Same result, half the code, easier to maintain
 
 ---
 
@@ -198,135 +198,6 @@ public override void _Ready()
 *Core features for current milestone, technical debt affecting velocity*
 
 
-### TD_015: Reduce Logging Verbosity and Remove Emojis [PRODUCTION] [Score: 60/100]
-**Status**: Approved ✅
-**Owner**: Dev Engineer
-**Size**: S (2h)
-**Priority**: Important (Production readiness)
-**Markers**: [LOGGING] [PRODUCTION]
-**Created**: 2025-09-08 14:42
-
-**What**: Clean up excessive logging and remove emoji decorations
-**Why**: Info-level logs too verbose, emojis inappropriate for production
-
-**Problem Statement**:
-- Info logs contain step-by-step execution details
-- Emojis in production logs (💗 ✅ 💀 ⚔️)
-- Makes log analysis and parsing difficult
-- Log files grow too quickly
-
-**How**:
-- Move verbose logs from Information to Debug level
-- Remove all emoji characters from log messages
-- Keep Information logs for significant events only
-- Add structured logging properties instead of string interpolation
-
-**Done When**:
-- No emojis in any log messages
-- Information logs only for important events
-- Debug logs contain detailed execution flow
-- Log output reduced by >50% at Info level
-
-**Depends On**: None
-
-**Tech Lead Decision** (2025-09-08 14:45):
-- **APPROVED** - Clean logging essential for production
-- Emojis inappropriate for professional logs
-- Simple log level adjustments, no architectural changes
-- Low-risk, high-value cleanup work
-- Route to Dev Engineer (can be done anytime)
-
----
-
-## 🗄️ Backup (Complex Features for Later)
-*Advanced mechanics postponed until core loop is proven fun*
-
-### TD_007: Presenter Wiring Verification Protocol [ARCHITECTURE] [Score: 70/100]
-**Status**: Proposed ← MOVED TO BACKUP 2025-09-07 15:57 (Product Owner priority decision)
-**Owner**: Tech Lead (Architecture decision needed)
-**Size**: M (4-6h including tests and documentation)
-**Priority**: Deferred (Focus on combat mechanics first)
-**Markers**: [ARCHITECTURE] [TESTING] [POST-MORTEM-ACTION]
-**Created**: 2025-09-07 13:36
-
-**What**: Establish mandatory wiring verification protocol for all presenter connections
-**Why**: TD_005 post-mortem revealed 2-hour debug caused by missing GridPresenter→ActorPresenter wiring
-
-**Problem Statement** (from Post-Mortem lines 58-64):
-- GridPresenter wasn't calling ActorPresenter.HandleActorMovedAsync()
-- Silent failure - no compile error, no runtime error, just missing behavior
-- Manual wiring in GameManager is error-prone and untested
-
-**Proposed Solution**:
-1. **Mandatory Wiring Tests**: Every presenter pair MUST have wiring verification tests
-2. **Compile-Time Safety**: Consider IPresenterCoordinator interface for type-safe wiring
-3. **Runtime Verification**: Add VerifyWiring() method called in GameManager._Ready()
-4. **Test Pattern**: Create WiringAssert helper for consistent wiring test assertions
-
-**Implementation Tasks**:
-- [ ] Create presenter wiring test suite (PresenterCoordinationTests.cs)
-- [ ] Add IPresenterCoordinator interface for type-safe wiring
-- [ ] Implement VerifyWiring() runtime check in GameManager
-- [ ] Document wiring test pattern in testing guidelines
-- [ ] Add wiring tests to CI pipeline gate
-
-**Done When**:
-- All existing presenter pairs have wiring tests
-- Runtime verification catches missing wiring on startup
-- CI fails if wiring tests are missing for new presenters
-- Documentation explains the wiring test pattern
-
-**Depends On**: None (can start immediately)
-
-**Tech Lead Analysis** (2025-09-07):
-- **Complexity Score**: 4/10 (Well-understood problem with clear solution)
-- **Pattern Match**: Similar to DI container validation pattern
-- **Risk**: None - purely additive safety measures
-- **ROI**: HIGH - Prevents hours of debugging for minutes of test writing
-- **Decision**: APPROVED for immediate implementation
-
-**Product Owner Decision** (2025-09-07 15:57):
-- **DEFERRED TO BACKUP** - Combat mechanics take priority
-- Important infrastructure but not blocking core game loop
-- Revisit after VS_002 and VS_010a/b/c are complete
-
- **Decision**: APPROVED for immediate implementation
-
----
-
----
-
-### TD_016: Split Large Service Interfaces (ISP) [ARCHITECTURE] [Score: 50/100]
-**Status**: Deferred 🟪
-**Owner**: Tech Lead (for future review)
-**Size**: M (4-6h)
-**Priority**: Backup (Not urgent)
-**Markers**: [ARCHITECTURE] [SOLID]
-**Created**: 2025-09-08 14:42
-
-**What**: Split IGridStateService and IActorStateService into query/command interfaces
-**Why**: Large interfaces violate Interface Segregation Principle
-
-**How**:
-- Split IGridStateService → IGridQueryService + IGridCommandService
-- Split IActorStateService → IActorQueryService + IActorCommandService
-- Update all consumers to use appropriate interface
-- Maintain backward compatibility with composite interface
-
-**Done When**:
-- Separate query and command interfaces
-- Each interface has single responsibility
-- No breaking changes to existing code
-- Clear separation of read/write operations
-
-**Depends On**: None
-
-**Tech Lead Decision** (2025-09-08 14:45):
-- **DEFERRED TO BACKUP** - Valid but not urgent
-- Score understated (actually 70/100 due to breaking change risk)
-- Not blocking current work, risk outweighs benefit now
-- When implemented: use composite interfaces for backward compatibility
-- Revisit after critical items complete
 
 ---
 
@@ -350,82 +221,7 @@ public override void _Ready()
 
 ---
 
-## 📦 Archive (Completed Items)
-*Recently completed work for reference and knowledge transfer*
 
-### TD_017: Implement UI Event Bus Architecture [ARCHITECTURE] [Score: 65/100] ✅
-**Status**: Done
-**Owner**: Dev Engineer
-**Size**: L (2-3 days)
-**Priority**: Critical (Foundation for 200+ future events)
-**Markers**: [ARCHITECTURE] [ADR-010] [EVENT-BUS] [MEDIATR]
-**Created**: 2025-09-08 16:40
-**Completed**: 2025-09-08 19:38
-
-**What**: Implement UI Event Bus pattern to replace static event router
-**Why**: Current static approach won't scale to 200+ events and violates SOLID
-
-**✅ IMPLEMENTATION COMPLETED** (All 4 Phases + 5 Critical Issues Fixed):
-
-**Phase 1-4: Core Architecture** ✅
-- Created complete UI Event Bus architecture with IUIEventBus interface
-- Implemented UIEventForwarder<T> for automatic MediatR event forwarding
-- Built WeakReference-based subscription system preventing memory leaks
-- Integrated EventAwareNode base class for Godot lifecycle management
-
-**Critical Issues Resolved**:
-1. **MediatR Auto-Discovery Conflict** - Removed old GameManagerEventRouter entirely
-2. **Missing Base Class Calls** - Fixed base._Ready() and base._ExitTree() calls
-3. **Race Condition** - Restructured initialization order (DI first, then EventBus)
-4. **CallDeferred Misuse** - Simplified to direct invocation (already on main thread)
-5. **Duplicate Registration** - Removed manual UIEventForwarder registration
-
-**Final Architecture**:
-```
-Domain Event → MediatR → UIEventForwarder<T> → UIEventBus → GameManager → UI Update
-```
-
-**Results**:
-- ✅ Health bars update correctly when actors take damage
-- ✅ Dead actors removed from UI immediately
-- ✅ No more static router errors
-- ✅ All 232 tests passing with zero warnings
-- ✅ Modern event-driven architecture fully operational
-
-**Post-Mortem**: [TD_017 Implementation Issues](../../06-PostMortems/Inbox/2025-09-08-td017-ui-event-bus-implementation.md)
-
-**References**: [ADR-010](../03-Reference/ADR/ADR-010-ui-event-bus-architecture.md)
-
-### TD_019: Fix embody script squash merge handling with hard reset strategy ✅
-**Status**: Done
-**Owner**: DevOps Engineer  
-**Size**: M (4-6h)
-**Priority**: Important (Developer friction)
-**Markers**: [DEVOPS] [AUTOMATION] [GIT]
-**Created**: 2025-09-08 17:00
-**Completed**: 2025-09-08 17:31
-
-**What**: Fix embody.ps1 script's squash merge handling with simplified reset strategy
-**Why**: Script fails when PRs are squash merged, causing sync failures and manual intervention
-
-**✅ IMPLEMENTATION COMPLETED**:
-1. **Hard Reset Strategy**: Modified Handle-MergedPR() in sync-core.psm1 to use `git reset --hard origin/main` instead of problematic `git pull origin main --ff-only`
-2. **Enhanced Pre-push**: Added dotnet format verification/auto-fix to pre-push hook to prevent verify-local-fixes CI failures
-3. **Safety Preserved**: Maintains existing stash/restore logic for uncommitted changes
-4. **Zero Friction Achieved**: Eliminates manual `git reset --hard origin/main` interventions
-
-**Impact Delivered**:
-- ✅ Squash merge handling works without sync failures
-- ✅ Persona switching flows smoothly after PR merges  
-- ✅ Enhanced format verification prevents CI failures
-- ✅ Saves ~5-10 minutes per PR merge per developer
-- ✅ branch-status-check.ps1 remains functional for awareness
-
-**DevOps Engineer Decision** (2025-09-08 17:31):
-- **COMPLETED** with elegant hard reset solution
-- Both Handle-MergedPR() fix and pre-push format verification deployed
-- Zero-friction automation philosophy maintained
-- All tests pass, ready for production use
 
 ---
 *Single Source of Truth for all Darklands development work. Simple, maintainable, actually used.*
