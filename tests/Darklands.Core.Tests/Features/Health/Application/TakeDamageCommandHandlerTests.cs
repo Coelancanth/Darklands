@@ -34,6 +34,17 @@ public class TakeDamageCommandHandlerTests
             _mockLogger);
     }
 
+    // Helper method to mock WithComponentLock to execute the operation on a real component
+    private void SetupMockRegistryWithComponent(ActorId actorId, IHealthComponent component)
+    {
+        _mockRegistry.WithComponentLock(actorId, Arg.Any<Func<IHealthComponent, Result<DamageResult>>>())
+            .Returns(callInfo =>
+            {
+                var operation = callInfo.Arg<Func<IHealthComponent, Result<DamageResult>>>();
+                return operation(component);
+            });
+    }
+
     #region Constructor Tests
 
     [Fact]
@@ -92,7 +103,7 @@ public class TakeDamageCommandHandlerTests
         var health = HealthValue.Create(100, 100).Value;
         var component = new HealthComponent(actorId, health);
 
-        _mockRegistry.GetComponent(actorId).Returns(Maybe<IHealthComponent>.From(component));
+        SetupMockRegistryWithComponent(actorId, component);
 
         var command = new TakeDamageCommand(actorId, 30);
 
@@ -122,7 +133,7 @@ public class TakeDamageCommandHandlerTests
         var health = HealthValue.Create(30, 100).Value;
         var component = new HealthComponent(actorId, health);
 
-        _mockRegistry.GetComponent(actorId).Returns(Maybe<IHealthComponent>.From(component));
+        SetupMockRegistryWithComponent(actorId, component);
 
         var command = new TakeDamageCommand(actorId, 50);
 
@@ -146,7 +157,7 @@ public class TakeDamageCommandHandlerTests
         var health = HealthValue.Create(100, 100).Value;
         var component = new HealthComponent(actorId, health);
 
-        _mockRegistry.GetComponent(actorId).Returns(Maybe<IHealthComponent>.From(component));
+        SetupMockRegistryWithComponent(actorId, component);
 
         var command = new TakeDamageCommand(actorId, 80); // 100 -> 20 = 20%
 
@@ -170,7 +181,7 @@ public class TakeDamageCommandHandlerTests
         var health = HealthValue.Create(50, 100).Value;
         var component = new HealthComponent(actorId, health);
 
-        _mockRegistry.GetComponent(actorId).Returns(Maybe<IHealthComponent>.From(component));
+        SetupMockRegistryWithComponent(actorId, component);
 
         var command = new TakeDamageCommand(actorId, 20);
 
@@ -199,7 +210,8 @@ public class TakeDamageCommandHandlerTests
 
         // Arrange
         var actorId = ActorId.NewId();
-        _mockRegistry.GetComponent(actorId).Returns(Maybe<IHealthComponent>.None);
+        _mockRegistry.WithComponentLock(actorId, Arg.Any<Func<IHealthComponent, Result<DamageResult>>>())
+            .Returns(Result.Failure<DamageResult>($"Actor {actorId} not found"));
 
         var command = new TakeDamageCommand(actorId, 10);
 
@@ -221,7 +233,7 @@ public class TakeDamageCommandHandlerTests
         var health = HealthValue.Create(50, 100).Value;
         var component = new HealthComponent(actorId, health);
 
-        _mockRegistry.GetComponent(actorId).Returns(Maybe<IHealthComponent>.From(component));
+        SetupMockRegistryWithComponent(actorId, component);
 
         var command = new TakeDamageCommand(actorId, -10);
 
@@ -246,7 +258,7 @@ public class TakeDamageCommandHandlerTests
         var health = HealthValue.Create(50, 100).Value;
         var component = new HealthComponent(actorId, health);
 
-        _mockRegistry.GetComponent(actorId).Returns(Maybe<IHealthComponent>.From(component));
+        SetupMockRegistryWithComponent(actorId, component);
 
         var command = new TakeDamageCommand(actorId, -10); // Invalid damage
 
@@ -273,7 +285,7 @@ public class TakeDamageCommandHandlerTests
         var health = HealthValue.Create(100, 100).Value;
         var component = new HealthComponent(actorId, health);
 
-        _mockRegistry.GetComponent(actorId).Returns(Maybe<IHealthComponent>.From(component));
+        SetupMockRegistryWithComponent(actorId, component);
 
         // Act
         var result1 = await _handler.Handle(new TakeDamageCommand(actorId, 25), CancellationToken.None);
@@ -309,7 +321,7 @@ public class TakeDamageCommandHandlerTests
         var health = HealthValue.Create(50, 100).Value;
         var component = new HealthComponent(actorId, health);
 
-        _mockRegistry.GetComponent(actorId).Returns(Maybe<IHealthComponent>.From(component));
+        SetupMockRegistryWithComponent(actorId, component);
 
         var command = new TakeDamageCommand(actorId, 10);
 
