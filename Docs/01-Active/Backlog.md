@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-30 14:13 (VS_002 archived - DI Foundation validated)
+**Last Updated**: 2025-09-30 15:38 (VS_003 approved with category-based design - Tech Lead decision)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -68,111 +68,6 @@
 ## 🔥 Critical (Do First)
 *Blockers preventing other work, production bugs, dependencies for other features*
 
-
-### VS_003: Infrastructure - Logging System with Runtime Configuration [ARCHITECTURE]
-**Status**: Proposed
-**Owner**: Product Owner → Tech Lead (breakdown)
-**Size**: M (6-8h)
-**Priority**: Critical (Prerequisite for debugging all other features)
-**Markers**: [ARCHITECTURE] [INFRASTRUCTURE] [DEVELOPER-EXPERIENCE]
-**Created**: 2025-09-30
-
-**What**: Production-grade logging system with Microsoft.Extensions.Logging supporting multiple sinks and runtime configuration
-**Why**: Need comprehensive logging for development, debugging, and monitoring - must work in both Core C# and Godot contexts
-
-**Architecture Decision**:
-- ❌ NOT Godot Autoload (would violate ADR-001 Clean Architecture)
-- ✅ **Microsoft.Extensions.Logging abstractions in Core** (portable, industry standard)
-- ✅ **Serilog as provider in Presentation** (implementations live in Godot project)
-- ✅ Core uses `ILogger<T>` from MS.Extensions.Logging.Abstractions (zero concrete dependencies)
-- ✅ Presentation provides Serilog with multiple sinks (Console, Godot RichText, File)
-- ✅ Runtime dynamic configuration (change levels/sinks without restart)
-
-**Scope**:
-1. **Core Layer (Abstractions Only)**:
-   - Uses `ILogger<T>` from Microsoft.Extensions.Logging.Abstractions
-   - No concrete logging implementations (enforced by .csproj)
-
-2. **Infrastructure Layer (Serilog Implementation)**:
-   - GameStrapper configures Serilog as MS.Extensions.Logging provider
-   - Serilog sinks: Console, File, GodotRichText (custom)
-   - ILoggingService interface for runtime sink management
-   - LoggingService implementation with LoggingLevelSwitch
-   - Runtime sink enable/disable/toggle
-   - Runtime log level changes (Trace → Debug → Info → Warn → Error)
-
-3. **Presentation Layer (Godot Project)**:
-   - Custom Serilog sink: GodotRichTextSink (BBCode formatting)
-   - DebugConsoleNode (RichTextLabel for in-game log display)
-   - LogSettingsPanel (UI for runtime toggles)
-   - Serilog packages live in Darklands.csproj (not Core!)
-
-4. **Tests**:
-   - Core code uses ILogger<T> from abstractions only
-   - Verify: Core.csproj has NO Serilog packages (only MS.Extensions.Logging.Abstractions)
-   - Serilog can write to multiple sinks simultaneously
-   - Can enable/disable sinks at runtime
-   - Can change log level at runtime
-
-**Rich Format Support**:
-```
-[color=red][b]ERROR[/b][/color] [10:45:12] ActorService: Actor 123 not found
-[color=yellow]WARN[/color] [10:45:13] CombatHandler: Low health warning
-[color=cyan]INFO[/color] [10:45:14] GameStrapper: Services initialized
-[color=gray]DEBUG[/color] [10:45:15] EventBus: Subscribed to HealthChangedEvent
-[color=#666]TRACE[/color] [10:45:16] Handler: Entering ExecuteAttack method
-```
-
-**How** (Implementation Order):
-1. **Phase 1: Core** (~0.5h)
-   - Verify Core.csproj uses ONLY Microsoft.Extensions.Logging.Abstractions
-   - NO Serilog packages in Core!
-   - Define ILoggingService interface (optional - for runtime config)
-
-2. **Phase 2: Infrastructure - GameStrapper** (~1.5h)
-   - Configure Serilog as MS.Extensions.Logging provider
-   - Add Serilog sinks: Console, File
-   - Register ILogger<T> with DI via `services.AddLogging(builder => builder.AddSerilog())`
-   - Add LoggingLevelSwitch for runtime level changes
-   - Test: Core handler uses ILogger<T> and logs appear
-
-3. **Phase 3: Infrastructure - Custom Godot Sink** (~2h)
-   - Create GodotRichTextSink : ILogEventSink (Serilog custom sink)
-   - BBCode formatting for rich colors
-   - CallDeferred for thread-safe UI updates
-   - Register in GameStrapper: `.WriteTo.GodotRichText()`
-   - LoggingService for runtime sink enable/disable
-
-4. **Phase 4: Presentation - UI** (~2h)
-   - DebugConsoleNode (RichTextLabel scene for logs)
-   - LogSettingsPanel (dropdowns: log level, checkboxes: sinks)
-   - Wire to LoggingService for runtime config
-   - Manual test: Toggle sinks, change levels at runtime
-
-**Done When**:
-- ✅ Core code can use ILogger<T> via constructor injection
-- ✅ Logs appear in System.Console with colors
-- ✅ Logs appear in Godot in-game console with rich BBCode formatting
-- ✅ Logs persist to file
-- ✅ Can toggle each sink on/off at runtime (immediate effect)
-- ✅ Can change log level at runtime (Trace/Debug/Info/Warn/Error)
-- ✅ Tests verify Core has no Godot dependencies
-- ✅ In-game debug window shows logs beautifully formatted
-- ✅ Code committed with message: "feat: logging system with runtime config [VS_003]"
-
-**Depends On**: VS_002 (needs DI to inject ILogger)
-
-**Tech Lead Notes**:
-- **CRITICAL**: Core uses `ILogger<T>` from Microsoft.Extensions.Logging.**Abstractions** ONLY
-- **CRITICAL**: All Serilog packages go in Darklands.csproj (Godot project), NOT Core!
-- Pattern: Core → Abstraction, Infrastructure/Presentation → Implementation
-- Serilog acts as provider: `services.AddLogging(builder => builder.AddSerilog(Log.Logger))`
-- Custom sink: GodotRichTextSink : ILogEventSink (Serilog interface)
-- GodotRichTextSink must use CallDeferred for thread-safe UI updates
-- LogSettingsPanel should be accessible via F12 or debug menu
-- Reference: Same pattern as ASP.NET Core uses Serilog
-
----
 
 ### VS_004: Infrastructure - Event Bus System [ARCHITECTURE]
 **Status**: Proposed

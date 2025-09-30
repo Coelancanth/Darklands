@@ -28,5 +28,8 @@
     <!-- Test Utilities -->
     <PackageReference Include="FluentAssertions" Version="8.6.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+
+    <!-- Logging for testing logging configuration -->
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.0" />
   </ItemGroup>
 </Project>

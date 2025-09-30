@@ -245,6 +245,34 @@ public class ExecuteAttackCommandHandler
 - Darklands.csproj: Serilog packages + MS.Extensions.Logging
 - GameStrapper configures Serilog as logging provider
 
+### Test Documentation Standards
+
+**Comment test INTENT (WHY), not implementation (WHAT):**
+
+**✅ DO Comment:**
+- **Business Rules**: `// WHY: Zero-damage attacks are valid (status effects without damage)`
+- **Bug Regressions**: `// REGRESSION BR_042: Sequential attacks didn't stack damage`
+- **Edge Cases**: `// EDGE CASE: Godot float precision causes near-zero health`
+- **Architecture Constraints**: `// ARCHITECTURE: Core must have zero Godot dependencies`
+- **Performance Requirements**: `// PERFORMANCE: Must complete in <100ms for smooth gameplay`
+
+**❌ DON'T Comment:**
+- Obvious behavior (test name explains all)
+- AAA labels (visual separation via blank lines sufficient)
+- Restating what code already shows
+
+**Test Naming Convention:**
+```
+MethodName_Scenario_ExpectedBehavior
+
+Examples:
+- Handle_ValidAttack_ShouldReduceTargetHealth
+- Handle_AttackWithNegativeDamage_ShouldReturnFailure
+- Handle_ConcurrentAttacks_ShouldNeverResultInNegativeHealth
+```
+
+**Decision Rule**: Will a developer 6 months from now understand WHY this test exists? If no → add comment.
+
 ## 🔄 MANDATORY: Phased Implementation Protocol
 
 **YOU MUST implement all features in strict phases:**
