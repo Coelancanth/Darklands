@@ -12,8 +12,8 @@ $ErrorActionPreference = "Stop"
 
 # PROJECT CONFIGURATION - DARKLANDS
 $ProjectName = "Darklands"
-$CoreProject = "src/Darklands.Core.csproj"
-$TestProject = "tests/Darklands.Core.Tests.csproj"
+$CoreProject = "src/Darklands.Core/Darklands.Core.csproj"
+$TestProject = "tests/Darklands.Core.Tests/Darklands.Core.Tests.csproj"
 $GodotProject = "Darklands.csproj"
 $BuildCommand = "dotnet build"
 $TestCommand = "dotnet test"
