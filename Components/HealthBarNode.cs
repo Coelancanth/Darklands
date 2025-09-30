@@ -60,6 +60,17 @@ public partial class HealthBarNode : EventAwareNode
         // CRITICAL: Call base._Ready() first to initialize EventBus
         base._Ready();
 
+        GD.Print("[HealthBarNode] _Ready() started");
+
+        // GODOT 4 FIX: NodePath exports don't auto-populate C# properties
+        // Must manually resolve using GetNode()
+        HealthBar = GetNode<ProgressBar>("HealthBar");
+        HealthLabel = GetNode<Label>("HealthLabel");
+        DamageButton = GetNode<Button>("ButtonContainer/DamageButton");
+        HealButton = GetNode<Button>("ButtonContainer/HealButton");
+
+        GD.Print($"[HealthBarNode] Nodes resolved - HealthBar: {HealthBar != null}, Buttons: {DamageButton != null}, {HealButton != null}");
+
         // Resolve dependencies via ServiceLocator (Godot constraint)
         var mediatorResult = ServiceLocator.GetService<IMediator>();
         var registryResult = ServiceLocator.GetService<IHealthComponentRegistry>();
@@ -75,6 +86,8 @@ public partial class HealthBarNode : EventAwareNode
         _registry = registryResult.Value;
         _logger = loggerResult.Value;
 
+        GD.Print("[HealthBarNode] Dependencies resolved successfully");
+
         // Create test actor with health
         _actorId = ActorId.NewId();
         var health = HealthValue.Create(100, 100).Value;
@@ -85,13 +98,28 @@ public partial class HealthBarNode : EventAwareNode
 
         // Wire up buttons
         if (DamageButton != null)
+        {
             DamageButton.Pressed += OnDamageButtonPressed;
+            GD.Print("[HealthBarNode] DamageButton wired up");
+        }
+        else
+        {
+            GD.PrintErr("[HealthBarNode] DamageButton is NULL!");
+        }
 
         if (HealButton != null)
+        {
             HealButton.Pressed += OnHealButtonPressed;
+            GD.Print("[HealthBarNode] HealButton wired up");
+        }
+        else
+        {
+            GD.PrintErr("[HealthBarNode] HealButton is NULL!");
+        }
 
         // Initialize UI
         UpdateHealthDisplay(100, 100, isDead: false, isCritical: false);
+        GD.Print("[HealthBarNode] _Ready() completed");
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -131,9 +159,15 @@ public partial class HealthBarNode : EventAwareNode
 
     private async void OnDamageButtonPressed()
     {
-        if (_mediator == null)
-            return;
+        GD.Print($"[HealthBarNode] 🔥 DamageButton PRESSED! Mediator null? {_mediator == null}");
 
+        if (_mediator == null)
+        {
+            GD.PrintErr("[HealthBarNode] Cannot send command - mediator is null");
+            return;
+        }
+
+        GD.Print($"[HealthBarNode] Sending TakeDamageCommand for actor {_actorId}");
         var command = new TakeDamageCommand(_actorId, DamageAmount);
         var result = await _mediator.Send(command);
 
@@ -142,17 +176,29 @@ public partial class HealthBarNode : EventAwareNode
             _logger?.LogWarning("Damage command failed: {Error}", result.Error);
             GD.PrintErr($"Damage failed: {result.Error}");
         }
+        else
+        {
+            GD.Print("[HealthBarNode] ✅ Damage command succeeded!");
+        }
     }
 
     private void OnHealButtonPressed()
     {
+        GD.Print($"[HealthBarNode] 💚 HealButton PRESSED! Mediator null? {_mediator == null}");
+
         if (_mediator == null || _registry == null)
+        {
+            GD.PrintErr("[HealthBarNode] Cannot heal - mediator or registry is null");
             return;
+        }
 
         // Direct heal for demo (no HealCommand yet - out of scope for Phase 4)
         var componentResult = _registry.GetComponent(_actorId);
         if (componentResult.HasNoValue)
+        {
+            GD.PrintErr("[HealthBarNode] Cannot find health component");
             return;
+        }
 
         var healResult = componentResult.Value.Heal(DamageAmount);
         if (healResult.IsSuccess)
@@ -161,6 +207,7 @@ public partial class HealthBarNode : EventAwareNode
             var newHealth = healResult.Value;
             UpdateHealthDisplay(newHealth.Current, newHealth.Maximum, false, newHealth.Percentage < 0.25f);
             _logger?.LogInformation("Healed {Amount} HP", DamageAmount);
+            GD.Print($"[HealthBarNode] ✅ Healed to {newHealth.Current}/{newHealth.Maximum}");
         }
     }
 
@@ -173,25 +220,36 @@ public partial class HealthBarNode : EventAwareNode
         if (HealthBar == null || HealthLabel == null)
             return;
 
+        GD.Print($"[HealthBarNode] Updating display: {current}/{maximum}, Dead: {isDead}, Critical: {isCritical}");
+
         // Update progress bar
         HealthBar.Value = current;
         HealthBar.MaxValue = maximum;
 
-        // Update color based on state
+        // GODOT FIX: Use theme style overrides to color the fill, not Modulate
+        // Modulate tints the entire node (including background), making it invisible
+        var styleBox = new StyleBoxFlat();
+
+        // Update color and text based on state
         if (isDead)
         {
-            HealthBar.Modulate = DeadColor;
+            styleBox.BgColor = DeadColor;
             HealthLabel.Text = $"DEAD (0/{maximum:F0})";
         }
         else if (isCritical)
         {
-            HealthBar.Modulate = CriticalColor;
+            styleBox.BgColor = CriticalColor;
             HealthLabel.Text = $"CRITICAL! {current:F0}/{maximum:F0}";
         }
         else
         {
-            HealthBar.Modulate = HealthyColor;
+            styleBox.BgColor = HealthyColor;
             HealthLabel.Text = $"Health: {current:F0}/{maximum:F0}";
         }
+
+        // Apply the styled fill to the progress bar
+        HealthBar.AddThemeStyleboxOverride("fill", styleBox);
+
+        GD.Print($"[HealthBarNode] Display updated - Bar value: {HealthBar.Value}/{HealthBar.MaxValue}");
     }
 }

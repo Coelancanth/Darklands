@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-30 23:54 (VS_001 Phase 3 complete - infrastructure layer implemented)
+**Last Updated**: 2025-10-01 00:06 (VS_001 COMPLETE - Health System Walking Skeleton operational)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -69,13 +69,13 @@
 *Blockers preventing other work, production bugs, dependencies for other features*
 
 ### VS_001: Architectural Skeleton - Health System Walking Skeleton [ARCHITECTURE]
-**Status**: In Progress (Phases 1-3 Complete: Domain + Application + Infrastructure)
+**Status**: Done ✅
 **Owner**: Dev Engineer
-**Size**: S (4-6h total, ~2.75h complete, ~3.25h remaining)
+**Size**: S (~4h total: 3h Phases 1-3, 1h Phase 4 debugging)
 **Priority**: Critical (Validates architecture with real feature)
-**Markers**: [ARCHITECTURE] [WALKING-SKELETON] [END-TO-END]
+**Markers**: [ARCHITECTURE] [WALKING-SKELETON] [END-TO-END] [COMPLETE]
 **Created**: 2025-09-30
-**Updated**: 2025-09-30 23:54 (Phase 3 complete - 101 tests passing, commit 5b921e8)
+**Completed**: 2025-10-01 00:06
 
 **What**: Implement minimal health system to validate complete architecture end-to-end
 **Why**: Prove the architecture works with a real feature after infrastructure is in place
@@ -420,35 +420,48 @@ Complexity: O(1) ✅
 
 ---
 
-**Progress Tracker** (Updated 2025-09-30 23:54):
+**Progress Tracker** (Completed 2025-10-01 00:06):
 - ✅ **Phase 1: Domain Layer** (1.5h, commit afe421c)
-  - ActorId value object (readonly record struct)
-  - Health value object (immutable, smart constructor)
-  - IHealthComponent + HealthComponent
-  - 61 unit tests (100% coverage)
-  - Resolved: Namespace collision with type alias pattern
+  - ActorId, Health, HealthComponent + 61 tests
 - ✅ **Phase 2: Application Layer** (0.75h, commit 733a2bb)
-  - TakeDamageCommand + DamageResult + Handler
-  - HealthChangedEvent (INotification, past tense)
-  - IHealthComponentRegistry interface
-  - 30 handler tests with mocked dependencies
-  - Railway-oriented composition (Bind → Tap)
-  - Event publishing at END (ADR-004 Rule 1)
+  - TakeDamageCommand, Handler, Events + 30 tests
 - ✅ **Phase 3: Infrastructure Layer** (0.5h, commit 5b921e8)
-  - HealthComponentRegistry (thread-safe, O(1) lookups)
-  - DI registration in GameStrapper
-  - 10 integration tests (end-to-end pipeline)
-  - MockGodotEventBus for UIEventForwarder
-  - Total: 101 tests passing (34ms execution)
-- ⏳ **Phase 4: Presentation Layer** (next, estimated 2h)
-  - Godot scene setup (HealthTestScene.tscn)
-  - HealthBarNode (EventAwareNode subscriber)
-  - Manual testing in Godot editor
+  - HealthComponentRegistry, DI registration + 10 tests
+  - **101 automated tests passing in 34ms** ✅
+- ✅ **Phase 4: Presentation Layer** (1h, working build)
+  - ✅ HealthBarNode.cs with EventAwareNode pattern
+  - ✅ HealthTestScene.tscn with buttons/progress bar
+  - ✅ MediatR handlers registered in Main.cs
+  - ✅ **FIXED**: Godot 4 NodePath exports don't auto-populate C# properties
+    - Solution: Use explicit `GetNode<T>()` in `_Ready()`
+  - ✅ **FIXED**: ProgressBar color using `Modulate` made bar invisible
+    - Solution: Use `AddThemeStyleboxOverride("fill", styleBox)`
+  - ✅ End-to-end validation: Button click → Command → Handler → Event → UI update
+  - ✅ Health bar color changes: Green (healthy) → Orange (<25%) → Gray (dead)
 
 ---
 
+**✅ All Success Criteria Met**:
+- [x] 101 automated tests pass
+- [x] HealthTestScene loads without errors
+- [x] Clicking "Take Damage" reduces health
+- [x] Health bar changes color (green → orange → gray)
+- [x] Event pipeline validated end-to-end (Command → Handler → Event → UI)
+- [x] All 4 ADRs validated with working code (ADR-001, 002, 003, 004)
+- [x] Zero Godot dependencies in Darklands.Core
 
+**🎓 Lessons Learned (Phase 4 Debugging)**:
+1. **Godot 4 C# Integration**: `[Export]` with NodePath doesn't auto-populate properties
+   - Must use explicit `GetNode<T>()` calls in `_Ready()`
+2. **ProgressBar Styling**: `Modulate` tints entire node (including background)
+   - Use `AddThemeStyleboxOverride("fill", styleBox)` for proper coloring
+3. **Diagnostic Logging**: Comprehensive `GD.Print()` statements critical for debugging Godot-C# boundary issues
 
+**Dev Engineer Decision** (2025-10-01 00:06):
+- Walking skeleton successfully validates all architectural decisions
+- EventAwareNode pattern works perfectly for terminal subscribers
+- ServiceLocator at Godot boundary is pragmatic and maintainable
+- Ready to implement more complex features using this proven foundation
 
 ---
 

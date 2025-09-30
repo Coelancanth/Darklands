@@ -1,6 +1,6 @@
-[gd_scene load_steps=2 format=3 uid="uid://c0wj3e8p4xqg7"]
+[gd_scene load_steps=2 format=3 uid="uid://bo24dcm1kdywh"]
 
-[ext_resource type="Script" path="res://Components/HealthBarNode.cs" id="1_health"]
+[ext_resource type="Script" uid="uid://kchfl6ro0fxq" path="res://Components/HealthBarNode.cs" id="1_health"]
 
 [node name="HealthTestScene" type="Control"]
 layout_mode = 3
@@ -25,10 +25,6 @@ grow_horizontal = 2
 grow_vertical = 2
 theme_override_constants/separation = 10
 script = ExtResource("1_health")
-HealthBar = NodePath("HealthBar")
-HealthLabel = NodePath("HealthLabel")
-DamageButton = NodePath("ButtonContainer/DamageButton")
-HealButton = NodePath("ButtonContainer/HealButton")
 
 [node name="Title" type="Label" parent="HealthBarNode"]
 layout_mode = 2
@@ -47,8 +43,6 @@ horizontal_alignment = 1
 [node name="HealthBar" type="ProgressBar" parent="HealthBarNode"]
 custom_minimum_size = Vector2(0, 30)
 layout_mode = 2
-min_value = 0.0
-max_value = 100.0
 value = 100.0
 show_percentage = false
 
