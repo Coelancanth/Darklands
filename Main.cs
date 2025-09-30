@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 using Darklands.Core.Application.Infrastructure;
 using Darklands.Core.Infrastructure.Events;
@@ -48,6 +49,9 @@ public partial class Main : Node
         // 1. LOGGING (VS_003) - Serilog with category-based filtering
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+        // Create shared category filter set for LoggingService
+        var enabledCategories = new HashSet<string>();
+
         // Configure Serilog
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Debug()
@@ -61,6 +65,9 @@ public partial class Main : Node
             loggingBuilder.ClearProviders();
             loggingBuilder.AddSerilog(Log.Logger, dispose: true);
         });
+
+        // Register LoggingService for category-based filtering (used by DebugConsole)
+        services.AddSingleton(new LoggingService(enabledCategories));
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // 2. MEDIATR - Register MediatR core (NOT handlers - open generics handle that)
@@ -85,6 +92,7 @@ public partial class Main : Node
 
         GD.Print("📦 Services registered:");
         GD.Print("   - Logging (Serilog → Console + File)");
+        GD.Print("   - LoggingService (category filtering for DebugConsole)");
         GD.Print("   - MediatR (IMediator only, handlers via open generics)");
         GD.Print("   - IGodotEventBus → GodotEventBus");
         GD.Print("   - UIEventForwarder<T> (open generic registration)");
