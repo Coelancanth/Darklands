@@ -70,9 +70,9 @@
 
 
 ### VS_003: Infrastructure - Logging System with Category-Based Filtering [ARCHITECTURE]
-**Status**: In Progress (Phase 2/4 Complete - Category Filtering ✅)
+**Status**: In Progress (Phase 3/4 Complete - Godot Integration ✅)
 **Owner**: Dev Engineer
-**Size**: S (4-5h estimated, ~2.5h actual so far)
+**Size**: S (4-5h estimated, ~3.5h actual so far)
 **Priority**: Critical (Prerequisite for debugging all other features)
 **Markers**: [ARCHITECTURE] [INFRASTRUCTURE] [DEVELOPER-EXPERIENCE]
 **Created**: 2025-09-30
@@ -488,6 +488,17 @@ public override void _Ready()
 ```
 
 **Commit**: `feat(logging): add Godot rich text sink with BBCode formatting [VS_003 Phase3/4]`
+
+**✅ Phase 3 Complete (2025-09-30 17:15 | ~1h)**:
+- Created GodotRichTextSink implementing ILogEventSink for Serilog integration
+- Created GodotBBCodeFormatter with 6-color palette (semantic + visual distinction)
+- Thread-safe via CallDeferred() marshalling (format on bg thread, UI on main thread)
+- Integrated as third sink via .WriteTo.Sink(godotSink)
+- Category filter applies to all three sinks (efficient: single filter point)
+- Added test logs at Debug/Info/Warning/Error levels for visual validation
+- **BBCode colors**: Verbose=#666666, Debug=#808080, Info=#00CED1, Warning=#FFD700, Error=#FF4500, Fatal=#FF0000
+- **All 14 Core tests pass** (no regressions)
+- **Time**: 1h actual (as estimated)
 
 ---
 
