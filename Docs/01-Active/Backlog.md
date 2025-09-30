@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-30 21:07 (VS_004 archived - completed and verified)
+**Last Updated**: 2025-09-30 23:22 (VS_001 Phase 1 complete - domain layer implemented)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -69,13 +69,13 @@
 *Blockers preventing other work, production bugs, dependencies for other features*
 
 ### VS_001: Architectural Skeleton - Health System Walking Skeleton [ARCHITECTURE]
-**Status**: Proposed
-**Owner**: Product Owner → Tech Lead (breakdown)
-**Size**: S (4-6h)
+**Status**: In Progress (Phase 1 Complete: Domain Layer)
+**Owner**: Dev Engineer
+**Size**: S (4-6h total, ~1.5h Phase 1 complete, ~4.5h remaining)
 **Priority**: Critical (Validates architecture with real feature)
 **Markers**: [ARCHITECTURE] [WALKING-SKELETON] [END-TO-END]
 **Created**: 2025-09-30
-**Updated**: 2025-09-30 (Added detailed technical breakdown, ADR-004 reference)
+**Updated**: 2025-09-30 23:22 (Phase 1 complete - 61 tests passing, commit afe421c)
 
 **What**: Implement minimal health system to validate complete architecture end-to-end
 **Why**: Prove the architecture works with a real feature after infrastructure is in place
@@ -417,6 +417,22 @@ Complexity: O(1) ✅
 6. Click repeatedly until health reaches 0
    Expected: Sprite disappears or "Dead" appears
 ```
+
+---
+
+**Progress Tracker** (Updated 2025-09-30 23:22):
+- ✅ **Phase 1: Domain Layer** (1.5h, commit afe421c)
+  - ActorId value object (readonly record struct)
+  - Health value object (immutable, smart constructor)
+  - IHealthComponent + HealthComponent
+  - 61 unit tests (100% coverage)
+  - Resolved: Namespace collision with type alias pattern
+- ⏳ **Phase 2: Application Layer** (next, estimated 2h)
+  - TakeDamageCommand + Handler
+  - HealthChangedEvent
+  - Handler tests
+- ⏸️ **Phase 3: Infrastructure Layer** (estimated 1h)
+- ⏸️ **Phase 4: Presentation Layer** (estimated 2h)
 
 ---
 
