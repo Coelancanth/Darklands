@@ -90,16 +90,15 @@ public class GodotConsoleSink : ILogEventSink
 
     /// <summary>
     /// Get BBCode hex color for log level using Gruvbox Dark theme palette.
-    /// Gruvbox: Retro groove color scheme with warm, muted tones (easy on eyes).
-    /// Base16 compatible for consistency across terminals/editors.
+    /// Adjusted for Godot console visibility (more saturated than standard Gruvbox).
     /// </summary>
     private static string GetLevelColorName(LogEventLevel level) => level switch
     {
-        LogEventLevel.Verbose => "#928374",      // Gruvbox gray (fg4)
-        LogEventLevel.Debug => "#a89984",        // Gruvbox light gray (fg3)
-        LogEventLevel.Information => "#83a598",  // Gruvbox blue (bright blue)
-        LogEventLevel.Warning => "#fabd2f",      // Gruvbox yellow (bright yellow)
-        LogEventLevel.Error => "#fb4934",        // Gruvbox red (bright red)
+        LogEventLevel.Verbose => "#7c6f64",      // Gruvbox gray (darker for contrast)
+        LogEventLevel.Debug => "#b8bb26",        // Gruvbox green (stands out from INF)
+        LogEventLevel.Information => "#458588",  // Gruvbox blue (darker/more saturated)
+        LogEventLevel.Warning => "#fabd2f",      // Gruvbox yellow (bright yellow) ✓ working
+        LogEventLevel.Error => "#fb4934",        // Gruvbox red (bright red) ✓ working
         LogEventLevel.Fatal => "#cc241d",        // Gruvbox dark red (red)
         _ => "#ebdbb2"                           // Gruvbox fg0 (default foreground)
     };
