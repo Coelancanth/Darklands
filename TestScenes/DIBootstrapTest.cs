@@ -17,7 +17,9 @@ public partial class DIBootstrapTest : Node2D
 {
     private Label? _statusLabel;
     private Button? _testButton;
+    private Button? _clearButton;
     private RichTextLabel? _logOutput;
+    private VBoxContainer? _categoryFiltersContainer;
 
     private int _clickCount = 0;
 
@@ -28,7 +30,9 @@ public partial class DIBootstrapTest : Node2D
         // Get nodes by path instead of Export (more reliable)
         _statusLabel = GetNode<Label>("StatusLabel");
         _testButton = GetNode<Button>("TestButton");
+        _clearButton = GetNodeOrNull<Button>("ClearButton");
         _logOutput = GetNode<RichTextLabel>("LogOutput");
+        _categoryFiltersContainer = GetNodeOrNull<VBoxContainer>("CategoryFilters");
 
         // Configure Serilog with category filtering BEFORE initializing DI container
         // NOTE: This is Presentation layer code - Serilog packages are only in Darklands.csproj
@@ -151,10 +155,75 @@ public partial class DIBootstrapTest : Node2D
 
         GD.Print("✅ Emitted test logs at multiple levels to Godot sink");
 
+        // ===== VS_003 Phase 4: Debug UI Setup =====
+        SetupDebugUI(loggingService);
+
         // Button is already connected via .tscn signal connection
         // No need to wire it up in code (would cause double-firing)
 
         GD.Print("=== DI Bootstrap Test Scene Ready ===");
+    }
+
+    /// <summary>
+    /// VS_003 Phase 4: Setup debug UI with category filters and clear button.
+    /// </summary>
+    private void SetupDebugUI(Darklands.Infrastructure.Logging.LoggingService loggingService)
+    {
+        GD.Print("\n=== Setting up Debug UI (VS_003 Phase 4) ===");
+
+        // Wire up clear button if it exists in scene
+        if (_clearButton != null)
+        {
+            _clearButton.Pressed += () =>
+            {
+                if (_logOutput != null)
+                {
+                    _logOutput.Clear();
+                    GD.Print("✅ Log output cleared");
+                }
+            };
+            GD.Print("✅ Clear button wired up");
+        }
+
+        // Dynamically create category filter checkboxes if container exists
+        if (_categoryFiltersContainer != null)
+        {
+            var availableCategories = loggingService.GetAvailableCategories();
+            var enabledCategories = loggingService.GetEnabledCategories();
+
+            GD.Print($"📋 Discovered {availableCategories.Count} categories:");
+
+            foreach (var category in availableCategories)
+            {
+                var checkbox = new CheckBox
+                {
+                    Text = category,
+                    ButtonPressed = enabledCategories.Contains(category)
+                };
+
+                // Wire up toggle handler
+                checkbox.Toggled += (isEnabled) =>
+                {
+                    if (isEnabled)
+                    {
+                        loggingService.EnableCategory(category);
+                        GD.Print($"✅ Enabled category: {category}");
+                    }
+                    else
+                    {
+                        loggingService.DisableCategory(category);
+                        GD.Print($"❌ Disabled category: {category}");
+                    }
+                };
+
+                _categoryFiltersContainer.AddChild(checkbox);
+                GD.Print($"   - {category} [{(checkbox.ButtonPressed ? "ON" : "OFF")}]");
+            }
+
+            GD.Print("✅ Category filters created");
+        }
+
+        GD.Print("=== Debug UI setup complete ===\n");
     }
 
     private void OnTestButtonPressed()
