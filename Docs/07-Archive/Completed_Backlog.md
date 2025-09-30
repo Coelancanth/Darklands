@@ -976,3 +976,198 @@ services.AddSingleton(new LoggingService(enabledCategories));
 
 ---
 
+### VS_004: Infrastructure - Event Bus System [ARCHITECTURE]
+**Extraction Status**: NOT EXTRACTED ⚠️
+**Completed**: 2025-09-30
+**Archive Note**: GodotEventBus successfully bridges MediatR domain events to Godot UI, validates ADR-002 architecture with CallDeferred pattern and explicit lifecycle management
+---
+**Status**: Done (Completed and verified 2025-09-30)
+**Owner**: Dev Engineer
+**Size**: S (4-4.5h)
+**Priority**: Critical (Prerequisite for Core → Godot communication)
+**Markers**: [ARCHITECTURE] [INFRASTRUCTURE] [ADR-002]
+**Created**: 2025-09-30
+**Updated**: 2025-09-30 (Tech Lead: Architectural refinements based on Dev feedback)
+
+**What**: GodotEventBus to bridge MediatR domain events to Godot nodes
+**Why**: Core domain logic needs to notify Godot UI of state changes without coupling
+
+**Architecture** (per ADR-002):
+- **IGodotEventBus** (interface) → Core/Infrastructure/Events (abstraction)
+- **GodotEventBus** (implementation) → Presentation/Infrastructure/Events (needs Godot.Node)
+- **UIEventForwarder<T>** → Bridges MediatR → GodotEventBus (auto-registered via open generics)
+- **EventAwareNode** → Godot base class with auto-unsubscribe lifecycle
+
+**How** (Refined Phased Implementation):
+
+**Phase 1: Domain** (~15 min)
+- Create `Core/Domain/Events/TestEvent.cs` (record implementing INotification)
+- Simple test event for validation: `TestEvent(string Message)`
+- No tests needed (just a DTO)
+
+**Phase 2: Infrastructure** (~2.5h) **[CRITICAL: ADR-002 Compliance]**
+- **Core layer:**
+  - `Core/Infrastructure/Events/IGodotEventBus.cs` (interface only)
+- **Presentation layer:**
+  - `Presentation/Infrastructure/Events/GodotEventBus.cs`
+    - **Strong references** for subscribers (explicit lifecycle via EventAwareNode)
+    - Lock-protected subscription dictionary (thread safety)
+    - CallDeferred for thread marshalling
+    - No cleanup needed (explicit unsubscribe in _ExitTree)
+  - `Presentation/Infrastructure/Events/UIEventForwarder.cs`
+    - Generic INotificationHandler<TEvent> bridge
+- **DI Registration (in GameStrapper or Main._Ready):**
+  - `services.AddSingleton<IGodotEventBus, GodotEventBus>()`
+  - `services.AddTransient(typeof(INotificationHandler<>), typeof(UIEventForwarder<>))` ← Open generic auto-registration
+- **Tests:**
+  - Subscribe/Unsubscribe/UnsubscribeAll mechanics
+  - PublishAsync notifies all active subscribers
+  - Unsubscribed nodes no longer notified
+  - Error in one handler doesn't break others
+  - UIEventForwarder integration: MediatR.Publish → GodotEventBus
+  - Category="Phase2"
+
+**Phase 3: Presentation** (~1.5h)
+- Create `Presentation/Components/EventAwareNode.cs`
+  - Resolves IGodotEventBus via ServiceLocator in _Ready()
+  - **Calls UnsubscribeAll(this) in _ExitTree()** (explicit lifecycle)
+  - Child classes override SubscribeToEvents()
+- Create test scene: `Presentation/Scenes/Tests/TestEventBusScene.tscn`
+  - TestEventListener : EventAwareNode
+  - Button → Publishes TestEvent via MediatR
+  - Label updates when TestEvent received
+- **Manual Test:**
+  - Click button → label updates instantly
+  - Check logs: MediatR.Publish → UIEventForwarder → GodotEventBus → Subscriber
+  - Close scene → verify UnsubscribeAll called in logs
+
+**Done When**:
+- ✅ Build succeeds: `dotnet build`
+- ✅ Tests pass: `./scripts/core/build.ps1 test --filter "Category=Phase2"`
+- ✅ TestEventBusScene manual test passes (button click → label updates)
+- ✅ No Godot types in Core project (compile-time enforced)
+- ✅ Logs show complete event flow: MediatR → UIEventForwarder → GodotEventBus → Subscribers
+- ✅ CallDeferred prevents threading errors (verified manually)
+- ✅ EventAwareNode prevents leaks via explicit unsubscribe (verified in logs)
+- ✅ Code committed: `feat: event bus system [VS_004]`
+
+**Depends On**: VS_002 (DI), VS_003 (Logging)
+
+**Tech Lead Decision** (2025-09-30 - After Dev Engineer Review):
+
+**✅ ACCEPTED All Dev Engineer Simplifications:**
+
+1. **Strong References > WeakReferences**
+   - **Why**: EventAwareNode guarantees `_ExitTree()` fires before GC (node must be in tree to subscribe via `_Ready()`)
+   - **Simpler**: No cleanup logic, no dead reference checks, no GC timing uncertainty
+   - **More Debuggable**: Leaks are VISIBLE if someone bypasses EventAwareNode (teaches correct usage)
+   - **Dev Engineer was right**: Explicit lifecycle is better than "clever" automatic cleanup
+
+2. **UIEventForwarder Open Generic Registration**
+   - **Already in ADR-002:362** - Dev Engineer independently discovered the right pattern!
+   - **Zero Boilerplate**: MediatR auto-resolves `UIEventForwarder<TEvent>` for ANY `INotification`
+   - **Standard Pattern**: `services.AddTransient(typeof(INotificationHandler<>), typeof(UIEventForwarder<>))`
+
+3. **Eliminate Phase 2 (PublishTestEventCommand)**
+   - **Dev Engineer was right**: Testing that `Publish()` calls `Publish()` tests MediatR, not our code
+   - **Better Tests**: Direct GodotEventBus tests + UIEventForwarder integration tests
+   - **Saves 1h**: No throwaway command/handler code
+
+**Architecture Rationale:**
+- **Interface Segregation**: IGodotEventBus in Core enables testability without Godot dependencies
+- **CallDeferred Required**: Godot UI must be updated on main thread - events can be published from any thread
+- **EventAwareNode Pattern**: Enforces correct subscription lifecycle (subscribe in `_Ready()`, unsubscribe in `_ExitTree()`)
+- **Risk Mitigation**: If Godot 4 C# CallDeferred with lambdas causes issues, fallback to event queue + `_Process()` approach
+
+**Time Savings**: 4-4.5h (from 5.5h) by eliminating over-testing
+
+**Dev Engineer Review** (2025-09-30 19:43):
+
+*Initial Reaction*: Skeptical - felt like YAGNI (over-engineering before we need it)
+
+*After Reading ADR-002*: **Opinion reversed** - EventBus is justified and needed now.
+
+**✅ What Convinced Me**:
+1. **ADR-002 Decision Matrix** (lines 630-644): Clear distinction between Godot Signals (local/visual) vs EventBus (cross-system domain events)
+2. **ActorDiedEvent Example**: Shows the real problem - multiple unrelated systems (UI, Combat, World, Quest, Audio) need to react to same domain event. Without EventBus = tight coupling nightmare.
+3. **VS_001 Health System** will immediately need this - even "minimal" health needs multiple subscribers (health bar, combat log, death detection, audio)
+
+**EventBus is the RIGHT solution for routing domain state changes to multiple unrelated systems.**
+
+**⚠️ Implementation Concerns** (Honest Technical Feedback):
+
+1. **WeakReference Cleanup Strategy**:
+   - *Question*: When do we clean up dead references? On every Publish (perf hit)? Periodically (complexity)?
+   - *Alternative*: Explicit unsubscribe in _ExitTree() with strong refs (visible leaks easier to debug)
+   - *Recommendation*: Trust Tech Lead's judgment if they've seen Godot memory leaks in practice
+
+2. **UIEventForwarder Boilerplate**:
+   - *Concern*: Manual registration for every event type = maintenance burden
+   - *Question*: Can we auto-register? `services.AddSingleton(typeof(INotificationHandler<>), typeof(UIEventForwarder<>))`
+   - *Recommendation*: Investigate MediatR generic registration before implementing
+
+3. **Phase 2 Over-Testing**:
+   - *Concern*: PublishTestEventCommand tests that calling Publish() calls Publish() (testing MediatR, not our code)
+   - *Recommendation*: Skip Phase 2, test GodotEventBus directly in Phase 3 (saves 1h, less throwaway code)
+
+**Proposed Simplifications**:
+- ✅ Keep overall architecture (validated by ADR-002)
+- ⚠️ Skip Phase 2 (merge testing into Phase 3)
+- 🔍 Investigate UIEventForwarder auto-registration
+- 💭 Consider explicit unsubscribe vs WeakReference (debuggability trade-off)
+- ⏱️ Estimated: 4-4.5h (vs 5.5h original)
+
+**Verdict**: **Implement VS_004** - Architecture is sound, minor implementation simplifications won't compromise quality.
+
+**Implementation Results** (2025-09-30):
+
+**Phase 1: Domain** - Completed
+- Created TestEvent.cs as simple record implementing INotification
+- Used for validation in Phase 2 tests and Phase 3 manual testing
+
+**Phase 2: Infrastructure** - Completed
+- Core layer: IGodotEventBus interface (zero Godot dependencies)
+- Presentation layer: GodotEventBus with strong references + lock protection
+- UIEventForwarder with open generic registration pattern
+- All 18 tests passing (Subscribe, Unsubscribe, PublishAsync, error isolation, MediatR integration)
+- Category="Phase2" for test filtering
+
+**Phase 3: Presentation** - Completed
+- EventAwareNode base class with automatic lifecycle management
+- TestEventBusScene with button/label demo
+- Manual testing in Godot 4.4.1 successful
+- Verified CallDeferred prevents threading errors
+- Verified explicit unsubscribe in _ExitTree prevents leaks
+
+**Final Verification**:
+✅ All 18 Phase 2 tests passing
+✅ Manual runtime testing successful in Godot 4.4.1
+✅ CallDeferred pattern verified working (no threading errors)
+✅ EventAwareNode lifecycle verified (subscribe in _Ready, unsubscribe in _ExitTree)
+✅ Complete event flow verified: MediatR → UIEventForwarder → GodotEventBus → TestEventListener
+✅ Zero Godot dependencies in Core (compile-time enforced)
+✅ Tech Lead architectural review completed (2025-09-30)
+
+**Key Decisions Validated**:
+1. Strong references + explicit lifecycle > WeakReferences (simpler, more debuggable)
+2. Open generic registration eliminates boilerplate (MediatR auto-resolves UIEventForwarder<T>)
+3. Direct GodotEventBus tests > over-testing framework code (saves time, better signal-to-noise)
+4. CallDeferred is correct solution for thread marshalling (verified in Godot 4.4.1)
+
+**Files Created**:
+- Core/Domain/Events/TestEvent.cs
+- Core/Infrastructure/Events/IGodotEventBus.cs
+- Presentation/Infrastructure/Events/GodotEventBus.cs
+- Presentation/Infrastructure/Events/UIEventForwarder.cs
+- Presentation/Components/EventAwareNode.cs
+- Presentation/Scenes/Tests/TestEventBusScene.tscn
+- Tests: GodotEventBusTests.cs, UIEventForwarderTests.cs
+
+---
+**Extraction Targets**:
+- [ ] ADR needed for: Event Bus pattern decisions (strong refs vs weak refs, CallDeferred pattern, EventAwareNode lifecycle)
+- [ ] HANDBOOK update: Add GodotEventBus usage patterns, EventAwareNode base class pattern, MediatR open generic registration pattern
+- [ ] Test pattern: Direct GodotEventBus testing approach (avoiding over-testing of framework code), integration test patterns for MediatR → EventBus flow
+
+---
+
