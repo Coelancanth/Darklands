@@ -70,14 +70,15 @@
 
 
 ### VS_003: Infrastructure - Logging System with Category-Based Filtering [ARCHITECTURE]
-**Status**: Nearly Complete (Phase 3/4 Complete ✅ - Enhanced GodotConsoleSink + Multi-color BBCode)
+**Status**: ✅ COMPLETE (All 4 Phases Done)
 **Owner**: Dev Engineer
-**Size**: S (4-5h estimated, ~4.5h actual - includes GodotConsoleSink enhancement)
+**Size**: S (4-5h estimated, ~5h actual - includes GodotConsoleSink enhancement)
 **Priority**: Critical (Prerequisite for debugging all other features)
 **Markers**: [ARCHITECTURE] [INFRASTRUCTURE] [DEVELOPER-EXPERIENCE]
 **Created**: 2025-09-30
 **Approved**: 2025-09-30 15:38 (category-based filtering)
 **Started**: 2025-09-30 16:00
+**Completed**: 2025-09-30 18:30
 **Reference**: [Control Flow Analysis](../03-Reference/Logging-Control-Flow-Analysis.md)
 
 **What**: Production-grade logging with Serilog, category-based filtering, and three output sinks (Console, File, Godot UI)
@@ -534,8 +535,80 @@ public override void _Ready()
 
 ---
 
-### **Phase 4: Debug UI** (~1h)
+### **Phase 4: Debug UI** (~30min actual)
 **Goal**: Create in-game debug console with category filter UI
+
+**✅ Phase 4 Complete (2025-09-30 18:30 | ~30min)**:
+
+**Progressive Enhancement Pattern**:
+- UI elements are OPTIONAL (graceful degradation via GetNodeOrNull)
+- Scene works without UI nodes added
+- Add ClearButton node for convenience (optional)
+- Add CategoryFilters VBoxContainer for granular control (optional)
+
+**Clear Button**:
+- Wired via Pressed event to RichTextLabel.Clear()
+- Logs action to console when clicked
+
+**Dynamic Category Checkboxes**:
+- Auto-discovers categories from assembly (zero configuration)
+- Creates CheckBox for each category found
+- Initial state matches enabled categories
+- Real-time toggle enables/disables filtering
+- Works with current categories + future categories (auto-discovery)
+
+**Implementation**:
+- SetupDebugUI() method handles all UI wiring
+- GetNodeOrNull() prevents crashes if nodes missing
+- Checkboxes created dynamically via AddChild()
+- Uses LoggingService.GetAvailableCategories() for discovery
+
+**Documentation**:
+- Created `DIBootstrapTest_UI_Setup.md` with instructions
+- Explains how to add optional UI nodes in Godot Editor
+- Node structure examples and testing procedures
+
+**Why Progressive Enhancement**:
+- Works immediately (no UI setup required)
+- Add features incrementally as needed
+- No breaking changes
+- Easy to test at each level
+
+**Commit**: `feat(logging): add debug UI with category filters and clear button [VS_003 Phase4/4]`
+
+---
+
+## ✅ VS_003 COMPLETE - All Acceptance Criteria Met
+
+### Final Deliverables
+
+**Three Production-Ready Sinks**:
+1. ✅ **GodotConsoleSink** → Godot Editor Output panel (Gruvbox theme, multi-color BBCode)
+2. ✅ **FileSink** → logs/darklands.log (plain text, grep-friendly)
+3. ✅ **GodotRichTextSink** → In-game RichTextLabel (BBCode colors)
+
+**Category Filtering**: ✅ O(1) performance, works across all sinks
+**Auto-Discovery**: ✅ Categories extracted from CQRS namespaces (zero config)
+**Debug UI**: ✅ Optional clear button + dynamic category checkboxes
+**Layer Boundaries**: ✅ Core has ONLY abstractions, no Serilog packages
+**Thread Safety**: ✅ CallDeferred marshalling for Godot UI
+**Color Theme**: ✅ Gruvbox Dark (Base16 compatible, warm muted tones)
+
+### Time Breakdown
+- Phase 1: Basic Serilog Setup → 1.5h
+- Phase 2: Category Filtering → 1h
+- Phase 3: Godot Integration + GodotConsoleSink → 2.5h
+- Phase 4: Debug UI → 0.5h
+- **Total**: 5h (vs 4-5h estimated) ✅
+
+### All Tests Pass
+- ✅ 14 Core tests pass (no regressions)
+- ✅ Layer boundaries enforced (compile-time)
+- ✅ Manual testing via DIBootstrapTest scene
+
+---
+
+### **Phase 4: Debug UI** (COMPLETED ABOVE)
 
 **Files to Create**:
 ```
