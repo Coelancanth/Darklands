@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-30 15:38 (VS_003 approved with category-based design - Tech Lead decision)
+**Last Updated**: 2025-09-30 16:45 (VS_004 breakdown approved - Tech Lead)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -70,59 +70,90 @@
 
 
 ### VS_004: Infrastructure - Event Bus System [ARCHITECTURE]
-**Status**: Proposed
-**Owner**: Product Owner → Tech Lead (breakdown)
-**Size**: S (4-6h)
+**Status**: Approved (Tech Lead breakdown complete)
+**Owner**: Tech Lead → Dev Engineer (implement)
+**Size**: S (5-6h)
 **Priority**: Critical (Prerequisite for Core → Godot communication)
-**Markers**: [ARCHITECTURE] [INFRASTRUCTURE]
+**Markers**: [ARCHITECTURE] [INFRASTRUCTURE] [ADR-002]
 **Created**: 2025-09-30
+**Updated**: 2025-09-30 (Tech Lead: Detailed breakdown with ADR-002 alignment)
 
 **What**: GodotEventBus to bridge MediatR domain events to Godot nodes
 **Why**: Core domain logic needs to notify Godot UI of state changes without coupling
 
-**Scope**:
-1. **Infrastructure Layer**:
-   - GodotEventBus (subscribes to MediatR INotification)
-   - Thread marshalling to main thread (CallDeferred)
-   - EventAwareNode base class (subscribe/unsubscribe pattern)
-   - Automatic cleanup on node disposal
+**Architecture** (per ADR-002):
+- **IGodotEventBus** (interface) → Core/Infrastructure/Events (abstraction)
+- **GodotEventBus** (implementation) → Presentation/Infrastructure/Events (needs Godot.Node)
+- **UIEventForwarder<T>** → Bridges MediatR → GodotEventBus
+- **EventAwareNode** → Godot base class with auto-unsubscribe lifecycle
 
-2. **Tests**:
-   - Can publish event from Core
-   - Godot node receives event
-   - Thread marshalling works correctly
-   - Unsubscribe prevents memory leaks
+**How** (Phased Implementation):
 
-**How** (Implementation Order):
-1. **Phase 1: Domain** (~1h)
-   - Define event interfaces
-   - Simple test event (TestEvent)
+**Phase 1: Domain** (~30 min)
+- Create `Core/Domain/Events/TestEvent.cs` (record implementing INotification)
+- Simple test event for validation: `TestEvent(string Message)`
+- No tests (just a DTO)
 
-2. **Phase 2: Application** (~1h)
-   - GodotEventBus implements INotificationHandler<T>
-   - Event subscription registry
+**Phase 2: Application** (~1h)
+- Create `Core/Application/Commands/PublishTestEventCommand.cs` + Handler
+- Handler publishes TestEvent via IMediator.Publish()
+- Tests: Verify handler publishes event (mock IMediator)
+- Category="Phase2"
 
-3. **Phase 3: Infrastructure** (~2h)
-   - Thread marshalling implementation
-   - EventAwareNode base class
-   - Automatic unsubscribe on _ExitTree()
+**Phase 3: Infrastructure** (~2.5h) **[CRITICAL: ADR-002 Compliance]**
+- **Core layer:**
+  - `Core/Infrastructure/Events/IGodotEventBus.cs` (interface only)
+- **Presentation layer:**
+  - `Presentation/Infrastructure/Events/GodotEventBus.cs`
+    - WeakReference<object> for subscribers (memory safety)
+    - Lock-protected subscription dictionary (thread safety)
+    - CallDeferred for thread marshalling
+    - Auto-cleanup of dead references
+  - `Presentation/Infrastructure/Events/UIEventForwarder.cs`
+    - Generic INotificationHandler<TEvent> bridge
+- **DI Registration:**
+  - Register in Main._Ready() (not Core): `services.AddSingleton<IGodotEventBus, GodotEventBus>()`
+  - Register forwarder: `services.AddSingleton<INotificationHandler<TestEvent>>(...)`
+- **Tests:**
+  - Subscribe/Unsubscribe/UnsubscribeAll
+  - PublishAsync notifies all subscribers
+  - WeakReference cleanup (freed node no longer notified)
+  - Error in one handler doesn't break others
+  - Category="Phase3"
 
-4. **Phase 4: Presentation** (~1h)
-   - Simple test scene with EventAwareNode
-   - Publish test event from Core
-   - Verify node receives event on main thread
-   - Manual test: Event updates Godot UI correctly
+**Phase 4: Presentation** (~1.5h)
+- Create `Presentation/Components/EventAwareNode.cs`
+  - Resolves IGodotEventBus via ServiceLocator in _Ready()
+  - Calls UnsubscribeAll(this) in _ExitTree()
+  - Child classes override SubscribeToEvents()
+- Create test scene: `Presentation/Scenes/Tests/TestEventBusScene.tscn`
+  - TestEventListener : EventAwareNode
+  - Button → PublishTestEventCommand
+  - Labels update when TestEvent received
+- **Manual Test:**
+  - Click button → labels update
+  - Check logs: Command → Event → Subscriber flow
+  - Close scene → verify UnsubscribeAll called
 
 **Done When**:
-- ✅ Can publish MediatR notification from Core
-- ✅ Godot nodes receive events via EventBus.Subscribe<T>()
-- ✅ Events delivered on main thread (no threading issues)
-- ✅ EventAwareNode auto-unsubscribes on disposal
-- ✅ Tests verify no memory leaks from subscriptions
-- ✅ Simple test scene demonstrates Core → Godot event flow
-- ✅ Code committed with message: "feat: event bus system [VS_004]"
+- ✅ Build succeeds: `dotnet build`
+- ✅ Tests pass: `./scripts/core/build.ps1 test --filter "Category=Phase2|Category=Phase3"`
+- ✅ TestEventBusScene manual test passes (button click → label updates)
+- ✅ No Godot types in Core project (compile-time enforced)
+- ✅ Logs show complete event flow
+- ✅ WeakReference prevents memory leaks (verified in tests)
+- ✅ CallDeferred prevents threading errors (verified manually)
+- ✅ Code committed: `feat: event bus system [VS_004]`
 
-**Depends On**: VS_002 (needs DI)
+**Depends On**: VS_002 (DI), VS_003 (Logging)
+
+**Tech Lead Decision** (2025-09-30):
+- **Interface Segregation**: IGodotEventBus in Core enables testability without Godot dependencies
+- **WeakReference Critical**: Godot nodes can be freed anytime (QueueFree, scene change) - strong refs = memory leaks
+- **CallDeferred Required**: Godot UI must be updated on main thread - events can be published from any thread
+- **UIEventForwarder Pattern**: MediatR auto-discovers INotificationHandler<T>, one forwarder per event type
+- **Risk**: Godot 4 C# CallDeferred with lambdas - if issues arise, use queue + _Process() approach
+- **Next Steps**: Dev Engineer implements phases 1-4 sequentially, commits after each phase passes tests
 
 ---
 
