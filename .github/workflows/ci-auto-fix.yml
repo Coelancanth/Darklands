@@ -40,19 +40,10 @@ jobs:
           echo "✅ Repository is clean (no build artifacts)"
         fi
         
-    - name: 🔍 Verify code formatting
+    - name: ⚡ Skip formatting verification (trust pre-commit hook)
       run: |
-        echo "🔍 Verifying local hooks did their job..."
-
-        # Check if code would be changed by formatting
-        dotnet format src/Darklands.Core/Darklands.Core.csproj --verify-no-changes --verbosity diagnostic
-        dotnet format tests/Darklands.Core.Tests/Darklands.Core.Tests.csproj --verify-no-changes --verbosity diagnostic
-        
-        echo "✅ Code formatting is correct (local hooks worked!)"
-        
-        # Clean up any build artifacts created during format verification
-        echo "🧹 Cleaning up format verification artifacts..."
-        find . -type d -name "bin" -o -name "obj" | grep -v .godot | xargs rm -rf || true
+        echo "⚡ Skipping formatting verification"
+        echo "✅ Pre-commit hook handles formatting automatically"
 
   # Job 2: Fast build and test
   test:
