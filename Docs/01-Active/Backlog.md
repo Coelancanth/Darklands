@@ -70,13 +70,14 @@
 
 
 ### VS_003: Infrastructure - Logging System with Category-Based Filtering [ARCHITECTURE]
-**Status**: Approved (Tech Lead accepts category-based design)
-**Owner**: Tech Lead → Dev Engineer (ready for implementation)
-**Size**: S (4-5h)
+**Status**: In Progress (Phase 1/4 Complete - Basic Serilog Setup ✅)
+**Owner**: Dev Engineer
+**Size**: S (4-5h estimated, ~1.5h Phase 1 actual)
 **Priority**: Critical (Prerequisite for debugging all other features)
 **Markers**: [ARCHITECTURE] [INFRASTRUCTURE] [DEVELOPER-EXPERIENCE]
 **Created**: 2025-09-30
 **Approved**: 2025-09-30 15:38 (category-based filtering)
+**Started**: 2025-09-30 16:00
 **Reference**: [Control Flow Analysis](../03-Reference/Logging-Control-Flow-Analysis.md)
 
 **What**: Production-grade logging with Serilog, category-based filtering, and three output sinks (Console, File, Godot UI)
@@ -213,6 +214,18 @@ private static string ExtractCategory(string sourceContext)
 ```
 
 **Commit**: `feat(logging): add basic Serilog with Console + File sinks [VS_003 Phase1/4]`
+
+**✅ Phase 1 Complete (2025-09-30 16:08)**:
+- Enhanced GameStrapper.Initialize() with configuration action pattern
+- Configured Serilog in DIBootstrapTest with Console (ANSI) + File (plain text) sinks
+- Bridged Serilog → MS.Extensions.Logging via services.AddSerilog()
+- Added test validating configuration callback mechanism
+- Fixed test isolation with xUnit Collection (prevents parallel execution)
+- Added WHY/ARCHITECTURE comments to all DI tests per CLAUDE.md standards
+- **All 14 tests pass** (7 Phase1 + 7 Phase2)
+- **Package verification**: Core has ONLY abstractions, Presentation has Serilog
+- **Layer boundaries maintained**: Core cannot reference Serilog (compile-time enforced)
+- **Time**: ~1.5h actual (includes troubleshooting test isolation and adding comments)
 
 ---
 

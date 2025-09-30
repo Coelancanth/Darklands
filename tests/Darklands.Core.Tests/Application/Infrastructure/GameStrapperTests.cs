@@ -32,6 +32,9 @@ public class GameStrapperTests
     [Fact]
     public void Initialize_ShouldBeIdempotent_WhenCalledMultipleTimes()
     {
+        // WHY: Godot scene tree initialization order is unpredictable
+        // Multiple nodes might call Initialize() - must be safe to call repeatedly
+
         // Arrange
         GameStrapper.Reset();
         GameStrapper.Initialize();
@@ -46,6 +49,9 @@ public class GameStrapperTests
     [Fact]
     public void GetServices_ShouldReturnFailure_BeforeInitialization()
     {
+        // WHY: Fail-safe error handling - calling GetServices() before Initialize() should
+        // return descriptive Result.Failure instead of throwing (functional error handling)
+
         // Arrange
         GameStrapper.Reset();
 
@@ -75,6 +81,9 @@ public class GameStrapperTests
     [Fact]
     public void Initialize_ShouldRegisterTestService()
     {
+        // WHY: Validates RegisterCoreServices() actually registers services in DI container
+        // ITestService is temporary validation service (will be removed after VS_001)
+
         // Arrange
         GameStrapper.Reset();
         GameStrapper.Initialize();
@@ -91,6 +100,9 @@ public class GameStrapperTests
     [Fact]
     public void Initialize_ShouldRegisterSingletonServices_WithSingletonLifetime()
     {
+        // WHY: Singleton lifetime is critical for stateful services (EventBus, ComponentRegistry)
+        // Multiple Godot nodes resolving same service must get same instance (shared state)
+
         // Arrange
         GameStrapper.Reset();
         GameStrapper.Initialize();

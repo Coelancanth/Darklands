@@ -18,6 +18,9 @@ public class ServiceLocatorTests
     [Fact]
     public void GetService_ShouldReturnFailure_BeforeInitialization()
     {
+        // WHY: Godot nodes may call GetService() during uncertain initialization phases
+        // Result<T> pattern allows graceful error handling instead of crashes
+
         // Arrange
         GameStrapper.Reset();
 
@@ -47,6 +50,9 @@ public class ServiceLocatorTests
     [Fact]
     public void GetService_ShouldReturnFailure_WhenServiceNotRegistered()
     {
+        // WHY: Developer errors (typos, forgot to register service) should return descriptive
+        // Result.Failure with helpful message instead of null reference exceptions
+
         // Arrange
         GameStrapper.Reset();
         GameStrapper.Initialize();
@@ -62,6 +68,9 @@ public class ServiceLocatorTests
     [Fact]
     public void Get_ShouldReturnService_AfterInitialization()
     {
+        // WHY: Get<T>() is fail-fast API for post-bootstrap code (Godot _Ready() methods)
+        // Returns service directly or throws - simpler than GetService<T>() Result<T> checking
+
         // Arrange
         GameStrapper.Reset();
         GameStrapper.Initialize();
@@ -77,6 +86,9 @@ public class ServiceLocatorTests
     [Fact]
     public void Get_ShouldThrow_WhenServiceNotAvailable()
     {
+        // WHY: Get<T>() is fail-fast - missing services indicate misconfiguration
+        // Better to crash immediately with clear exception than silently continue with null
+
         // Arrange
         GameStrapper.Reset();
         GameStrapper.Initialize();
@@ -91,6 +103,9 @@ public class ServiceLocatorTests
     [Fact]
     public void GetService_ShouldReturnSingletonInstances_WithinSameContainer()
     {
+        // WHY: ServiceLocator delegates to GameStrapper's container - must preserve
+        // singleton lifetime guarantees for stateful services across multiple resolutions
+
         // Arrange
         GameStrapper.Reset();
         GameStrapper.Initialize();
@@ -109,6 +124,10 @@ public class ServiceLocatorTests
     [Fact]
     public void GetService_ShouldReturnNewInstances_AfterContainerReset()
     {
+        // WHY: Test isolation requires fresh container with new instances
+        // Reset() disposes old container, Initialize() creates new one with new singletons
+        // EDGE CASE: Holding references across Reset() will cause stale state bugs
+
         // Arrange - First container
         GameStrapper.Reset();
         var initResult1 = GameStrapper.Initialize();
