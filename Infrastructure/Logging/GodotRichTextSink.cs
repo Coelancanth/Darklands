@@ -10,6 +10,10 @@ namespace Darklands.Infrastructure.Logging;
 /// <summary>
 /// Serilog sink that writes formatted logs to Godot's RichTextLabel with BBCode markup.
 /// Thread-safe: Uses CallDeferred to marshal UI updates to main thread.
+///
+/// STATUS: Future-use (VS_003 Phase 3 implementation, ready for VS_005+ in-game debug console).
+/// Currently, DebugConsoleController uses GodotConsoleSink (Godot Output panel only).
+/// This sink will be wired up when in-game RichTextLabel log display is implemented.
 /// </summary>
 public class GodotRichTextSink : ILogEventSink
 {

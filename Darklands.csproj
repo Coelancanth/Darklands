@@ -23,6 +23,9 @@
 
     <!-- Dependency Injection implementations -->
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
+
+    <!-- Functional Programming - Analyzers for compile-time Result handling enforcement -->
+    <PackageReference Include="CSharpFunctionalExtensions.Analyzers" Version="1.0.0" />
   </ItemGroup>
 
   <ItemGroup>

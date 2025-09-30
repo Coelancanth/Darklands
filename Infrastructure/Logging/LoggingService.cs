@@ -9,10 +9,12 @@ namespace Darklands.Infrastructure.Logging;
 /// Provides runtime control over category-based log filtering.
 /// Categories are auto-discovered from Commands/Queries namespaces (e.g., "Combat", "Movement", "AI").
 /// This service is Presentation-layer only - Core has no dependency on logging configuration.
+/// Thread-safe: All HashSet operations protected by lock to prevent concurrent modification issues.
 /// </summary>
 public class LoggingService
 {
     private readonly HashSet<string> _enabledCategories;
+    private readonly object _lock = new();
 
     /// <summary>
     /// Initialize with a shared set of enabled categories.
@@ -25,37 +27,53 @@ public class LoggingService
 
     /// <summary>
     /// Enable a category. Logs from this category will appear in all sinks.
+    /// Thread-safe: Lock protects HashSet modification.
     /// </summary>
     public void EnableCategory(string category)
     {
-        _enabledCategories.Add(category);
+        lock (_lock)
+        {
+            _enabledCategories.Add(category);
+        }
     }
 
     /// <summary>
     /// Disable a category. Logs from this category will be filtered out before sinks.
+    /// Thread-safe: Lock protects HashSet modification.
     /// </summary>
     public void DisableCategory(string category)
     {
-        _enabledCategories.Remove(category);
+        lock (_lock)
+        {
+            _enabledCategories.Remove(category);
+        }
     }
 
     /// <summary>
     /// Toggle a category on/off.
+    /// Thread-safe: Lock protects HashSet read and modification.
     /// </summary>
     public void ToggleCategory(string category)
     {
-        if (_enabledCategories.Contains(category))
-            _enabledCategories.Remove(category);
-        else
-            _enabledCategories.Add(category);
+        lock (_lock)
+        {
+            if (_enabledCategories.Contains(category))
+                _enabledCategories.Remove(category);
+            else
+                _enabledCategories.Add(category);
+        }
     }
 
     /// <summary>
-    /// Get the currently enabled categories (read-only).
+    /// Get the currently enabled categories (read-only snapshot).
+    /// Thread-safe: Returns copy to prevent external modification.
     /// </summary>
     public IReadOnlySet<string> GetEnabledCategories()
     {
-        return _enabledCategories;
+        lock (_lock)
+        {
+            return new HashSet<string>(_enabledCategories);
+        }
     }
 
     /// <summary>
