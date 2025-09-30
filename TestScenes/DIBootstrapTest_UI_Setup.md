@@ -2,6 +2,7 @@
 
 ## Overview
 The DIBootstrapTest scene now supports optional debug UI elements:
+- **F12 Toggle**: Press F12 to show/hide the debug panel
 - **Clear Button**: Clears the log output
 - **Category Filters**: Checkboxes to enable/disable log categories in real-time
 
@@ -11,8 +12,21 @@ These are **optional** - the scene works fine without them (graceful degradation
 
 ### Option 1: Quick Test (No UI Nodes)
 Just run the scene as-is. The debug UI setup will detect missing nodes and skip gracefully.
+- Press F12 → Console message explains DebugPanel node is missing (optional)
 
-### Option 2: Add Clear Button
+### Option 2: Add F12 Toggle (Recommended)
+
+1. Open `TestScenes/DIBootstrapTest.tscn` in Godot Editor
+2. Add a Control node (or Panel/MarginContainer) as a child of the root
+3. Rename it to `DebugPanel`
+4. Add all debug UI as children of this panel (LogOutput, ClearButton, CategoryFilters)
+5. Position the panel where you want it
+6. Optionally: Set its initial visibility to `false` (starts hidden)
+7. Save and run
+
+Now pressing F12 will toggle the entire debug panel visibility!
+
+### Option 3: Add Clear Button
 
 1. Open `TestScenes/DIBootstrapTest.tscn` in Godot Editor
 2. Add a Button node as a child of the root
@@ -23,7 +37,7 @@ Just run the scene as-is. The debug UI setup will detect missing nodes and skip 
 
 The code will automatically wire up the button to clear the RichTextLabel.
 
-### Option 3: Add Category Filter Checkboxes
+### Option 4: Add Category Filter Checkboxes
 
 1. Open `TestScenes/DIBootstrapTest.tscn` in Godot Editor
 2. Add a VBoxContainer node as a child of the root
@@ -40,6 +54,7 @@ The code will automatically:
 
 ## Node Structure Example
 
+**Without F12 Toggle** (simple):
 ```
 DIBootstrapTest (Node2D)
 ├─ StatusLabel (Label)          # Existing
@@ -49,6 +64,20 @@ DIBootstrapTest (Node2D)
 └─ CategoryFilters (VBoxContainer)  # NEW - Optional
    └─ (CheckBoxes created dynamically)
 ```
+
+**With F12 Toggle** (recommended):
+```
+DIBootstrapTest (Node2D)
+├─ StatusLabel (Label)          # Existing
+├─ TestButton (Button)          # Existing
+└─ DebugPanel (Control/Panel)   # NEW - F12 toggles this!
+   ├─ LogOutput (RichTextLabel) # Move inside DebugPanel
+   ├─ ClearButton (Button)      # Move inside DebugPanel
+   └─ CategoryFilters (VBoxContainer)  # Move inside DebugPanel
+      └─ (CheckBoxes created dynamically)
+```
+
+**Key Insight**: Put all debug UI inside DebugPanel to toggle everything at once with F12!
 
 ## How It Works
 

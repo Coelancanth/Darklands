@@ -20,6 +20,7 @@ public partial class DIBootstrapTest : Node2D
     private Button? _clearButton;
     private RichTextLabel? _logOutput;
     private VBoxContainer? _categoryFiltersContainer;
+    private Control? _debugPanel;  // Container for all debug UI (for F12 toggle)
 
     private int _clickCount = 0;
 
@@ -33,6 +34,7 @@ public partial class DIBootstrapTest : Node2D
         _clearButton = GetNodeOrNull<Button>("ClearButton");
         _logOutput = GetNode<RichTextLabel>("LogOutput");
         _categoryFiltersContainer = GetNodeOrNull<VBoxContainer>("CategoryFilters");
+        _debugPanel = GetNodeOrNull<Control>("DebugPanel");  // Optional container for F12 toggle
 
         // Configure Serilog with category filtering BEFORE initializing DI container
         // NOTE: This is Presentation layer code - Serilog packages are only in Darklands.csproj
@@ -261,6 +263,34 @@ public partial class DIBootstrapTest : Node2D
         if (_logOutput != null)
         {
             _logOutput.AppendText($"{message}\n");
+        }
+    }
+
+    /// <summary>
+    /// Handle input for F12 debug panel toggle.
+    /// </summary>
+    public override void _Input(InputEvent @event)
+    {
+        base._Input(@event);
+
+        // Toggle debug panel visibility with F12
+        if (@event is InputEventKey keyEvent &&
+            keyEvent.Pressed &&
+            !keyEvent.IsEcho() &&
+            keyEvent.Keycode == Key.F12)
+        {
+            if (_debugPanel != null)
+            {
+                _debugPanel.Visible = !_debugPanel.Visible;
+                GD.Print($"🔧 Debug panel toggled: {(_debugPanel.Visible ? "VISIBLE" : "HIDDEN")}");
+            }
+            else
+            {
+                GD.Print("⚠️ F12 pressed but DebugPanel node not found (add optional DebugPanel Control node)");
+            }
+
+            // Mark event as handled so it doesn't propagate
+            GetViewport().SetInputAsHandled();
         }
     }
 }
