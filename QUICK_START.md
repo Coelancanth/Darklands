@@ -1,104 +1,136 @@
 # 🚀 EventBus Quick Start
 
 **Status**: ✅ Ready to test in Godot Editor
+**Location**: `TestScenes/EventBusTestScene.tscn`
 
 ---
 
 ## ⚡ 30-Second Test
 
 1. **Open Godot**: `godot4 project.godot`
-2. **Open scene**: `Tests/EventBusTestScene.tscn` (in FileSystem dock)
+2. **Open scene**: `TestScenes/EventBusTestScene.tscn` (in FileSystem dock)
 3. **Run scene**: Press **F6**
-4. **Click button**: "Publish TestEvent"
-5. **See label update**: "Event #1: Button pressed at..."
-6. **Check console**: Should show complete event flow
-
-**Expected Output**:
-```
-✅ DI Container initialized successfully
-✅ EventBus ready
-[EventBusTestListener] Subscribed to TestEvent
-[EventBusTestListener] 🔵 Button pressed - publishing TestEvent
-[EventBusTestListener] ✅ Received TestEvent #1: Button pressed at 12345
-```
+4. **Check status**: Green status label = "✅ EventBus initialized"
+5. **Click button**: "Publish TestEvent"
+6. **See label update**: "Event #1: Button pressed at..."
+7. **Check console**: Detailed event flow logs
 
 ---
 
-## 📚 Documentation
+## 🎯 What You Should See
 
-- **[TESTING_GUIDE.md](TESTING_GUIDE.md)** - Comprehensive testing instructions
-- **[Tests/EVENT_BUS_MANUAL_TEST.md](Tests/EVENT_BUS_MANUAL_TEST.md)** - Original implementation notes
-
----
-
-## 🏗️ Architecture at a Glance
-
+### Status Label (Green = Success):
 ```
-User clicks button
-    ↓
-EventBusTestListener.OnButtonPressed()
-    ↓
-EventBus.PublishAsync(new TestEvent(...))
-    ↓
-GodotEventBus forwards to all subscribers
-    ↓
-EventBusTestListener.OnTestEvent(evt) [via CallDeferred]
-    ↓
-Label.Text = "Event #1: ..."
+✅ EventBus initialized
+✅ Button connected
+Ready to test!
 ```
 
-**Key Files**:
-- [Main.cs](Main.cs) - DI setup (EventBus, Logging, MediatR)
-- [Components/EventAwareNode.cs](Components/EventAwareNode.cs) - Base class with lifecycle
-- [Infrastructure/Events/GodotEventBus.cs](Infrastructure/Events/GodotEventBus.cs) - Thread-safe implementation
+### When Button Clicked (Output Panel):
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔵 Button pressed!
+📤 Publishing TestEvent...
+✅ PublishAsync called with: Button pressed at 12345
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[GodotEventBus] Publishing TestEvent to 1 subscribers
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ EVENT RECEIVED #1: Button pressed at 12345
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+### Message Label Updates:
+```
+Event #1: Button pressed at 12345
+Event #2: Button pressed at 13456
+Event #3: Button pressed at 14567
+```
 
 ---
 
-## ✅ Verification Checklist
+## 🐛 If Button Does Nothing
 
-If everything works, you should see:
+### Red Status Label = DI Not Initialized:
+```
+❌ ERROR: EventBus not initialized
+Check Output panel
+```
 
-- [x] **25/25 tests pass** - `dotnet test`
-- [ ] **Button updates label** - Manual test in Godot
-- [ ] **Logs show event flow** - Output panel
-- [ ] **Cleanup on scene close** - "unsubscribed from all events"
-- [ ] **No errors/warnings** - Clean console
+**Cause**: Main scene didn't run before test scene
+**Solution**: Main is configured as autoload in project.godot (already done)
 
----
+### Check Output Panel For:
+```
+❌ EventBus is NULL - DI container not initialized!
+```
 
-## 🐛 Quick Troubleshooting
+**Debug Steps**:
+1. Check if you see Main initialization logs:
+   ```
+   🎮 Darklands - Initializing...
+   ✅ DI Container initialized successfully
+   ✅ EventBus ready
+   ```
 
-| Problem | Solution |
-|---------|----------|
-| "Failed to resolve IGodotEventBus" | Main scene should auto-load (already configured in project.godot) |
-| Button doesn't work | Check Output: Should see "Button connected" |
-| Events not received | Verify base._Ready() called in EventBusTestListener |
-| Scene won't run | Build project: `dotnet build Darklands.csproj` |
+2. If NOT seeing Main logs → Main autoload not running
+   - Close Godot
+   - Reopen project
+   - Try again
 
----
-
-## 🎯 What This Validates
-
-✅ **Architecture** (ADR-002):
-- Core has zero Godot dependencies
-- IGodotEventBus abstraction enables testability
-- ServiceLocator bridges Godot → DI container
-
-✅ **Thread Safety**:
-- ConcurrentDictionary for subscriptions
-- CallDeferred marshals to main thread
-- No race conditions
-
-✅ **Memory Safety**:
-- EventAwareNode enforces explicit lifecycle
-- UnsubscribeAll in _ExitTree prevents leaks
-- Strong references are debuggable
-
-✅ **Your MediatR Concern**:
-- Type resolution tests verify correct generic instances
-- No double-registration (fixed in Main.cs)
-- Open generics eliminate boilerplate
+3. If still failing → Run Main.tscn directly first:
+   - Open `Main.tscn`
+   - Press F5
+   - Then run EventBusTestScene
 
 ---
 
-**Ready to test?** Open Godot and press F6 on EventBusTestScene.tscn! 🎮
+## 📝 Troubleshooting Checklist
+
+- [ ] **Main autoload configured**: Check project.godot has `Main="*res://Main.tscn"`
+- [ ] **Build succeeded**: Run `dotnet build Darklands.csproj`
+- [ ] **Status label green**: EventBus initialized successfully
+- [ ] **Output logs show**: Main initialization messages
+- [ ] **Button connected**: See "✅ Button connected" in logs
+
+---
+
+## 📊 Architecture Validated
+
+When test passes, you've verified:
+
+✅ **DI Container** - GameStrapper.Initialize() works in Godot
+✅ **EventBus Resolution** - ServiceLocator bridges Godot → DI
+✅ **Event Flow** - Publish → GodotEventBus → Subscriber
+✅ **CallDeferred** - Main thread marshalling works
+✅ **Lifecycle** - Subscribe in _Ready, unsubscribe in _ExitTree
+✅ **UI Integration** - Domain events update Godot UI
+
+---
+
+`✶ Insight ─────────────────────────────────────`
+**Enhanced Debugging**: The new test scene provides:
+1. **Visual Status** - Green/Red label shows DI state immediately
+2. **Detailed Logging** - Border markers make event flow obvious
+3. **Null Checks** - Explicit EventBus null checks prevent silent failures
+4. **ServiceLocator Test** - Direct verification of DI resolution
+
+This diagnostic approach helps identify WHERE initialization fails.
+`─────────────────────────────────────────────────`
+
+---
+
+## 🎮 Next Steps After Success
+
+1. **Commit the test**:
+   ```bash
+   git add testscenes/
+   git commit -m "test: move EventBus test to testscenes/"
+   ```
+
+2. **Mark VS_004 complete** in backlog
+
+3. **Start VS_001** (Health System) - now unblocked!
+
+---
+
+**Ready to test!** Open `testscenes/EventBusTestScene.tscn` and press F6. 🚀
