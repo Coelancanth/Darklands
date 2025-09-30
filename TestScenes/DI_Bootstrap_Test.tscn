@@ -34,16 +34,6 @@ offset_bottom = 260.0
 theme_override_font_sizes/font_size = 20
 text = "Test Service Resolution"
 
-[node name="LogOutput" type="RichTextLabel" parent="."]
-offset_left = 40.0
-offset_top = 300.0
-offset_right = 1100.0
-offset_bottom = 600.0
-theme_override_font_sizes/normal_font_size = 16
-bbcode_enabled = true
-text = "[color=yellow]Logs will appear here...[/color]
-"
-
 [node name="Instructions" type="Label" parent="."]
 offset_left = 360.0
 offset_top = 210.0
@@ -51,8 +41,9 @@ offset_right = 1100.0
 offset_bottom = 280.0
 text = "Instructions:
 1. Check that status shows 'Initialized ✅' in green
-2. Click button to test service resolution
-3. Verify logs show successful resolution
-4. Press F5 to run test again"
+2. Press F12 to toggle Debug Console (global autoload)
+3. Click button to test service resolution
+4. Try toggling category checkboxes in Debug Console
+5. Watch Godot Output panel to see filtered logs"
 
 [connection signal="pressed" from="TestButton" to="." method="OnTestButtonPressed"]

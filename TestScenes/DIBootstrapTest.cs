@@ -17,24 +17,17 @@ public partial class DIBootstrapTest : Node2D
 {
     private Label? _statusLabel;
     private Button? _testButton;
-    private Button? _clearButton;
-    private RichTextLabel? _logOutput;
-    private VBoxContainer? _categoryFiltersContainer;
-    private Control? _debugPanel;  // Container for all debug UI (for F12 toggle)
-
+    private ILogger<DIBootstrapTest>? _logger;
     private int _clickCount = 0;
 
     public override void _Ready()
     {
+        // PRE-DI: Use GD.Print (ServiceLocator not ready yet)
         GD.Print("=== DI Bootstrap Test Scene Loading ===");
 
         // Get nodes by path instead of Export (more reliable)
         _statusLabel = GetNode<Label>("StatusLabel");
         _testButton = GetNode<Button>("TestButton");
-        _clearButton = GetNodeOrNull<Button>("ClearButton");
-        _logOutput = GetNode<RichTextLabel>("LogOutput");
-        _categoryFiltersContainer = GetNodeOrNull<VBoxContainer>("CategoryFilters");
-        _debugPanel = GetNodeOrNull<Control>("DebugPanel");  // Optional container for F12 toggle
 
         // Configure Serilog with category filtering BEFORE initializing DI container
         // NOTE: This is Presentation layer code - Serilog packages are only in Darklands.csproj
@@ -50,10 +43,7 @@ public partial class DIBootstrapTest : Node2D
         var godotConsoleFormatter = new Darklands.Infrastructure.Logging.GodotConsoleFormatter();
         var godotConsoleSink = new Darklands.Infrastructure.Logging.GodotConsoleSink(godotConsoleFormatter);
 
-        // 2. GodotRichTextSink: Writes to in-game RichTextLabel with BBCode colors
-        var godotRichFormatter = new Darklands.Infrastructure.Logging.GodotBBCodeFormatter();
-        var godotRichTextSink = new Darklands.Infrastructure.Logging.GodotRichTextSink(_logOutput, godotRichFormatter);
-
+        // Configure Serilog with TWO sinks: Godot Output panel + File
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Debug()
 
@@ -69,17 +59,19 @@ public partial class DIBootstrapTest : Node2D
                 return true;  // Include logs without SourceContext
             })
 
-            // Three sinks:
-            .WriteTo.Sink(godotConsoleSink)   // Godot's Output panel (editor console)
+            // Sink 1: Godot's Output panel (controlled by category filters)
+            .WriteTo.Sink(godotConsoleSink)
+
+            // Sink 2: File logging (always logs everything for historical reference)
             .WriteTo.File(
                 "logs/darklands.log",
                 outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] {SourceContext:l}: {Message:lj}{NewLine}",
                 shared: true  // Allow concurrent reads (for tail -f)
             )
-            .WriteTo.Sink(godotRichTextSink)  // In-game RichTextLabel with BBCode
             .CreateLogger();
 
-        GD.Print("✅ Serilog configured (Godot Console + File + In-Game RichText sinks with category filtering)");
+        // PRE-DI: Using GD.Print here because logger itself is being configured
+        GD.Print("✅ Serilog configured (Godot Output panel + File logging with category filtering)");
 
         // Initialize DI container with logging configuration
         var initResult = GameStrapper.Initialize(services =>
@@ -97,11 +89,14 @@ public partial class DIBootstrapTest : Node2D
 
         if (initResult.IsSuccess)
         {
-            GD.Print("✅ GameStrapper.Initialize() succeeded");
+            // POST-DI: Now we can use ILogger
+            _logger = ServiceLocator.Get<ILogger<DIBootstrapTest>>();
+            _logger.LogInformation("GameStrapper initialized successfully");
             UpdateStatus("DI Container: Initialized ✅", Colors.Green);
         }
         else
         {
+            // CRITICAL ERROR: Logger unavailable, use GD.PrintErr
             GD.PrintErr($"❌ GameStrapper.Initialize() failed: {initResult.Error}");
             UpdateStatus($"DI Container: FAILED - {initResult.Error}", Colors.Red);
             return;
@@ -112,126 +107,56 @@ public partial class DIBootstrapTest : Node2D
 
         if (serviceResult.IsSuccess)
         {
-            GD.Print($"✅ ServiceLocator resolved ITestService: {serviceResult.Value.GetTestMessage()}");
-            AddLog($"[color=green]✅ ITestService resolved:[/color] {serviceResult.Value.GetTestMessage()}");
+            _logger.LogInformation("ServiceLocator resolved ITestService: {Message}", serviceResult.Value.GetTestMessage());
         }
         else
         {
-            GD.PrintErr($"❌ ServiceLocator failed to resolve ITestService: {serviceResult.Error}");
-            AddLog($"[color=red]❌ Failed to resolve ITestService:[/color] {serviceResult.Error}");
+            _logger.LogError("ServiceLocator failed to resolve ITestService: {Error}", serviceResult.Error);
         }
 
         // ===== VS_003 Phase 2: Test category filtering =====
         var loggingService = ServiceLocator.Get<Darklands.Infrastructure.Logging.LoggingService>();
 
-        GD.Print("\n=== Testing Category Filtering (VS_003 Phase 2) ===");
-        GD.Print($"Initial enabled categories: {string.Join(", ", loggingService.GetEnabledCategories())}");
+        _logger.LogInformation("Testing Category Filtering (VS_003 Phase 2)");
+        _logger.LogDebug("Initial enabled categories: {Categories}", string.Join(", ", loggingService.GetEnabledCategories()));
 
         // Test disabling a category
         loggingService.DisableCategory("Combat");
-        GD.Print("✅ Disabled 'Combat' category");
-        GD.Print($"Enabled categories after disable: {string.Join(", ", loggingService.GetEnabledCategories())}");
+        _logger.LogDebug("Disabled 'Combat' category");
+        _logger.LogDebug("Enabled categories after disable: {Categories}", string.Join(", ", loggingService.GetEnabledCategories()));
 
         // Test re-enabling
         loggingService.EnableCategory("Combat");
-        GD.Print("✅ Re-enabled 'Combat' category");
-        GD.Print($"Enabled categories after enable: {string.Join(", ", loggingService.GetEnabledCategories())}");
+        _logger.LogDebug("Re-enabled 'Combat' category");
+        _logger.LogDebug("Enabled categories after enable: {Categories}", string.Join(", ", loggingService.GetEnabledCategories()));
 
         // Test category extraction
         var testCategory = Darklands.Infrastructure.Logging.LoggingService.ExtractCategory(
             "Darklands.Core.Application.Commands.Combat.ExecuteAttackCommandHandler");
-        GD.Print($"✅ Extracted category 'Combat' from handler name: {testCategory}");
+        _logger.LogDebug("Extracted category 'Combat' from handler name: {Category}", testCategory);
 
-        AddLog($"[color=cyan]Category filtering test passed ✅[/color]");
+        // ===== VS_003 Phase 3: Test Godot Console Sink =====
+        _logger.LogInformation("Testing Godot Console Sink (VS_003 Phase 3)");
 
-        // ===== VS_003 Phase 3: Test Godot RichText Sink with BBCode =====
-        GD.Print("\n=== Testing Godot RichText Sink (VS_003 Phase 3) ===");
+        // Emit test logs at different levels to demonstrate color formatting
+        _logger.LogDebug("This is a DEBUG message (gray) - low importance development info");
+        _logger.LogInformation("This is an INFORMATION message (cyan) - normal operation");
+        _logger.LogWarning("This is a WARNING message (gold) - attention needed!");
+        _logger.LogError("This is an ERROR message (orange-red) - something went wrong");
 
-        // Get a logger and emit test logs at different levels
-        var logger = ServiceLocator.Get<Microsoft.Extensions.Logging.ILogger<DIBootstrapTest>>();
-
-        logger.LogDebug("This is a DEBUG message (gray) - low importance development info");
-        logger.LogInformation("This is an INFORMATION message (cyan) - normal operation");
-        logger.LogWarning("This is a WARNING message (gold) - attention needed!");
-        logger.LogError("This is an ERROR message (orange-red) - something went wrong");
-
-        GD.Print("✅ Emitted test logs at multiple levels to Godot sink");
-
-        // ===== VS_003 Phase 4: Debug UI Setup =====
-        SetupDebugUI(loggingService);
+        _logger.LogInformation("Emitted test logs at multiple levels to Godot sink");
 
         // Button is already connected via .tscn signal connection
         // No need to wire it up in code (would cause double-firing)
 
-        GD.Print("=== DI Bootstrap Test Scene Ready ===");
-    }
-
-    /// <summary>
-    /// VS_003 Phase 4: Setup debug UI with category filters and clear button.
-    /// </summary>
-    private void SetupDebugUI(Darklands.Infrastructure.Logging.LoggingService loggingService)
-    {
-        GD.Print("\n=== Setting up Debug UI (VS_003 Phase 4) ===");
-
-        // Wire up clear button if it exists in scene
-        if (_clearButton != null)
-        {
-            _clearButton.Pressed += () =>
-            {
-                if (_logOutput != null)
-                {
-                    _logOutput.Clear();
-                    GD.Print("✅ Log output cleared");
-                }
-            };
-            GD.Print("✅ Clear button wired up");
-        }
-
-        // Dynamically create category filter checkboxes if container exists
-        if (_categoryFiltersContainer != null)
-        {
-            var availableCategories = loggingService.GetAvailableCategories();
-            var enabledCategories = loggingService.GetEnabledCategories();
-
-            GD.Print($"📋 Discovered {availableCategories.Count} categories:");
-
-            foreach (var category in availableCategories)
-            {
-                var checkbox = new CheckBox
-                {
-                    Text = category,
-                    ButtonPressed = enabledCategories.Contains(category)
-                };
-
-                // Wire up toggle handler
-                checkbox.Toggled += (isEnabled) =>
-                {
-                    if (isEnabled)
-                    {
-                        loggingService.EnableCategory(category);
-                        GD.Print($"✅ Enabled category: {category}");
-                    }
-                    else
-                    {
-                        loggingService.DisableCategory(category);
-                        GD.Print($"❌ Disabled category: {category}");
-                    }
-                };
-
-                _categoryFiltersContainer.AddChild(checkbox);
-                GD.Print($"   - {category} [{(checkbox.ButtonPressed ? "ON" : "OFF")}]");
-            }
-
-            GD.Print("✅ Category filters created");
-        }
-
-        GD.Print("=== Debug UI setup complete ===\n");
+        _logger.LogInformation("DI Bootstrap Test Scene Ready");
+        _logger.LogInformation("Tip: Press F12 to toggle Debug Console (global autoload)");
     }
 
     private void OnTestButtonPressed()
     {
         _clickCount++;
-        GD.Print($"Test button clicked ({_clickCount} times)");
+        _logger?.LogInformation("Test Button Clicked (click #{ClickCount})", _clickCount);
 
         // Test service resolution on each click
         var result = ServiceLocator.GetService<ITestService>();
@@ -239,12 +164,12 @@ public partial class DIBootstrapTest : Node2D
         if (result.IsSuccess)
         {
             var message = result.Value.GetTestMessage();
-            AddLog($"[color=cyan]Click #{_clickCount}:[/color] {message}");
+            _logger?.LogInformation("Click #{ClickCount}: {Message}", _clickCount, message);
             UpdateStatus($"Last test: SUCCESS ({_clickCount} clicks)", Colors.Cyan);
         }
         else
         {
-            AddLog($"[color=red]Click #{_clickCount} FAILED:[/color] {result.Error}");
+            _logger?.LogError("Click #{ClickCount} FAILED: {Error}", _clickCount, result.Error);
             UpdateStatus($"Last test: FAILED - {result.Error}", Colors.Red);
         }
     }
@@ -255,42 +180,6 @@ public partial class DIBootstrapTest : Node2D
         {
             _statusLabel.Text = message;
             _statusLabel.Modulate = color;
-        }
-    }
-
-    private void AddLog(string message)
-    {
-        if (_logOutput != null)
-        {
-            _logOutput.AppendText($"{message}\n");
-        }
-    }
-
-    /// <summary>
-    /// Handle input for F12 debug panel toggle.
-    /// </summary>
-    public override void _Input(InputEvent @event)
-    {
-        base._Input(@event);
-
-        // Toggle debug panel visibility with F12
-        if (@event is InputEventKey keyEvent &&
-            keyEvent.Pressed &&
-            !keyEvent.IsEcho() &&
-            keyEvent.Keycode == Key.F12)
-        {
-            if (_debugPanel != null)
-            {
-                _debugPanel.Visible = !_debugPanel.Visible;
-                GD.Print($"🔧 Debug panel toggled: {(_debugPanel.Visible ? "VISIBLE" : "HIDDEN")}");
-            }
-            else
-            {
-                GD.Print("⚠️ F12 pressed but DebugPanel node not found (add optional DebugPanel Control node)");
-            }
-
-            // Mark event as handled so it doesn't propagate
-            GetViewport().SetInputAsHandled();
         }
     }
 }

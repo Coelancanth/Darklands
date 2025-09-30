@@ -70,19 +70,18 @@
 
 
 ### VS_003: Infrastructure - Logging System with Category-Based Filtering [ARCHITECTURE]
-**Status**: ✅ COMPLETE (All 4 Phases Done)
+**Status**: ✅ COMPLETE (All 4 Phases + Autoload + Standardization)
 **Owner**: Dev Engineer
-**Size**: S (4-5h estimated, ~5h actual - includes GodotConsoleSink enhancement)
+**Size**: S (4-5h estimated, ~6.5h actual - includes autoload + persistence + standardization)
 **Priority**: Critical (Prerequisite for debugging all other features)
 **Markers**: [ARCHITECTURE] [INFRASTRUCTURE] [DEVELOPER-EXPERIENCE]
 **Created**: 2025-09-30
 **Approved**: 2025-09-30 15:38 (category-based filtering)
 **Started**: 2025-09-30 16:00
-**Completed**: 2025-09-30 18:30
-**Reference**: [Control Flow Analysis](../03-Reference/Logging-Control-Flow-Analysis.md)
+**Completed**: 2025-09-30 21:15 (final: autoload + JSON persistence + logging standardization)
 
-**What**: Production-grade logging with Serilog, category-based filtering, and three output sinks (Console, File, Godot UI)
-**Why**: Enable efficient debugging by filtering domain categories (Combat, Movement, AI) rather than toggling infrastructure (sinks)
+**What**: Production-grade logging with Serilog, category-based filtering, global F12 debug console autoload with persistent state, and standardized structured logging across Presentation layer
+**Why**: Enable efficient debugging by filtering domain categories (Combat, Movement, AI) with zero per-scene setup and consistent professional log output
 
 ---
 
@@ -608,7 +607,127 @@ public override void _Ready()
 
 ---
 
-### **Phase 4: Debug UI** (COMPLETED ABOVE)
+## ✅ FINAL IMPLEMENTATION: Autoload Debug Console (2025-09-30 20:45)
+
+### Enhancement: Global F12 Debug Console + JSON Persistence
+
+**Decision**: After Phase 4, refactored to autoload pattern for zero per-scene setup.
+
+**What Changed**:
+- ❌ **Removed**: Per-scene debug console UI nodes
+- ✅ **Added**: `Infrastructure/DebugConsoleController.cs` autoload singleton
+- ✅ **Added**: JSON persistence to `user://debug_console_state.json`
+
+**Architecture** (The "Developer Companion" Pattern):
+```
+DebugConsoleController (Autoload, CanvasLayer layer=100)
+├── Lazy Initialization: Only initializes on first F12 press
+├── Procedural UI: All nodes created in code (no .tscn dependency)
+├── ServiceLocator: Resolves LoggingService via Result<T> pattern
+├── JSON Persistence: Saves/loads category state automatically
+└── Global Availability: Works in ALL scenes with zero setup
+```
+
+**Key Features**:
+1. **F12 Toggle**: Press F12 in any scene → debug console appears
+2. **Category Checkboxes**: Dynamically generated from enabled categories
+3. **Real-time Filtering**: Checkbox toggle → logs appear/disappear in Godot Output
+4. **Persistent State**: Category preferences saved to `user://debug_console_state.json`
+5. **Graceful Degradation**: Clear error messages if DI not initialized
+
+**File Structure**:
+```
+Infrastructure/
+├── DebugConsoleController.cs (200 lines, autoload)
+├── Logging/
+│   ├── LoggingService.cs (category enable/disable/toggle)
+│   ├── GodotConsoleSink.cs (Godot Output panel)
+│   ├── GodotConsoleFormatter.cs (BBCode multi-color)
+│   ├── GodotRichTextSink.cs (future: in-game display)
+│   └── GodotBBCodeFormatter.cs (future: in-game display)
+```
+
+**Persistence Details**:
+- **Location**: `user://debug_console_state.json`
+  - Windows: `%APPDATA%\Godot\app_userdata\Darklands\`
+  - Linux: `~/.local/share/godot/app_userdata/Darklands/`
+  - macOS: `~/Library/Application Support/Godot/app_userdata/Darklands/`
+- **Format**: `{"EnabledCategories": ["Combat", "Infrastructure"]}`
+- **Behavior**: Auto-save on every checkbox toggle, auto-load on first F12
+
+**Usage Example**:
+```
+1. Press F5 → Run game (any scene)
+2. Press F12 → Debug console appears
+3. Uncheck "Combat" → Combat logs disappear from Godot Output
+4. Close game → Settings saved
+5. Press F5 → Run game again
+6. Press F12 → Combat still unchecked (persistent!)
+```
+
+**Why This is Better Than Config Files** (for game dev):
+- ✅ **Instant visual feedback** (click checkbox, see logs immediately)
+- ✅ **No context switching** (stay in game, no editor needed)
+- ✅ **Self-documenting** (UI shows available categories)
+- ✅ **Zero friction** (F12 anywhere, always works)
+- ❌ Config files better for **servers/production** (we'll add if needed later)
+
+**Alignment with ADR-002**:
+- ✅ Uses ServiceLocator only at Godot boundary (not in Core)
+- ✅ Lazy init ensures GameStrapper runs first (no race condition)
+- ✅ Result<T> pattern for graceful error handling
+- ✅ Clear error messages if DI not ready
+- ⚠️ **Note**: Autoload pattern is exception for developer tools (documented in VS_003)
+
+**Time Breakdown (Final)**:
+- Phase 1-3: 5h (as documented above)
+- Phase 4: 0.5h (per-scene UI - replaced by autoload)
+- Autoload Refactor: 0.5h (convert to singleton + procedural UI)
+- JSON Persistence: 0.25h (add save/load methods)
+- Logging Standardization: 0.25h (convert GD.Print to ILogger)
+- **Total**: ~6.5h (vs 4-5h estimated) ✅
+
+**Logging Standardization Enhancement (2025-09-30 21:15)**:
+
+**Decision**: Standardize Presentation layer logging for consistency and professionalism.
+
+**What Changed**:
+- ❌ **Removed**: 13 `GD.Print()` calls in DIBootstrapTest
+- ✅ **Added**: Structured `ILogger<T>` logging with named properties
+- ✅ **Kept**: 2 `GD.Print()` calls (pre-DI bootstrap only)
+- ✅ **Kept**: 1 `GD.PrintErr()` call (critical DI failure fallback)
+
+**The Standard** (Presentation Layer Logging Guidelines):
+| **Situation** | **Tool** | **Why** |
+|---------------|----------|---------|
+| Pre-DI Bootstrap | `GD.Print()` | ServiceLocator not available yet |
+| Critical Errors | `GD.PrintErr()` | Logger might be broken |
+| Everything Else | `ILogger<T>` | Structured, filterable, persistent |
+
+**Benefits**:
+1. **Consistent Format**: All logs follow `[LVL] [HH:mm:ss.fff] [Category] Message`
+2. **Structured Properties**: Named parameters like `{ClickCount}`, `{Message}`, `{Categories}`
+3. **Filterable**: Category-based filtering applies to all logs
+4. **Persistent**: All ILogger output auto-saved to `logs/darklands.log`
+5. **Professional**: Matches industry standards (ASP.NET Core, Serilog best practices)
+
+**Example Transformation**:
+```csharp
+// BEFORE (plain text, not filterable)
+GD.Print($"✅ Click #{_clickCount}: {message}");
+
+// AFTER (structured, filterable, persistent)
+_logger.LogInformation("Click #{ClickCount}: {Message}", _clickCount, message);
+```
+
+**Commits**:
+- All phase commits documented above
+- Autoload: `feat(logging): convert debug console to autoload + add JSON persistence [VS_003]`
+- Final: `feat(logging): standardize Presentation layer logging to ILogger [VS_003]`
+
+---
+
+### **Phase 4: Debug UI** (INITIAL DESIGN - REPLACED BY AUTOLOAD ABOVE)
 
 **Files to Create**:
 ```

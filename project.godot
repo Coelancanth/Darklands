@@ -15,6 +15,10 @@ run/main_scene="uid://c2qxwf47dfb55"
 config/features=PackedStringArray("4.4", "C#", "GL Compatibility")
 config/icon="res://icon.svg"
 
+[autoload]
+
+DebugConsole="*res://Infrastructure/DebugConsoleController.cs"
+
 [dotnet]
 
 project/assembly_name="Darklands"
