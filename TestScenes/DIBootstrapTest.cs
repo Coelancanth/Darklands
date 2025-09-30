@@ -1,6 +1,10 @@
 using Godot;
 using Darklands.Core.Application.Infrastructure;
 using Darklands.Core.Infrastructure.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
+using Serilog;
+using Serilog.Sinks.SystemConsole.Themes;
 
 namespace Darklands.TestScenes;
 
@@ -25,8 +29,33 @@ public partial class DIBootstrapTest : Node2D
         _testButton = GetNode<Button>("TestButton");
         _logOutput = GetNode<RichTextLabel>("LogOutput");
 
-        // Initialize DI container (this is normally done in Main scene root)
-        var initResult = GameStrapper.Initialize();
+        // Configure Serilog BEFORE initializing DI container
+        // NOTE: This is Presentation layer code - Serilog packages are only in Darklands.csproj
+        Log.Logger = new LoggerConfiguration()
+            .MinimumLevel.Debug()
+            .WriteTo.Console(
+                theme: AnsiConsoleTheme.Code,
+                outputTemplate: "[{Level:u3}] {Timestamp:HH:mm:ss} {SourceContext:l}: {Message:lj}{NewLine}"
+            )
+            .WriteTo.File(
+                "logs/darklands.log",
+                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] {SourceContext:l}: {Message:lj}{NewLine}",
+                shared: true  // Allow concurrent reads (for tail -f)
+            )
+            .CreateLogger();
+
+        GD.Print("✅ Serilog configured (Console + File sinks)");
+
+        // Initialize DI container with logging configuration
+        var initResult = GameStrapper.Initialize(services =>
+        {
+            // Bridge Serilog → Microsoft.Extensions.Logging
+            services.AddLogging(builder =>
+            {
+                builder.ClearProviders();
+                builder.AddSerilog(Log.Logger, dispose: true);
+            });
+        });
 
         if (initResult.IsSuccess)
         {

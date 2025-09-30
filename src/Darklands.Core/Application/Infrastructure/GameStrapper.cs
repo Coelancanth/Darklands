@@ -16,7 +16,8 @@ public static class GameStrapper
     /// Initialize the DI container. Idempotent - safe to call multiple times.
     /// Returns Success if already initialized or initialization succeeds.
     /// </summary>
-    public static Result Initialize()
+    /// <param name="configureServices">Optional action to configure additional services from Presentation layer (e.g., logging)</param>
+    public static Result Initialize(Action<IServiceCollection>? configureServices = null)
     {
         lock (_lock)
         {
@@ -32,6 +33,10 @@ public static class GameStrapper
 
                 // Register core services
                 RegisterCoreServices(services);
+
+                // Allow Presentation layer to configure additional services
+                // (e.g., Serilog logging, which requires packages not in Core)
+                configureServices?.Invoke(services);
 
                 // Build service provider
                 _serviceProvider = services.BuildServiceProvider();

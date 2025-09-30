@@ -9,8 +9,10 @@ namespace Darklands.Core.Tests.Infrastructure.DependencyInjection;
 /// <summary>
 /// Tests for ServiceLocator - Godot boundary pattern for service resolution.
 /// Category: Phase2 for VS_002 implementation gates.
+/// Collection: GameStrapperCollection prevents parallel execution (shared static state)
 /// </summary>
 [Trait("Category", "Phase2")]
+[Collection("GameStrapperCollection")]
 public class ServiceLocatorTests
 {
     [Fact]
