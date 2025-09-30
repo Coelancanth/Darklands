@@ -1,7 +1,8 @@
 # ADR-002: Godot Integration Architecture
 
-**Status**: Approved
+**Status**: Approved (Refined 2025-09-30)
 **Date**: 2025-09-30
+**Last Updated**: 2025-09-30 (Strong references refinement)
 **Decision Makers**: Tech Lead, Product Owner
 
 ## Context
@@ -163,48 +164,100 @@ public interface IGodotEventBus
 // Infrastructure/Events/GodotEventBus.cs
 public sealed class GodotEventBus : IGodotEventBus
 {
-    private readonly Dictionary<Type, List<WeakSubscription>> _subscriptions = new();
+    private readonly Dictionary<Type, List<Subscription>> _subscriptions = new();
+    private readonly object _lock = new();
 
-    private class WeakSubscription
+    private class Subscription
     {
-        public WeakReference<object> Subscriber { get; }
+        public object Subscriber { get; }
         public Delegate Handler { get; }
+
+        public Subscription(object subscriber, Delegate handler)
+        {
+            Subscriber = subscriber;
+            Handler = handler;
+        }
     }
 
     public void Subscribe<TEvent>(object subscriber, Action<TEvent> handler)
         where TEvent : INotification
     {
-        var eventType = typeof(TEvent);
-        if (!_subscriptions.ContainsKey(eventType))
-            _subscriptions[eventType] = new();
+        lock (_lock)
+        {
+            var eventType = typeof(TEvent);
+            if (!_subscriptions.ContainsKey(eventType))
+                _subscriptions[eventType] = new();
 
-        _subscriptions[eventType].Add(new WeakSubscription(subscriber, handler));
+            _subscriptions[eventType].Add(new Subscription(subscriber, handler));
+        }
+    }
+
+    public void Unsubscribe<TEvent>(object subscriber)
+        where TEvent : INotification
+    {
+        lock (_lock)
+        {
+            var eventType = typeof(TEvent);
+            if (_subscriptions.TryGetValue(eventType, out var subs))
+            {
+                subs.RemoveAll(s => ReferenceEquals(s.Subscriber, subscriber));
+            }
+        }
+    }
+
+    public void UnsubscribeAll(object subscriber)
+    {
+        lock (_lock)
+        {
+            foreach (var kvp in _subscriptions)
+            {
+                kvp.Value.RemoveAll(s => ReferenceEquals(s.Subscriber, subscriber));
+            }
+        }
     }
 
     public async Task PublishAsync<TEvent>(TEvent notification)
         where TEvent : INotification
     {
-        var eventType = typeof(TEvent);
-        if (!_subscriptions.TryGetValue(eventType, out var subs))
-            return;
-
-        foreach (var sub in subs)
+        List<Subscription> subscribers;
+        lock (_lock)
         {
-            if (sub.Subscriber.TryGetTarget(out var target))
+            var eventType = typeof(TEvent);
+            if (!_subscriptions.TryGetValue(eventType, out var subs))
+                return;
+
+            // Copy to avoid holding lock during callbacks
+            subscribers = new List<Subscription>(subs);
+        }
+
+        foreach (var sub in subscribers)
+        {
+            try
             {
                 // Thread-safe UI update for Godot
-                if (target is Node godotNode && godotNode.IsInsideTree())
+                if (sub.Subscriber is Node godotNode && godotNode.IsInsideTree())
                 {
                     godotNode.CallDeferred(() =>
                         ((Action<TEvent>)sub.Handler).Invoke(notification));
                 }
+            }
+            catch (Exception ex)
+            {
+                // Prevent one handler error from breaking others
+                GD.PrintErr($"EventBus handler error: {ex.Message}");
             }
         }
     }
 }
 ```
 
-**Why WeakReference?** Godot nodes can be freed at any time. Strong references would prevent garbage collection and cause memory leaks.
+**Why Strong References (Not WeakReferences)?**
+- **EventAwareNode Pattern Guarantees Explicit Lifecycle**: Nodes subscribe in `_Ready()` (must be in tree) and unsubscribe in `_ExitTree()` (fires before GC)
+- **Simpler & More Debuggable**: No cleanup logic, no `TryGetTarget()` checks, visible leaks teach correct usage
+- **Predictable**: Deterministic unsubscribe vs GC timing uncertainty
+- **Safe**: If someone bypasses EventAwareNode pattern, visible leak is better than silent failure
+
+**Refined After**: Ultra-analysis during VS_004 breakdown (2025-09-30) - Dev Engineer questioned cleanup strategy, Tech Lead traced Godot node lifecycle
 
 **Why CallDeferred?** Godot requires UI updates on the main thread. CallDeferred marshals the call automatically.
 

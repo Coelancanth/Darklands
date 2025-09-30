@@ -197,7 +197,8 @@
       "Bash(git remote:*)",
       "Bash(./scripts/core/build.ps1 test --filter \"*ExecuteAttackCommandHandler*\")",
       "Bash(./scripts/core/build.ps1 test --filter \"*ExecuteAttackCommandHandlerIntegrationTests*Handle_MultipleSequentialAttacks*\")",
-      "Bash(./scripts/core/build.ps1 test --filter \"Category=Phase1|Category=Phase2\")"
+      "Bash(./scripts/core/build.ps1 test --filter \"Category=Phase1|Category=Phase2\")",
+      "Bash(dotnet remove:*)"
     ],
     "deny": [],
     "ask": [],

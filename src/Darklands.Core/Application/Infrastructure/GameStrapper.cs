@@ -72,10 +72,11 @@ public static class GameStrapper
         // TODO: Remove after VS_001 (health system) is complete
         services.AddSingleton<ITestService, TestService>();
 
-        // Future services will be registered here:
-        // - Logging (VS_003)
-        // - Event Bus (VS_004)
-        // - Component Registry, etc.
+        // MediatR (VS_003) - Registered via Presentation layer configureServices callback
+
+        // Event Bus (VS_004) - Infrastructure must be registered in Presentation
+        // Core only has IGodotEventBus interface and UIEventForwarder
+        // Presentation registers: GodotEventBus, MediatR assembly scan, UIEventForwarder open generic
     }
 
     /// <summary>
