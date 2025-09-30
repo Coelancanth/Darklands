@@ -2,7 +2,15 @@
 
 **Status**: Approved
 **Date**: 2025-09-30
+**Last Updated**: 2025-09-30
 **Decision Makers**: Tech Lead, Product Owner
+
+**Changelog**:
+- 2025-09-30: Added cross-references to ADR-002 and ADR-003, logging infrastructure note, analyzers recommendation
+
+**Related ADRs**:
+- [ADR-002: Godot Integration Architecture](./ADR-002-godot-integration-architecture.md) - How to connect Core to Godot
+- [ADR-003: Functional Error Handling](./ADR-003-functional-error-handling.md) - How to handle errors with Result<T>
 
 ## Context
 
@@ -55,8 +63,10 @@ darklands/
 | Library | Purpose | Version |
 |---------|---------|---------|
 | **CSharpFunctionalExtensions** | Result/Maybe types, railway-oriented programming | Latest stable |
+| **CSharpFunctionalExtensions.Analyzers** | Compile-time Result handling enforcement | Latest stable |
 | **MediatR** | CQRS pattern (Commands, Queries, Events) | Latest stable |
-| **Serilog** | Structured logging | Latest stable |
+| **Serilog** | Structured logging (backend) | Latest stable |
+| **Microsoft.Extensions.Logging** | Logging abstraction (ILogger<T>) | Latest stable |
 | **Microsoft.Extensions.DependencyInjection** | DI container | Latest stable |
 | **xUnit** | Unit testing | Latest stable |
 | **FluentAssertions** | Test assertions | Latest stable |
@@ -66,6 +76,11 @@ darklands/
 - Stable releases (not beta)
 - C#-idiomatic (not F#-inspired)
 - Covers 100% of our needs
+
+**Logging Strategy**:
+- Core uses `ILogger<T>` abstraction (portable)
+- Serilog provides implementation (configured in Infrastructure)
+- Godot presentation layer uses same `ILogger<T>` (see ADR-002)
 
 ### Clean Architecture Layers
 
@@ -100,8 +115,12 @@ darklands/
 │ - Scenes (.tscn files)                  │
 │ - Input handling                         │
 │ - Visual updates                         │
+│ - Uses ServiceLocator ONLY in _Ready()  │
+│ - See ADR-002 for integration patterns  │
 └─────────────────────────────────────────┘
 ```
+
+**Key Principle**: Presentation layer is a **thin adapter**—no business logic, only UI bindings and command/event routing.
 
 ### .csproj Enforcement
 
@@ -118,6 +137,7 @@ darklands/
   <ItemGroup>
     <!-- NO Godot packages allowed here! -->
     <PackageReference Include="CSharpFunctionalExtensions" Version="*" />
+    <PackageReference Include="CSharpFunctionalExtensions.Analyzers" Version="*" />
     <PackageReference Include="MediatR" Version="*" />
     <PackageReference Include="Serilog" Version="*" />
     <PackageReference Include="Serilog.Sinks.Console" Version="*" />
@@ -127,6 +147,8 @@ darklands/
   </ItemGroup>
 </Project>
 ```
+
+**Why Analyzers?** Prevents ignoring `Result` values at compile-time—critical for functional error handling (see ADR-003).
 
 **Darklands.csproj** (Root):
 ```xml
@@ -247,11 +269,21 @@ jobs:
 
 ## Success Metrics
 
-- ✅ Core tests complete in < 30 seconds
-- ✅ Zero Godot references in Darklands.Core.csproj
-- ✅ Modders can reference only Core.dll
+**Architectural Enforcement**:
+- ✅ Zero Godot references in Darklands.Core.csproj (compile-time enforced)
+- ✅ Core tests complete in < 30 seconds (fast feedback)
+- ✅ CI runs without Godot installation (dependency-free)
+
+**Code Quality**:
 - ✅ 80%+ code coverage in Core project
-- ✅ CI runs without Godot installation
+- ✅ All Core operations return `Result<T>` or `Maybe<T>` (see ADR-003)
+- ✅ CSharpFunctionalExtensions.Analyzers prevents ignored Results
+- ✅ Zero business logic in Presentation layer (enforced via code review)
+
+**Modding Support**:
+- ✅ Modders can reference only Core.dll (no Godot dependency)
+- ✅ Mods testable with `dotnet test` (no game engine required)
+- ✅ Mod handlers registered via DI (hot-swappable)
 
 ## References
 

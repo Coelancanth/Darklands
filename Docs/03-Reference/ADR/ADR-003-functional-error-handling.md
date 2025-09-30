@@ -2,7 +2,11 @@
 
 **Status**: Approved
 **Date**: 2025-09-30
+**Last Updated**: 2025-09-30
 **Decision Makers**: Tech Lead
+
+**Changelog**:
+- 2025-09-30: Added Result.Of(), TryFirst/TryLast, TryFind, Analyzers recommendation, corrected Match syntax
 
 ## Context
 
@@ -121,11 +125,10 @@ public class Actor
     public ActorId Id { get; }
     public Health Health { get; private set; }
 
-    public Result TakeDamage(float amount)
+    public Result<Health> TakeDamage(float amount)
     {
         return Health.Reduce(amount)
-            .Tap(newHealth => Health = newHealth)  // Side effect on success
-            .Map(() => Result.Success());           // Convert to Result
+            .Tap(newHealth => Health = newHealth);  // Side effect on success, returns Result<Health>
     }
 }
 ```
@@ -191,11 +194,10 @@ public class ActorStateService : IActorStateService
 {
     private readonly Dictionary<ActorId, Actor> _actors = new();
 
+    // ✅ Use TryFind extension for safe dictionary access
     public Maybe<Actor> GetActor(ActorId id)
     {
-        return _actors.TryGetValue(id, out var actor)
-            ? Maybe<Actor>.From(actor)
-            : Maybe<Actor>.None;
+        return _actors.TryFind(id);  // Returns Maybe<Actor> directly
     }
 
     public Result AddActor(Actor actor)
@@ -209,12 +211,29 @@ public class ActorStateService : IActorStateService
 }
 ```
 
-**Boundary try/catch**:
+**Boundary Exception Handling**:
 ```csharp
-// ONLY place where try/catch is acceptable
+// Infrastructure boundary: Convert exceptions to Results
 public class GodotResourceLoader : IResourceLoader
 {
+    // ✅ PREFERRED: Use Result.Of() to wrap risky operations
     public Result<T> Load<T>(string path) where T : Resource
+    {
+        return Result.Of(() => {
+                if (!ResourceLoader.Exists(path))
+                    throw new FileNotFoundException($"Resource not found: {path}");
+
+                var resource = GD.Load<T>(path);
+                if (resource == null)
+                    throw new InvalidOperationException($"Failed to load: {path}");
+
+                return resource;
+            })
+            .MapError(ex => $"Error loading {path}: {ex.Message}");
+    }
+
+    // ⚠️ ALTERNATIVE: Manual try/catch (only if Result.Of doesn't fit)
+    public Result<T> LoadManual<T>(string path) where T : Resource
     {
         try
         {
@@ -228,7 +247,6 @@ public class GodotResourceLoader : IResourceLoader
         }
         catch (Exception ex)
         {
-            // Convert exception to Result at boundary
             return Result.Failure<T>($"Error loading {path}: {ex.Message}");
         }
     }
@@ -241,14 +259,17 @@ public class GodotResourceLoader : IResourceLoader
 ```csharp
 public partial class HealthComponentNode : EventAwareNode
 {
+    private ILogger<HealthComponentNode>? _logger;
+
     public async void ApplyDamage(float amount)
     {
         var result = await _mediator!.Send(
             new TakeDamageCommand(_ownerId!.Value, amount));
 
+        // Correct Match syntax (no named parameters)
         result.Match(
-            success: () => GD.Print("Damage applied successfully"),
-            failure: err => GD.PrintErr($"Failed to apply damage: {err}"));
+            onSuccess: () => _logger?.LogInformation("Damage applied successfully"),
+            onFailure: err => _logger?.LogError("Failed to apply damage: {Error}", err));
     }
 }
 ```
@@ -365,6 +386,49 @@ return Result.Success(actor)
     .Map(a => ProcessActor(a));
 ```
 
+### Pattern 5: Safe Collection Access
+
+```csharp
+// ❌ OLD: Nullable returns
+Actor? firstActor = _actors.FirstOrDefault(a => a.IsAlive);
+if (firstActor == null) { /* handle */ }
+
+// ✅ NEW: TryFirst returns Maybe<T>
+Maybe<Actor> firstActor = _actors.TryFirst(a => a.IsAlive);
+Result<Actor> result = firstActor.ToResult("No alive actors");
+
+// ✅ TryLast for last element
+Maybe<Actor> lastActor = _actors.TryLast(a => a.Health.Current > 50);
+```
+
+### Pattern 6: Safe Dictionary Access
+
+```csharp
+// ❌ OLD: Throws KeyNotFoundException
+Actor actor = _actorDict[id];
+
+// ❌ OLD: TryGetValue with out parameter
+if (_actorDict.TryGetValue(id, out var actor)) { /* ... */ }
+
+// ✅ NEW: TryFind returns Maybe<T>
+Maybe<Actor> maybeActor = _actorDict.TryFind(id);
+Result<Actor> result = maybeActor.ToResult($"Actor {id} not found");
+```
+
+### Pattern 7: Result.Of for Exception Boundaries
+
+```csharp
+// ✅ Wrap risky external calls
+Result<FileData> fileResult = Result.Of(() => File.ReadAllText(path));
+
+// ✅ With async operations
+Result<Scene> sceneResult = await Result.Of(() => GD.LoadAsync<Scene>(path));
+
+// ✅ Custom error mapping
+Result<Config> config = Result.Of(() => JsonSerializer.Deserialize<Config>(json))
+    .MapError(ex => $"Invalid config: {ex.Message}");
+```
+
 ## Error Logging
 
 ```csharp
@@ -424,6 +488,45 @@ public void Create_NegativeMaximum_ReturnsFailure()
 - ➖ **Different Paradigm**: Not traditional C# style
 - ➖ **LINQ Extension Needed**: Must add SelectMany manually
 
+## Tooling
+
+### Roslyn Analyzers (Highly Recommended)
+
+Install the analyzers package to enforce proper Result handling at compile-time:
+
+```bash
+dotnet add package CSharpFunctionalExtensions.Analyzers
+```
+
+**What it catches**:
+- ✅ Ignored Result values (prevents silent failures)
+- ✅ Dangerous `.Value` access without checking `.IsSuccess`
+- ✅ Forgetting to `await` async Results
+- ✅ Improper error handling patterns
+
+**Example warnings**:
+
+```csharp
+// ❌ Analyzer warning: Result value ignored
+GetActor(id);  // WARNING: Result not handled
+
+// ✅ Correct: Result consumed
+var result = GetActor(id);
+result.Match(
+    onSuccess: actor => ProcessActor(actor),
+    onFailure: err => _logger.LogError(err));
+
+// ❌ Analyzer warning: Unsafe Value access
+var actor = GetActor(id).Value;  // WARNING: Check IsSuccess first
+
+// ✅ Correct: Safe access
+GetActor(id).Match(
+    onSuccess: actor => UseActor(actor),
+    onFailure: err => HandleError(err));
+```
+
+**Why this matters**: Analyzers prevent the most common mistake—ignoring Result values and accidentally reverting to exception-based error handling.
+
 ## Alternatives Considered
 
 ### 1. LanguageExt
@@ -437,10 +540,12 @@ public void Create_NegativeMaximum_ReturnsFailure()
 
 ## Success Metrics
 
-- ✅ Zero `try/catch` in Domain/Application layers
+- ✅ Zero `try/catch` in Domain/Application layers (use `Result.Of()` at boundaries)
 - ✅ All operations returning `Result<T>` or `Maybe<T>`
 - ✅ Error handling tested in all handlers
 - ✅ No unhandled exceptions in production
+- ✅ CSharpFunctionalExtensions.Analyzers installed and enforcing patterns
+- ✅ Use `TryFirst/TryLast/TryFind` instead of nullable-returning methods
 
 ## References
 

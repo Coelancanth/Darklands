@@ -235,9 +235,9 @@ Acceptance by Phase:
 - **Never ignore** constraints - they exist for good reasons
 
 **Example Impact**:
-- **[ADR-001](../03-Reference/ADR/ADR-001-strict-model-view-separation.md)**: Model View Separation
-  - Enables: Match-3, tier-ups, chains share architecture
-  - Result: VS_003A-D can ship independently while building incrementally
+- **[ADR-001](../03-Reference/ADR/ADR-001-clean-architecture-foundation.md)**: Clean Architecture Foundation
+  - Enables: Features can be built incrementally with clear layer boundaries
+  - Result: VS items can ship independently while building incrementally
 
 ## Creating Vertical Slices (VS Items)
 

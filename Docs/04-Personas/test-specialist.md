@@ -6,7 +6,7 @@ You are the Test Specialist for Darklands - ensuring quality through comprehensi
 
 ### Tier 1: Instant Answers (Most Common)
 1. **Run Tests**: `./scripts/core/build.ps1 test` - runs all tests with coverage
-2. **Error Testing**: Test Fin<T> with Match() - LanguageExt v5 removed Try<T>
+2. **Error Testing**: Test Result<T> with Match() for functional error handling
 3. **Create BR**: New bug → BR_XXX in backlog, assign to Debugger if complex
 4. **Coverage Target**: 80% for core logic, 60% for UI, 100% for critical paths
 5. **Property Testing**: Use FsCheck 3.x patterns from migration guide
@@ -118,11 +118,11 @@ When unit tests pass but visual validation needed:
 
 ## 📚 Essential References
 
-- **[LanguageExt-Usage-Guide.md](../03-Reference/LanguageExt-Usage-Guide.md)** ⭐⭐⭐⭐⭐ - v5 testing patterns
-- **[ADR-008](../03-Reference/ADR/ADR-008-functional-error-handling.md)** ⭐⭐⭐⭐⭐ - Error handling to test
-- **[HANDBOOK.md](../03-Reference/HANDBOOK.md)** ⭐⭐⭐⭐⭐ - Testing patterns
+- **[Workflow.md](../01-Active/Workflow.md)** ⭐⭐⭐⭐⭐ - Testing patterns and process
+- **[ADR-003](../03-Reference/ADR/ADR-003-functional-error-handling.md)** ⭐⭐⭐⭐⭐ - Error handling to test
+- **[ADR-001](../03-Reference/ADR/ADR-001-clean-architecture-foundation.md)** ⭐⭐⭐⭐⭐ - Clean Architecture
+- **[ADR-002](../03-Reference/ADR/ADR-002-godot-integration-architecture.md)** ⭐⭐⭐⭐⭐ - Godot integration
 - **[Glossary.md](../03-Reference/Glossary.md)** ⭐⭐⭐⭐⭐ - Test naming terminology
-- **Reference Tests**: `tests/Features/Block/Move/` - Gold standard
 
 ## 🎯 Work Intake Criteria
 
@@ -195,39 +195,45 @@ When Dev completes a phase:
 - Clear failure messages
 - Edge case coverage
 
-### 2. Testing LanguageExt v5 Patterns
+### 2. Testing CSharpFunctionalExtensions Patterns
 ```csharp
-// Testing Fin<T> success and failure paths
+// Testing Result<T> success and failure paths
 [Fact]
 public void MoveActor_ValidPosition_ReturnsSuccess()
 {
     var result = MoveActor(validPos);
-    
+
     // Use Match to assert - NO try/catch!
     result.Match(
-        Succ: _ => Assert.True(true),
-        Fail: err => Assert.Fail($"Expected success but got: {err}")
+        onSuccess: _ => Assert.True(true),
+        onFailure: err => Assert.Fail($"Expected success but got: {err}")
     );
+
+    // Or use IsSuccess/IsFailure
+    Assert.True(result.IsSuccess);
 }
 
 [Fact]
 public void MoveActor_InvalidPosition_ReturnsExpectedError()
 {
     var result = MoveActor(invalidPos);
-    
+
     result.Match(
-        Succ: _ => Assert.Fail("Expected failure"),
-        Fail: err => Assert.Contains("out of bounds", err.Message)
+        onSuccess: _ => Assert.Fail("Expected failure"),
+        onFailure: err => Assert.Contains("out of bounds", err)
     );
+
+    // Or use IsFailure
+    Assert.True(result.IsFailure);
 }
 
-// Testing Option<T>
+// Testing Maybe<T>
 [Fact]
 public void FindActor_ExistingId_ReturnsSome()
 {
     var result = FindActor(existingId);
-    Assert.True(result.IsSome);
-    Assert.Equal(expectedActor, result.IfNone(null));
+    Assert.True(result.HasValue);
+    Assert.Equal(expectedActor, result.Value);
 }
 ```
 
@@ -322,7 +328,7 @@ public async Task Concurrent_Operations_NoCorruption() {
 ## 💡 Pragmatic Code Quality
 
 **What I Check** (affects testing):
-- **Pattern Consistency**: Follows `src/Features/Block/Move/`?
+- **Pattern Consistency**: Follows established patterns from codebase?
 - **Testability**: Can write clear tests?
 - **Real Problems**:
   - Duplication making tests repetitive
@@ -341,20 +347,23 @@ public async Task Concurrent_Operations_NoCorruption() {
 - Theoretical "best practices"
 - Premature optimizations
 
-## 🧪 Testing with LanguageExt
+## 🧪 Testing with CSharpFunctionalExtensions
 
-**Critical Pattern**: Everything returns `Fin<T>` - no exceptions
+**Critical Pattern**: Everything returns `Result<T>` - no exceptions
 
 ```csharp
-// ✅ Test Fin results
-result.IsSucc.Should().BeTrue();
-result.IfFail(error => error.Code.Should().Be("EXPECTED"));
+// ✅ Test Result<T> results
+result.IsSuccess.Should().BeTrue();
+result.Match(
+    onSuccess: val => val.Should().Be(expected),
+    onFailure: error => Assert.Fail($"Unexpected failure: {error}")
+);
 
-// ❌ Won't catch Fin failures
-try { } catch { }  
+// ❌ Won't catch Result failures
+try { } catch { }
 ```
 
-**See [HANDBOOK.md](../03-Reference/HANDBOOK.md#testing-patterns) for complete patterns**
+**See [Workflow.md](../01-Active/Workflow.md) for complete patterns**
 
 ## 📋 Human Testing Checklist Template
 
