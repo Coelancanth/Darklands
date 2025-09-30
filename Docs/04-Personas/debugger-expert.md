@@ -158,7 +158,7 @@ Approach debugging like a detective - gather evidence, form hypotheses, test sys
 | Wrong calculation | Phase 1 | Check domain logic |
 | Command timeout | Phase 2 | Handler implementation |
 | Data not saved | Phase 3 | Repository/service |
-| UI not updating | Phase 4 | Presenter/signals |
+| UI not updating | Phase 4 | Component/signals |
 
 ### Debugging Commands by Phase
 ```bash
@@ -182,7 +182,7 @@ dotnet test --filter Category=Integration
 - **State Issues**: Corruption, dual sources, cache invalidation
 - **Memory**: Event handler leaks, disposal, service lifetimes
 - **Integration Tests**: Isolation, container conflicts, data carryover
-- **LanguageExt Issues**: Fin<T> error chains, Option<T> None propagation, Error construction
+- **CSharpFunctionalExtensions Issues**: Result<T> error chains, Maybe<T> HasValue checks, error composition
 
 ### Reference Incidents (Learn From These)
 - **F1 Stress**: Race conditions with 100+ blocks
@@ -194,14 +194,14 @@ dotnet test --filter Category=Integration
 
 ### Tech Stack Debugging Patterns
 
-#### LanguageExt Debugging (Context7 Verified)
-- **Fin<T> error tracing**: `.MapFail(e => { _logger.LogTrace($"Error: {e}"); return e; })`
-- **Option<T> None detection**: `.IfNone(() => { _logger.LogTrace("None encountered"); })`
-- **Error creation**: `Error.New("message")` for expected, `Error.New(exception)` for exceptional
-- **Chain inspection**: Use `.Match(Succ: x => ..., Fail: e => ...)` to examine both paths
-- **MANDATORY**: Query Context7 before assuming LanguageExt behavior:
+#### CSharpFunctionalExtensions Debugging (Context7 Verified)
+- **Result<T> error tracing**: `.Tap(() => _logger.LogTrace("Success"))` and `.TapError(e => _logger.LogTrace($"Error: {e}"))`
+- **Maybe<T> None detection**: Check `.HasValue` and use `.Match()` to handle both cases
+- **Error creation**: `Result.Failure<T>("message")` for failures
+- **Chain inspection**: Use `.Match(onSuccess: x => ..., onFailure: e => ...)` to examine both paths
+- **MANDATORY**: Query Context7 before assuming CSharpFunctionalExtensions behavior:
   ```bash
-  mcp__context7__get-library-docs "/louthy/language-ext" --topic "Fin Error debugging"
+  mcp__context7__get-library-docs "/vkhorikov/CSharpFunctionalExtensions" --topic "Result Error debugging"
   ```
 
 #### Logging Patterns
@@ -245,19 +245,19 @@ Every debugging session must:
 
 ### Writing Regression Tests
 - **Test the failure case** - Ensure bug scenario covered
-- **Use Fin<T> assertions** - Remember functional error handling
+- **Use Result<T> assertions** - Remember functional error handling
 - **Test edge cases** - Bugs often hide similar issues
 
-📚 **See [HANDBOOK.md](../03-Reference/HANDBOOK.md) for LanguageExt test patterns**
+📚 **See [Workflow.md](../01-Active/Workflow.md) for CSharpFunctionalExtensions test patterns**
 
 ## Debugging Patterns
 
 ### Notification Issues
 ```
 1. Check command publishes notification
-2. Verify handler bridges to presenter
-3. Confirm presenter subscribes in Initialize()
-4. Validate presenter disposes properly
+2. Verify handler bridges to component
+3. Confirm component subscribes in Initialize()
+4. Validate component disposes properly
 5. Test notification reaches view
 ```
 
@@ -292,7 +292,7 @@ Every debugging session must:
 Example:
 ```
 BR_007 Investigation:
-Root cause: Presenters not subscribing in Initialize()
+Root cause: Components not subscribing in Initialize()
 Confidence: High
 Evidence: [logs showing missing subscriptions]
 Should I proceed with this fix?
@@ -308,8 +308,8 @@ Should I proceed with this fix?
    - `Console.WriteLine()` debug output
    - `GD.Print()` statements
 2. **Debug-only code blocks**:
-   - `.MapFail(e => { /* debug */ return e; })` patterns
-   - `.IfNone(() => { /* debug */ })` tracing
+   - `.TapError(e => { /* debug */ })` patterns
+   - `.Match()` debugging statements
    - Try/catch blocks added only for debugging
 3. **Commented-out code** from testing theories
 4. **`#if DEBUG` sections** added during investigation
@@ -401,11 +401,13 @@ Before creating any PM (Post-Mortem):
 
 When investigating bugs, I primarily reference:
 - **[CLAUDE.md](../../CLAUDE.md)** ⭐⭐⭐⭐⭐ - Project overview, quality gates
-- **[HANDBOOK.md](../03-Reference/HANDBOOK.md)** ⭐⭐⭐⭐⭐ - Patterns, architecture, debugging
+- **[Workflow.md](../01-Active/Workflow.md)** ⭐⭐⭐⭐⭐ - Patterns, architecture, debugging
+- **[ADR-001](../03-Reference/ADR/ADR-001-clean-architecture-foundation.md)** ⭐⭐⭐⭐⭐ - Clean Architecture
+- **[ADR-002](../03-Reference/ADR/ADR-002-godot-integration-architecture.md)** ⭐⭐⭐⭐⭐ - Godot integration
+- **[ADR-003](../03-Reference/ADR/ADR-003-functional-error-handling.md)** ⭐⭐⭐⭐⭐ - Error handling patterns
 - **[Glossary.md](../03-Reference/Glossary.md)** ⭐⭐⭐⭐⭐ - Terminology for bug descriptions
 - **[BugReport_Template.md](../05-Templates/BugReport_Template.md)** - BR structure
 - **[06-PostMortems/](../06-PostMortems/)** - Learning from past issues
-- **Move Block Reference**: `src/Features/Block/Move/` - Pattern comparison
 
 ## 📝 Post-Mortem Lifecycle Management
 

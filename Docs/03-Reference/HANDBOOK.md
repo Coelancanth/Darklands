@@ -1,8 +1,8 @@
 # Darklands Developer Handbook
 
-**Last Updated**: 2025-08-29 16:52  
-**Purpose**: Single source of truth for daily development - everything you need in one place  
-**Based On**: Established HANDBOOK.md patterns (proven approach)
+**Last Updated**: 2025-09-30
+**Purpose**: Single source of truth for daily development - everything you need in one place
+**Based On**: ADR-001 (Clean Architecture), ADR-002 (Godot Integration), ADR-003 (Functional Error Handling)
 
 ## 🔍 Quick Reference Protocol - Find What You Need FAST
 
@@ -24,8 +24,9 @@
 3. **Create PR** → [Branch Naming](#branch-naming-convention)
 
 **❓ "How Do I...?" Questions:**
-- **Use LanguageExt v5?** → [LanguageExt Usage Guide](LanguageExt-Usage-Guide.md) ⭐⭐⭐⭐⭐
-- **Handle errors?** → [Error Handling](#-error-handling-with-languageext-v5) - Fin<T> everywhere!
+- **Use Result<T>?** → [ADR-003: Functional Error Handling](ADR/ADR-003-functional-error-handling.md) ⭐⭐⭐⭐⭐
+- **Handle errors?** → [Error Handling](#-error-handling-with-result) - Result<T> everywhere!
+- **Connect to Godot?** → [ADR-002: Godot Integration](ADR/ADR-002-godot-integration-architecture.md)
 - **Route work?** → [Persona Routing](#-persona-routing)
 - **Add DI service?** → [GameStrapper Pattern](#gamestrapper-pattern)
 
@@ -109,14 +110,14 @@ Before implementing ANY feature:
 **Example Enforcement:**
 ```csharp
 // ✅ CORRECT - follows Glossary
-public class ScheduleActorCommand : IRequest<Fin<Unit>>
+public class ScheduleActorCommand : IRequest<Result>
 {
     public Guid ActorId { get; init; }
     public TimeUnit NextTurn { get; init; }
 }
 
 // ❌ WRONG - violates Glossary
-public class ScheduleEntityCommand : IRequest<Fin<Unit>>  // "Entity" not in Glossary
+public class ScheduleEntityCommand : IRequest<Result>  // "Entity" not in Glossary
 {
     public Guid CharacterId { get; init; }  // "Character" deprecated
     public TimeUnit TurnTime { get; init; }  // "TurnTime" not allowed
@@ -228,10 +229,11 @@ The `./scripts/setup/verify-environment.ps1` script performs:
 - **Test Layer** (`tests/Darklands.Core.Tests.csproj`): Fast unit tests
 
 ### Critical Architecture Rules
-1. **Core has ZERO Godot references** - Enables modding without Godot
-2. **Everything returns Fin<T>** - No exceptions cross boundaries
+1. **Core has ZERO Godot references** - Enables modding without Godot (see ADR-001)
+2. **Everything returns Result<T>** - No exceptions cross boundaries (see ADR-003)
 3. **DI validates on startup** - Catches wiring errors immediately
 4. **Serilog never crashes** - Fallback-safe logging configuration
+5. **ServiceLocator ONLY in _Ready()** - Presentation layer only (see ADR-002)
 
 ### Time-Unit Combat System (Core Feature)
 ```
@@ -267,44 +269,45 @@ Y↑
 
 ---
 
-## 🚨 Error Handling with LanguageExt v5
+## 🚨 Error Handling with Result<T>
 
-**We use LanguageExt v5.0.0-beta-54** for functional error handling.
+**We use CSharpFunctionalExtensions** for functional error handling.
 
 ### Core Principle
-**Everything that can fail returns `Fin<T>`** - No exceptions for business logic.
+**Everything that can fail returns `Result<T>`** - No exceptions for business logic.
 
 ### Quick Reference
 ```csharp
-using LanguageExt;
-using static LanguageExt.Prelude;
+using CSharpFunctionalExtensions;
 
-// Domain: Pure functions return Fin<T>
-public static Fin<Position> Move(Position from, Direction dir) =>
+// Domain: Pure functions return Result<T>
+public static Result<Position> Move(Position from, Direction dir) =>
     IsValidMove(from, dir)
-        ? Pure(from.Move(dir))
-        : Fail(Error.New($"Invalid move"));
+        ? Result.Success(from.Move(dir))
+        : Result.Failure<Position>("Invalid move");
 
-// Application: Chain with from/select
-from actor in GetActor(id)
-from newPos in Move(actor.Position, dir)
-select newPos;
+// Application: Chain with Bind
+GetActor(id)
+    .Bind(actor => Move(actor.Position, dir))
+    .Bind(newPos => SavePosition(newPos));
 
 // Presentation: Match on result
 result.Match(
-    Succ: value => UpdateUI(value),
-    Fail: error => ShowError(error.Message)
+    onSuccess: value => UpdateUI(value),
+    onFailure: error => ShowError(error)
 );
 ```
 
-**📚 Full Guide**: [LanguageExt-Usage-Guide.md](LanguageExt-Usage-Guide.md) ⭐⭐⭐⭐⭐  
-**Architecture Decision**: [ADR-008](ADR/ADR-008-functional-error-handling.md)
+**📚 Full Guide**: [ADR-003: Functional Error Handling](ADR/ADR-003-functional-error-handling.md) ⭐⭐⭐⭐⭐
+**Architecture Decision**: [ADR-003](ADR/ADR-003-functional-error-handling.md)
 
 ---
 
-## 🎯 Phased Implementation Protocol (ADR-002)
+## 🎯 Phased Implementation Protocol
 
 ### MANDATORY for ALL Features
+
+**See [ADR-001: Clean Architecture Foundation](ADR/ADR-001-clean-architecture-foundation.md) for full details.**
 
 #### Phase 1: Domain Model
 - Pure C# business logic, zero dependencies
@@ -441,35 +444,38 @@ public Property TimeUnitCalculation_ShouldBeDeterministic() {
 ```
 **Key**: 1000+ iterations prove mathematical correctness
 
-### LanguageExt Testing Patterns
+### CSharpFunctionalExtensions Testing Patterns
 
-#### Testing Fin<T> Results
+#### Testing Result<T>
 ```csharp
 // ✅ Test success
-result.IsSucc.Should().BeTrue();
-result.IfSucc(value => value.TimeUnits.Should().Be(expected));
+result.IsSuccess.Should().BeTrue();
+result.Value.TimeUnits.Should().Be(expected);
 
 // ✅ Test failure
-result.IsFail.Should().BeTrue();
-result.IfFail(error => error.Message.Should().Contain("invalid"));
+result.IsFailure.Should().BeTrue();
+result.Error.Should().Contain("invalid");
 
 // ✅ Pattern matching
 result.Match(
-    Succ: value => value.Damage.Should().BeGreaterThan(0),
-    Fail: error => Assert.Fail($"Expected success: {error}")
+    onSuccess: value => value.Damage.Should().BeGreaterThan(0),
+    onFailure: error => Assert.Fail($"Expected success: {error}")
 );
 ```
 
-#### Testing Option<T>
+#### Testing Maybe<T>
 ```csharp
-option.IsSome.Should().BeTrue();
-option.IfSome(combatant => {
-    combatant.Health.Should().BeGreaterThan(0);
-    combatant.TimeUnits.Should().BeLessThan(1000);
-});
+maybeValue.HasValue.Should().BeTrue();
+maybeValue.Value.Health.Should().BeGreaterThan(0);
+
+// Or with safe access
+maybeValue.Match(
+    some: combatant => combatant.Health.Should().BeGreaterThan(0),
+    none: () => Assert.Fail("Expected value")
+);
 ```
 
-**Key Rule**: Everything returns `Fin<T>` - no exceptions thrown
+**Key Rule**: Everything returns `Result<T>` - no exceptions thrown
 
 ---
 
@@ -542,12 +548,12 @@ public class GridService {
 **Using patterns that fight the problem domain**
 ```csharp
 // ❌ WRONG - Async patterns in sequential domain
-public async Task<Fin<Result>> ProcessTurnAsync() {
+public async Task<Result> ProcessTurnAsync() {
     await Task.Run(() => ...);  // Why async for turn-based?
 }
 
 // ✅ CORRECT - Match pattern to domain
-public Fin<Result> ProcessTurn() {
+public Result ProcessTurn() {
     // Turn-based = sequential = synchronous
     return ExecuteAction();
 }
@@ -578,13 +584,13 @@ public record TimeUnit(int Value);
 public static class TimeUnitCalculator { }
 ```
 
-### ❌ Exceptions Instead of Fin<T>
+### ❌ Exceptions Instead of Result<T>
 ```csharp
 // WRONG - Throwing exceptions
 if (invalid) throw new ArgumentException();
 
-// RIGHT - Return Fin<T>
-if (invalid) return FinFail<Result>(Error.New("Invalid"));
+// RIGHT - Return Result<T>
+if (invalid) return Result.Failure<Result>("Invalid input");
 ```
 
 ### ❌ Creating Files Without Need
@@ -632,19 +638,19 @@ public static int CalculateTimeUnits(int baseTime, int agility, int encumbrance)
 ```
 **Key**: Multiply by powers of 10, do math, divide back down
 
-### 🎯 Pattern: SSOT Service Architecture  
+### 🎯 Pattern: SSOT Service Architecture
 **When**: Multiple services need same data
 **Why**: Prevents state synchronization bugs
 ```csharp
 // ✅ CORRECT SSOT Pattern (from TD_009 fix)
 public interface IGridStateService {
-    Fin<Position> GetActorPosition(ActorId id);  // ONLY source for positions
+    Result<Position> GetActorPosition(ActorId id);  // ONLY source for positions
 }
 public interface IActorStateService {
-    Fin<Actor> GetActor(ActorId id);  // ONLY source for actor stats
+    Result<Actor> GetActor(ActorId id);  // ONLY source for actor stats
 }
 public interface ICombatQueryService {
-    Fin<CombatView> GetCombatView(ActorId id);  // Composes from both
+    Result<CombatView> GetCombatView(ActorId id);  // Composes from both
 }
 ```
 **Key**: Each service owns specific domain, composite services query both
@@ -670,11 +676,11 @@ public class GameLoopCoordinator {
 ```csharp
 // ❌ WRONG - Silent failure, handler won't be discovered
 namespace Darklands.Features.Combat
-public class AttackHandler : IRequestHandler<AttackCommand, Fin<Result>>
+public class AttackHandler : IRequestHandler<AttackCommand, Result>
 
 // ✅ CORRECT - Will be auto-discovered by MediatR
 namespace Darklands.Core.Features.Combat
-public class AttackHandler : IRequestHandler<AttackCommand, Fin<Result>>
+public class AttackHandler : IRequestHandler<AttackCommand, Result>
 ```
 **Impact**: Handlers outside `Darklands.Core.*` namespace are invisible to MediatR
 **Symptom**: 30+ test failures from single namespace error
@@ -845,12 +851,12 @@ git config --get core.hookspath  # Should return .husky
 
 ## 📚 References
 
-- **Established HANDBOOK**: Our template and proven patterns
-- **ADR-001**: Strict Model-View Separation
-- **ADR-002**: Phased Implementation Protocol
+- **ADR-001**: [Clean Architecture Foundation](ADR/ADR-001-clean-architecture-foundation.md) - Core structure and separation
+- **ADR-002**: [Godot Integration Architecture](ADR/ADR-002-godot-integration-architecture.md) - How to connect Core to Godot
+- **ADR-003**: [Functional Error Handling](ADR/ADR-003-functional-error-handling.md) - Result<T> patterns
 - **GameStrapper.cs**: DI container pattern (established approach)
 - **Clean Architecture**: Uncle Bob's principles
-- **LanguageExt Docs**: Functional patterns in C#
+- **CSharpFunctionalExtensions**: Functional patterns in C#
 
 ---
 
