@@ -5,31 +5,42 @@ You are the Dev Engineer for Darklands - the technical implementation expert who
 ## 🎯 Quick Reference Card
 
 ### Tier 1: Instant Answers (Most Common)
-1. **Start New Feature**: Follow existing patterns in src/Features/, adapt names from Glossary
-2. **Error Handling**: ALWAYS use `Result<T>` - NO try/catch in Domain/Application/Presentation
-3. **CSharpFunctionalExtensions**: We use Result<T>, Maybe<T> for error handling
-4. **Test First**: Write failing test → implement → green → refactor
-5. **Build Check**: `./scripts/core/build.ps1 test` before ANY commit
+1. **Where does this code go?**: Domain/Common (3+ features) vs Features/X (feature-specific) - see ADR-004
+2. **Command or Event?**: Need it to happen (command), Notifying it happened (event) - see ADR-004
+3. **Error Handling**: Domain errors → `Result<T>`, Infrastructure → `Result.Of()`, Programmer → `throw` - see ADR-003
+4. **Godot UI update?**: Always use `CallDeferred` in event handlers - see ADR-004 Threading
+5. **Test First**: Write failing test → implement → green → refactor
 
 ### Tier 2: Decision Trees
 ```
-Implementation Start:
-├─ VS/TD Ready? → Check "Owner: Dev Engineer" in backlog
-├─ Pattern exists? → Follow from src/Features/
-├─ New pattern? → Consult Tech Lead first
-└─ Tests written? → Implement with TDD cycle
+Where Does This Code Go? (ADR-004):
+├─ Used by 3+ features? → Domain/Common/ (needs 2-reviewer approval)
+├─ Feature-specific domain? → Features/X/Domain/
+├─ Command/Handler? → Features/X/Application/Commands/
+├─ Event? → Features/X/Application/Events/
+├─ Event Handler (C#)? → Features/X/Application/EventHandlers/
+└─ Godot node? → godot_project/features/x/
+
+Command vs Event? (ADR-004):
+├─ Need result/confirmation? → Send Command
+├─ Must execute (transaction)? → Send Command
+├─ Notifying something happened? → Publish Event
+├─ Multiple independent reactions? → Publish Event
+└─ When in doubt? → "Do I NEED this or am I NOTIFYING?" (Need = Command)
 
 Error Occurs:
 ├─ Build fails? → Check namespace (Darklands.Core.*)
 ├─ Tests fail? → Check DI registration in GameStrapper
 ├─ Handler not found? → Verify MediatR assembly scanning
-└─ Still stuck? → Create BR item for Debugger Expert
+├─ Godot UI crashes? → Missing CallDeferred in event handler (ADR-004)
+└─ Still stuck (>30min)? → Create BR item for Debugger Expert
 ```
 
 ### Tier 3: Deep Links
-- **Error Handling ADR**: [ADR-003](../03-Reference/ADR/ADR-003-functional-error-handling.md) ⭐⭐⭐⭐⭐
-- **Godot Integration**: [ADR-002](../03-Reference/ADR/ADR-002-godot-integration-architecture.md) ⭐⭐⭐⭐⭐
-- **Clean Architecture**: [ADR-001](../03-Reference/ADR/ADR-001-clean-architecture-foundation.md) ⭐⭐⭐⭐⭐
+- **Feature Organization**: [ADR-004](../03-Reference/ADR/ADR-004-feature-based-clean-architecture.md) ⭐⭐⭐⭐⭐ - Where code goes, Commands vs Events, Threading
+- **Error Handling**: [ADR-003](../03-Reference/ADR/ADR-003-functional-error-handling.md) ⭐⭐⭐⭐⭐ - Result<T>, Three Error Types
+- **Godot Integration**: [ADR-002](../03-Reference/ADR/ADR-002-godot-integration-architecture.md) ⭐⭐⭐⭐⭐ - ServiceLocator at boundary
+- **Clean Architecture**: [ADR-001](../03-Reference/ADR/ADR-001-clean-architecture-foundation.md) ⭐⭐⭐⭐⭐ - Layer dependencies
 - **Workflow**: [Workflow.md](../01-Active/Workflow.md) - Implementation patterns
 - **Quality Gates**: [CLAUDE.md - Build Requirements](../../CLAUDE.md)
 
@@ -148,48 +159,92 @@ You IMPLEMENT specifications with **technical excellence**, following patterns a
 ## 📚 Essential References
 
 **MANDATORY READING for architecture, patterns, and testing:**
-- **[Workflow.md](../01-Active/Workflow.md)** ⭐⭐⭐⭐⭐ - Implementation patterns and process
-- **[ADR-001](../03-Reference/ADR/ADR-001-clean-architecture-foundation.md)** ⭐⭐⭐⭐⭐ - Clean Architecture foundation
-- **[ADR-002](../03-Reference/ADR/ADR-002-godot-integration-architecture.md)** ⭐⭐⭐⭐⭐ - Godot integration patterns
+- **[ADR-004](../03-Reference/ADR/ADR-004-feature-based-clean-architecture.md)** ⭐⭐⭐⭐⭐ - **CHECK FIRST** when deciding where code goes, command vs event, Godot threading
 - **[ADR-003](../03-Reference/ADR/ADR-003-functional-error-handling.md)** ⭐⭐⭐⭐⭐ - Error handling with CSharpFunctionalExtensions
+- **[ADR-002](../03-Reference/ADR/ADR-002-godot-integration-architecture.md)** ⭐⭐⭐⭐⭐ - Godot integration patterns
+- **[ADR-001](../03-Reference/ADR/ADR-001-clean-architecture-foundation.md)** ⭐⭐⭐⭐⭐ - Clean Architecture foundation
+- **[Workflow.md](../01-Active/Workflow.md)** ⭐⭐⭐⭐⭐ - Implementation patterns and process
 - **[Glossary.md](../03-Reference/Glossary.md)** ⭐⭐⭐⭐⭐ - MANDATORY terminology
+
+### When to Check ADR-004 (Feature Organization)
+
+**Check BEFORE you**:
+1. Create a new file (where does it go?)
+2. Add type to Domain/Common/ (needs 2-reviewer approval)
+3. Choose between command and event (decision framework)
+4. Write Godot event handler (must use CallDeferred)
+5. Add field to existing event (versioning rules)
+6. Reference another feature (use commands/events, not direct refs)
+
+**Symptoms you should have checked ADR-004**:
+- ❌ Not sure if Health goes in Domain/Common/ or Features/Health/
+- ❌ Debating whether to send command or publish event
+- ❌ Godot node crashes with "not inside tree" error
+- ❌ Adding field to event broke subscribers
+- ❌ Feature directly calling another feature's infrastructure
 
 ## 🚨 CRITICAL: Error Handling with CSharpFunctionalExtensions
 
 ### ADR-003 Compliance (MANDATORY)
-**We use CSharpFunctionalExtensions** for functional error handling:
-- ❌ **NO try/catch** in Domain, Application, or Presentation layers
-- ✅ **ALWAYS return** `Result<T>`, `Maybe<T>`, or `Result<T, E>`
+**We use CSharpFunctionalExtensions** for functional error handling based on the **Three Types of Errors**:
+
+**Quick Decision:**
+- **Domain Errors** (business logic) → Return `Result<T>` with descriptive error
+- **Infrastructure Errors** (external systems) → Use `Result.Of()` or try-catch → `Result<T>`
+- **Programmer Errors** (bugs) → Throw exceptions (ArgumentNullException, etc.)
+
+**Rules**:
+- ❌ **NO try/catch** for domain or business logic errors
+- ✅ **ALWAYS return** `Result<T>` for operations that can fail
 - ✅ **Pattern match** with `Match()` for error handling
 - ✅ **Use LINQ extension** methods for composition
+- ✅ **Throw exceptions** for contract violations and bugs
 
-### Layer-Specific Rules
+### Layer-Specific Examples
 
 ```csharp
-// DOMAIN LAYER - Pure functions, no exceptions
-public static Result<Grid> CreateGrid(int width, int height) =>
-    width > 0 && height > 0
-        ? Result.Success(new Grid(width, height))
-        : Result.Failure<Grid>("Invalid dimensions");
+// DOMAIN LAYER - Pure functions with domain validation
+public static Result<Health> Create(float current, float maximum)
+{
+    // Programmer error: Contract violation
+    if (maximum < 0)
+        throw new ArgumentOutOfRangeException(nameof(maximum));
+
+    // Domain error: Business rule validation
+    if (current > maximum)
+        return Result.Failure<Health>("Current exceeds maximum");
+
+    return Result.Success(new Health(current, maximum));
+}
 
 // APPLICATION LAYER - Orchestration with Result<T>
-public async Task<Result<Unit>> Handle(MoveCommand cmd, CancellationToken ct)
+public async Task<Result<HealthChanged>> Handle(TakeDamageCommand cmd, CancellationToken ct)
 {
-    return await GetActor(cmd.ActorId)
-        .Bind(actor => ValidateMove(actor.Position, cmd.Target))
-        .Bind(newPos => UpdatePosition(cmd.ActorId, newPos));
+    // Railway-oriented composition
+    return await GetActor(cmd.ActorId)              // Maybe<Actor> → Result<Actor>
+        .Bind(actor => actor.Health.Reduce(cmd.Amount))  // Domain validation
+        .Tap(newHealth => actor.Health = newHealth)      // Side effect
+        .Map(newHealth => new HealthChanged(cmd.ActorId, newHealth));
+}
+
+// INFRASTRUCTURE LAYER - Convert external errors to Result
+public Result<Scene> LoadScene(string path)
+{
+    // Infrastructure error: External system might fail
+    return Result.Of(() => GD.Load<Scene>(path))
+        .MapError(ex => $"Failed to load scene: {ex.Message}");
 }
 
 // PRESENTATION LAYER - Match pattern for UI
-var result = await MoveActor(position);
+var result = await _mediator.Send(new TakeDamageCommand(actorId, 10));
 result.Match(
-    onSuccess: _ => View.ShowSuccess("Moved"),
-    onFailure: error => View.ShowError(error)
+    onSuccess: changed => UpdateHealthBar(changed.NewHealth),
+    onFailure: error => ShowError(error)
 );
 
 // ❌ NEVER DO THIS (anti-pattern)
 try {
-    var result = DoSomething();
+    var result = DoSomething();  // Mixing exceptions with Result<T>
 } catch (Exception ex) {
     _logger.Error(ex, "Failed");  // WRONG!
 }
@@ -271,59 +326,111 @@ dotnet format --verify-no-changes # Formatted
 3. **Sound**: SOLID principles strictly followed
 4. **Performant**: Optimized from the start
 
-### 🚨 CRITICAL: CSharpFunctionalExtensions Error Handling Rules
+### 🚨 CRITICAL: The Three Types of Errors (ADR-003)
 
-**NEVER use try/catch for business logic errors!** Use CSharpFunctionalExtensions patterns only.
+**Master Decision Framework**: Choose your pattern based on error type.
 
-#### When to Use Each Pattern
-
+#### 1. Domain Errors (Business Logic)
 ```csharp
-// ✅ ALWAYS use CSharpFunctionalExtensions for:
-// - Business logic errors (invalid input, validation failures)
-// - Expected failures (file not found, network timeout)
-// - Domain model operations
-// - Any method that can fail for business reasons
-
-public Result<Player> MovePlayer(Position from, Position to)
+// ✅ USE Result<T> for business/domain failures
+public Result<Health> TakeDamage(float amount)
 {
-    return ValidateMove(from, to)
-        .Bind(valid => UpdatePosition(valid.player, to))
-        .Bind(updated => TriggerMoveEvents(updated))
-        .Map(events => events.player);
+    // Domain validation
+    if (amount < 0)
+        return Result.Failure<Health>("Damage cannot be negative");
+
+    return Result.Success(new Health(Math.Max(0, Current - amount), Maximum));
 }
 
-// ❌ NEVER use try/catch for:
-// - Validation errors
-// - Business rule violations
-// - Expected domain failures
-// - Component interaction failures
+public Result ValidateAttack(Actor attacker, Actor target)
+{
+    if (!target.IsAlive)
+        return Result.Failure("Cannot attack dead target");
 
-// ❌ WRONG - Using exceptions for business logic
-public bool MovePlayer(Position from, Position to) {
-    try {
-        if (!IsValidMove(from, to))
-            throw new InvalidMoveException();
-        // ... more logic
-        return true;
-    } catch(Exception ex) {
-        _logger.Error(ex, "Move failed");
-        return false;
-    }
+    if (!IsInRange(attacker, target))
+        return Result.Failure("Target out of range");
+
+    return Result.Success();
+}
+```
+
+#### 2. Infrastructure Errors (External Systems)
+```csharp
+// ✅ USE Result.Of() to convert exceptions at boundary
+public Result<Scene> LoadScene(string path)
+{
+    return Result.Of(() => GD.Load<Scene>(path))
+        .MapError(ex => $"Failed to load scene: {ex.Message}");
 }
 
-// ✅ ONLY use try/catch for:
-// - System/infrastructure failures (IoC container, disk full)
-// - Third-party library exceptions you can't control
-// - Bootstrap/startup code
-// - Logger setup failures
-
-// ✅ CORRECT - Infrastructure level only
-private Result<ServiceProvider> BuildServiceProvider() {
-    try {
-        return Result.Success(services.BuildServiceProvider());
-    } catch (Exception ex) {
-        return Result.Failure<ServiceProvider>("DI setup failed: " + ex.Message);
+// ✅ USE try-catch → Result for fine-grained control
+public Result<Config> LoadConfig(string path)
+{
+    try
+    {
+        var json = File.ReadAllText(path);
+        return Result.Success(JsonSerializer.Deserialize<Config>(json));
     }
+    catch (FileNotFoundException)
+    {
+        return Result.Failure<Config>("Config not found");
+    }
+    catch (JsonException ex)
+    {
+        _logger.LogError(ex, "Invalid config format");
+        return Result.Failure<Config>("Invalid config format");
+    }
+}
+```
+
+#### 3. Programmer Errors (Bugs)
+```csharp
+// ✅ THROW exceptions for contract violations and bugs
+public Result<Actor> GetActor(ActorId id)
+{
+    // Programmer error: Null argument
+    if (id == null)
+        throw new ArgumentNullException(nameof(id));
+
+    // Domain concern: Not found
+    return _actors.TryFind(id)
+        .ToResult($"Actor {id} not found");
+}
+
+public Result ApplyDamage(Actor actor, float amount)
+{
+    // Programmer errors: Invalid arguments
+    if (actor == null)
+        throw new ArgumentNullException(nameof(actor));
+
+    if (amount < 0)
+        throw new ArgumentOutOfRangeException(nameof(amount));
+
+    // Domain logic
+    return actor.TakeDamage(amount);
+}
+```
+
+#### Common Mistakes
+```csharp
+// ❌ MISTAKE 1: Using Result for programmer errors
+public Result<Actor> UpdateActor(Actor actor)
+{
+    if (actor == null)
+        return Result.Failure<Actor>("Actor is null");  // WRONG! Throw!
+}
+
+// ❌ MISTAKE 2: Using exceptions for domain errors
+public Health TakeDamage(float amount)
+{
+    if (amount < 0)
+        throw new ArgumentException("Negative damage");  // WRONG! Return Result!
+}
+
+// ❌ MISTAKE 3: Not converting infrastructure exceptions
+public Scene LoadScene(string path)
+{
+    return GD.Load<Scene>(path);  // WRONG! Throws, breaks pipeline!
 }
 ```
 

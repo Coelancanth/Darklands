@@ -182,7 +182,7 @@ dotnet test --filter Category=Integration
 - **State Issues**: Corruption, dual sources, cache invalidation
 - **Memory**: Event handler leaks, disposal, service lifetimes
 - **Integration Tests**: Isolation, container conflicts, data carryover
-- **CSharpFunctionalExtensions Issues**: Result<T> error chains, Maybe<T> HasValue checks, error composition
+- **Error Handling Issues**: Misclassified error types (Domain/Infrastructure/Programmer), Result<T> chains breaking, uncaught exceptions
 
 ### Reference Incidents (Learn From These)
 - **F1 Stress**: Race conditions with 100+ blocks
@@ -195,14 +195,57 @@ dotnet test --filter Category=Integration
 ### Tech Stack Debugging Patterns
 
 #### CSharpFunctionalExtensions Debugging (Context7 Verified)
-- **Result<T> error tracing**: `.Tap(() => _logger.LogTrace("Success"))` and `.TapError(e => _logger.LogTrace($"Error: {e}"))`
+
+**Critical Framework**: Identify error type first - helps locate root cause faster.
+
+**Debugging by Error Type** (ADR-003):
+1. **Domain Error Debugging**:
+   - Symptom: Result<T> returns IsFailure but business logic seems correct
+   - Check: Validation conditions in domain layer
+   - Tool: `.TapError(e => _logger.LogWarning("Domain validation failed: {Error}", e))`
+   - Example: "Damage cannot be negative" → check TakeDamage validation logic
+
+2. **Infrastructure Error Debugging**:
+   - Symptom: Operations fail when external resources unavailable
+   - Check: Result.Of() boundaries, exception → Result conversions
+   - Tool: `.TapError(e => _logger.LogError("Infrastructure failure: {Error}", e))`
+   - Example: Scene loading fails → check GD.Load() wrapper and Result.Of() usage
+
+3. **Programmer Error Debugging**:
+   - Symptom: Uncaught exceptions, ArgumentNullException, InvalidOperationException
+   - Check: Contract violations, null checks, preconditions
+   - Tool: Let it crash (don't catch), fix the bug
+   - Example: Null ActorId passed → add ArgumentNullException check
+
+**General Result<T> Debugging**:
+- **Error tracing**: `.Tap(() => _logger.LogTrace("Success"))` and `.TapError(e => _logger.LogTrace($"Error: {e}"))`
 - **Maybe<T> None detection**: Check `.HasValue` and use `.Match()` to handle both cases
-- **Error creation**: `Result.Failure<T>("message")` for failures
 - **Chain inspection**: Use `.Match(onSuccess: x => ..., onFailure: e => ...)` to examine both paths
-- **MANDATORY**: Query Context7 before assuming CSharpFunctionalExtensions behavior:
-  ```bash
-  mcp__context7__get-library-docs "/vkhorikov/CSharpFunctionalExtensions" --topic "Result Error debugging"
-  ```
+
+**Common Misclassifications**:
+```csharp
+// ❌ WRONG: Domain error treated as programmer error
+public Result<Actor> GetActor(ActorId id)
+{
+    if (id == null)
+        throw new ArgumentNullException(nameof(id));  // Correct
+
+    if (!_actors.ContainsKey(id))
+        throw new KeyNotFoundException();  // WRONG! Return Result.Failure
+}
+
+// ❌ WRONG: Programmer error wrapped in Result
+public Result<Health> Create(float max)
+{
+    if (max < 0)
+        return Result.Failure<Health>("Negative max");  // WRONG! Throw ArgumentOutOfRangeException
+}
+```
+
+**MANDATORY**: Query Context7 before assuming CSharpFunctionalExtensions behavior:
+```bash
+mcp__context7__get-library-docs "/vkhorikov/CSharpFunctionalExtensions" --topic "Result Error debugging"
+```
 
 #### Logging Patterns
 - **ILogger usage**: `Microsoft.Extensions.Logging` with proper levels:
