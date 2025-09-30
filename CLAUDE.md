@@ -292,7 +292,7 @@ Phase 1: Domain → Phase 2: Application → Phase 3: Infrastructure → Phase 4
 
 **ALWAYS:**
 - Complete each phase before starting next
-- Run tests: `[test command] --filter Category=[Phase]`
+- Run tests: `./scripts/core/build.ps1 test --filter "Category=Phase1"` (or Phase2/3/4)
 - Commit with phase markers: `feat(X): description [Phase X/4]`
 - Follow reference implementations
 
@@ -327,17 +327,17 @@ date  # Get current date/time before creating/updating dated documents
 
 ## 🚦 Quality Gates & CI/CD
 
-### Test Execution Scripts
+### Test Execution
 ```bash
-# Quick feedback during development
-./scripts/test/quick.ps1         # Architecture tests only
+# MANDATORY before committing (build + all tests)
+./scripts/core/build.ps1 test
 
-# Complete validation before PR
-./scripts/test/full.ps1          # Staged execution
-./scripts/test/full.ps1 -SkipSlow  # Skip performance tests
+# Phase-specific testing (for phased implementation)
+./scripts/core/build.ps1 test --filter "Category=Phase1"
+./scripts/core/build.ps1 test --filter "Category=Phase2"
 
-# MANDATORY before committing (full validation)
-./scripts/core/build.ps1 test    # Build + all tests
+# Alternative: Run tests directly (skip Godot build validation)
+dotnet test tests/Darklands.Core.Tests/Darklands.Core.Tests.csproj
 ```
 
 ## 📖 Git Workflow with Smart Sync

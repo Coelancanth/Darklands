@@ -12,8 +12,8 @@ $ErrorActionPreference = "Stop"
 
 # PROJECT CONFIGURATION - DARKLANDS
 $ProjectName = "Darklands"
-$CoreProject = "src/Darklands.Core.csproj"
-$TestProject = "tests/Darklands.Core.Tests.csproj"
+$CoreProject = "src/Darklands.Core/Darklands.Core.csproj"
+$TestProject = "tests/Darklands.Core.Tests/Darklands.Core.Tests.csproj"
 $GodotProject = "Darklands.csproj"
 $BuildCommand = "dotnet build"
 $TestCommand = "dotnet test"
@@ -63,7 +63,7 @@ switch ($Command) {
         Write-Step "Running tests"
         Execute-Command "$TestCommand $TestProject --configuration Debug --verbosity normal"
         Write-Host "✓ Build and test complete - safe to commit" -ForegroundColor Green
-        Write-Host "  💡 Tip: For faster testing, use ../test/quick.ps1 (architecture tests only)" -ForegroundColor DarkGray
+        Write-Host "  💡 Tip: Phase-specific tests: add --filter `"Category=Phase1`" (or Phase2/3/4)" -ForegroundColor DarkGray
     }
 
     'test-only' {
@@ -72,7 +72,7 @@ switch ($Command) {
         Execute-Command "$TestCommand $TestProject --configuration Debug --verbosity normal --no-build"
         Write-Host "✓ All tests passed" -ForegroundColor Green
         Write-Host "  Remember to run 'test' (not 'test-only') before committing!" -ForegroundColor Yellow
-        Write-Host "  💡 Tip: Use ../test/quick.ps1 for architecture tests only (fast)" -ForegroundColor DarkGray
+        Write-Host "  💡 Tip: Phase-specific: add --filter `"Category=Phase1`" (or Phase2/3/4)" -ForegroundColor DarkGray
     }
 
     'run' {
