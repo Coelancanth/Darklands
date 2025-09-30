@@ -69,66 +69,61 @@
 *Blockers preventing other work, production bugs, dependencies for other features*
 
 ### VS_002: Infrastructure - Dependency Injection Foundation [ARCHITECTURE]
-**Status**: Ready for Dev
-**Owner**: Tech Lead → Dev Engineer (implement)
-**Size**: S (4-6h)
+**Status**: In Progress
+**Owner**: Dev Engineer
+**Size**: S (3-4h) ← Simplified after ultrathink
 **Priority**: Critical (Foundation for VS_003, VS_004, VS_001)
 **Markers**: [ARCHITECTURE] [FRESH-START] [INFRASTRUCTURE]
 **Created**: 2025-09-30
 **Broken Down**: 2025-09-30 (Tech Lead)
+**Simplified**: 2025-09-30 (Dev Engineer ultrathink - removed IServiceLocator interface per ADR-002)
 
 **What**: Set up Microsoft.Extensions.DependencyInjection as the foundation for the application
 **Why**: Need DI container before we can inject loggers, event bus, or any services
 
-**Tech Lead Breakdown** (2025-09-30):
-Implementation follows phased protocol with test gates. Each phase must complete with passing tests before proceeding.
+**Dev Engineer Simplification** (2025-09-30):
+After ultrathink analysis, removed unnecessary IServiceLocator interface. ADR-002 shows static ServiceLocator class, not interface implementation. Simplified to 3 phases while maintaining all quality gates.
 
-**Phase 1: Domain Layer** (~1h)
-- File: `src/Darklands.Core/Domain/Infrastructure/IServiceLocator.cs`
-- Interface definition for Godot boundary pattern
-- Tests: Interface accessibility and signatures
-- Commit: `feat(VS_002): add IServiceLocator interface [Phase 1/4]`
-
-**Phase 2: Application Layer** (~1h)
+**Phase 1: GameStrapper** (~2h)
 - File: `src/Darklands.Core/Application/Infrastructure/GameStrapper.cs`
 - Implements: Initialize(), GetServices(), RegisterCoreServices()
 - Includes temporary ITestService for validation
 - Tests: Initialization idempotency, service resolution, test service
-- Gate: `dotnet test --filter "Category=Phase2"` must pass
-- Commit: `feat(VS_002): add GameStrapper with service registration [Phase 2/4]`
+- Gate: `dotnet test --filter "Category=Phase1"` must pass
+- Commit: `feat(VS_002): add GameStrapper with DI foundation [Phase 1/3]`
 
-**Phase 3: Infrastructure Layer** (~2h)
-- File: `src/Darklands.Core/Infrastructure/DependencyInjection/ServiceLocatorBridge.cs`
-- Implements: GetService<T>(), GetRequiredService<T>()
+**Phase 2: ServiceLocator** (~1-2h)
+- File: `src/Darklands.Core/Infrastructure/DependencyInjection/ServiceLocator.cs`
+- Static class with GetService<T>() and Get<T>() methods
 - Returns Result<T> for functional error handling
 - Service lifetime examples (Singleton, Transient)
 - Tests: Resolution success/failure, lifecycle validation
-- Gate: `dotnet test --filter "Category=Phase3"` must pass
-- Commit: `feat(VS_002): add ServiceLocatorBridge with lifetime tests [Phase 3/4]`
+- Gate: `dotnet test --filter "Category=Phase2"` must pass
+- Commit: `feat(VS_002): add ServiceLocator for Godot boundary [Phase 2/3]`
 
-**Phase 4: Presentation Layer** (~1-2h)
+**Phase 3: Godot Test Scene** (~1h)
 - Files:
   - `TestScenes/DI_Bootstrap_Test.tscn` (Godot scene)
   - `TestScenes/DIBootstrapTest.cs` (test script)
 - Manual test: Button click resolves service, updates label
 - Validation: Console shows success messages, no errors
-- Commit: `feat(VS_002): add Godot test scene for DI validation [Phase 4/4]`
+- Commit: `feat(VS_002): add Godot validation scene [Phase 3/3]`
 
 **Done When**:
 - ✅ All Core tests pass (dotnet test)
 - ✅ GameStrapper.Initialize() succeeds
-- ✅ ServiceLocatorBridge.GetService<T>() returns Result<T>
+- ✅ ServiceLocator.GetService<T>() returns Result<T>
 - ✅ Godot test scene works (manual validation)
 - ✅ No Godot references in Core project (dotnet list package)
-- ✅ All 4 phase commits exist in git history
+- ✅ All 3 phase commits exist in git history
 
 **Depends On**: None (first foundation piece)
 
-**Tech Lead Notes**:
-- ServiceLocator ONLY for Godot _Ready() methods (ADR-002)
-- Core code uses constructor injection
+**Implementation Notes**:
+- ServiceLocator is static class (NOT autoload) - initialized in Main scene root per ADR-002
+- ServiceLocator ONLY for Godot _Ready() methods - Core uses constructor injection
 - ITestService is temporary—remove after VS_001 complete
-- Pattern proven from old project, not speculative design
+- Simplified from 4 phases to 3 by removing unnecessary interface abstraction
 
 ---
 
