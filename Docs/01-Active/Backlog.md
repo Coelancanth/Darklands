@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-30 23:33 (VS_001 Phase 2 complete - application layer implemented)
+**Last Updated**: 2025-09-30 23:54 (VS_001 Phase 3 complete - infrastructure layer implemented)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -69,13 +69,13 @@
 *Blockers preventing other work, production bugs, dependencies for other features*
 
 ### VS_001: Architectural Skeleton - Health System Walking Skeleton [ARCHITECTURE]
-**Status**: In Progress (Phases 1-2 Complete: Domain + Application)
+**Status**: In Progress (Phases 1-3 Complete: Domain + Application + Infrastructure)
 **Owner**: Dev Engineer
-**Size**: S (4-6h total, ~2.25h complete, ~3.75h remaining)
+**Size**: S (4-6h total, ~2.75h complete, ~3.25h remaining)
 **Priority**: Critical (Validates architecture with real feature)
 **Markers**: [ARCHITECTURE] [WALKING-SKELETON] [END-TO-END]
 **Created**: 2025-09-30
-**Updated**: 2025-09-30 23:33 (Phase 2 complete - 91 tests passing, commit 733a2bb)
+**Updated**: 2025-09-30 23:54 (Phase 3 complete - 101 tests passing, commit 5b921e8)
 
 **What**: Implement minimal health system to validate complete architecture end-to-end
 **Why**: Prove the architecture works with a real feature after infrastructure is in place
@@ -420,7 +420,7 @@ Complexity: O(1) ✅
 
 ---
 
-**Progress Tracker** (Updated 2025-09-30 23:33):
+**Progress Tracker** (Updated 2025-09-30 23:54):
 - ✅ **Phase 1: Domain Layer** (1.5h, commit afe421c)
   - ActorId value object (readonly record struct)
   - Health value object (immutable, smart constructor)
@@ -434,11 +434,16 @@ Complexity: O(1) ✅
   - 30 handler tests with mocked dependencies
   - Railway-oriented composition (Bind → Tap)
   - Event publishing at END (ADR-004 Rule 1)
-- ⏳ **Phase 3: Infrastructure Layer** (next, estimated 1h)
-  - HealthComponentRegistry implementation
+- ✅ **Phase 3: Infrastructure Layer** (0.5h, commit 5b921e8)
+  - HealthComponentRegistry (thread-safe, O(1) lookups)
   - DI registration in GameStrapper
-  - Integration tests
-- ⏸️ **Phase 4: Presentation Layer** (estimated 2h)
+  - 10 integration tests (end-to-end pipeline)
+  - MockGodotEventBus for UIEventForwarder
+  - Total: 101 tests passing (34ms execution)
+- ⏳ **Phase 4: Presentation Layer** (next, estimated 2h)
+  - Godot scene setup (HealthTestScene.tscn)
+  - HealthBarNode (EventAwareNode subscriber)
+  - Manual testing in Godot editor
 
 ---
 

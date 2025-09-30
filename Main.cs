@@ -70,14 +70,18 @@ public partial class Main : Node
         services.AddSingleton(new LoggingService(enabledCategories));
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        // 2. MEDIATR - Register MediatR core (NOT handlers - open generics handle that)
+        // 2. MEDIATR - Register MediatR core + command handlers from Core assembly
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-        // CRITICAL: Do NOT scan for handlers with RegisterServicesFromAssembly(typeof(TestEvent).Assembly)
-        // WHY: Would register UIEventForwarder twice (assembly scan + open generic) → events published twice
-        // SOLUTION: Only scan MediatR's own assembly for core types (IMediator, etc.)
+        // CRITICAL: Scan Core assembly for command handlers (e.g., TakeDamageCommandHandler)
+        // UIEventForwarder is registered via open generic below, so no double-registration issue
         services.AddMediatR(cfg =>
-            cfg.RegisterServicesFromAssembly(typeof(IMediator).Assembly));
+        {
+            // Register MediatR core from its own assembly
+            cfg.RegisterServicesFromAssembly(typeof(IMediator).Assembly);
+            // Register command handlers from Core assembly (VS_001)
+            cfg.RegisterServicesFromAssembly(typeof(Darklands.Core.Features.Health.Application.Commands.TakeDamageCommand).Assembly);
+        });
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // 3. EVENT BUS (VS_004) - GodotEventBus + UIEventForwarder bridge
