@@ -10,15 +10,20 @@ namespace Darklands.TestScenes;
 /// </summary>
 public partial class DIBootstrapTest : Node2D
 {
-    [Export] private Label? _statusLabel;
-    [Export] private Button? _testButton;
-    [Export] private RichTextLabel? _logOutput;
+    private Label? _statusLabel;
+    private Button? _testButton;
+    private RichTextLabel? _logOutput;
 
     private int _clickCount = 0;
 
     public override void _Ready()
     {
         GD.Print("=== DI Bootstrap Test Scene Loading ===");
+
+        // Get nodes by path instead of Export (more reliable)
+        _statusLabel = GetNode<Label>("StatusLabel");
+        _testButton = GetNode<Button>("TestButton");
+        _logOutput = GetNode<RichTextLabel>("LogOutput");
 
         // Initialize DI container (this is normally done in Main scene root)
         var initResult = GameStrapper.Initialize();
