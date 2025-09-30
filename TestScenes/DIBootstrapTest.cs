@@ -54,11 +54,8 @@ public partial class DIBootstrapTest : Node2D
             AddLog($"[color=red]❌ Failed to resolve ITestService:[/color] {serviceResult.Error}");
         }
 
-        // Wire up button
-        if (_testButton != null)
-        {
-            _testButton.Pressed += OnTestButtonPressed;
-        }
+        // Button is already connected via .tscn signal connection
+        // No need to wire it up in code (would cause double-firing)
 
         GD.Print("=== DI Bootstrap Test Scene Ready ===");
     }
