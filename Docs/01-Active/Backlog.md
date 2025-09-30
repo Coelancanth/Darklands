@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-30 10:58 (VS_002-004 created for skeleton infrastructure)
+**Last Updated**: 2025-09-30 14:13 (VS_002 archived - DI Foundation validated)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -68,69 +68,6 @@
 ## 🔥 Critical (Do First)
 *Blockers preventing other work, production bugs, dependencies for other features*
 
-### VS_002: Infrastructure - Dependency Injection Foundation [ARCHITECTURE]
-**Status**: Ready for Dev
-**Owner**: Tech Lead → Dev Engineer (implement)
-**Size**: S (4-6h)
-**Priority**: Critical (Foundation for VS_003, VS_004, VS_001)
-**Markers**: [ARCHITECTURE] [FRESH-START] [INFRASTRUCTURE]
-**Created**: 2025-09-30
-**Broken Down**: 2025-09-30 (Tech Lead)
-
-**What**: Set up Microsoft.Extensions.DependencyInjection as the foundation for the application
-**Why**: Need DI container before we can inject loggers, event bus, or any services
-
-**Tech Lead Breakdown** (2025-09-30):
-Implementation follows phased protocol with test gates. Each phase must complete with passing tests before proceeding.
-
-**Phase 1: Domain Layer** (~1h)
-- File: `src/Darklands.Core/Domain/Infrastructure/IServiceLocator.cs`
-- Interface definition for Godot boundary pattern
-- Tests: Interface accessibility and signatures
-- Commit: `feat(VS_002): add IServiceLocator interface [Phase 1/4]`
-
-**Phase 2: Application Layer** (~1h)
-- File: `src/Darklands.Core/Application/Infrastructure/GameStrapper.cs`
-- Implements: Initialize(), GetServices(), RegisterCoreServices()
-- Includes temporary ITestService for validation
-- Tests: Initialization idempotency, service resolution, test service
-- Gate: `dotnet test --filter "Category=Phase2"` must pass
-- Commit: `feat(VS_002): add GameStrapper with service registration [Phase 2/4]`
-
-**Phase 3: Infrastructure Layer** (~2h)
-- File: `src/Darklands.Core/Infrastructure/DependencyInjection/ServiceLocatorBridge.cs`
-- Implements: GetService<T>(), GetRequiredService<T>()
-- Returns Result<T> for functional error handling
-- Service lifetime examples (Singleton, Transient)
-- Tests: Resolution success/failure, lifecycle validation
-- Gate: `dotnet test --filter "Category=Phase3"` must pass
-- Commit: `feat(VS_002): add ServiceLocatorBridge with lifetime tests [Phase 3/4]`
-
-**Phase 4: Presentation Layer** (~1-2h)
-- Files:
-  - `TestScenes/DI_Bootstrap_Test.tscn` (Godot scene)
-  - `TestScenes/DIBootstrapTest.cs` (test script)
-- Manual test: Button click resolves service, updates label
-- Validation: Console shows success messages, no errors
-- Commit: `feat(VS_002): add Godot test scene for DI validation [Phase 4/4]`
-
-**Done When**:
-- ✅ All Core tests pass (dotnet test)
-- ✅ GameStrapper.Initialize() succeeds
-- ✅ ServiceLocatorBridge.GetService<T>() returns Result<T>
-- ✅ Godot test scene works (manual validation)
-- ✅ No Godot references in Core project (dotnet list package)
-- ✅ All 4 phase commits exist in git history
-
-**Depends On**: None (first foundation piece)
-
-**Tech Lead Notes**:
-- ServiceLocator ONLY for Godot _Ready() methods (ADR-002)
-- Core code uses constructor injection
-- ITestService is temporary—remove after VS_001 complete
-- Pattern proven from old project, not speculative design
-
----
 
 ### VS_003: Infrastructure - Logging System with Runtime Configuration [ARCHITECTURE]
 **Status**: Proposed

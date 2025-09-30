@@ -17,7 +17,8 @@
     <!-- Logging (Abstractions ONLY - implementations in Godot project) -->
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
 
-    <!-- Dependency Injection (Abstractions ONLY - implementations in Godot project) -->
+    <!-- Dependency Injection (Core needs concrete implementation for GameStrapper) -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
   </ItemGroup>
 

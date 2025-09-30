@@ -4,7 +4,7 @@
 
 **Purpose**: Completed and rejected work items for historical reference and lessons learned.
 
-**Last Updated**: 2025-09-08 14:23 
+**Last Updated**: 2025-09-30 14:13 
 
 ## Archive Protocol
 
@@ -40,1247 +40,130 @@ Items are moved here COMPLETE with all context, then marked for extraction:
 
 ---
 
-## ✅ Completed Items
+## Completed Items
 
-### VS_001: Foundation - 3-Project Architecture with DI, Logging & Git Hooks ✅ PHASE 1 COMPLETE
-**Extraction Status**: FULLY EXTRACTED ✅
-**Completed**: 2025-08-29
-**Effort**: XL (4-5 days)
-**Outcome**: Successfully implemented ADR-001 architecture with full safety infrastructure, comprehensive test coverage, and critical issue resolution
-**Lessons**: Value object validation patterns, thread-safe singleton implementation, property-based testing with FsCheck
-**Unblocked**: Phase 2 (Application layer - Commands/Handlers), all future development on solid foundation
-[METADATA: architecture, foundation, safety, di-container, logging, git-hooks, value-objects, thread-safety]
+### VS_002: Infrastructure - Dependency Injection Foundation [ARCHITECTURE]
+**Extraction Status**: NOT EXTRACTED ⚠️
+**Completed**: 2025-09-30 14:13
+**Archive Note**: Successfully implemented Microsoft.Extensions.DependencyInjection foundation with GameStrapper, ServiceLocator, and Godot validation scene. All tests passing, user validated.
 
 ---
-**Status**: Phase 1 COMPLETE - Ready for Code Review  
-**Owner**: Dev Engineer → Test Specialist  
-**Size**: XL (4-5 days)  
-**Priority**: Critical  
-**Markers**: [ARCHITECTURE] [FOUNDATION] [SAFETY]
+**ORIGINAL ITEM (PRESERVED FOR TRACING)**:
 
-**What**: Implement ADR-001 architecture with full safety infrastructure from proven patterns
-**Why**: Foundation for ALL development - modding support, fast CI, team safety
+**Status**: Done (User Verified)
+**Owner**: Complete
+**Size**: S (3-4h) ← Simplified after ultrathink (actual: ~3.5h including fixes)
+**Priority**: Critical (Foundation for VS_003, VS_004, VS_001)
+**Markers**: [ARCHITECTURE] [FRESH-START] [INFRASTRUCTURE]
+**Created**: 2025-09-30
+**Broken Down**: 2025-09-30 (Tech Lead)
+**Simplified**: 2025-09-30 (Dev Engineer ultrathink - removed IServiceLocator interface per ADR-002)
+**Completed**: 2025-09-30 13:48 (All 3 phases + UI fixes validated)
 
-**PHASE 1 COMPLETION (2025-08-29 10:26)**:
+**What**: Set up Microsoft.Extensions.DependencyInjection as the foundation for the application
+**Why**: Need DI container before we can inject loggers, event bus, or any services
 
-✅ **Infrastructure Foundation (COMPLETE)**:
-- ✅ 3-project architecture builds with zero warnings/errors
-- ✅ GameStrapper DI container with fallback-safe logging patterns  
-- ✅ MediatR pipeline with logging and error handling behaviors
-- ✅ LanguageExt integration using correct API (FinSucc/FinFail static methods)
-- ✅ LogCategory structured logging (simplified proven pattern)
-- ✅ Git hooks functional (pre-commit, commit-msg, pre-push)
+**Dev Engineer Simplification** (2025-09-30):
+After ultrathink analysis, removed unnecessary IServiceLocator interface. ADR-002 shows static ServiceLocator class, not interface implementation. Simplified to 3 phases while maintaining all quality gates.
 
-✅ **Domain Model (Phase 1 COMPLETE)**:
-- ✅ TimeUnit value object: validation, arithmetic, formatting (10,000ms max)
-- ✅ CombatAction records: Common actions with proper validation
-- ✅ TimeUnitCalculator: agility/encumbrance formula with comprehensive validation
-- ✅ Error handling: All domain operations return Fin<T> with proper error messages
+**Phase 1: GameStrapper** (~2h)
+- File: `src/Darklands.Core/Application/Infrastructure/GameStrapper.cs`
+- Implements: Initialize(), GetServices(), RegisterCoreServices()
+- Includes temporary ITestService for validation
+- Tests: Initialization idempotency, service resolution, test service
+- Gate: `dotnet test --filter "Category=Phase1"` must pass
+- Commit: `feat(VS_002): add GameStrapper with DI foundation [Phase 1/3]`
 
-✅ **Architecture Tests (NEW - Following Proven Patterns)**:
-- ✅ Core layer isolation (no Godot dependencies)
-- ✅ Clean Architecture boundaries enforced
-- ✅ DI container resolution validation (all services resolvable)
-- ✅ MediatR handler registration validation
-- ✅ Namespace convention enforcement
-- ✅ Pipeline behavior registration validation
+**Phase 2: ServiceLocator** (~1-2h)
+- File: `src/Darklands.Core/Infrastructure/DependencyInjection/ServiceLocator.cs`
+- Static class with GetService<T>() and Get<T>() methods
+- Returns Result<T> for functional error handling
+- Service lifetime examples (Singleton, Transient)
+- Tests: Resolution success/failure, lifecycle validation
+- Gate: `dotnet test --filter "Category=Phase2"` must pass
+- Commit: `feat(VS_002): add ServiceLocator for Godot boundary [Phase 2/3]`
 
-✅ **Test Coverage (107 tests, 97% pass rate)**:
-- ✅ 49 domain logic tests (unit + property-based with FsCheck)
-- ✅ 32 architecture and infrastructure tests
-- ✅ 26 additional validation tests
-- ✅ All critical infrastructure tests passing
-- ✅ Property-based tests fixed with realistic bounds
-
-✅ **Quality Gates Passed**:
-- ✅ Zero compilation warnings/errors in Core and Tests
-- ✅ All architecture fitness tests pass
-- ✅ DI container validates successfully on startup
-- ✅ MediatR pipeline configured correctly
-- ✅ LanguageExt patterns follow proven approach
-
-**COMMITTED**: Phase 1 committed with proper marker `feat(combat): domain model [Phase 1/4]` (commit ecc7286)
-
-**Handoff to Code Review**:
-- **Code Quality**: Clean, follows proven patterns exactly
-- **Test Coverage**: Comprehensive with architecture tests
-- **Documentation**: Well-documented domain logic and infrastructure
-- **Next Phase**: Ready for Phase 2 (Application layer - Commands/Handlers)
-
-**Done When**: ✅ ALL PHASE 1 CRITERIA MET
-- ✅ Three projects build with zero warnings
-- ✅ DI container validates on startup without errors  
-- ✅ Git hooks prevent workflow violations
-- ✅ Phase 1 domain tests pass (100% architecture tests)
-- ✅ Walking skeleton passes all current phase tests
-- 🔄 README updated with setup instructions (Phase 2 task)
-
-**Depends On**: None
-
-**Tech Lead Decision** (2025-08-29):  
-- Architecture approved in ADR-001 after proven architecture analysis
-- MUST copy proven patterns exactly - do not reinvent
-- Git hooks are pedagogy tools that teach correct workflow
-- Simplicity Principle applies: estimate >100 LOC = stop and review
-- Follow ADR-002 phased implementation strictly
-
-**Dev Engineer FINAL** (2025-08-29 10:26):
-- ✅ Phase 1 foundation architecture 100% complete
-- ✅ All critical quality gates passed
-- ✅ Infrastructure patterns proven and tested
-- ✅ Ready for Test Specialist review and Phase 2 planning
-
-**🔍 CRITICAL CODE REVIEW FINDINGS (Test Specialist - 2025-08-29 10:48)**:
-
-**Status**: 🔴 **CRITICAL ISSUES FOUND** - Must fix before Phase 2
-
-**Overall Assessment**: Implementation works but has **fundamental design flaws** that violate value object principles and create thread safety risks.
-
-🔴 **CRITICAL (Must Fix Immediately)**:
-1. **Constructor validation bypass**: TimeUnit/CombatAction constructors allow invalid instances
-2. **Thread safety violations**: GameStrapper static fields not thread-safe
-3. **Common actions bypass validation**: Static readonly fields use unchecked constructors
-
-🟡 **MAJOR (Should Fix)**:
-4. **Precision loss in operators**: TimeUnit multiplication truncates instead of rounding
-5. **Reflection-based error handling**: Performance and runtime reliability concerns
-6. **Silent value clamping**: Operators hide overflow conditions
-
-**Required Actions**:
-- ✅ Fix value object constructors to prevent invalid instances
-- ✅ Implement thread-safe initialization in GameStrapper  
-- ✅ Update Common combat actions to use factory methods
-- ✅ Fix operator precision and overflow handling
-- ✅ Update all tests to work with new validation patterns
-
-**Quality Metrics After Review**:
-- Correctness: 6/10 (validation bypass issues)
-- Thread Safety: 4/10 (static mutable state problems)
-- Performance: 7/10 (reflection in hot path)
-- Overall: **Needs immediate fixes before Phase 2**
-
-**Test Specialist Decision** (2025-08-29 10:48):
-- Phase 1 has good architecture but critical safety flaws
-- Value objects must never exist in invalid state (fundamental principle)
-- Thread safety required for production reliability
-- Estimated fix time: 2-3 hours
-- **Status**: Ready for immediate fixes, then Phase 2 approval
-
-**🎯 CRITICAL ISSUES RESOLVED (Test Specialist - 2025-08-29 11:08)**:
-
-**Status**: ✅ **ALL CRITICAL ISSUES FIXED** - Ready for Phase 2
-
-**Systematic Resolution Completed**:
-✅ **Constructor Validation Bypass (CRITICAL)**: 
-- TimeUnit/CombatAction now use private constructors + validated factory methods
-- Impossible to create invalid value object instances
-- All Common actions use safe CreateUnsafe() for known-valid values
-
-✅ **Thread Safety Violations (CRITICAL)**:
-- GameStrapper implements double-checked locking pattern
-- Volatile fields prevent race conditions
-- Thread-safe initialization and disposal
-
-✅ **Precision & Overflow Issues (MAJOR)**:
-- TimeUnit multiplication uses Math.Round() instead of truncation
-- Added explicit overflow detection with Add() method
-- Operators provide safe defaults, explicit methods detect errors
-
-✅ **Test Suite Completely Updated**:
-- All 107 tests passing ✅
-- Invalid test scenarios converted to use Create() factory methods
-- Proper separation of validation testing vs. safe construction
-- Zero compilation warnings or errors
-
-**Quality Metrics After Fixes**:
-- Correctness: 6/10 → 10/10 ✅
-- Thread Safety: 4/10 → 10/10 ✅
-- Test Coverage: 7/10 → 10/10 ✅
-- Overall: **Production-ready, Phase 2 approved**
-
-**Technical Implementation**:
-- Value objects follow strict immutability and validation principles
-- Factory pattern prevents invalid state creation
-- Thread-safe singleton pattern for DI container
-- Comprehensive property-based testing with FsCheck
-
-**Final Test Specialist Approval** (2025-08-29 11:08):
-- ✅ All critical safety violations resolved
-- ✅ Type safety enforced throughout domain layer
-- ✅ Thread safety implemented for production deployment
-- ✅ Test coverage comprehensive and robust
-- **Status**: **PHASE 1 COMPLETE - APPROVED FOR PHASE 2**
----
-**Extraction Targets**: ✅ COMPLETE (2025-09-08)
-- [x] HANDBOOK updated: Value object factory pattern with validation
-- [x] HANDBOOK updated: Thread-safe singleton pattern for DI containers  
-- [x] HANDBOOK updated: Property-based testing with FsCheck integration
-- [x] Architecture test patterns documented in HANDBOOK
-
-### BR_001: Remove Float/Double Math from Combat System ✅ CRITICAL BUG FIXED
-**Extraction Status**: FULLY EXTRACTED ✅
-**Completed**: 2025-08-29 15:20
-**Owner**: Debugger Expert
-**Effort**: S (<4h)
-**Archive Note**: Eliminated non-deterministic floating-point math with elegant integer arithmetic, unblocking VS_002
-**Root Cause**: Mathematical convenience sacrificed system determinism
-**Prevention**: Always use integer arithmetic in game systems requiring reproducible behavior
-[METADATA: determinism, integer-math, floating-point-elimination, cross-platform, save-load-consistency]
-
----
-**Status**: COMPLETED ✅  
-**Owner**: Debugger Expert (COMPLETED 2025-08-29 15:20)
-**Size**: S (<4h)
-**Priority**: Critical (Blocks VS_002)
-**Markers**: [ARCHITECTURE] [DETERMINISM] [SAFETY-CRITICAL]
-**Created**: 2025-08-29 14:19
-
-**What**: Replace all floating-point math in TimeUnitCalculator with integer arithmetic
-**Why**: Float math causes non-deterministic behavior, save/load issues, and platform inconsistencies
-
-**The Problem**:
-```csharp
-// Current DANGEROUS implementation in TimeUnitCalculator.cs:
-var agilityModifier = 100.0 / agility;  // DOUBLE - non-deterministic!
-var encumbranceModifier = 1.0 + (encumbrance * 0.1);  // DOUBLE!
-var finalTime = (int)Math.Round(baseTime * agilityModifier * encumbranceModifier);
-```
-
-**The Fix**:
-- Replace with scaled integer math (multiply by 100 or 1000)
-- Use integer division with proper rounding
-- Ensure all operations are deterministic
-- No Math.Round() or floating operations
+**Phase 3: Godot Test Scene** (~1h)
+- Files:
+  - `TestScenes/DI_Bootstrap_Test.tscn` (Godot scene)
+  - `TestScenes/DIBootstrapTest.cs` (test script)
+- Manual test: Button click resolves service, updates label
+- Validation: Console shows success messages, no errors
+- Commit: `feat(VS_002): add Godot validation scene [Phase 3/3]`
 
 **Done When**:
-- Zero float/double types in Domain layer
-- All calculations use integer math
-- Tests prove deterministic results
-- Same inputs ALWAYS produce same outputs
-- Property-based tests validate integer math
-
-**Impact if Not Fixed**:
-- Save/load will have desyncs
-- Replays impossible
-- Platform-specific bugs
-- Multiplayer would desync
-- "Unreproducible" bug reports
-
-**Depends On**: None (but blocks VS_002)
-
-**Debugger Expert Resolution** (2025-08-29 15:20):
-- ✅ Implemented elegant integer-only arithmetic: `(baseTime * 100 * (10 + encumbrance) + denominator/2) / (agility * 10)`
-- ✅ Eliminated ALL floating-point operations from Domain layer
-- ✅ Created comprehensive determinism tests proving identical results across 1000+ iterations
-- ✅ Verified mathematical correctness with property-based testing
-- ✅ All 115 tests pass, no regressions introduced
-- ✅ VS_002 now unblocked for deterministic timeline scheduling
-- **Root Cause**: Floating-point math for mathematical convenience sacrificed deterministic behavior
-- **Prevention**: Always use integer arithmetic in game systems requiring reproducible behavior
----
-
-**Extraction Targets**: ✅ COMPLETE (2025-09-08)
-- [x] HANDBOOK updated: Integer-only arithmetic patterns documented
-- [x] HANDBOOK updated: Property-based determinism testing patterns
-- [x] HANDBOOK updated: Root Cause #1 - Convenience Over Correctness anti-pattern
-- [x] HANDBOOK updated: Determinism requirement for game math
-
-### TD_011: Async/Concurrent Architecture Mismatch in Turn-Based Game [ARCHITECTURE]
-**Extraction Status**: FULLY EXTRACTED ✅
-**Completed**: 2025-09-08
-**Archive Note**: Successfully eliminated async/concurrent architecture anti-pattern, established production-ready sequential turn-based processing
----
-**Status**: COMPLETE ✅ (Dev Engineer, 2025-09-08)
-**Owner**: Dev Engineer (completed)
-**Size**: L (13 hours - 5 phases)
-**Priority**: Critical (Fundamental design flaw causing bugs)
-**Markers**: [ARCHITECTURE] [BREAKING-CHANGE] [ROOT-CAUSE]
-
-**What**: Remove async/await patterns from turn-based game flow; implement proper sequential processing
-**Why**: Turn-based games are inherently sequential - async creates race conditions and complexity
-
-**Root Cause Analysis** (from BR_001 investigation):
-- ActorView uses shared fields (_pendingActorNode, _pendingActorId) with CallDeferred
-- Multiple actors created simultaneously overwrite each other's pending data
-- Player actor creation gets overwritten by dummy actor creation
-- Async Task.Run() calls in presenters violate turn-based sequential nature
-
-**Evidence of Architectural Mismatch**:
-```csharp
-// PREVIOUS BROKEN: Concurrent actor creation
-Task.Run(async () => await View.DisplayActorAsync(...));  // Actor 1
-Task.Run(async () => await View.DisplayActorAsync(...));  // Actor 2 overwrites Actor 1
-// Result: Race condition, only last actor displays
-
-// NOW FIXED: Sequential turn-based processing
-scheduler.GetNextActor();
-ProcessAction();
-UpdateUI();  // Synchronous, no race possible
-```
-
-**Final Architecture Implemented**:
-1. **Scene Init**: Create ALL actors at once, display them all
-2. **Game Loop**: Process turns sequentially (player first, initiative 0)
-3. **No Async UI**: All view updates synchronous (Godot auto-updates on data change)
-4. **Turn Processing**: One actor → One action → One UI update → Next actor
-
-**Implementation Complete** (Dev Engineer, 2025-09-08):
-- ✅ **Phase 1**: Architecture tests added documenting current vs target async patterns
-- ✅ **Phase 2**: GameLoopCoordinator created for sequential turn orchestration  
-- ✅ **Phase 3**: ALL Task.Run() calls eliminated from ActorPresenter + ExecuteAttackCommandHandler
-- ✅ **Phase 4**: ActorView race condition FIXED with queue-based CallDeferred processing
-- ✅ **Phase 5**: Build validates async→sync conversion (CS4014 warnings expected/desired)
-
-**Critical Changes Completed**:
-- ✅ Removed Task.Run() from all presenters (lines 113, 118, 184, 189) 
-- ✅ Fixed shared field race in ActorView with thread-safe queue pattern
-- ✅ Sequential processing implemented per ADR-009 specification
-- ✅ All 8 compilation errors fixed (CS4014, CS8030, CS1503, CS0121, CS0117, CS0122, CS0103, CS0618)
-- ✅ Race condition eliminated with queue-based processing in HealthView
-- ✅ Task.Run() calls removed from ActorPresenter and ExecuteAttackCommandHandler  
-- ✅ Async→sync transformation complete per ADR-009
-- ✅ All 347 tests passing with zero warnings
-- ✅ Production-ready sequential turn-based architecture established
-
-**Final Validation Completed**:
-- ✅ **E2E Test**: All actors display correctly on scene start (User validated)
-- ✅ **Architecture**: Sequential processing implemented (Dev complete)
-- ✅ **Tests Pass**: Zero build errors, all unit tests passing (347/347)  
-- ✅ **Race Fixed**: No concurrent Task.Run() causing overwrites (Dev complete)
-
-**Depends On**: None (architectural foundation)
-
-**Debugger Expert Analysis** (2025-09-07 21:21):
-- BR_001 was symptom, not cause - removing it as redundant
-- Async patterns inappropriate for turn-based games
-- MVP separation is correct, implementation is wrong
-- Need Tech Lead architecture decision before proceeding
-
-**Tech Lead Decision** (2025-09-07 21:34): **APPROVED WITH URGENCY**
-- **Complexity Score**: 7/10 (Well-understood problem, clear solution)
-- **Pattern Match**: Traditional roguelike sequential processing (SPD, NetHack, DCSS)
-- **Risk Assessment**: HIGH if not fixed - every feature will fight async pattern
-- **ADR-009 Created**: Sequential Turn-Based Processing Pattern documented
-- **Solution Validated**: Aligns with Vision.md time-unit combat requirements
-
-**Implementation Phases** (13 hours total):
-1. **Phase 1 (2h)**: Verify domain/application synchronous - add architecture tests
-2. **Phase 2 (3h)**: Create GameLoopCoordinator for turn orchestration
-3. **Phase 3 (4h)**: Remove ALL Task.Run() and async from presenters
-4. **Phase 4 (2h)**: Fix ActorView race with proper CallDeferred usage
-5. **Phase 5 (2h)**: Integration testing and validation
-
-**Critical Changes Required**:
-- Remove Task.Run() from all presenters (lines 113, 118, 184, 189)
-- Fix shared field race in ActorView (lines 31-35)
-- Make all IView interfaces synchronous
-- Implement sequential game loop pattern per ADR-009
-
-**Final Impact**: This blocks ALL combat work. Implement immediately following ADR-009 pattern.
----
-**Extraction Targets**: ✅ COMPLETE (2025-09-08)
-- [x] ADR-009 created: Sequential turn-based processing pattern
-- [x] HANDBOOK updated: Sequential Turn Processing pattern documented
-- [x] HANDBOOK updated: Queue-Based CallDeferred pattern for thread safety
-- [x] HANDBOOK updated: Root Cause #3 - Architecture/Domain Mismatch anti-pattern
-- [x] HANDBOOK updated: Task.Run() anti-pattern in turn-based games
-
-### VS_010a: Actor Health System (Foundation) [Score: 100/100]
-**Extraction Status**: FULLY EXTRACTED ✅
-**Completed**: 2025-09-07
-**Archive Note**: Complete health system foundation with UI integration - enables all combat mechanics
----
-**Status**: COMPLETE ✅ (Debugger Expert, 2025-09-07 19:22)
-**Owner**: Debugger Expert
-**Size**: S (1 day implementation + debugging)
-**Priority**: Critical (Required for all combat)
-**Markers**: [ARCHITECTURE] [FOUNDATION] [COMPLETE]
-**Created**: 2025-09-07 16:13
-
-**What**: Add health/damage foundation to Actor domain model
-**Why**: Can't have attacks without health to damage - foundational requirement
-
-**How**:
-- Health value object with Current/Maximum/IsDead
-- Actor domain model with Health property
-- DamageActorCommand and HealActorCommand
-- IActorStateService extends IGridStateService
-- Health bar UI component in scene
-
-**Done When**:
-- Actors have persistent health values
-- Damage/heal commands modify health correctly
-- Death sets IsDead flag
-- Health displays in UI with bar visualization
-- All health scenarios covered by tests
-
-**Acceptance by Phase**:
-- ✅ Phase 1: Health domain model with validation (COMPLETE - commit 91b6273)
-- ✅ Phase 2: Damage/Heal commands process correctly (COMPLETE - commit d9a8b1b)
-- ✅ Phase 3: Actor state persists in service (COMPLETE - 2025-09-07 17:25)
-- ✅ Phase 4: Health bars display in scene (COMPLETE - 2025-09-07 19:22)
-
-**Phase 1 Deliverables** (2025-09-07 17:05):
-- ✅ Health.cs - Immutable value object with validation
-- ✅ Actor.cs - Domain model with integrated health
-- ✅ DamageActorCommand & HealActorCommand created
-- ✅ Comprehensive unit tests (50+ test cases)
-- ✅ Zero build warnings, 232/233 tests passing
-- ✅ Expected MediatR test failure (handlers needed Phase 2)
-
-**Phase 2 Deliverables** (2025-09-07 17:11):
-- ✅ IActorStateService interface for health management
-- ✅ DamageActorCommandHandler with error handling
-- ✅ HealActorCommandHandler with business rules
-- ✅ 16 comprehensive handler test scenarios
-- ✅ Zero build warnings, 239/249 tests passing
-- ✅ Expected DI test failures (service implementation needed Phase 3)
-
-**Phase 3 Deliverables** (2025-09-07 17:25):
-- ✅ InMemoryActorStateService - Complete infrastructure implementation
-- ✅ DI registration in GameStrapper - Singleton lifecycle management
-- ✅ Thread-safe state management with ConcurrentDictionary
-- ✅ Functional error handling with LanguageExt v5 patterns
-- ✅ All 249 tests passing - Zero build warnings, complete DI resolution
-
-**Phase 4 Completion Summary** (2025-09-07 19:22):
-- ✅ **RESOLVED**: Health bar display issue via presenter coordination pattern
-- ✅ Implemented SetHealthPresenter() coordination between ActorPresenter ↔ HealthPresenter
-- ✅ Fixed Godot node initialization (moved from constructor to _Ready())
-- ✅ Health bars now display with colors, numbers, and movement tracking
-- ✅ Added visual polish: background borders, dynamic colors, health text display
-- ✅ Created comprehensive post-mortem (PM_001) for architectural learning extraction
-
-**Final Implementation**:
-- Health bars display above actors with proper colors (Green/Yellow/Red)
-- Shows "current/maximum" text (e.g., "100/100") 
-- Tracks actor movement with synchronized positioning
-- Proper Godot lifecycle usage with scene tree integration
-- Cross-presenter coordination pattern established for future features
-
-**Depends On**: None (foundational)
-
-**Tech Lead Decision** (2025-09-07 16:13):
-- **APPROVED** - Split from oversized VS_010 (was 4-5 days)
-- Complexity: 3/10 - Standard domain modeling
-- Risk: Low - Well-understood pattern
-- Must complete before VS_010b and VS_010c
----
-**Extraction Targets**: ✅ COMPLETE (2025-09-08)
-- [x] HANDBOOK updated: Cross-Presenter Coordination pattern with setter injection
-- [x] HANDBOOK updated: Godot Node Lifecycle pattern (_Ready vs constructor)
-- [x] Health value object pattern inherits from VS_001 factory pattern
-- [x] Phase-based implementation validated (4 phases, 249 tests passing)
-
-### VS_010b: Basic Melee Attack [Score: 85/100]
-**Extraction Status**: FULLY EXTRACTED ✅
-**Completed**: 2025-09-07
-**Archive Note**: Complete combat system implementation with scheduler integration, damage, and visual feedback
----
-**Status**: COMPLETE ✅ (Dev Engineer, 2025-09-07 20:25)
-**Owner**: Dev Engineer
-**Size**: M (1.5 days) 
-**Priority**: Critical (Core combat mechanic)
-**Markers**: [ARCHITECTURE] [COMBAT]
-**Created**: 2025-09-07 16:13
-
-**What**: Execute melee attacks with scheduler integration and damage
-**Why**: First actual combat mechanic using the time-unit system
-
-**Implementation Progress**:
-- ✅ **Phase 1**: Domain validation (AttackValidation with adjacency rules)
-- ✅ **Phase 2**: Application handlers (ExecuteAttackCommandHandler with service coordination)  
-- ✅ **Phase 3**: Infrastructure integration (full DI container + end-to-end testing)
-- ✅ **Phase 4**: Presentation layer (UI feedback + animations)
-
-**Phase 4 Completed** (2025-09-07 20:25):
-- IAttackView interface for animations and visual effects
-- AttackPresenter implementing IAttackFeedbackService with MVP pattern
-- Combat logging through enhanced logger (⚔️ 💀 ❌ emoji indicators)
-- Clean Architecture feedback system with optional presentation injection
-- 281/281 tests passing, complete presentation layer integration
-
-**FEATURE COMPLETE**: All "Done When" criteria satisfied ✅
-
-**Done When**:
-- Can attack adjacent enemies only
-- Damage reduces target health
-- Time cost affects attacker's next turn
-- Death removes actor from scheduler
-- Attack animations and feedback work
-- Combat log shows attack messages
-
-**Acceptance by Phase**:
-- Phase 1: Attack validation logic (adjacency, alive)
-- Phase 2: ExecuteAttackCommand processes correctly
-- Phase 3: Coordinates scheduler and state updates
-- Phase 4: Visual feedback and animations
-
-**Depends On**: VS_010a (Health system), VS_002 (Scheduler)
-
-**Tech Lead Decision** (2025-09-07 16:13):
-- Complexity: 5/10 - Scheduler integration adds complexity
-- Risk: Medium - Death cascade needs careful handling
-- Pattern: Follow MoveActorCommand for command structure
----
-**Extraction Targets**: ✅ COMPLETE (2025-09-08)
-- [x] HANDBOOK updated: Optional Feedback Service pattern for Clean Architecture
-- [x] HANDBOOK updated: Death Cascade Coordination pattern
-- [x] Combat validation patterns documented
-- [x] MVP feedback system architecture captured
-
-### TD_001: Create Development Setup Documentation [Score: 45/100]
-**Extraction Status**: FULLY EXTRACTED ✅
-**Status**: COMPLETE ✅  
-**Owner**: DevOps Engineer (COMPLETED 2025-08-29 14:54)
-**Size**: S (<4h)  
-**Priority**: Important  
-**Markers**: [DOCUMENTATION] [ONBOARDING]
-
-**What**: Document complete development environment setup based on Darklands patterns
-**Why**: Ensure all developers/personas have identical, working environment
-**How**: 
-- Document required tools (dotnet SDK, Godot 4.4.1, PowerShell/bash)
-- Copy established scripts structure
-- Document git hook installation process
-- Create troubleshooting guide for common setup issues
-
-**Done When**:
-- ✅ Setup documentation integrated into HANDBOOK.md
-- ✅ Script to verify environment works (verify-environment.ps1)
-- ✅ Fresh clone can be set up in <10 minutes
-- ✅ All personas can follow guide successfully
-- ✅ Single source of truth for all development information
-
-**Depends On**: ~~VS_001~~ (COMPLETE 2025-08-29) - Now unblocked
-
-**DevOps Engineer Decision** (2025-08-29 15:00):
-- Consolidated setup documentation into HANDBOOK.md instead of separate SETUP.md
-- Eliminated redundancy - one source of truth for all development guidance
-- Setup information is now part of daily development reference
-- All requirements met with improved maintainabilit
-
-
-### TD_002: Fix CombatAction Terminology [Score: 1/10] ✅ TERMINOLOGY CONSISTENCY RESTORED
-**Extraction Status**: FULLY EXTRACTED ✅
-**Completed**: 2025-08-30 15:28
-**Owner**: Dev Engineer
-**Effort**: S (<10 min)
-**Archive Note**: Simple terminology fix maintaining Glossary SSOT consistency - "combatant" → "Actor"
-**Impact**: Ready for VS_002 implementation with correct Actor terminology
-[METADATA: terminology, glossary-consistency, documentation, technical-debt]
-
----
-### TD_002: Fix CombatAction Terminology [Score: 1/10]
-**Status**: COMPLETE ✅  
-**Owner**: Dev Engineer (COMPLETED 2025-08-30 15:28)
-**Size**: S (<10 min actual)  
-**Priority**: Important  
-**Created**: 2025-08-29 17:09
-
-**What**: Replace "combatant" with "Actor" in CombatAction.cs documentation
-**Why**: Glossary SSOT enforcement - maintain consistent terminology
-**How**: Simple find/replace in XML comments
-**Done When**: All references to "combatant" replaced with "Actor"
-**Complexity**: 1/10 - Documentation only change
-
-**✅ COMPLETION VALIDATION**:
-- [x] "combatant" replaced with "Actor" in CombatAction.cs:8
-- [x] Glossary terminology consistency maintained
-- [x] All 123 tests pass - zero regressions
-- [x] Zero build warnings - clean implementation
-
-**Dev Engineer Decision** (2025-08-30 15:28):
-- Simple terminology fix completed as specified
-- Maintains architectural documentation consistency
-- Ready for VS_002 implementation with correct Actor terminology
----
-**Extraction Targets**: ✅ COMPLETE (2025-09-08)
-- [x] HANDBOOK updated: Glossary SSOT Enforcement pattern
-- [x] Documentation pattern: Terminology consistency prevents bugs
-
-### TD_003: Add Position to ISchedulable Interface [Score: 2/10] ✅ COMBAT SCHEDULING FOUNDATION READY
-**Extraction Status**: FULLY EXTRACTED ✅
-**Completed**: 2025-08-30 15:28
-**Owner**: Dev Engineer
-**Effort**: S (<30 min)
-**Archive Note**: Created ISchedulable interface foundation for VS_002 Combat Scheduler with Position/NextTurn properties
-**Impact**: Timeline-based combat scheduling infrastructure ready for implementation
-[METADATA: interface-design, combat-scheduling, position-system, technical-debt]
-
----
-### TD_003: Add Position to ISchedulable Interface [Score: 2/10]
-**Status**: COMPLETE ✅  
-**Owner**: Dev Engineer (COMPLETED 2025-08-30 15:28)  
-**Size**: S (<30 min actual)
-**Priority**: Important
-**Created**: 2025-08-29 17:09
-
-**What**: Add Position property to ISchedulable for grid-based combat
-**Why**: Actors need positions on combat grid per Vision requirements
-**How**: 
-- Add `Position Position { get; }` to ISchedulable
-- Update VS_002 implementation to include Position
-**Done When**: ISchedulable includes Position, VS_002 updated
-**Complexity**: 2/10 - Simple interface addition
-**Depends On**: VS_002 (implement together)
-
-**✅ DELIVERED INTERFACE**:
-- **ISchedulable** - Combat scheduling interface with Position and NextTurn properties
-- **Position Integration** - Uses existing Domain.Grid.Position type
-- **TimeUnit Integration** - NextTurn property for timeline scheduling
-- **VS_002 Ready** - Interface foundation prepared for Combat Scheduler
-
-**✅ COMPLETION VALIDATION**:
-- [x] ISchedulable interface created in Domain/Combat namespace
-- [x] Position property added using Domain.Grid.Position
-- [x] NextTurn property added using Domain.Combat.TimeUnit
-- [x] VS_002 implementation ready (no existing code to update)
-- [x] All 123 tests pass - interface compiles cleanly
-- [x] Zero build warnings - proper namespace usage
-
-**Dev Engineer Decision** (2025-08-30 15:28):
-- Interface created as foundation for VS_002 Combat Scheduler
-- Clean integration with existing Position and TimeUnit types
-- Ready for timeline-based combat scheduling implementation
----
-**Extraction Targets**: ✅ COMPLETE (2025-09-08)
-- [x] HANDBOOK updated: Interface-First Design pattern
-- [x] Domain integration patterns captured
-- [x] Combat scheduling architecture documented
-
-### TD_004: Fix LanguageExt v5 Breaking Changes + Error Patterns
-**Extraction Status**: FULLY EXTRACTED ✅
-**Completed**: 2025-09-07 12:41
-**Archive Note**: Successfully resolved v5 API breaking changes, unblocked PR merge, comprehensive build validation
----
-**Status**: PHASE 1 COMPLETE ✅ (Build working - ready for merge)
-**Owner**: Dev Engineer  
-**Size**: L (8h estimated - v5 API changes + error patterns)
-**Priority**: BLOCKER 🚨 ~~(PR cannot merge)~~ → **RESOLVED**
-**Markers**: [ARCHITECTURE] [LANGUAGEEXT-V5] [BREAKING-CHANGES]
-**Created**: 2025-08-30 19:01
-**Updated**: 2025-08-30 20:08
-
-**What**: ~~Fix v5 API breaking changes THEN~~ convert try/catch patterns
-**Why**: ~~v5.0.0-beta-54 upgrade broke build - 15 compilation errors blocking PR~~ **BLOCKER RESOLVED**
-
-**✅ PHASE 1 COMPLETE - API MIGRATION (2025-08-30 20:08)**:
-```
-✅ Error.New(code, message) → Error.New("code: message")
-   Fixed: InMemoryGridStateService.cs (6x), MoveActorCommandHandler.cs (3x), Tests (1x)
-   
-✅ .ToSeq() → Seq(collection.AsEnumerable()) 
-   Fixed: Grid.cs (4x), Movement.cs (1x)
-   
-✅ Seq1(x) → [x]
-   Fixed: CalculatePathQueryHandler.cs (1x)
-```
-
-**✅ VALIDATION COMPLETE**:
-- ✅ Build compiles clean with v5.0.0-beta-54 
-- ✅ All 123 tests passing (zero regressions)
-- ✅ Architecture tests maintained
-- ✅ **PR CAN NOW MERGE**
-
-**📋 PHASE 2 REMAINING (Optional - Non-blocking)**:
-- Convert try/catch patterns to LanguageExt (17 locations)
-- GridPresenter.cs: 10 try/catch blocks  
-- ActorPresenter.cs: 7 try/catch blocks
-- Apply Match() pattern per ADR-008
-
-**[Dev Engineer] Completion** (2025-08-30 20:08):
-- ✅ All compilation errors resolved
-- ✅ Zero regressions introduced  
-- ✅ Full test validation complete
-- 🎯 **READY FOR PR MERGE**
-- Phase 2 (try/catch conversion) can be separate TD item
----
-**Extraction Targets**: ✅ COMPLETE (2025-09-08)
-- [x] HANDBOOK updated: Library Migration Strategy pattern
-- [x] LanguageExt v5 breaking changes documented
-- [x] Migration process captured (Fix compilation → Test → Refactor)
-
-### VS_005: Grid and Player Visualization (Phase 1 - Domain)
-**Extraction Status**: FULLY EXTRACTED ✅
-**Completed**: 2025-09-07 12:41
-**Archive Note**: Complete Phase 1 domain model foundation with comprehensive grid system and position logic
----
-**Status**: COMPLETE ✅  
-**Owner**: Dev Engineer (COMPLETED 2025-08-29 22:51)
-**Size**: S (2.5h actual)
-**Priority**: Critical (FOUNDATIONAL)
-**Markers**: [ARCHITECTURE] [PHASE-1] [MVP]
-**Created**: 2025-08-29 17:16
-
-**What**: Define grid system and position domain models
-**Why**: Foundation for ALL combat visualization and interaction
-
-**✅ DELIVERED DOMAIN MODELS**:
-- **Position** - Immutable coordinate system with distance calculations and adjacency logic
-- **Tile** - Terrain properties, occupancy tracking via LanguageExt Option<ActorId>  
-- **Grid** - 2D tile management with bounds checking and actor placement operations
-- **Movement** - Path validation, line-of-sight checking, movement cost calculation
-- **TerrainType** - Comprehensive terrain system affecting passability and line-of-sight
-- **ActorId** - Type-safe actor identification system
-
-**✅ COMPLETION VALIDATION**:
-- [x] Grid can be created with specified dimensions - Validated with multiple sizes (1x1 to 100x100)
-- [x] Positions validated within grid bounds - Full bounds checking with error messages
-- [x] Movement paths can be calculated - Bresenham-like pathfinding with terrain costs
-- [x] 100% unit test coverage - 122 tests total, all domain paths covered
-- [x] All tests run in <100ms - Actual: ~129ms for full suite
-- [x] Architecture boundaries validated - Passes all architecture tests
-- [x] Zero build warnings - Clean compilation
-- [x] Follows Darklands patterns - Immutable records, LanguageExt Fin<T>, proper namespaces
-
-**🎯 TECHNICAL IMPLEMENTATION HIGHLIGHTS**:
-- **Functional Design**: Immutable value objects using LanguageExt patterns
-- **Error Handling**: Comprehensive Fin<T> error handling, no exceptions
-- **Performance**: Optimized 1D array storage with row-major ordering
-- **Testing**: Property-based testing with FsCheck for mathematical invariants
-- **Terrain System**: 7 terrain types with passability and line-of-sight rules
-- **Path Finding**: Bresenham algorithm with terrain cost calculation
-
-**Phase Gates Completed**:
-- ✅ Phase 1: Pure domain models, no dependencies - DELIVERED
-- → Phase 2 (VS_006): Movement commands and queries - READY TO START
-- → Phase 3 (VS_007): Grid state persistence - DEFERRED (see Backup.md)
-- → Phase 4 (VS_008): Godot scene and sprites - READY AFTER VS_006
-
-**Files Delivered**:
-- `src/Domain/Grid/Position.cs` - Coordinate system with adjacency logic
-- `src/Domain/Grid/Tile.cs` - Terrain and occupancy management  
-- `src/Domain/Grid/Grid.cs` - 2D battlefield with actor placement
-- `src/Domain/Grid/Movement.cs` - Path validation and cost calculation
-- `src/Domain/Grid/TerrainType.cs` - Terrain enumeration with properties
-- `src/Domain/Grid/ActorId.cs` - Type-safe actor identification
-- `tests/Domain/Grid/BasicGridTests.cs` - Comprehensive domain validation
-
-**Dev Engineer Decision** (2025-08-29 22:51):
-- Phase 1 foundation is solid and production-ready
-- All architectural patterns established for Application layer
-- Mathematical correctness validated via property-based testing
-- Ready for VS_006 Phase 2 Commands/Handlers implementation
----
-**Extraction Targets**: ✅ COMPLETE (2025-09-08)
-- [x] HANDBOOK updated: Grid System Design pattern with 1D array storage
-- [x] Domain-first design captured
-- [x] Property-based testing referenced from VS_001
-
-### VS_006: Player Movement Commands (Phase 2 - Application)
-**Extraction Status**: FULLY EXTRACTED ✅
-**Completed**: 2025-09-07 12:41
-**Archive Note**: Complete CQRS implementation with MediatR integration and comprehensive error handling
----
-**Status**: COMPLETE ✅  
-**Owner**: Dev Engineer (COMPLETED 2025-08-30 11:34)
-**Size**: S (2.75h actual)
-**Priority**: Critical (FOUNDATIONAL)
-**Markers**: [ARCHITECTURE] [PHASE-2] [MVP]
-**Created**: 2025-08-29 17:16
-
-**What**: Commands for player movement on grid
-**Why**: Enable player interaction with grid system
-
-**✅ DELIVERED CQRS IMPLEMENTATION**:
-- **MoveActorCommand** - Complete actor position management with validation
-- **GetGridStateQuery** - Grid state retrieval for UI presentation  
-- **ValidateMovementQuery** - Movement validation for UI feedback
-- **CalculatePathQuery** - Simple pathfinding (Phase 2 implementation)
-- **IGridStateService** - Service interface with InMemoryGridStateService
-- **MediatR Integration** - Auto-discovery working, all handlers registered
-
-**✅ COMPLETION VALIDATION**:
-- [x] Actor can move to valid positions - Full implementation with bounds/occupancy checking
-- [x] Invalid moves return proper errors (Fin<T>) - Comprehensive LanguageExt error handling
-- [x] Path finding works for simple cases - Simple direct pathfinding for Phase 2
-- [x] Handler tests pass in <500ms - All tests pass in <50ms average
-- [x] 124 tests passing - Zero failures, all architecture boundaries respected
-- [x] Clean build, zero warnings - Professional code quality
-
-**🎯 TECHNICAL IMPLEMENTATION HIGHLIGHTS**:
-- **CQRS Pattern**: Clean separation of commands and queries with MediatR
-- **Functional Error Handling**: LanguageExt Fin<T> throughout all handlers
-- **TDD Approach**: Red-Green cycles with comprehensive test coverage
-- **Architecture Compliance**: All Clean Architecture boundaries enforced
-- **Service Registration**: Proper DI registration in GameStrapper with auto-discovery
-- **Thread Safety**: Concurrent actor position management with ConcurrentDictionary
-
-**Phase Gates Completed**:
-- ✅ Phase 1: Domain models (VS_005) - COMPLETE
-- ✅ Phase 2: Application layer (VS_006) - DELIVERED
-- → Phase 3 (VS_007): Infrastructure persistence - DEFERRED (see Backup.md)
-- → Phase 4 (VS_008): Presentation layer - READY TO START
-
-**Files Delivered**:
-- `src/Application/Common/ICommand.cs` - CQRS interfaces
-- `src/Application/Grid/Commands/MoveActorCommand.cs` + Handler
-- `src/Application/Grid/Queries/` - 3 queries + handlers
-- `src/Application/Grid/Services/IGridStateService.cs` + implementation
-- `tests/Application/Grid/Commands/MoveActorCommandHandlerTests.cs`
-
-**Dev Engineer Decision** (2025-08-30 11:34):
-- Phase 2 Application layer is production-ready and fully tested
-- Clean Architecture patterns established for Infrastructure layer
-- MediatR pipeline working flawlessly with comprehensive error handling
-- Ready for VS_007 Phase 3 Infrastructure/Persistence implementation
----
-**Extraction Targets**: ✅ COMPLETE (2025-09-08)
-- [x] HANDBOOK updated: CQRS with Auto-Discovery pattern
-- [x] MediatR namespace requirements documented
-- [x] Thread-safe state management captured
-
-### TD_005: Fix Actor Movement Visual Update Bug
-**Extraction Status**: FULLY EXTRACTED ✅
-**Completed**: 2025-09-07 12:41
-**Archive Note**: Critical visual sync bug resolved - fixed property names, presenter communication, visual position updates
----
-**Status**: COMPLETE ✅
-**Owner**: Dev Engineer (Completed 2025-09-07 12:36)
-**Size**: S (<2h)
-**Priority**: High (Blocks VS_008)
-**Markers**: [BUG-FIX] [VISUAL-SYNC] [BLOCKING]
-**Created**: 2025-08-30 20:51
-
-**What**: Fix visual position sync bug in ActorView.cs movement methods
-**Why**: Core interactive functionality broken - actor doesn't move visually despite logical success
-
-**Problem Details**:
-- Click-to-move logic works perfectly (shows "Success at (1, 1): Moved")
-- Actor (blue square) remains visually at position (0,0) 
-- Logical position updates correctly in domain/application layers
-- Visual update pipeline failing in presentation layer
-
-**Root Cause Location**:
-- **Primary**: ActorView.cs - MoveActorAsync method
-- **Secondary**: ActorView.cs - MoveActorNodeDeferred method  
-- **Issue**: Visual position not syncing with logical position updates
-
-**Technical Approach**:
-- Debug MoveActorAsync: Verify actor node position updates
-- Check MoveActorNodeDeferred: Ensure Godot node transforms correctly
-- Validate coordinate conversion: Logical grid → Visual pixel coordinates
-- Test CallDeferred pipeline: Ensure thread-safe UI updates work
-
-**Done When**:
-- Actor (blue square) moves visually when clicked
-- Visual position matches logical position (1,1) after move
-- Console shows success AND visual movement occurs
-- No regression in existing click-to-move pipeline
-- All 123+ tests still pass
-
-**Impact if Not Fixed**:
-- VS_008 cannot be completed (blocks milestone)
-- No visual feedback for player interactions
-- Core game loop non-functional for testing
-- Cannot validate MVP architecture end-to-end
-
-**Depends On**: None - Self-contained visual bug fix
-
-**[Dev Engineer] Completion** (2025-09-07 12:36):
-- ✅ Fixed THREE root causes: property names, presenter communication, tween execution
-- ✅ Visual movement now works (direct position assignment)
-- ✅ VS_008 unblocked and functional
-- 📝 Post-mortem created: Docs/06-PostMortems/Inbox/2025-09-07-visual-movement-bug.md
-- 🔧 Created TD_006 for smooth animation re-enablement
----
-**Extraction Targets**: ✅ COMPLETE (2025-09-08)
-- [x] Visual-logical sync patterns captured
-- [x] Root causes documented (property names, presenter communication)
-- [x] Debugging approach established
-
-### VS_008: Grid Scene and Player Sprite (Phase 4 - Presentation)
-**Extraction Status**: FULLY EXTRACTED ✅
-**Completed**: 2025-09-07 13:58
-**Archive Note**: Complete MVP architecture foundation with visual grid, player sprite, and interactive click-to-move system - validates entire tech stack
----
-### VS_008: Grid Scene and Player Sprite (Phase 4 - Presentation) [Score: 100/100]
-
-**Status**: COMPLETE ← UPDATED 2025-09-07 13:58 (Tech Lead declaration)  
-**Owner**: Complete (No further work required) 
-**Size**: L (5h code complete, ~1h scene setup remaining)
-**Priority**: Critical (FOUNDATIONAL)
-**Markers**: [ARCHITECTURE] [PHASE-4] [MVP]
-**Created**: 2025-08-29 17:16
-**Updated**: 2025-08-30 17:30
-
-**What**: Visual grid with player sprite and click-to-move interaction
-**Why**: First visible, interactive game element - validates complete MVP architecture stack
-
-**✅ PHASE 4 CODE IMPLEMENTATION COMPLETE**:
-
-**✅ Phase 4A: Core Presentation Layer - DELIVERED (3h actual)**
-- ✅ `src/Presentation/PresenterBase.cs` - MVP base class with lifecycle hooks
-- ✅ `src/Presentation/Views/IGridView.cs` - Clean grid abstraction (no Godot deps)
-- ✅ `src/Presentation/Views/IActorView.cs` - Actor positioning interface  
-- ✅ `src/Presentation/Presenters/GridPresenter.cs` - Full MediatR integration
-- ✅ `src/Presentation/Presenters/ActorPresenter.cs` - Actor movement coordination
-
-**✅ Phase 4B: Godot Integration Layer - DELIVERED (2h actual)**  
-- ✅ `Views/GridView.cs` - TileMapLayer implementation with click detection
-- ✅ `Views/ActorView.cs` - ColorRect-based actor rendering with animation
-- ✅ `GameManager.cs` - Complete DI bootstrap and MVP wiring
-- ✅ Click-to-move pipeline: Mouse → Grid coords → MoveActorCommand → Actor movement
-
-**✅ QUALITY VALIDATION**:
-- ✅ All 123 tests pass - Zero regression in existing functionality
-- ✅ Zero Godot references in src/ folder - Clean Architecture maintained
-- ✅ Proper MVP pattern - Views, Presenters, Application layer separation
-- ✅ Thread-safe UI updates via CallDeferred
-- ✅ Comprehensive error handling with LanguageExt Fin<T>
-
-**🚨 BLOCKING ISSUE IDENTIFIED (2025-08-30 20:51)**:
-- **Problem**: Actor movement visual update bug - blue square stays at (0,0) visually
-- **Symptom**: Click-to-move shows "Success at (1, 1): Moved" but actor doesn't move visually
-- **Root Cause**: ActorView.cs MoveActorAsync/MoveActorNodeDeferred visual update methods
-- **Impact**: Core functionality broken - logical movement works but visual feedback fails
-- **Severity**: BLOCKS all interactive gameplay testing
-
-**🎮 PREVIOUSLY COMPLETED: GODOT SCENE SETUP**:
-
-**Required Scene Structure**:
-```
-res://scenes/combat_scene.tscn
-├── Node2D (CombatScene) + attach GameManager.cs
-│   ├── Node2D (Grid) + attach GridView.cs  
-│   │   └── TileMapLayer + [TileSet with 16x16 tiles]
-│   └── Node2D (Actors) + attach ActorView.cs
-```
-
-**TileSet Configuration**:
-- Import `tiles_city.png` with Filter=OFF, Mipmaps=OFF for pixel art
-- Create TileSet resource with 16x16 tile size  
-- Assign 4 terrain tiles for: Open, Rocky, Water, Highlight
-- Update GridView.cs tile ID constants if needed
-
-**Achievement Unlocked** ✅:
-- ✅ Grid renders with ColorRect tiles (sufficient for logic testing)
-- ✅ Blue square player appears and moves correctly
-- ✅ Click-to-move CQRS pipeline fully operational
-- ✅ Complete MVP architecture validated and working
-- ✅ Foundation established for all future features
-
-**Dev Engineer Achievement** (2025-08-30 17:30):
-- Complete MVP architecture delivered: Domain → Application → Presentation
-- 8 new files implementing full interactive game foundation
-- Zero architectural compromises - production-ready code quality
-- Foundation established for all future tactical combat features
-
-**[Tech Lead] Decision** (2025-09-07 13:58):
-- **VS_008 DECLARED COMPLETE** - Core architecture proven
-- Visual polish (proper tiles) deferred to future VS
-- ColorRect tiles sufficient for all logic testing
-- Movement pipeline working perfectly
-- Focus shifts to game logic, not visuals
----
-**Extraction Targets**: ✅ COMPLETE (2025-09-08)
-- [x] MVP architecture validated end-to-end
-- [x] Phase-based implementation captured throughout
-- [x] Click-to-move CQRS pipeline documented
-- [x] GameStrapper DI patterns in VS_001
-
-### TD_008: Godot Console Serilog Sink with Rich Output
-**Extraction Status**: FULLY EXTRACTED ✅
-**Completed**: 2025-09-07 14:33
-**Archive Note**: Complete GodotConsoleSink implementation with rich formatting eliminating dual logging anti-pattern
----
-### TD_008: Godot Console Serilog Sink with Rich Output
-**Status**: COMPLETED ✅  
-**Owner**: Dev Engineer  
-**Complexity Score**: 4/10  
-**Created**: 2025-09-07 13:53
-**Priority**: Important
-
-**Problem**: Currently Views use dual logging (ILogger + GD.Print) which is redundant and inconsistent. Need proper Serilog sink that outputs to Godot console with rich formatting.
-
-**Reference Implementation**: BlockLife project has working Godot Serilog sink that should be ported/adapted.
-
-**Solution Approach**:
-1. Create `GodotConsoleSink` implementing Serilog `ILogEventSink`
-2. Add rich formatting with colors, timestamps, structured data
-3. Wire into existing Serilog configuration in GameStrapper
-4. Remove dual logging pattern from Views
-5. Ensure compatibility with Godot Editor console output
-
-**Acceptance Criteria**:
-- [x] Single logging interface (ILogger only) across all layers
-- [x] Rich console output in Godot Editor with colors/formatting  
-- [x] Structured logging preserved (maintain file logging)
-- [x] Performance acceptable (no frame drops)
-- [x] Works in both Editor and runtime modes
-
-**[Tech Lead] Decision** (2025-09-07 13:58):
-- **APPROVED with MEDIUM PRIORITY**
-- Complexity: 4/10 - Pattern exists in BlockLife
-- Eliminates dual logging anti-pattern
-- Improves all future debugging sessions
-- ~3 hour implementation
+- ✅ All Core tests pass (dotnet test) - **13/13 PASS**
+- ✅ GameStrapper.Initialize() succeeds - **VERIFIED**
+- ✅ ServiceLocator.GetService<T>() returns Result<T> - **VERIFIED**
+- ✅ Godot test scene works (manual validation) - **SCENE CREATED**
+- ✅ No Godot references in Core project (dotnet list package) - **VERIFIED**
+- ✅ All 3 phase commits exist in git history - **VERIFIED**
+
+**Depends On**: None (first foundation piece)
 
 **Implementation Notes**:
-- Reference BlockLife's `src/Core/Infrastructure/Logging/` implementation
-- Should integrate with existing `GameStrapper.ConfigureLogging()`
-- Consider different log levels having different colors
-- Maintain backward compatibility with existing log file output
+- ServiceLocator is static class (NOT autoload) - initialized in Main scene root per ADR-002
+- ServiceLocator ONLY for Godot _Ready() methods - Core uses constructor injection
+- ITestService is temporary—remove after VS_001 complete
+- Simplified from 4 phases to 3 by removing unnecessary interface abstraction
 
-**Deliverables COMPLETED**:
-1. ✅ GodotConsoleSink implementation (Infrastructure/Logging/GodotConsoleSink.cs)
-2. ✅ GameStrapper integration with dependency injection pattern
-3. ✅ Dual logging anti-pattern eliminated from Views (ActorView, GridView, GameManager)
-4. ✅ Improved ActorId readability (Actor_12345678 vs full GUID)
-5. ✅ Enhanced log message clarity (movement shows from→to coordinates)
+**Completion Summary** (2025-09-30 13:24):
 
-**Quality Gates**:
-- ✅ All 123 tests passing, zero warnings, clean build
-- ✅ Rich colored console output in Godot Editor
-- ✅ Single logging interface eliminating dual GD.Print/ILogger pattern
-- ✅ Enhanced debugging with coordinate highlighting and readable actor IDs
-- ✅ Maintained Clean Architecture boundaries
-- ✅ Production-ready logging infrastructure
----
-**Extraction Targets**: ✅ COMPLETE (2025-09-08)
-- [x] Dual logging anti-pattern documented
-- [x] Serilog sink pattern captured
-- [x] Rich console output benefits noted
+✅ **Phase 1 Complete** (commit 9885cb2):
+- GameStrapper with Initialize(), GetServices(), RegisterCoreServices()
+- 6 tests passing (Category=Phase1)
+- Thread-safe, idempotent initialization
+- Functional error handling with Result<T>
 
-### VS_002: Combat Scheduler (Phase 2 - Application Layer) ✅ COMPLETE
-**Extraction Status**: FULLY EXTRACTED ✅
-**Completed**: 2025-09-07 16:35
-**Archive Note**: Priority queue-based timeline scheduler with innovative List<ISchedulable> design supporting duplicate entries for advanced mechanics
----
-**Status**: COMPLETE ← IMPLEMENTED 2025-09-07 16:35 (Dev Engineer delivery)
-**Owner**: Dev Engineer
-**Size**: S (<4h) - ACTUAL: 3.5h
-**Priority**: Critical (Core combat system foundation)  
-**Markers**: [ARCHITECTURE] [PHASE-2] [COMPLETE]
-**Created**: 2025-08-29 14:15
-**Completed**: 2025-09-07 16:35
+✅ **Phase 2 Complete** (commit ffb53f9):
+- ServiceLocator static class (GetService<T>, Get<T>)
+- 7 tests passing (Category=Phase2) - Total: 13 tests
+- Godot boundary pattern per ADR-002
+- Comprehensive error messages
 
-**✅ DELIVERED**: Priority queue-based timeline scheduler for traditional roguelike turn order
+✅ **Phase 3 Complete** (commit 108f006):
+- TestScenes/DI_Bootstrap_Test.tscn created
+- TestScenes/DIBootstrapTest.cs with manual validation
+- Godot project builds: 0 errors ✅
+- No Godot packages in Core verified ✅
 
-**✅ IMPLEMENTATION COMPLETE**:
-- **CombatScheduler**: List<ISchedulable> with binary search insertion (allows duplicates)
-- **TimeComparer**: Deterministic ordering via TimeUnit + Guid tie-breaking  
-- **ICombatSchedulerService**: Service abstraction with InMemory implementation
-- **Commands**: ScheduleActorCommand, ProcessNextTurnCommand + handlers
-- **Query**: GetSchedulerQuery for turn order inspection
-- **DI Integration**: Registered in GameStrapper.cs
+**Files Created**:
+- src/Darklands.Core/Application/Infrastructure/GameStrapper.cs
+- src/Darklands.Core/Infrastructure/DependencyInjection/ServiceLocator.cs
+- tests/Darklands.Core.Tests/Application/Infrastructure/GameStrapperTests.cs
+- tests/Darklands.Core.Tests/Infrastructure/DependencyInjection/ServiceLocatorTests.cs
+- TestScenes/DIBootstrapTest.cs
+- TestScenes/DI_Bootstrap_Test.tscn
 
-**✅ ACCEPTANCE CRITERIA SATISFIED**:
-- [x] Actors execute in correct time order (fastest first)
-- [x] Unique IDs ensure deterministic tie-breaking
-- [x] Time costs determine next turn scheduling  
-- [x] Commands process through MediatR pipeline
-- [x] 1500+ actors perform efficiently (<2s - exceeds 1000+ requirement)
-- [x] 158 comprehensive unit tests pass (100% success rate)
+**Manual Test Results** (2025-09-30 13:48):
+✅ Scene loads without errors
+✅ Status shows "DI Container: Initialized ✅" in green
+✅ Logs display with BBCode colors (green, cyan)
+✅ Button clicks work correctly (fixed double-firing)
+✅ Service resolution works on every click
 
-**✅ QUALITY VALIDATION**:
-- **Tests**: 158 passing (TimeComparer, CombatScheduler, Handlers, Performance)
-- **Performance**: 1500 actors scheduled+processed <2s (validated)
-- **Error Handling**: LanguageExt v5 Fin<T> throughout (NO try/catch)
-- **Architecture**: Clean separation Domain→Application→Infrastructure
-- **Build**: Zero warnings, 100% test pass rate
+**Post-Completion Fixes** (after initial implementation):
+- Fixed Godot startup error (removed main scene setting)
+- Fixed UI not updating (switched from [Export] to GetNode<T>)
+- Fixed button double-firing (removed duplicate C# signal connection)
 
-**🔧 Dev Engineer Decision** (2025-09-07 16:35):
-- **ARCHITECTURAL CHANGE**: Used List<ISchedulable> instead of SortedSet<ISchedulable>
-- **Reason**: SortedSet prevents duplicates, but business requires actor rescheduling
-- **Solution**: Binary search insertion maintains O(log n) performance while allowing duplicates
-- **TECH LEAD REVIEW**: Confirmed List approach is architecturally correct
+**Result**: DI Foundation fully validated and production-ready.
 
-**✅ Tech Lead Approval** (2025-09-07 16:49):
-- **ARCHITECTURE APPROVED WITH EXCELLENCE**
-- List decision validated as correct for game mechanics (rescheduling, multi-actions, interrupts)
-- Excellent technical judgment recognizing SortedSet limitation
-- Performance validated (1500 actors <2s)
-- Deterministic ordering preserved via TimeComparer
-- Zero try/catch blocks - pure functional error handling
-- Complexity Score: 2/10 - Simple, elegant solution
+**Next Work**:
+→ VS_003 (Logging System) - READY TO START
+→ VS_004 (Event Bus) - READY TO START
+→ VS_001 (Health System) - Ready after VS_003 + VS_004 complete
 
-**Dependencies Satisfied For**: VS_010b Basic Melee Attack (can proceed)
----
-**Extraction Targets**: ✅ COMPLETE (2025-09-08)
-- [x] HANDBOOK updated: List vs SortedSet pattern for scheduling
-- [x] Binary search insertion documented
-- [x] Performance validation (1500 actors <2s)
-- [x] Deterministic ordering captured
-
-### TD_009: Remove Position from Actor Domain Model [ARCHITECTURE] 
-**Extraction Status**: FULLY EXTRACTED ✅
-**Completed**: 2025-09-07
-**Archive Note**: Successfully implemented clean architecture separation - removed Actor.Position, created ICombatQueryService, all 249 tests passing
----
-### TD_009: Remove Position from Actor Domain Model [ARCHITECTURE]
-**Status**: Done (completed 2025-09-07)
-**Owner**: Dev Engineer (completed)
-**Complexity**: 6/10 (Touches multiple layers)
-**Size**: M (4-6 hours)
-**Priority**: 🔥 Critical (Blocks VS_010b - attack needs correct position lookups)
-**Markers**: [ARCHITECTURE] [SSOT] [REFACTOR]
-**Created**: 2025-09-07 18:05
-
-**Problem Statement**:
-Actor domain model contains Position property, creating duplicate state across three locations:
-- Actor.Position property (domain model)
-- GridStateService._actorPositions dictionary
-- ActorStateService._actors (contains Actor with Position)
-
-This violates Single Source of Truth and WILL cause synchronization bugs where actors appear in wrong positions.
-
-**Root Cause Analysis**:
-- Domain model pollution: Actor knows about grid positions (violates SRP)
-- No clear ownership: Position data exists in multiple services
-- Synchronization nightmare: Moving requires updating 3 different states
-
-**Solution - Hybrid SSOT Architecture**:
-1. **Remove Position from Actor domain model** - Actor focuses only on health/combat stats
-2. **GridStateService owns positions** - Single source of truth for all position data
-3. **ActorStateService owns actor properties** - Single source of truth for health/stats
-4. **Create CombatQueryService** - Composes data from both services when needed
-
-**Implementation Steps**:
-- Phase 1: Remove Position property and MoveTo() method from Actor.cs
-- Phase 2: Update InMemoryActorStateService to store position-less Actors
-- Phase 3: Ensure GridStateService is sole authority for positions
-- Phase 4: Create ICombatQueryService for composite queries
-- Phase 5: Update all commands/handlers to use correct service
-- Phase 6: Update presenters to query from appropriate services
-
-**Completed Work**:
-- ✅ Removed Position property from Actor domain model
-- ✅ Updated all factory methods to remove position parameters
-- ✅ Created ICombatQueryService for composite queries  
-- ✅ Updated all presenters to use appropriate services
-- ✅ Updated all tests to work with new architecture
-- ✅ All 249 tests now passing with clean architecture
-
-**Acceptance Criteria**:
-- ✅ Actor domain model has no Position property
-- ✅ GridStateService is only source for position queries
-- ✅ ActorStateService is only source for health/stat queries
-- ✅ All existing tests pass with refactored architecture
-- ✅ No duplicate position state anywhere in codebase
-
-**Tech Lead Decision** (2025-09-07 18:05):
-- **Approved for immediate implementation after VS_010a UI fix**
-- Risk: HIGH if not fixed - will cause position desync bugs
-- Pattern: Follows clean architecture separation of concerns
-- Blocks: VS_010b requires correct position lookups for adjacency checks
----
-**Extraction Targets**: ✅ COMPLETE (2025-09-08)
-- [x] HANDBOOK updated: Composite Query Service pattern
-- [x] SSOT architecture documented
-- [x] Service separation patterns captured
-- [x] Root Cause #2 (Duplicate State) reinforced
-
-### VS_010c: Dummy Combat Target
-**Extraction Status**: FULLY EXTRACTED ✅
-**Completed**: 2025-09-08
-**Archive Note**: Complete dummy combat target implementation with enhanced death system, health bar updates, and rich damage logging beyond original scope
----
-### VS_010c: Dummy Combat Target [Score: 85/100]  
-**Status**: COMPLETE ✅ (All phases delivered, enhanced combat features implemented)
-**Owner**: Dev Engineer (completed all 4 phases)
-**Size**: XS (0.2 days remaining - only scene integration left)
-**Priority**: Critical (Testing/visualization)
-**Markers**: [TESTING] [SCENE] [COMPLETE]
-**Created**: 2025-09-07 16:13
-
-**What**: Static enemy target in grid scene for combat testing
-**Why**: Need something visible to attack and test combat mechanics
-
-**How**:
-- ✅ DummyActor with health but no AI (IsStatic = true)  
-- ✅ SpawnDummyCommand places at grid position
-- ✅ Registers in actor state + grid services
-- ✅ brown sprite with health bar (implemented)
-- ✅ Death animation on zero health (immediate cleanup system)
-
-**Done When**:
-- ✅ Dummy appears at grid position (5,5) on scene start
-- ✅ Has visible health bar above sprite
-- ✅ Takes damage from player attacks (service integration done)
-- ✅ Shows hit flash on damage  
-- ✅ Fades out when killed (immediate sprite removal)
-- ✅ Respawns on scene reload
-
-**Acceptance by Phase**:
-- ✅ Phase 1: DummyActor domain model (18 tests)
-- ✅ Phase 2: SpawnDummyCommand places in grid (27 tests) 
-- ✅ Phase 3: Registers in all services (transaction rollback)
-- ✅ Phase 4: Sprite with health bar in scene (complete visual implementation)
-
-**FINAL STATUS (2025-09-08)**:
-- **Complete**: All 4 phases fully implemented and tested
-- **Test Status**: 358/358 tests passing, zero warnings
-- **Enhanced Features Beyond Scope**: 
-  - Death cleanup system with immediate sprite removal
-  - Health bar live updates during damage
-  - Enhanced combat logging with rich damage information (⚔️ 💀 ❌ indicators)
-- **Implementation**: Complete with visual dummy target in combat scene
-
-**Depends On**: VS_010a (Health system), VS_008 (Grid scene)
-
-**Tech Lead Decision** (2025-09-07 16:13):
-- Complexity: 2/10 - Minimal logic, mostly scene setup
-- Risk: Low - Simple static entity
-- Note: Becomes reusable prefab for future enemies
----
-**Extraction Targets**: ✅ COMPLETE (2025-09-08)
-- [x] Static actor testing pattern documented
-- [x] Transaction-like rollback approach captured
-- [x] Enhanced beyond scope delivery noted
-- [x] 358 test validation milestone recorded
-
-### TD_012: Remove Static Callbacks from ExecuteAttackCommandHandler [ARCHITECTURE]
-**Extraction Status**: NOT EXTRACTED ⚠️
-**Completed**: 2025-09-08 16:40
-**Archive Note**: Static callbacks eliminated, introduced new technical debt (static handlers), created follow-up TDs for proper solution
----
-### TD_012: Remove Static Callbacks from ExecuteAttackCommandHandler [ARCHITECTURE] [Score: 90/100]
-**Status**: Done ✅ (2025-09-08 16:40)
-**Owner**: Dev Engineer
-**Size**: S (2-3h) - **Actual**: 4h (included incident response)
-**Priority**: Critical (Breaks testability and creates hidden dependencies)
-**Markers**: [ARCHITECTURE] [ANTI-PATTERN] [TESTABILITY] [COMPLETED]
-**Created**: 2025-09-08 14:42
-**Completed**: 2025-09-08 16:40
-**Result**: ✅ Static callbacks eliminated, ❌ Introduced new technical debt (static handlers)
-**Post-Mortem**: Docs/06-PostMortems/Inbox/2025-09-08-ui-event-routing-failure.md
-**Follow-up**: Created TD_017, TD_018 for proper architectural solution
-
-**What**: Replace static mutable callbacks with proper event bus or MediatR notifications
-**Why**: Static callbacks break testability, create hidden dependencies, and prevent parallel test execution
-
-**Problem Statement**:
-- ExecuteAttackCommandHandler uses `public static Action<>? OnActorDeath/OnActorDamaged`
-- Static mutable state makes testing difficult
-- Hidden coupling between handler and UI layer
-- Cannot run tests in parallel due to shared state
-
-**How**:
-- Create domain events: `ActorDiedEvent`, `ActorDamagedEvent` as INotification
-- Publish via MediatR: `await _mediator.Publish(new ActorDiedEvent(...))`
-- Subscribe in presenters via INotificationHandler<T>
-- Remove all static callback fields
-
-**Done When**:
-- Zero static mutable fields in ExecuteAttackCommandHandler
-- Events published through MediatR pipeline
-- Presenters receive events via handlers
-- Tests can run in parallel without interference
-- No regression in UI updates
-
-**Depends On**: None
-
-**Tech Lead Decision** (2025-09-08 14:45):
-- **APPROVED WITH HIGH PRIORITY** - Critical architectural flaw affecting testability
-- Static mutable callbacks violate fundamental OOP principles
-- MediatR notifications are the correct pattern (already in our pipeline)
-- Implementation: Create ActorDiedEvent/ActorDamagedEvent as INotification
-- Route to Dev Engineer for immediate implementation
 ---
 **Extraction Targets**:
-- [ ] ADR needed for: Event-driven architecture patterns with MediatR notifications
-- [ ] HANDBOOK update: Static callback anti-patterns and proper event handling
-- [ ] Test pattern: Event-driven testing patterns for UI-domain decoupling
+- [ ] ADR needed for: ServiceLocator pattern at Godot boundary (already documented in ADR-002, verify completeness)
+- [ ] ADR needed for: GameStrapper initialization pattern and thread-safety approach
+- [ ] HANDBOOK update: Pattern for bridging Godot scene instantiation to DI container
+- [ ] HANDBOOK update: Result<T> error handling for service resolution
+- [ ] Test pattern: Phase-based testing with category filters for infrastructure components
+- [ ] Test pattern: Testing idempotency for initialization logic
+- [ ] Lessons learned: GetNode<T> vs [Export] for Godot UI references (avoid Export for DI-resolved services)
+- [ ] Lessons learned: Duplicate signal connection issues (scene + C# connections)
+
+---
 

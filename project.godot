@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="Darklands"
-run/main_scene="uid://coxy82oj87fjb"
+run/main_scene="uid://c2qxwf47dfb55"
 config/features=PackedStringArray("4.4", "C#", "GL Compatibility")
 config/icon="res://icon.svg"
 
