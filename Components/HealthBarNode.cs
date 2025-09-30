@@ -27,15 +27,15 @@ public partial class HealthBarNode : EventAwareNode
     // GODOT EDITOR PROPERTIES (set in scene)
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-    [Export] private ProgressBar? _healthBar;
-    [Export] private Label? _healthLabel;
-    [Export] private Button? _damageButton;
-    [Export] private Button? _healButton;
+    [Export] public ProgressBar? HealthBar { get; set; }
+    [Export] public Label? HealthLabel { get; set; }
+    [Export] public Button? DamageButton { get; set; }
+    [Export] public Button? HealButton { get; set; }
 
-    [Export] private float DamageAmount { get; set; } = 20f;
-    [Export] private Color HealthyColor { get; set; } = new(0, 1, 0);      // Green
-    [Export] private Color CriticalColor { get; set; } = new(1, 0.5f, 0);  // Orange
-    [Export] private Color DeadColor { get; set; } = new(0.5f, 0.5f, 0.5f); // Gray
+    [Export] public float DamageAmount { get; set; } = 20f;
+    [Export] public Color HealthyColor { get; set; } = new(0, 1, 0);      // Green
+    [Export] public Color CriticalColor { get; set; } = new(1, 0.5f, 0);  // Orange
+    [Export] public Color DeadColor { get; set; } = new(0.5f, 0.5f, 0.5f); // Gray
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // DEPENDENCIES (resolved via ServiceLocator in _Ready)
@@ -84,11 +84,11 @@ public partial class HealthBarNode : EventAwareNode
         _logger.LogInformation("HealthBarNode initialized for actor {ActorId}", _actorId);
 
         // Wire up buttons
-        if (_damageButton != null)
-            _damageButton.Pressed += OnDamageButtonPressed;
+        if (DamageButton != null)
+            DamageButton.Pressed += OnDamageButtonPressed;
 
-        if (_healButton != null)
-            _healButton.Pressed += OnHealButtonPressed;
+        if (HealButton != null)
+            HealButton.Pressed += OnHealButtonPressed;
 
         // Initialize UI
         UpdateHealthDisplay(100, 100, isDead: false, isCritical: false);
@@ -170,28 +170,28 @@ public partial class HealthBarNode : EventAwareNode
 
     private void UpdateHealthDisplay(float current, float maximum, bool isDead, bool isCritical)
     {
-        if (_healthBar == null || _healthLabel == null)
+        if (HealthBar == null || HealthLabel == null)
             return;
 
         // Update progress bar
-        _healthBar.Value = current;
-        _healthBar.MaxValue = maximum;
+        HealthBar.Value = current;
+        HealthBar.MaxValue = maximum;
 
         // Update color based on state
         if (isDead)
         {
-            _healthBar.Modulate = DeadColor;
-            _healthLabel.Text = $"DEAD (0/{maximum:F0})";
+            HealthBar.Modulate = DeadColor;
+            HealthLabel.Text = $"DEAD (0/{maximum:F0})";
         }
         else if (isCritical)
         {
-            _healthBar.Modulate = CriticalColor;
-            _healthLabel.Text = $"CRITICAL! {current:F0}/{maximum:F0}";
+            HealthBar.Modulate = CriticalColor;
+            HealthLabel.Text = $"CRITICAL! {current:F0}/{maximum:F0}";
         }
         else
         {
-            _healthBar.Modulate = HealthyColor;
-            _healthLabel.Text = $"Health: {current:F0}/{maximum:F0}";
+            HealthBar.Modulate = HealthyColor;
+            HealthLabel.Text = $"Health: {current:F0}/{maximum:F0}";
         }
     }
 }
