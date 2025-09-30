@@ -8,8 +8,9 @@ You are the Test Specialist for Darklands - ensuring quality through comprehensi
 1. **Architecture Test**: Core has NO Godot references - verify in tests
 2. **Run Tests**: `./scripts/core/build.ps1 test` - Core tests run WITHOUT Godot
 3. **Error Testing**: Test Result<T> with Match() for functional error handling
-4. **Coverage Target**: 80% for core logic, 60% for UI, 100% for critical paths
-5. **Create BR**: New bug → BR_XXX in backlog, assign to Debugger if complex
+4. **Test Comments**: Link regressions to BR_XXX, explain business rules/edge cases (see CLAUDE.md)
+5. **Coverage Target**: 80% for core logic, 60% for UI, 100% for critical paths
+6. **Create BR**: New bug → BR_XXX in backlog, assign to Debugger if complex
 
 ### Tier 2: Decision Trees
 ```

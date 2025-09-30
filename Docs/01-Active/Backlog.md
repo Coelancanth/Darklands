@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-30 14:13 (VS_002 archived - DI Foundation validated)
+**Last Updated**: 2025-09-30 15:38 (VS_003 approved with category-based design - Tech Lead decision)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -69,108 +69,585 @@
 *Blockers preventing other work, production bugs, dependencies for other features*
 
 
-### VS_003: Infrastructure - Logging System with Runtime Configuration [ARCHITECTURE]
-**Status**: Proposed
-**Owner**: Product Owner → Tech Lead (breakdown)
-**Size**: M (6-8h)
+### VS_003: Infrastructure - Logging System with Category-Based Filtering [ARCHITECTURE]
+**Status**: Approved (Tech Lead accepts category-based design)
+**Owner**: Tech Lead → Dev Engineer (ready for implementation)
+**Size**: S (4-5h)
 **Priority**: Critical (Prerequisite for debugging all other features)
 **Markers**: [ARCHITECTURE] [INFRASTRUCTURE] [DEVELOPER-EXPERIENCE]
 **Created**: 2025-09-30
+**Approved**: 2025-09-30 15:38 (category-based filtering)
+**Reference**: [Control Flow Analysis](../03-Reference/Logging-Control-Flow-Analysis.md)
 
-**What**: Production-grade logging system with Microsoft.Extensions.Logging supporting multiple sinks and runtime configuration
-**Why**: Need comprehensive logging for development, debugging, and monitoring - must work in both Core C# and Godot contexts
+**What**: Production-grade logging with Serilog, category-based filtering, and three output sinks (Console, File, Godot UI)
+**Why**: Enable efficient debugging by filtering domain categories (Combat, Movement, AI) rather than toggling infrastructure (sinks)
 
-**Architecture Decision**:
-- ❌ NOT Godot Autoload (would violate ADR-001 Clean Architecture)
-- ✅ **Microsoft.Extensions.Logging abstractions in Core** (portable, industry standard)
-- ✅ **Serilog as provider in Presentation** (implementations live in Godot project)
-- ✅ Core uses `ILogger<T>` from MS.Extensions.Logging.Abstractions (zero concrete dependencies)
-- ✅ Presentation provides Serilog with multiple sinks (Console, Godot RichText, File)
-- ✅ Runtime dynamic configuration (change levels/sinks without restart)
+---
 
-**Scope**:
-1. **Core Layer (Abstractions Only)**:
-   - Uses `ILogger<T>` from Microsoft.Extensions.Logging.Abstractions
-   - No concrete logging implementations (enforced by .csproj)
+## 🎯 Tech Lead Decision (2025-09-30 15:38)
 
-2. **Infrastructure Layer (Serilog Implementation)**:
-   - GameStrapper configures Serilog as MS.Extensions.Logging provider
-   - Serilog sinks: Console, File, GodotRichText (custom)
-   - ILoggingService interface for runtime sink management
-   - LoggingService implementation with LoggingLevelSwitch
-   - Runtime sink enable/disable/toggle
-   - Runtime log level changes (Trace → Debug → Info → Warn → Error)
+**APPROVED: Category-Based Filtering Approach**
 
-3. **Presentation Layer (Godot Project)**:
-   - Custom Serilog sink: GodotRichTextSink (BBCode formatting)
-   - DebugConsoleNode (RichTextLabel for in-game log display)
-   - LogSettingsPanel (UI for runtime toggles)
-   - Serilog packages live in Darklands.csproj (not Core!)
+### Why This Design Won
 
-4. **Tests**:
-   - Core code uses ILogger<T> from abstractions only
-   - Verify: Core.csproj has NO Serilog packages (only MS.Extensions.Logging.Abstractions)
-   - Serilog can write to multiple sinks simultaneously
-   - Can enable/disable sinks at runtime
-   - Can change log level at runtime
+1. ✅ **Solves Real User Problem**: Developers debug by domain ("hide Combat spam") not infrastructure ("disable Console sink")
+2. ✅ **Better Performance**: O(1) category check before sinks vs O(N) per-sink checks
+3. ✅ **Simpler**: ~60 lines vs ~300 lines custom code
+4. ✅ **Faster Delivery**: 4-5h vs 6-8h implementation time
+5. ✅ **Automatic Categorization**: Extracts from namespaces (zero manual tagging)
+6. ✅ **Leverages Serilog**: Uses built-in `Filter.ByIncludingOnly` (battle-tested)
+7. ✅ **Extensible**: Can add sink toggling later if proven need emerges (YAGNI)
 
-**Rich Format Support**:
+### Core Architecture Principles
+
+**Single Logger, Three Sinks, Category Filtering**:
+- ✅ **ONE** `Log.Logger` configured in GameStrapper
+- ✅ **THREE** sinks: Console (ANSI), File (plain text), Godot (BBCode)
+- ✅ **Each sink has own formatter** (different outputs need different rendering)
+- ✅ **Category filter BEFORE sinks** (efficient: filter once, not per-sink)
+- ✅ **Automatic categorization** from namespaces (`Commands.Combat.Handler` → "Combat")
+- ✅ **Thread-safe** Godot sink via CallDeferred marshalling
+- ✅ **Simple file overwrite** (current session only, no rolling for development)
+
+**Layer Boundaries**:
 ```
-[color=red][b]ERROR[/b][/color] [10:45:12] ActorService: Actor 123 not found
-[color=yellow]WARN[/color] [10:45:13] CombatHandler: Low health warning
-[color=cyan]INFO[/color] [10:45:14] GameStrapper: Services initialized
-[color=gray]DEBUG[/color] [10:45:15] EventBus: Subscribed to HealthChangedEvent
-[color=#666]TRACE[/color] [10:45:16] Handler: Entering ExecuteAttack method
+┌─────────────────────────────────────────────────┐
+│ Core (Darklands.Core.csproj - NET SDK)         │
+│ ✅ Uses: ILogger<T> (MS.Ext.Logging.Abstractions)│
+│ ❌ NO ILoggingService interface (YAGNI)         │
+│ ❌ NO Serilog packages                          │
+└──────────────────┬──────────────────────────────┘
+                   │ One-way dependency
+                   ↓
+┌─────────────────────────────────────────────────┐
+│ Presentation (Darklands.csproj - Godot SDK)    │
+│ ✅ Implements: LoggingService (simple class)    │
+│ ✅ Provides: Serilog as MS.Ext.Logging provider │
+│ ✅ Creates: GodotRichTextSink + BBCodeFormatter │
+└─────────────────────────────────────────────────┘
 ```
 
-**How** (Implementation Order):
-1. **Phase 1: Core** (~0.5h)
-   - Verify Core.csproj uses ONLY Microsoft.Extensions.Logging.Abstractions
-   - NO Serilog packages in Core!
-   - Define ILoggingService interface (optional - for runtime config)
+**Why This is Elegant**:
+1. **User-Centric**: Filter by domain (Combat, Movement) not infrastructure (sinks)
+2. **Performance**: O(1) category check vs O(N) sink checks
+3. **Dependency Inversion**: Core only knows `ILogger<T>` abstraction
+4. **Single Responsibility**: Each formatter renders for its medium
+5. **Zero Manual Work**: Categories auto-discovered from assembly namespaces
+6. **Industry Standard**: Same pattern as ASP.NET Core structured logging
 
-2. **Phase 2: Infrastructure - GameStrapper** (~1.5h)
-   - Configure Serilog as MS.Extensions.Logging provider
-   - Add Serilog sinks: Console, File
-   - Register ILogger<T> with DI via `services.AddLogging(builder => builder.AddSerilog())`
-   - Add LoggingLevelSwitch for runtime level changes
-   - Test: Core handler uses ILogger<T> and logs appear
+---
 
-3. **Phase 3: Infrastructure - Custom Godot Sink** (~2h)
-   - Create GodotRichTextSink : ILogEventSink (Serilog custom sink)
-   - BBCode formatting for rich colors
-   - CallDeferred for thread-safe UI updates
-   - Register in GameStrapper: `.WriteTo.GodotRichText()`
-   - LoggingService for runtime sink enable/disable
+## 📋 Implementation Breakdown (4 Phases)
 
-4. **Phase 4: Presentation - UI** (~2h)
-   - DebugConsoleNode (RichTextLabel scene for logs)
-   - LogSettingsPanel (dropdowns: log level, checkboxes: sinks)
-   - Wire to LoggingService for runtime config
-   - Manual test: Toggle sinks, change levels at runtime
+**Total Time**: ~4-5 hours
 
-**Done When**:
-- ✅ Core code can use ILogger<T> via constructor injection
-- ✅ Logs appear in System.Console with colors
-- ✅ Logs appear in Godot in-game console with rich BBCode formatting
-- ✅ Logs persist to file
-- ✅ Can toggle each sink on/off at runtime (immediate effect)
-- ✅ Can change log level at runtime (Trace/Debug/Info/Warn/Error)
-- ✅ Tests verify Core has no Godot dependencies
-- ✅ In-game debug window shows logs beautifully formatted
-- ✅ Code committed with message: "feat: logging system with runtime config [VS_003]"
+### **Phase 1: Basic Serilog Setup** (~1h)
+**Goal**: Configure Serilog with Console + File sinks, verify Core can log
 
-**Depends On**: VS_002 (needs DI to inject ILogger)
+**Packages to Add** (Darklands.csproj):
+```xml
+<PackageReference Include="Serilog" Version="3.1.1" />
+<PackageReference Include="Serilog.Extensions.Logging" Version="8.0.0" />
+<PackageReference Include="Serilog.Sinks.Console" Version="5.0.1" />
+<PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
+```
 
-**Tech Lead Notes**:
-- **CRITICAL**: Core uses `ILogger<T>` from Microsoft.Extensions.Logging.**Abstractions** ONLY
-- **CRITICAL**: All Serilog packages go in Darklands.csproj (Godot project), NOT Core!
-- Pattern: Core → Abstraction, Infrastructure/Presentation → Implementation
-- Serilog acts as provider: `services.AddLogging(builder => builder.AddSerilog(Log.Logger))`
-- Custom sink: GodotRichTextSink : ILogEventSink (Serilog interface)
-- GodotRichTextSink must use CallDeferred for thread-safe UI updates
-- LogSettingsPanel should be accessible via F12 or debug menu
-- Reference: Same pattern as ASP.NET Core uses Serilog
+**GameStrapper Configuration**:
+```csharp
+// Infrastructure/GameStrapper.cs
+public override void _Ready()
+{
+    // Configure Serilog with TWO sinks (Console + File)
+    Log.Logger = new LoggerConfiguration()
+        .MinimumLevel.Debug()
+        .WriteTo.Console(
+            theme: AnsiConsoleTheme.Code,
+            outputTemplate: "[{Level:u3}] {Timestamp:HH:mm:ss} {SourceContext:l}: {Message:lj}{NewLine}"
+        )
+        .WriteTo.File(
+            "logs/darklands.log",
+            outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] {SourceContext:l}: {Message:lj}{NewLine}",
+            shared: true  // ← Simple overwrite (no rolling)
+        )
+        .CreateLogger();
+
+    // Bridge Serilog → MS.Extensions.Logging
+    services.AddLogging(builder =>
+    {
+        builder.ClearProviders();
+        builder.AddSerilog(Log.Logger, dispose: true);
+    });
+}
+```
+
+**Helper Function**:
+```csharp
+// Extract category from SourceContext
+private static string ExtractCategory(string sourceContext)
+{
+    // Input: "Darklands.Core.Application.Commands.Combat.ExecuteAttackCommandHandler"
+    // Output: "Combat"
+
+    var parts = sourceContext.Split('.');
+    var commandsIndex = Array.IndexOf(parts, "Commands");
+    if (commandsIndex >= 0 && commandsIndex + 1 < parts.Length)
+        return parts[commandsIndex + 1];
+
+    var queriesIndex = Array.IndexOf(parts, "Queries");
+    if (queriesIndex >= 0 && queriesIndex + 1 < parts.Length)
+        return parts[queriesIndex + 1];
+
+    return "Infrastructure";
+}
+```
+
+**Test**:
+```bash
+# Run any command that logs from Core
+./scripts/core/build.ps1 test --filter "Category=Phase1"
+
+# Verify:
+# - Console shows colored output with SourceContext
+# - logs/darklands.log created with plain text
+# - Core.csproj has NO Serilog packages (only MS.Ext.Logging.Abstractions)
+```
+
+**Commit**: `feat(logging): add basic Serilog with Console + File sinks [VS_003 Phase1/4]`
+
+---
+
+### **Phase 2: Category Filtering** (~1.5h)
+**Goal**: Add runtime category filtering before sinks
+
+**Files to Create**:
+```
+Infrastructure/Logging/LoggingService.cs
+```
+
+**Update GameStrapper**:
+```csharp
+public override void _Ready()
+{
+    // Create shared state for category filtering
+    var enabledCategories = new HashSet<string>
+    {
+        "Combat", "Movement", "AI", "Infrastructure", "Network"
+    };
+
+    // Configure Serilog with category filter BEFORE sinks
+    Log.Logger = new LoggerConfiguration()
+        .MinimumLevel.Debug()
+
+        // ===== Category Filter (checks once before sinks) =====
+        .Filter.ByIncludingOnly(logEvent =>
+        {
+            if (logEvent.Properties.TryGetValue("SourceContext", out var ctx))
+            {
+                var fullName = ctx.ToString().Trim('"');
+                var category = ExtractCategory(fullName);
+                return enabledCategories.Contains(category);
+            }
+            return true;  // Include logs without SourceContext
+        })
+
+        .WriteTo.Console(theme: AnsiConsoleTheme.Code, ...)
+        .WriteTo.File("logs/darklands.log", ...)
+        .CreateLogger();
+
+    // Bridge to MS.Extensions.Logging
+    services.AddLogging(builder =>
+    {
+        builder.ClearProviders();
+        builder.AddSerilog(Log.Logger, dispose: true);
+    });
+
+    // Register category control service (NO interface in Core!)
+    services.AddSingleton(new LoggingService(enabledCategories));
+}
+```
+
+**LoggingService Implementation**:
+```csharp
+// Infrastructure/Logging/LoggingService.cs
+public class LoggingService
+{
+    private readonly HashSet<string> _enabledCategories;
+
+    public LoggingService(HashSet<string> enabledCategories)
+    {
+        _enabledCategories = enabledCategories;
+    }
+
+    public void EnableCategory(string category)
+    {
+        _enabledCategories.Add(category);
+    }
+
+    public void DisableCategory(string category)
+    {
+        _enabledCategories.Remove(category);
+    }
+
+    public void ToggleCategory(string category)
+    {
+        if (_enabledCategories.Contains(category))
+            _enabledCategories.Remove(category);
+        else
+            _enabledCategories.Add(category);
+    }
+
+    public IReadOnlySet<string> GetEnabledCategories()
+    {
+        return _enabledCategories;
+    }
+
+    // Auto-discover categories from assembly
+    public IReadOnlyList<string> GetAvailableCategories()
+    {
+        return typeof(GameStrapper).Assembly
+            .GetTypes()
+            .Where(t => t.Namespace?.Contains("Commands") == true ||
+                       t.Namespace?.Contains("Queries") == true)
+            .Select(t => ExtractCategory(t.Namespace))
+            .Where(c => !string.IsNullOrEmpty(c))
+            .Distinct()
+            .OrderBy(c => c)
+            .ToList();
+    }
+
+    private static string ExtractCategory(string ns)
+    {
+        if (string.IsNullOrEmpty(ns)) return null;
+        var parts = ns.Split('.');
+        var commandsIndex = Array.IndexOf(parts, "Commands");
+        if (commandsIndex >= 0 && commandsIndex + 1 < parts.Length)
+            return parts[commandsIndex + 1];
+        var queriesIndex = Array.IndexOf(parts, "Queries");
+        if (queriesIndex >= 0 && queriesIndex + 1 < parts.Length)
+            return parts[queriesIndex + 1];
+        return null;
+    }
+}
+```
+
+**Test**:
+```bash
+# Create test that toggles categories at runtime
+./scripts/core/build.ps1 test --filter "Category=Phase2"
+
+# Verify:
+# - DisableCategory("Combat") → Combat logs disappear from ALL sinks
+# - EnableCategory("Combat") → Combat logs resume immediately
+# - GetAvailableCategories() returns discovered categories
+```
+
+**Commit**: `feat(logging): add category-based runtime filtering [VS_003 Phase2/4]`
+
+---
+
+### **Phase 3: Godot Integration** (~1.5h)
+**Goal**: Add GodotRichTextSink with BBCode formatting
+
+**Files to Create**:
+```
+Infrastructure/Logging/GodotRichTextSink.cs
+Infrastructure/Logging/GodotBBCodeFormatter.cs
+```
+
+**GodotRichTextSink Implementation**:
+```csharp
+// Infrastructure/Logging/GodotRichTextSink.cs
+public class GodotRichTextSink : ILogEventSink
+{
+    private readonly RichTextLabel _richTextLabel;
+    private readonly ITextFormatter _formatter;
+
+    public GodotRichTextSink(RichTextLabel richTextLabel, ITextFormatter formatter)
+    {
+        _richTextLabel = richTextLabel;
+        _formatter = formatter;
+    }
+
+    public void Emit(LogEvent logEvent)
+    {
+        // Format on background thread (cheap)
+        var writer = new StringWriter();
+        _formatter.Format(logEvent, writer);
+        var formatted = writer.ToString();
+
+        // Marshal to main thread (thread-safe)
+        _richTextLabel.CallDeferred(
+            RichTextLabel.MethodName.AppendText,
+            formatted
+        );
+    }
+}
+```
+
+**GodotBBCodeFormatter Implementation**:
+```csharp
+// Infrastructure/Logging/GodotBBCodeFormatter.cs
+public class GodotBBCodeFormatter : ITextFormatter
+{
+    public void Format(LogEvent logEvent, TextWriter output)
+    {
+        var level = logEvent.Level;
+        var timestamp = logEvent.Timestamp.ToString("HH:mm:ss.fff");
+        var message = logEvent.RenderMessage();
+
+        // Extract category from SourceContext
+        var category = "Unknown";
+        if (logEvent.Properties.TryGetValue("SourceContext", out var ctx))
+        {
+            var fullName = ctx.ToString().Trim('"');
+            category = ExtractCategory(fullName);
+        }
+
+        // Render as BBCode
+        var color = GetColorForLevel(level);
+        output.Write($"[color={color}][b]{level.ToString().ToUpper().PadRight(5)}[/b][/color] ");
+        output.Write($"[color=gray]{timestamp}[/color] ");
+        output.Write($"[color=cyan]{category}[/color]: ");
+        output.WriteLine(message);
+    }
+
+    private string GetColorForLevel(LogEventLevel level) => level switch
+    {
+        LogEventLevel.Verbose => "#666666",      // Dark gray
+        LogEventLevel.Debug => "#808080",        // Gray
+        LogEventLevel.Information => "#00CED1",  // Cyan
+        LogEventLevel.Warning => "#FFD700",      // Gold
+        LogEventLevel.Error => "#FF4500",        // OrangeRed
+        LogEventLevel.Fatal => "#FF0000",        // Red
+        _ => "#FFFFFF"
+    };
+
+    private static string ExtractCategory(string sourceContext)
+    {
+        var parts = sourceContext.Split('.');
+        var commandsIndex = Array.IndexOf(parts, "Commands");
+        if (commandsIndex >= 0 && commandsIndex + 1 < parts.Length)
+            return parts[commandsIndex + 1];
+        return "Infrastructure";
+    }
+}
+```
+
+**Update GameStrapper** (add third sink):
+```csharp
+public override void _Ready()
+{
+    var enabledCategories = new HashSet<string> { ... };
+
+    // Get RichTextLabel from scene (create minimal debug console first)
+    var debugConsole = GetNode<RichTextLabel>("/root/Main/DebugConsole/LogDisplay");
+    var godotSink = new GodotRichTextSink(debugConsole, new GodotBBCodeFormatter());
+
+    Log.Logger = new LoggerConfiguration()
+        .MinimumLevel.Debug()
+        .Filter.ByIncludingOnly(logEvent => ...)
+        .WriteTo.Console(...)
+        .WriteTo.File(...)
+        .WriteTo.Sink(godotSink)  // ← Add Godot sink
+        .CreateLogger();
+
+    // ... rest of setup
+}
+```
+
+**Test**:
+```bash
+# Run game manually
+# Verify:
+# - Logs appear in Godot RichTextLabel with BBCode colors
+# - Category filtering affects Godot sink (same as Console/File)
+# - Thread-safe (no crashes with concurrent logging)
+```
+
+**Commit**: `feat(logging): add Godot rich text sink with BBCode formatting [VS_003 Phase3/4]`
+
+---
+
+### **Phase 4: Debug UI** (~1h)
+**Goal**: Create in-game debug console with category filter UI
+
+**Files to Create**:
+```
+Nodes/Debug/DebugConsoleNode.cs
+Nodes/Debug/LogFilterPanelNode.cs
+Scenes/Debug/DebugConsole.tscn
+```
+
+**DebugConsoleNode Implementation**:
+```csharp
+// Nodes/Debug/DebugConsoleNode.cs
+public partial class DebugConsoleNode : Control
+{
+    private RichTextLabel _logDisplay;
+    private Button _clearButton;
+
+    public override void _Ready()
+    {
+        base._Ready();
+
+        _logDisplay = GetNode<RichTextLabel>("VBoxContainer/ScrollContainer/LogDisplay");
+        _clearButton = GetNode<Button>("VBoxContainer/HeaderContainer/ClearButton");
+
+        _clearButton.Pressed += () => _logDisplay.Clear();
+
+        // Toggle console with F12
+        Visible = false;
+    }
+
+    public override void _Input(InputEvent @event)
+    {
+        if (@event is InputEventKey keyEvent && keyEvent.Pressed && keyEvent.Keycode == Key.F12)
+        {
+            Visible = !Visible;
+        }
+    }
+
+    public RichTextLabel GetLogDisplay() => _logDisplay;
+}
+```
+
+**LogFilterPanelNode Implementation**:
+```csharp
+// Nodes/Debug/LogFilterPanelNode.cs
+public partial class LogFilterPanelNode : Control
+{
+    private LoggingService _loggingService;
+    private FlowContainer _categoryContainer;
+
+    public override void _Ready()
+    {
+        base._Ready();
+
+        // Get logging service from DI
+        _loggingService = ServiceLocator.Get<LoggingService>();
+
+        _categoryContainer = GetNode<FlowContainer>("CategoryContainer");
+
+        // Auto-discover and create checkboxes
+        var categories = _loggingService.GetAvailableCategories();
+        foreach (var category in categories)
+        {
+            var checkbox = new CheckBox
+            {
+                Text = category,
+                ButtonPressed = true  // Enabled by default
+            };
+
+            checkbox.Toggled += (isChecked) =>
+            {
+                if (isChecked)
+                    _loggingService.EnableCategory(category);
+                else
+                    _loggingService.DisableCategory(category);
+            };
+
+            _categoryContainer.AddChild(checkbox);
+        }
+    }
+}
+```
+
+**Manual Testing Checklist**:
+```
+1. ✅ Run game
+2. ✅ Press F12 → Debug console appears
+3. ✅ Logs appear with BBCode colors (different colors per level)
+4. ✅ Category checkboxes auto-populated (Combat, Movement, AI, etc.)
+5. ✅ Uncheck "Combat" → Combat logs disappear from console
+6. ✅ Re-check "Combat" → Combat logs resume immediately
+7. ✅ Click "Clear" → Console clears
+8. ✅ Verify Console/File show same filtered results
+9. ✅ Press F12 again → Console hides
+```
+
+**Commit**: `feat(logging): add debug console with category filter UI [VS_003 Phase4/4]`
+
+---
+
+## ✅ Done When (Acceptance Criteria)
+
+- ✅ Core code uses `ILogger<T>` via constructor injection
+- ✅ Logs appear in System.Console with ANSI colors
+- ✅ Logs appear in Godot in-game console with BBCode formatting
+- ✅ Logs persist to `logs/darklands.log` (simple overwrite, no rolling)
+- ✅ Can toggle categories on/off at runtime (immediate effect on ALL sinks)
+- ✅ Category checkboxes auto-discovered from assembly namespaces
+- ✅ Tests verify Core has NO Serilog dependencies (only MS.Ext.Logging.Abstractions)
+- ✅ In-game debug console (F12 to toggle)
+- ✅ Code committed: `feat: category-based logging system [VS_003]`
+
+---
+
+## 📦 Package Requirements
+
+**Darklands.Core.csproj** (abstractions only):
+```xml
+<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.0" />
+```
+
+**Darklands.csproj** (implementations):
+```xml
+<PackageReference Include="Serilog" Version="3.1.1" />
+<PackageReference Include="Serilog.Extensions.Logging" Version="8.0.0" />
+<PackageReference Include="Serilog.Sinks.Console" Version="5.0.1" />
+<PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
+<PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0" />
+```
+
+---
+
+## 🔧 Configuration Notes
+
+### File Logging: Overwrite vs Rolling
+
+**Development** (default):
+```csharp
+.WriteTo.File(
+    "logs/darklands.log",
+    shared: true  // Allow concurrent reads (for tail -f)
+    // NO rollingInterval = simple overwrite each session
+)
+```
+
+**Production** (if needed later):
+```csharp
+.WriteTo.File(
+    "logs/darklands-.log",
+    rollingInterval: RollingInterval.Day,
+    retainedFileCountLimit: 7  // Keep last 7 days
+)
+```
+
+### Formatting Strategy
+
+**Each sink has its own formatter** (different outputs need different rendering):
+- **Console**: ANSI color codes (`\x1b[36m`)
+- **File**: Plain text (grep-friendly, no escape codes)
+- **Godot**: BBCode markup (`[color=cyan]`)
+
+**Same semantic content, different presentation per medium.**
+
+---
+
+## 💡 Future Enhancements (Defer Until Needed)
+
+1. **Hierarchical Categories**: Support `Combat.Attack` vs `Combat.Damage` granularity
+2. **Category Presets**: One-click filters ("All", "Errors Only", "Combat Debug")
+3. **Save/Load Preferences**: Persist filter state to `user://log_filters.json`
+4. **Sink Toggling**: Add if proven need emerges (currently YAGNI)
+
+**YAGNI Principle**: Start with simplest solution, add complexity only when real need emerges.
+
+---
+
+**Depends On**: VS_002 (DI Foundation) ✅ Complete
+
+**Reference Documentation**: [Control Flow Analysis](../03-Reference/Logging-Control-Flow-Analysis.md)
 
 ---
 
