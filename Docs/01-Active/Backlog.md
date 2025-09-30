@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-30 16:45 (VS_004 breakdown approved - Tech Lead)
+**Last Updated**: 2025-09-30 19:43 (VS_004 Dev Engineer review complete)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -154,6 +154,44 @@
 - **UIEventForwarder Pattern**: MediatR auto-discovers INotificationHandler<T>, one forwarder per event type
 - **Risk**: Godot 4 C# CallDeferred with lambdas - if issues arise, use queue + _Process() approach
 - **Next Steps**: Dev Engineer implements phases 1-4 sequentially, commits after each phase passes tests
+
+**Dev Engineer Review** (2025-09-30 19:43):
+
+*Initial Reaction*: Skeptical - felt like YAGNI (over-engineering before we need it)
+
+*After Reading ADR-002*: **Opinion reversed** - EventBus is justified and needed now.
+
+**✅ What Convinced Me**:
+1. **ADR-002 Decision Matrix** (lines 630-644): Clear distinction between Godot Signals (local/visual) vs EventBus (cross-system domain events)
+2. **ActorDiedEvent Example**: Shows the real problem - multiple unrelated systems (UI, Combat, World, Quest, Audio) need to react to same domain event. Without EventBus = tight coupling nightmare.
+3. **VS_001 Health System** will immediately need this - even "minimal" health needs multiple subscribers (health bar, combat log, death detection, audio)
+
+**EventBus is the RIGHT solution for routing domain state changes to multiple unrelated systems.**
+
+**⚠️ Implementation Concerns** (Honest Technical Feedback):
+
+1. **WeakReference Cleanup Strategy**:
+   - *Question*: When do we clean up dead references? On every Publish (perf hit)? Periodically (complexity)?
+   - *Alternative*: Explicit unsubscribe in _ExitTree() with strong refs (visible leaks easier to debug)
+   - *Recommendation*: Trust Tech Lead's judgment if they've seen Godot memory leaks in practice
+
+2. **UIEventForwarder Boilerplate**:
+   - *Concern*: Manual registration for every event type = maintenance burden
+   - *Question*: Can we auto-register? `services.AddSingleton(typeof(INotificationHandler<>), typeof(UIEventForwarder<>))`
+   - *Recommendation*: Investigate MediatR generic registration before implementing
+
+3. **Phase 2 Over-Testing**:
+   - *Concern*: PublishTestEventCommand tests that calling Publish() calls Publish() (testing MediatR, not our code)
+   - *Recommendation*: Skip Phase 2, test GodotEventBus directly in Phase 3 (saves 1h, less throwaway code)
+
+**Proposed Simplifications**:
+- ✅ Keep overall architecture (validated by ADR-002)
+- ⚠️ Skip Phase 2 (merge testing into Phase 3)
+- 🔍 Investigate UIEventForwarder auto-registration
+- 💭 Consider explicit unsubscribe vs WeakReference (debuggability trade-off)
+- ⏱️ Estimated: 4-4.5h (vs 5.5h original)
+
+**Verdict**: **Implement VS_004** - Architecture is sound, minor implementation simplifications won't compromise quality.
 
 ---
 
