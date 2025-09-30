@@ -109,14 +109,18 @@ public class ServiceLocatorTests
     {
         // Arrange - First container
         GameStrapper.Reset();
-        GameStrapper.Initialize();
+        var initResult1 = GameStrapper.Initialize();
+        initResult1.IsSuccess.Should().BeTrue("First Initialize should succeed");
+
         var result1 = ServiceLocator.GetService<ITestService>();
         result1.IsSuccess.Should().BeTrue("First container should resolve service");
         var service1 = result1.Value;
 
         // Act - Reset and re-initialize creates NEW container
         GameStrapper.Reset();
-        GameStrapper.Initialize();
+        var initResult2 = GameStrapper.Initialize();
+        initResult2.IsSuccess.Should().BeTrue("Second Initialize should succeed");
+
         var result2 = ServiceLocator.GetService<ITestService>();
         result2.IsSuccess.Should().BeTrue("Second container should resolve service");
         var service2 = result2.Value;
