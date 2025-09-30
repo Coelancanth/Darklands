@@ -70,9 +70,9 @@
 
 
 ### VS_003: Infrastructure - Logging System with Category-Based Filtering [ARCHITECTURE]
-**Status**: In Progress (Phase 1/4 Complete - Basic Serilog Setup ✅)
+**Status**: In Progress (Phase 2/4 Complete - Category Filtering ✅)
 **Owner**: Dev Engineer
-**Size**: S (4-5h estimated, ~1.5h Phase 1 actual)
+**Size**: S (4-5h estimated, ~2.5h actual so far)
 **Priority**: Critical (Prerequisite for debugging all other features)
 **Markers**: [ARCHITECTURE] [INFRASTRUCTURE] [DEVELOPER-EXPERIENCE]
 **Created**: 2025-09-30
@@ -215,7 +215,7 @@ private static string ExtractCategory(string sourceContext)
 
 **Commit**: `feat(logging): add basic Serilog with Console + File sinks [VS_003 Phase1/4]`
 
-**✅ Phase 1 Complete (2025-09-30 16:08)**:
+**✅ Phase 1 Complete (2025-09-30 16:08 | ~1.5h)**:
 - Enhanced GameStrapper.Initialize() with configuration action pattern
 - Configured Serilog in DIBootstrapTest with Console (ANSI) + File (plain text) sinks
 - Bridged Serilog → MS.Extensions.Logging via services.AddSerilog()
@@ -355,6 +355,16 @@ public class LoggingService
 ```
 
 **Commit**: `feat(logging): add category-based runtime filtering [VS_003 Phase2/4]`
+
+**✅ Phase 2 Complete (2025-09-30 16:45 | ~1h)**:
+- Created LoggingService with Enable/Disable/Toggle/GetEnabled/GetAvailable methods
+- Implemented ExtractCategory() for auto-categorization from CQRS namespaces
+- Integrated Filter.ByIncludingOnly() with shared HashSet (O(1) performance)
+- Configured default categories: Combat, Movement, AI, Infrastructure, Network
+- Manual testing via DIBootstrapTest validates all functionality
+- **Screenshot verified**: Category filtering works correctly at runtime
+- **All 14 Core tests pass** (Presentation can't be unit tested due to Godot SDK)
+- **Time**: 1h actual (as estimated)
 
 ---
 
