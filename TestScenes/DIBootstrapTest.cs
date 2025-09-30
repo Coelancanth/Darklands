@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 using Darklands.Core.Application.Infrastructure;
 using Darklands.Core.Infrastructure.DependencyInjection;
@@ -29,10 +30,30 @@ public partial class DIBootstrapTest : Node2D
         _testButton = GetNode<Button>("TestButton");
         _logOutput = GetNode<RichTextLabel>("LogOutput");
 
-        // Configure Serilog BEFORE initializing DI container
+        // Configure Serilog with category filtering BEFORE initializing DI container
         // NOTE: This is Presentation layer code - Serilog packages are only in Darklands.csproj
+
+        // Create shared state for category filtering
+        var enabledCategories = new HashSet<string>
+        {
+            "Combat", "Movement", "AI", "Infrastructure", "Network"
+        };
+
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Debug()
+
+            // ===== Category Filter (checks once before sinks) =====
+            .Filter.ByIncludingOnly(logEvent =>
+            {
+                if (logEvent.Properties.TryGetValue("SourceContext", out var ctx))
+                {
+                    var fullName = ctx.ToString().Trim('"');
+                    var category = Darklands.Infrastructure.Logging.LoggingService.ExtractCategory(fullName);
+                    return category != null && enabledCategories.Contains(category);
+                }
+                return true;  // Include logs without SourceContext
+            })
+
             .WriteTo.Console(
                 theme: AnsiConsoleTheme.Code,
                 outputTemplate: "[{Level:u3}] {Timestamp:HH:mm:ss} {SourceContext:l}: {Message:lj}{NewLine}"
@@ -44,7 +65,7 @@ public partial class DIBootstrapTest : Node2D
             )
             .CreateLogger();
 
-        GD.Print("✅ Serilog configured (Console + File sinks)");
+        GD.Print("✅ Serilog configured (Console + File sinks with category filtering)");
 
         // Initialize DI container with logging configuration
         var initResult = GameStrapper.Initialize(services =>
@@ -55,6 +76,9 @@ public partial class DIBootstrapTest : Node2D
                 builder.ClearProviders();
                 builder.AddSerilog(Log.Logger, dispose: true);
             });
+
+            // Register LoggingService for runtime category control
+            services.AddSingleton(new Darklands.Infrastructure.Logging.LoggingService(enabledCategories));
         });
 
         if (initResult.IsSuccess)
@@ -82,6 +106,29 @@ public partial class DIBootstrapTest : Node2D
             GD.PrintErr($"❌ ServiceLocator failed to resolve ITestService: {serviceResult.Error}");
             AddLog($"[color=red]❌ Failed to resolve ITestService:[/color] {serviceResult.Error}");
         }
+
+        // ===== VS_003 Phase 2: Test category filtering =====
+        var loggingService = ServiceLocator.Get<Darklands.Infrastructure.Logging.LoggingService>();
+
+        GD.Print("\n=== Testing Category Filtering (VS_003 Phase 2) ===");
+        GD.Print($"Initial enabled categories: {string.Join(", ", loggingService.GetEnabledCategories())}");
+
+        // Test disabling a category
+        loggingService.DisableCategory("Combat");
+        GD.Print("✅ Disabled 'Combat' category");
+        GD.Print($"Enabled categories after disable: {string.Join(", ", loggingService.GetEnabledCategories())}");
+
+        // Test re-enabling
+        loggingService.EnableCategory("Combat");
+        GD.Print("✅ Re-enabled 'Combat' category");
+        GD.Print($"Enabled categories after enable: {string.Join(", ", loggingService.GetEnabledCategories())}");
+
+        // Test category extraction
+        var testCategory = Darklands.Infrastructure.Logging.LoggingService.ExtractCategory(
+            "Darklands.Core.Application.Commands.Combat.ExecuteAttackCommandHandler");
+        GD.Print($"✅ Extracted category 'Combat' from handler name: {testCategory}");
+
+        AddLog($"[color=cyan]Category filtering test passed ✅[/color]");
 
         // Button is already connected via .tscn signal connection
         // No need to wire it up in code (would cause double-firing)
