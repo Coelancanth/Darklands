@@ -14,56 +14,24 @@ permissions:
   checks: write
 
 jobs:
-  # Job 1: Quick verification (trust local hooks did their job)
-  verify:
-    name: 🔍 Verify Local Fixes
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: '8.0.x'
-        
-    - name: 🔍 Verify build cleanliness
-      run: |
-        echo "🔍 Verifying no build artifacts committed..."
-        
-        if find . -type d -name "bin" -o -name "obj" | grep -q .; then
-          echo "❌ Build artifacts found in repo"
-          exit 1
-        else
-          echo "✅ Repository is clean (no build artifacts)"
-        fi
-        
-    - name: ⚡ Skip formatting verification (trust pre-commit hook)
-      run: |
-        echo "⚡ Skipping formatting verification"
-        echo "✅ Pre-commit hook handles formatting automatically"
-
-  # Job 2: Fast build and test
+  # Job 1: Build & Test (core validation - runs in parallel with security)
   test:
     name: 🧪 Build & Test
-    runs-on: ubuntu-latest  
-    needs: [verify]
+    runs-on: ubuntu-latest
     timeout-minutes: 10
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: '8.0.x'
-        
+
     - name: 🏗️ Restore dependencies
       run: dotnet restore
-      
+
     - name: 🏗️ Build projects
       run: |
         dotnet build src/Darklands.Core/Darklands.Core.csproj --configuration Release
@@ -73,7 +41,7 @@ jobs:
         dotnet build Darklands.csproj --configuration Release || {
           echo "ℹ️ Godot project build skipped (requires Godot runtime)"
         }
-        
+
     - name: 🧪 Run tests
       run: |
         dotnet test tests/Darklands.Core.Tests/Darklands.Core.Tests.csproj \
@@ -82,7 +50,7 @@ jobs:
           --collect:"XPlat Code Coverage" \
           --results-directory ./TestResults \
           --filter "FullyQualifiedName!~MediatR_Should_Discover_All_Handlers_In_Core_Assembly"
-          
+
     - name: 📊 Upload coverage
       uses: codecov/codecov-action@v4
       if: always()
@@ -91,35 +59,47 @@ jobs:
         flags: unittests
         fail_ci_if_error: false
 
-  # Job 3: Security and quality checks
+  # Job 2: Security & Quality (runs in parallel with test)
   security:
     name: 🔒 Security & Quality
     runs-on: ubuntu-latest
     timeout-minutes: 3
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+
+    - name: 🔍 Verify repository cleanliness
+      run: |
+        echo "🔍 Checking for build artifacts in repo..."
+
+        if find . -type d -name "bin" -o -name "obj" | grep -v .godot | grep -q .; then
+          echo "❌ Build artifacts found in repository"
+          find . -type d -name "bin" -o -name "obj" | grep -v .godot
+          exit 1
+        fi
+
+        echo "✅ Repository is clean"
+
     - name: 🔒 Security scan
       run: |
-        echo "🔒 Scanning for security issues..."
-        
+        echo "🔒 Scanning for hardcoded secrets..."
+
         # Check for hardcoded secrets (basic check)
         if grep -r "password\s*=" --include="*.cs" . || \
            grep -r "secret\s*=" --include="*.cs" . || \
            grep -r "key\s*=" --include="*.cs" . | grep -v "Key.cs"; then
           echo "⚠️ Potential hardcoded credentials found"
           exit 1
-        else
-          echo "✅ No hardcoded credentials detected"
         fi
-        
+
+        echo "✅ No hardcoded credentials detected"
+
     - name: 📝 Validate commit messages (PR only)
       if: github.event_name == 'pull_request'
       run: |
         echo "📝 Validating commit messages..."
-        
+
         # Simple conventional commit check
         git log --format=%s origin/main..HEAD | while read commit; do
           if echo "$commit" | grep -qE "^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-zA-Z0-9_-]+\))?: .+|.*\[Phase [1-4]/4\]"; then
@@ -128,21 +108,3 @@ jobs:
             echo "⚠️ Non-conventional: $commit"
           fi
         done
-
-  # Job 4: Success summary (only runs if all pass)
-  success:
-    name: ✅ CI Success
-    runs-on: ubuntu-latest
-    needs: [verify, test, security]
-    if: success()
-    
-    steps:
-    - name: 🎉 All checks passed
-      run: |
-        echo "🎉 All CI checks passed!"
-        echo ""  
-        echo "✅ Local hooks verification: PASSED"
-        echo "✅ Build and tests: PASSED"
-        echo "✅ Security scan: PASSED"
-        echo ""
-        echo "🚀 Ready to merge!"
