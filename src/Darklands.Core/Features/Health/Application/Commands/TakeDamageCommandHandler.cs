@@ -29,7 +29,7 @@ public sealed class TakeDamageCommandHandler
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public Task<Result<DamageResult>> Handle(
+    public async Task<Result<DamageResult>> Handle(
         TakeDamageCommand command,
         CancellationToken cancellationToken)
     {
@@ -38,27 +38,27 @@ public sealed class TakeDamageCommandHandler
             command.Amount,
             command.TargetId);
 
-        // Railway-oriented composition: Get component → Apply damage → Create result → Publish event
-        var result = _registry.GetComponent(command.TargetId)
-            .ToResult($"Actor {command.TargetId} not found")
-            .Bind(component => ApplyDamageToComponent(component, command.Amount))
-            .Tap(r => PublishHealthChangedEvent(r, cancellationToken));
+        // BR_001 FIX: Use WithComponentLock to prevent race conditions
+        // Railway-oriented composition: WithComponentLock ensures atomic read-modify-write
+        var result = _registry.WithComponentLock(command.TargetId, component =>
+        {
+            var oldHealth = component.CurrentHealth;
 
-        return Task.FromResult(result);
-    }
+            return component.TakeDamage(command.Amount)
+                .Map(newHealth => CreateDamageResult(
+                    component.OwnerId,
+                    oldHealth,
+                    newHealth,
+                    command.Amount));
+        });
 
-    private Result<DamageResult> ApplyDamageToComponent(
-        Domain.IHealthComponent component,
-        float amount)
-    {
-        var oldHealth = component.CurrentHealth;
+        // BR_002 FIX: Await event publishing (not fire-and-forget)
+        if (result.IsSuccess)
+        {
+            await PublishHealthChangedEvent(result.Value, cancellationToken);
+        }
 
-        return component.TakeDamage(amount)
-            .Map(newHealth => CreateDamageResult(
-                component.OwnerId,
-                oldHealth,
-                newHealth,
-                amount));
+        return result;
     }
 
     private static DamageResult CreateDamageResult(
@@ -76,7 +76,7 @@ public sealed class TakeDamageCommandHandler
             isCritical: newHealth.Percentage < 0.25f);
     }
 
-    private void PublishHealthChangedEvent(
+    private async Task PublishHealthChangedEvent(
         DamageResult result,
         CancellationToken cancellationToken)
     {
@@ -95,8 +95,8 @@ public sealed class TakeDamageCommandHandler
             result.OldHealth,
             result.NewHealth);
 
-        // Fire and forget - don't await
-        // Event handlers are terminal subscribers (UI, logs, sound)
-        _ = _mediator.Publish(healthChangedEvent, cancellationToken);
+        // BR_002 FIX: Await event publishing to ensure handlers complete before command returns
+        // This prevents UI race conditions and ensures exceptions propagate correctly
+        await _mediator.Publish(healthChangedEvent, cancellationToken);
     }
 }

@@ -58,11 +58,6 @@ layout_mode = 2
 size_flags_horizontal = 3
 text = "💥 Take Damage (20)"
 
-[node name="HealButton" type="Button" parent="HealthBarNode/ButtonContainer"]
-layout_mode = 2
-size_flags_horizontal = 3
-text = "💚 Heal (20)"
-
 [node name="HSeparator3" type="HSeparator" parent="HealthBarNode"]
 layout_mode = 2
 
@@ -79,4 +74,3 @@ horizontal_alignment = 1
 autowrap_mode = 3
 
 [connection signal="pressed" from="HealthBarNode/ButtonContainer/DamageButton" to="HealthBarNode" method="OnDamageButtonPressed"]
-[connection signal="pressed" from="HealthBarNode/ButtonContainer/HealButton" to="HealthBarNode" method="OnHealButtonPressed"]

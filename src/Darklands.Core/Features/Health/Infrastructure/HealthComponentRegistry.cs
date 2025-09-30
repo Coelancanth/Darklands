@@ -58,6 +58,29 @@ public sealed class HealthComponentRegistry : IHealthComponentRegistry
     }
 
     /// <summary>
+    /// Executes an operation on a health component while holding the registry lock.
+    /// Prevents race conditions when multiple commands modify the same component concurrently.
+    /// BR_001 FIX: Thread-safe component mutation.
+    /// </summary>
+    public Result<T> WithComponentLock<T>(ActorId actorId, Func<IHealthComponent, Result<T>> operation)
+    {
+        if (operation == null)
+            throw new ArgumentNullException(nameof(operation));
+
+        lock (_lock)
+        {
+            // Lookup component (still inside lock)
+            if (!_components.TryGetValue(actorId, out var component))
+            {
+                return Result.Failure<T>($"Actor {actorId} not found");
+            }
+
+            // Execute operation (component mutation happens inside lock)
+            return operation(component);
+        }
+    }
+
+    /// <summary>
     /// Gets the count of registered components (for testing/debugging).
     /// </summary>
     public int Count

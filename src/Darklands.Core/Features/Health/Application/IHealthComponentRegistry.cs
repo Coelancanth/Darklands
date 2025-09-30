@@ -30,4 +30,15 @@ public interface IHealthComponentRegistry
     /// <param name="actorId">The actor ID to remove</param>
     /// <returns>Result indicating success or failure</returns>
     Result UnregisterComponent(ActorId actorId);
+
+    /// <summary>
+    /// Executes an operation on a health component while holding the registry lock.
+    /// Prevents race conditions when multiple commands modify the same component concurrently.
+    /// BR_001 FIX: Thread-safe component mutation.
+    /// </summary>
+    /// <typeparam name="T">The result type of the operation</typeparam>
+    /// <param name="actorId">The actor ID to look up</param>
+    /// <param name="operation">The operation to execute on the component (inside lock)</param>
+    /// <returns>Result of the operation, or failure if actor not found</returns>
+    Result<T> WithComponentLock<T>(ActorId actorId, Func<IHealthComponent, Result<T>> operation);
 }

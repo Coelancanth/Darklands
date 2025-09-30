@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-01 00:06 (VS_001 COMPLETE - Health System Walking Skeleton operational)
+**Last Updated**: 2025-10-01 00:48 (All VS_001 bugs fixed and verified: BR_001, BR_002, BR_003 completed + 2 bonus bugs)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -9,7 +9,7 @@
 ## 🔢 Next Item Numbers by Type
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
-- **Next BR**: 001
+- **Next BR**: 004
 - **Next TD**: 002
 - **Next VS**: 005 
 
@@ -68,403 +68,16 @@
 ## 🔥 Critical (Do First)
 *Blockers preventing other work, production bugs, dependencies for other features*
 
-### VS_001: Architectural Skeleton - Health System Walking Skeleton [ARCHITECTURE]
-**Status**: Done ✅
-**Owner**: Dev Engineer
-**Size**: S (~4h total: 3h Phases 1-3, 1h Phase 4 debugging)
-**Priority**: Critical (Validates architecture with real feature)
-**Markers**: [ARCHITECTURE] [WALKING-SKELETON] [END-TO-END] [COMPLETE]
-**Created**: 2025-09-30
-**Completed**: 2025-10-01 00:06
+**No critical items!** ✅
 
-**What**: Implement minimal health system to validate complete architecture end-to-end
-**Why**: Prove the architecture works with a real feature after infrastructure is in place
-
-**Context**:
-- VS_002, VS_003, VS_004 provide foundation (DI, Logger, EventBus)
-- This is the FIRST REAL FEATURE using that foundation
-- Follow "Walking Skeleton" pattern: thinnest possible slice through all layers
-- Validates ADR-001 (Clean Architecture), ADR-002 (Godot Integration), ADR-003 (Error Handling), **ADR-004 (Feature-Based Organization)**
-
-**Scope** (Minimal Health System):
-1. **Domain Layer** (Pure C#):
-   - Health value object with Create/Reduce/Increase
-   - IHealthComponent interface
-   - HealthComponent implementation
-   - Use Result<T> for all operations
-
-2. **Application Layer** (CQRS):
-   - TakeDamageCommand + Handler (uses ILogger<T>, publishes events)
-   - HealthChangedEvent (INotification)
-   - Simple in-memory component registry
-
-3. **Infrastructure Layer**:
-   - Register health services in GameStrapper
-   - ComponentRegistry implementation
-
-4. **Presentation Layer** (Godot):
-   - Simple test scene with one actor sprite (pure color sprite is sufficient)
-   - HealthComponentNode (EventAwareNode, shows health bar)
-   - Button to damage actor
-   - Verify: Click button → Command → Event → Health bar updates
-
-5. **Tests**:
-   - Health value object tests (validation, reduce, increase)
-   - TakeDamageCommandHandler tests (with mocked logger)
-   - Integration test: Command → Event flow
-
-**NOT in Scope** (defer to later):
-- Grid system
-- Movement
-- Complex combat mechanics
-- Multiple actors
-- AI
-- Turn system
-- Fancy UI
-
-**Architecture** (ADR-004: Feature-Based Clean Architecture):
-```
-src/Darklands.Core/
-├── Domain/Common/Health.cs              # Shared primitive (used by 7+ features)
-└── Features/Health/                     # Feature organization (VSA)
-    ├── Domain/                          # Layer separation (Clean Architecture)
-    │   ├── IHealthComponent.cs
-    │   └── HealthComponent.cs
-    ├── Application/
-    │   ├── Commands/
-    │   │   ├── TakeDamageCommand.cs
-    │   │   └── TakeDamageCommandHandler.cs    # Orchestrates (Rule 1)
-    │   └── Events/
-    │       └── HealthChangedEvent.cs          # Notification (Rule 2)
-    └── Infrastructure/
-        └── HealthComponentRegistry.cs
-
-godot_project/features/health/
-└── HealthComponentNode.cs               # Simple UI update (Rule 3)
-```
-
-**Event Discipline** (ADR-004: Five Event Rules):
-- ✅ Rule 1: TakeDamageCommandHandler orchestrates, HealthChangedEvent notifies
-- ✅ Rule 2: HealthChangedEvent is past-tense (fact, not command)
-- ✅ Rule 3: HealthComponentNode.OnHealthChanged() is <10 lines (UI update only)
-- ✅ Rule 4: Max event depth = 1 (no cascading)
-- ✅ Rule 5: EVENT_TOPOLOGY.md documents event flow
-
-**How** (Phase-by-Phase Implementation):
-
-### Phase 1: Domain Layer (~1h) - Pure Business Logic
-
-**Goal**: Create domain primitives with zero dependencies
-
-**Files to Create**:
-1. `Domain/Common/Health.cs` - Shared value object
-   ```csharp
-   // Smart constructor with validation
-   public static Result<Health> Create(float current, float maximum)
-   {
-       // Programmer error: Contract violation
-       if (maximum <= 0)
-           throw new ArgumentOutOfRangeException(nameof(maximum));
-
-       // Domain error: Business validation
-       if (current > maximum)
-           return Result.Failure<Health>("Current exceeds maximum");
-
-       return Result.Success(new Health(current, maximum));
-   }
-
-   public Result<Health> Reduce(float amount)
-   {
-       if (amount < 0)
-           return Result.Failure<Health>("Damage cannot be negative");
-
-       var newCurrent = Math.Max(0, Current - amount);
-       return Result.Success(new Health(newCurrent, Maximum));
-   }
-   ```
-
-2. `Features/Health/Domain/IHealthComponent.cs` - Interface
-3. `Features/Health/Domain/HealthComponent.cs` - Implementation with TakeDamage/Heal
-
-**Tests** (`Tests/Unit/Domain/HealthTests.cs`):
-- Create_ValidValues_ReturnsSuccess
-- Create_NegativeCurrent_ReturnsFailure (domain error)
-- Create_ZeroMaximum_ThrowsArgumentOutOfRange (programmer error)
-- Reduce_LethalDamage_ClampsToZero
-- Reduce_NegativeAmount_ReturnsFailure
-
-**Validation**:
-```bash
-dotnet test --filter Category=Unit
-# All tests pass ✅
-# Zero Godot dependencies ✅
-```
-
-**Commit**: `feat(health): domain layer [VS_001 Phase 1/4]`
+*Recently completed and archived (2025-10-01):*
+- **VS_001**: Health System Walking Skeleton - Architectural foundation validated ✅
+- **BR_001**: Race Condition - Fixed with WithComponentLock pattern ✅
+- **BR_002**: Fire-and-Forget Events - Fixed with async/await ✅
+- **BR_003**: Heal Button CQRS Bypass - Removed per YAGNI ✅
+- *See: [Completed_Backlog_2025-10.md](../07-Archive/Completed_Backlog_2025-10.md)*
 
 ---
-
-### Phase 2: Application Layer (~2h) - Commands & Events
-
-**Goal**: CQRS orchestration with MediatR
-
-**Files to Create**:
-1. `Features/Health/Application/Commands/TakeDamageCommand.cs`
-   ```csharp
-   public sealed record TakeDamageCommand(
-       ActorId ActorId,
-       float Amount
-   ) : IRequest<Result<DamageResult>>;
-   ```
-
-2. `Features/Health/Application/Commands/TakeDamageCommandHandler.cs`
-   ```csharp
-   public async Task<Result<DamageResult>> Handle(...)
-   {
-       return await _registry.GetComponent(cmd.ActorId)
-           .ToResult("Health component not found")
-           .Bind(component => ApplyDamageAndCreateResult(component, cmd.Amount))
-           .Tap(result => PublishHealthChangedEvent(result));  // Event at END
-   }
-
-   private void PublishHealthChangedEvent(DamageResult result)
-   {
-       // Rule 1: Command orchestrates, publish SINGLE event with ALL info
-       _mediator.Publish(new HealthChangedEvent(
-           ActorId: result.ActorId,
-           OldHealth: result.OldHealth,
-           NewHealth: result.NewHealth,
-           IsDead: result.IsDead,
-           IsCritical: result.NewHealth < 25
-       ));
-   }
-   ```
-
-3. `Features/Health/Application/Events/HealthChangedEvent.cs`
-   ```csharp
-   // Rule 2: Past tense (fact, not command)
-   public sealed record HealthChangedEvent(
-       ActorId ActorId,
-       float OldHealth,
-       float NewHealth,
-       bool IsDead,
-       bool IsCritical
-   ) : INotification;
-   ```
-
-**Tests** (`Tests/Unit/Handlers/TakeDamageCommandHandlerTests.cs`):
-- Handle_ValidDamage_ReducesHealthAndPublishesEvent
-- Handle_LethalDamage_SetsIsDeadTrue
-- Handle_ComponentNotFound_ReturnsFailure (domain error)
-- Handle_NullActorId_ThrowsArgumentNull (programmer error)
-
-**Validation**:
-```bash
-dotnet test --filter Category=Handlers
-# All tests pass ✅
-# Railway-oriented composition works ✅
-```
-
-**Commit**: `feat(health): application layer [VS_001 Phase 2/4]`
-
----
-
-### Phase 3: Infrastructure Layer (~1h) - Registry & DI
-
-**Goal**: Component management and service registration
-
-**Files to Create**:
-1. `Features/Health/Infrastructure/IHealthComponentRegistry.cs`
-2. `Features/Health/Infrastructure/HealthComponentRegistry.cs`
-   ```csharp
-   public Maybe<IHealthComponent> GetComponent(ActorId actorId)
-   {
-       lock (_lock)
-       {
-           return _components.TryFind(actorId);  // CSharpFunctionalExtensions
-       }
-   }
-   ```
-
-3. Update `GameStrapper.cs`:
-   ```csharp
-   private static void RegisterCoreServices(IServiceCollection services)
-   {
-       // Health feature services
-       services.AddSingleton<IHealthComponentRegistry, HealthComponentRegistry>();
-   }
-   ```
-
-**Tests** (`Tests/Integration/HealthSystemIntegrationTests.cs`):
-- TakeDamageCommand_EndToEnd_UpdatesHealthAndPublishesEvent
-  - Real DI container
-  - Real MediatR pipeline
-  - Real services (no mocks)
-
-**Validation**:
-```bash
-dotnet test --filter Category=Integration
-# Integration test passes ✅
-# Real DI works ✅
-```
-
-**Commit**: `feat(health): infrastructure layer [VS_001 Phase 3/4]`
-
----
-
-### Phase 4: Presentation Layer (~2h) - Godot UI
-
-**Goal**: Event-driven UI updates
-
-**Files to Create**:
-1. `godot_project/features/health/HealthComponentNode.cs`
-   ```csharp
-   public partial class HealthComponentNode : EventAwareNode
-   {
-       public void Initialize(ActorId actorId)
-       {
-           _actorId = actorId;
-           SubscribeToEvent<HealthChangedEvent>(OnHealthChanged);
-       }
-
-       private void OnHealthChanged(HealthChangedEvent evt)
-       {
-           if (evt.ActorId != _actorId) return;
-
-           // Rule 3: Simple UI update only (<10 lines)
-           UpdateHealthBar(evt.NewHealth, evt.IsCritical, evt.IsDead);
-       }
-
-       // NO business logic, NO publishing more events ✅
-   }
-   ```
-
-2. `godot_project/features/health/HealthTestScene.tscn` - Test scene
-3. `godot_project/features/health/HealthTestScene.cs` - Wire buttons
-
-**Manual Testing**:
-```
-1. Run Godot → Open HealthTestScene
-2. Click "Damage" button
-   Expected: Health bar decreases, logs show command execution
-3. Repeat until health = 0
-   Expected: Sprite hides, bar turns red at <25%
-```
-
-**Validation**:
-- ✅ Godot loads without errors
-- ✅ Health bar updates on damage
-- ✅ Event flow: Command → Handler → Event → UI
-- ✅ Logs show MediatR execution
-
-**Commit**: `feat(health): presentation layer [VS_001 Phase 4/4]`
-
----
-
-**Event Flow Diagram**:
-```
-Button Click
-→ TakeDamageCommand (orchestrates)
-→ TakeDamageCommandHandler
-  ├─→ GetComponent (Registry)
-  ├─→ TakeDamage (Domain)
-  └─→ Publish HealthChangedEvent (notification)
-→ UIEventForwarder (VS_004 bridge)
-→ HealthComponentNode.OnHealthChanged() (simple UI update)
-→ UpdateHealthBar() (STOP HERE - no more events)
-
-Event Depth: 1 ✅
-Complexity: O(1) ✅
-```
-
-**Done When**:
-- ✅ Build succeeds (dotnet build)
-- ✅ Core tests pass (100% pass rate)
-- ✅ Godot project loads without errors
-- ✅ Can click "Damage" button and health bar updates smoothly
-- ✅ Logs appear in debug console showing command execution
-- ✅ No Godot references in Darklands.Core project
-- ✅ GodotEventBus routes HealthChangedEvent correctly
-- ✅ CSharpFunctionalExtensions Result<T> works end-to-end
-- ✅ All 4 ADRs validated with working code (ADR-001, 002, 003, 004)
-- ✅ Code committed with message: "feat: health system walking skeleton [VS_001]"
-
-**Depends On**: VS_002 (DI), VS_003 (Logger), VS_004 (EventBus)
-
-**Product Owner Notes** (2025-09-30):
-- This is the FOUNDATION - everything else builds on this
-- Keep it MINIMAL - resist adding features
-- Validate architecture first, optimize later
-- Success = simple but complete end-to-end flow
-
-**Acceptance Test Script**:
-```
-1. Run: dotnet build src/Darklands.Core/Darklands.Core.csproj
-   Expected: Build succeeds, no warnings
-
-2. Run: dotnet test tests/Darklands.Core.Tests/Darklands.Core.Tests.csproj
-   Expected: All tests pass
-
-3. Open Godot project
-   Expected: No errors in console
-
-4. Run test scene
-   Expected: See sprite with health bar above it
-
-5. Click "Damage" button
-   Expected: Health bar decreases, animation plays
-
-6. Click repeatedly until health reaches 0
-   Expected: Sprite disappears or "Dead" appears
-```
-
----
-
-**Progress Tracker** (Completed 2025-10-01 00:06):
-- ✅ **Phase 1: Domain Layer** (1.5h, commit afe421c)
-  - ActorId, Health, HealthComponent + 61 tests
-- ✅ **Phase 2: Application Layer** (0.75h, commit 733a2bb)
-  - TakeDamageCommand, Handler, Events + 30 tests
-- ✅ **Phase 3: Infrastructure Layer** (0.5h, commit 5b921e8)
-  - HealthComponentRegistry, DI registration + 10 tests
-  - **101 automated tests passing in 34ms** ✅
-- ✅ **Phase 4: Presentation Layer** (1h, working build)
-  - ✅ HealthBarNode.cs with EventAwareNode pattern
-  - ✅ HealthTestScene.tscn with buttons/progress bar
-  - ✅ MediatR handlers registered in Main.cs
-  - ✅ **FIXED**: Godot 4 NodePath exports don't auto-populate C# properties
-    - Solution: Use explicit `GetNode<T>()` in `_Ready()`
-  - ✅ **FIXED**: ProgressBar color using `Modulate` made bar invisible
-    - Solution: Use `AddThemeStyleboxOverride("fill", styleBox)`
-  - ✅ End-to-end validation: Button click → Command → Handler → Event → UI update
-  - ✅ Health bar color changes: Green (healthy) → Orange (<25%) → Gray (dead)
-
----
-
-**✅ All Success Criteria Met**:
-- [x] 101 automated tests pass
-- [x] HealthTestScene loads without errors
-- [x] Clicking "Take Damage" reduces health
-- [x] Health bar changes color (green → orange → gray)
-- [x] Event pipeline validated end-to-end (Command → Handler → Event → UI)
-- [x] All 4 ADRs validated with working code (ADR-001, 002, 003, 004)
-- [x] Zero Godot dependencies in Darklands.Core
-
-**🎓 Lessons Learned (Phase 4 Debugging)**:
-1. **Godot 4 C# Integration**: `[Export]` with NodePath doesn't auto-populate properties
-   - Must use explicit `GetNode<T>()` calls in `_Ready()`
-2. **ProgressBar Styling**: `Modulate` tints entire node (including background)
-   - Use `AddThemeStyleboxOverride("fill", styleBox)` for proper coloring
-3. **Diagnostic Logging**: Comprehensive `GD.Print()` statements critical for debugging Godot-C# boundary issues
-
-**Dev Engineer Decision** (2025-10-01 00:06):
-- Walking skeleton successfully validates all architectural decisions
-- EventAwareNode pattern works perfectly for terminal subscribers
-- ServiceLocator at Godot boundary is pragmatic and maintainable
-- Ready to implement more complex features using this proven foundation
-
----
-
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*
 
@@ -472,9 +85,10 @@ Complexity: O(1) ✅
 **Status**: Proposed
 **Owner**: Tech Lead → Dev Engineer (after approval)
 **Size**: M (2-3h)
-**Priority**: Important (Prevents architectural drift)
+**Priority**: Important (Do AFTER BR_001/002/003 - prevents architectural drift)
 **Markers**: [ARCHITECTURE] [TESTING] [POST-MORTEM]
 **Created**: 2025-09-30 (VS_004 post-mortem)
+**Updated**: 2025-10-01 (Deprioritized below critical bugs)
 
 **What**: Automated tests enforcing ADR-001/ADR-002/ADR-003 architectural rules + VS_004 lessons
 
@@ -565,16 +179,24 @@ public void AllAutoloadDependencies_ShouldBeRegistered()
 
 **Depends On**: None (VS_004 complete)
 
-**Tech Lead Decision** (awaiting approval):
-- [ ] Approve scope and priority
-- [ ] Add NetArchTest to test infrastructure?
-- [ ] Any additional architectural rules to enforce?
+**Tech Lead Decision** (2025-10-01 00:24):
+- **Approved**: Scope and priority (do AFTER critical bug fixes)
+- **Rejected**: NetArchTest rule for `async void` (high false positive rate - use code review checklist instead)
+- **Approved**: NetArchTest for Result<T> pattern enforcement in handlers
+- **Approved**: MediatR double-registration tests
+- **Approved**: DI completeness tests
+
+**Additional Rules NOT in Scope** (VS_001 post-mortem review):
+- `async void` enforcement: Rejected - too many valid Godot event handlers, use code review checklist
+- NaN/Infinity validation: Should be in handler code, not architectural test
+- EVENT_TOPOLOGY.md existence: Manual governance, not automated test
 
 **Dev Engineer Notes** (after approval):
 - NetArchTest 8.x supports .NET 8
 - Tests will be fast (<100ms) - just reflection, no runtime overhead
 - Living documentation: Test comments reference ADR-001/002/003 + VS_004 post-mortem
 - CI integration: Add `--filter "Category=Architecture"` to quick.ps1
+- Focus on low false-positive rules (Result<T>, MediatR registration, DI completeness)
 
 ---
 

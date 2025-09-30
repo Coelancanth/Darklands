@@ -30,7 +30,6 @@ public partial class HealthBarNode : EventAwareNode
     [Export] public ProgressBar? HealthBar { get; set; }
     [Export] public Label? HealthLabel { get; set; }
     [Export] public Button? DamageButton { get; set; }
-    [Export] public Button? HealButton { get; set; }
 
     [Export] public float DamageAmount { get; set; } = 20f;
     [Export] public Color HealthyColor { get; set; } = new(0, 1, 0);      // Green
@@ -67,9 +66,8 @@ public partial class HealthBarNode : EventAwareNode
         HealthBar = GetNode<ProgressBar>("HealthBar");
         HealthLabel = GetNode<Label>("HealthLabel");
         DamageButton = GetNode<Button>("ButtonContainer/DamageButton");
-        HealButton = GetNode<Button>("ButtonContainer/HealButton");
 
-        GD.Print($"[HealthBarNode] Nodes resolved - HealthBar: {HealthBar != null}, Buttons: {DamageButton != null}, {HealButton != null}");
+        GD.Print($"[HealthBarNode] Nodes resolved - HealthBar: {HealthBar != null}, DamageButton: {DamageButton != null}");
 
         // Resolve dependencies via ServiceLocator (Godot constraint)
         var mediatorResult = ServiceLocator.GetService<IMediator>();
@@ -96,26 +94,9 @@ public partial class HealthBarNode : EventAwareNode
 
         _logger.LogInformation("HealthBarNode initialized for actor {ActorId}", _actorId);
 
-        // Wire up buttons
-        if (DamageButton != null)
-        {
-            DamageButton.Pressed += OnDamageButtonPressed;
-            GD.Print("[HealthBarNode] DamageButton wired up");
-        }
-        else
-        {
-            GD.PrintErr("[HealthBarNode] DamageButton is NULL!");
-        }
-
-        if (HealButton != null)
-        {
-            HealButton.Pressed += OnHealButtonPressed;
-            GD.Print("[HealthBarNode] HealButton wired up");
-        }
-        else
-        {
-            GD.PrintErr("[HealthBarNode] HealButton is NULL!");
-        }
+        // NOTE: DamageButton signal already connected in scene file (HealthTestScene.tscn line 76)
+        // Do NOT wire up here again - causes double button press!
+        // REMOVED: DamageButton.Pressed += OnDamageButtonPressed;
 
         // Initialize UI
         UpdateHealthDisplay(100, 100, isDead: false, isCritical: false);
@@ -179,35 +160,6 @@ public partial class HealthBarNode : EventAwareNode
         else
         {
             GD.Print("[HealthBarNode] ✅ Damage command succeeded!");
-        }
-    }
-
-    private void OnHealButtonPressed()
-    {
-        GD.Print($"[HealthBarNode] 💚 HealButton PRESSED! Mediator null? {_mediator == null}");
-
-        if (_mediator == null || _registry == null)
-        {
-            GD.PrintErr("[HealthBarNode] Cannot heal - mediator or registry is null");
-            return;
-        }
-
-        // Direct heal for demo (no HealCommand yet - out of scope for Phase 4)
-        var componentResult = _registry.GetComponent(_actorId);
-        if (componentResult.HasNoValue)
-        {
-            GD.PrintErr("[HealthBarNode] Cannot find health component");
-            return;
-        }
-
-        var healResult = componentResult.Value.Heal(DamageAmount);
-        if (healResult.IsSuccess)
-        {
-            // Manually update UI (no event for heal yet)
-            var newHealth = healResult.Value;
-            UpdateHealthDisplay(newHealth.Current, newHealth.Maximum, false, newHealth.Percentage < 0.25f);
-            _logger?.LogInformation("Healed {Amount} HP", DamageAmount);
-            GD.Print($"[HealthBarNode] ✅ Healed to {newHealth.Current}/{newHealth.Maximum}");
         }
     }
 
