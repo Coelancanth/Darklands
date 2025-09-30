@@ -946,3 +946,33 @@ _logger.LogInformation("Click #{ClickCount}: {Message}", _clickCount, message);
 
 ---
 
+**Post-Completion Update (2025-09-30 23:45 | During VS_004)**:
+
+While implementing VS_004 (EventBus), discovered DebugConsoleController couldn't resolve LoggingService on F12 press because it wasn't registered in Main.cs DI configuration.
+
+**Issue**: DebugConsoleController uses lazy initialization on first F12 press → tries to resolve LoggingService via ServiceLocator → service not registered → error
+
+**Root Cause**: Original VS_003 implementation had GameStrapper.Initialize() configuring Serilog, but Main.cs pattern emerged later. LoggingService registration never migrated to Main.cs.
+
+**Fix Applied** (commit fcddb54):
+```csharp
+// Main.cs - ConfigureServices()
+var enabledCategories = new HashSet<string>();
+
+// Configure Serilog...
+services.AddLogging(...);
+
+// Register LoggingService for category filtering (used by DebugConsole)
+services.AddSingleton(new LoggingService(enabledCategories));
+```
+
+**Lesson Learned**: When adding autoloads that use ServiceLocator, must register their dependencies in Main.cs ConfigureServices(). This pattern is now captured in TD_001 (Architecture Enforcement Tests) with DI completeness tests.
+
+**Files Modified**:
+- Main.cs (added LoggingService registration)
+- No changes to VS_003 implementation (only registration point)
+
+**Impact**: DebugConsole F12 toggle now works correctly without errors. All VS_003 functionality maintained.
+
+---
+
