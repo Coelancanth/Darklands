@@ -39,9 +39,14 @@ public partial class DIBootstrapTest : Node2D
             "Combat", "Movement", "AI", "Infrastructure", "Network"
         };
 
-        // Create Godot sink (third sink for in-game debug console)
-        var godotFormatter = new Darklands.Infrastructure.Logging.GodotBBCodeFormatter();
-        var godotSink = new Darklands.Infrastructure.Logging.GodotRichTextSink(_logOutput, godotFormatter);
+        // Create Godot sinks
+        // 1. GodotConsoleSink: Writes to Godot's Output panel (bottom console)
+        var godotConsoleFormatter = new Darklands.Infrastructure.Logging.GodotConsoleFormatter();
+        var godotConsoleSink = new Darklands.Infrastructure.Logging.GodotConsoleSink(godotConsoleFormatter);
+
+        // 2. GodotRichTextSink: Writes to in-game RichTextLabel with BBCode colors
+        var godotRichFormatter = new Darklands.Infrastructure.Logging.GodotBBCodeFormatter();
+        var godotRichTextSink = new Darklands.Infrastructure.Logging.GodotRichTextSink(_logOutput, godotRichFormatter);
 
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Debug()
@@ -58,19 +63,17 @@ public partial class DIBootstrapTest : Node2D
                 return true;  // Include logs without SourceContext
             })
 
-            .WriteTo.Console(
-                theme: AnsiConsoleTheme.Code,
-                outputTemplate: "[{Level:u3}] {Timestamp:HH:mm:ss} {SourceContext:l}: {Message:lj}{NewLine}"
-            )
+            // Three sinks:
+            .WriteTo.Sink(godotConsoleSink)   // Godot's Output panel (editor console)
             .WriteTo.File(
                 "logs/darklands.log",
                 outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] {SourceContext:l}: {Message:lj}{NewLine}",
                 shared: true  // Allow concurrent reads (for tail -f)
             )
-            .WriteTo.Sink(godotSink)  // Third sink: Godot RichTextLabel with BBCode
+            .WriteTo.Sink(godotRichTextSink)  // In-game RichTextLabel with BBCode
             .CreateLogger();
 
-        GD.Print("✅ Serilog configured (Console + File + Godot sinks with category filtering)");
+        GD.Print("✅ Serilog configured (Godot Console + File + In-Game RichText sinks with category filtering)");
 
         // Initialize DI container with logging configuration
         var initResult = GameStrapper.Initialize(services =>
