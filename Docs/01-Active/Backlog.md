@@ -352,37 +352,40 @@
 **Why**:
 - VS_004 revealed MediatR double-registration bug (caught by tests, but needs permanent guard)
 - DebugConsole LoggingService not registered (need completeness tests)
-- ADR-001 says "Core cannot depend on Godot" but no automated enforcement
+- ADR-003 mandates Result<T> pattern but no automated enforcement
 - **Tests as living documentation** > static docs (self-updating, enforced, always accurate)
+- **NOTE**: Core → Godot already enforced by `.csproj` SDK choice (compile-time beats runtime!)
 
 **How** (Test Categories):
 
-**1. NetArchTest - Dependency Rules** (~1h)
+**1. NetArchTest - Naming/Pattern Enforcement** (~1h)
 ```csharp
-// ADR-001: Core independence from Godot
+// NOTE: Core → Godot dependency already prevented by SDK choice!
+// Darklands.Core.csproj uses Microsoft.NET.Sdk (pure C#)
+// → Compile-time enforcement is better than runtime tests
+
+// ADR-003: Enforce Result<T> pattern for error handling
 [Fact]
-public void Core_ShouldNotDependOnGodot()
+public void CommandHandlers_ShouldReturnResult()
 {
-    Types.InAssembly(typeof(IGodotEventBus).Assembly)
-        .Should().NotHaveDependencyOn("Godot")
+    // WHY: ADR-003 mandates Result<T> for all operations that can fail
+    Types.InAssembly(typeof(IRequest).Assembly)
+        .That().ImplementInterface(typeof(IRequestHandler<,>))
+        .Should().HaveMethodMatching("Handle", method =>
+            method.ReturnType.Name.StartsWith("Result"))
         .GetResult().IsSuccessful.Should().BeTrue();
 }
 
-// ADR-001: Core independence from Presentation
+// Namespace organization (if needed)
 [Fact]
-public void Core_ShouldNotDependOnPresentation()
+public void Domain_ShouldNotDependOnApplication()
 {
-    Types.InAssembly(typeof(IGodotEventBus).Assembly)
-        .That().ResideInNamespace("Darklands.Core")
-        .Should().NotHaveDependencyOn("Darklands.Infrastructure")
+    // WHY: Domain layer must be pure, no application logic
+    Types.InNamespace("Darklands.Core.Domain")
+        .Should().NotHaveDependencyOnAny(
+            "Darklands.Core.Application",
+            "Darklands.Core.Infrastructure")
         .GetResult().IsSuccessful.Should().BeTrue();
-}
-
-// ADR-003: Result<T> usage (future - optional)
-[Fact]
-public void PublicMethods_InCommandHandlers_ShouldReturnResult()
-{
-    // Enforce Result<T> pattern from ADR-003
 }
 ```
 
