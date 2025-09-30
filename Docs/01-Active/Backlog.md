@@ -70,9 +70,9 @@
 
 
 ### VS_003: Infrastructure - Logging System with Category-Based Filtering [ARCHITECTURE]
-**Status**: In Progress (Phase 3/4 Complete - Godot Integration ✅)
+**Status**: Nearly Complete (Phase 3/4 Complete ✅ - Enhanced GodotConsoleSink + Multi-color BBCode)
 **Owner**: Dev Engineer
-**Size**: S (4-5h estimated, ~3.5h actual so far)
+**Size**: S (4-5h estimated, ~4.5h actual - includes GodotConsoleSink enhancement)
 **Priority**: Critical (Prerequisite for debugging all other features)
 **Markers**: [ARCHITECTURE] [INFRASTRUCTURE] [DEVELOPER-EXPERIENCE]
 **Created**: 2025-09-30
@@ -489,16 +489,48 @@ public override void _Ready()
 
 **Commit**: `feat(logging): add Godot rich text sink with BBCode formatting [VS_003 Phase3/4]`
 
-**✅ Phase 3 Complete (2025-09-30 17:15 | ~1h)**:
+**✅ Phase 3 Complete (2025-09-30 17:15 | ~2.5h including enhancements)**:
+
+**Core Implementation (~1h)**:
 - Created GodotRichTextSink implementing ILogEventSink for Serilog integration
 - Created GodotBBCodeFormatter with 6-color palette (semantic + visual distinction)
 - Thread-safe via CallDeferred() marshalling (format on bg thread, UI on main thread)
 - Integrated as third sink via .WriteTo.Sink(godotSink)
 - Category filter applies to all three sinks (efficient: single filter point)
-- Added test logs at Debug/Info/Warning/Error levels for visual validation
-- **BBCode colors**: Verbose=#666666, Debug=#808080, Info=#00CED1, Warning=#FFD700, Error=#FF4500, Fatal=#FF0000
-- **All 14 Core tests pass** (no regressions)
-- **Time**: 1h actual (as estimated)
+
+**ENHANCEMENT: GodotConsoleSink for Output Panel (~1.5h)**:
+- User requested logs in Godot's Output panel (not external terminal)
+- Created GodotConsoleSink using GD.PrintRich() with BBCode support
+- Created GodotConsoleFormatter with multi-color component parsing
+- Format: `[LVL] [HH:mm:ss.fff] [Category] Message` (3-letter codes, brackets)
+- **Gruvbox Dark theme**: Warm, muted tones (easy on eyes, Base16 compatible)
+- **Color scheme**:
+  - DEBUG: #a89984 (light gray)
+  - INFO: #83a598 (blue)
+  - WARNING: #fabd2f (yellow)
+  - ERROR: #fb4934 (red)
+  - FATAL: #cc241d (dark red)
+  - Category: #8ec07c (aqua - stands out)
+- **Color consistency**: Level, timestamp, message share same color (visual grouping)
+- Component parsing: Splits by `]` delimiter, applies BBCode per component
+- Replaced System.Console sink with GodotConsoleSink
+
+**Three Sinks Now**:
+1. **GodotConsoleSink** → Godot's Output panel (multi-color BBCode, Gruvbox theme)
+2. **FileSink** → logs/darklands.log (plain text)
+3. **GodotRichTextSink** → In-game RichTextLabel (BBCode colors)
+
+**Commits**:
+- `451e3aa` feat(logging): add GodotConsoleSink for output panel integration
+- `6fd7d84` refactor: clean up GodotConsole formatter
+- `f2e43e9` feat: add multi-color BBCode formatting
+- `4dab4f9` refactor: timestamp shares level color for visual grouping
+- `bf5b48f` feat: apply Gruvbox Dark color theme (Base16)
+- `6267056` fix: adjust colors for visibility (reverted)
+- `15228a6` fix: ensure consistent color across entire log line
+
+**All 14 Core tests pass** ✅
+**Time**: ~2.5h actual (1h planned + 1.5h enhancement)
 
 ---
 
