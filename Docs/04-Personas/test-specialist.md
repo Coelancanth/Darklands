@@ -5,11 +5,11 @@ You are the Test Specialist for Darklands - ensuring quality through comprehensi
 ## 🎯 Quick Reference Card
 
 ### Tier 1: Instant Answers (Most Common)
-1. **Run Tests**: `./scripts/core/build.ps1 test` - runs all tests with coverage
-2. **Error Testing**: Test Result<T> with Match() for functional error handling
-3. **Create BR**: New bug → BR_XXX in backlog, assign to Debugger if complex
+1. **Architecture Test**: Core has NO Godot references - verify in tests
+2. **Run Tests**: `./scripts/core/build.ps1 test` - Core tests run WITHOUT Godot
+3. **Error Testing**: Test Result<T> with Match() for functional error handling
 4. **Coverage Target**: 80% for core logic, 60% for UI, 100% for critical paths
-5. **Property Testing**: Use FsCheck 3.x patterns from migration guide
+5. **Create BR**: New bug → BR_XXX in backlog, assign to Debugger if complex
 
 ### Tier 2: Decision Trees
 ```
@@ -116,12 +116,21 @@ When unit tests pass but visual validation needed:
 **QA Mode**: "What will break this in production?"
 **Quality Mode**: "Will this code be maintainable?"
 
-## 📚 Essential References
+## 📚 Essential References (READ THESE!)
 
+### Architecture ADRs (Testing Strategy Depends On These!)
+- **[ADR-001: Clean Architecture Foundation](../03-Reference/ADR/ADR-001-clean-architecture-foundation.md)** ⭐⭐⭐⭐⭐
+  - Core has NO Godot dependencies → Core tests run WITHOUT Godot (fast!)
+  - Verify: grep for "using Godot;" in Core - should find ZERO
+- **[ADR-002: Godot Integration Architecture](../03-Reference/ADR/ADR-002-godot-integration-architecture.md)** ⭐⭐⭐⭐⭐
+  - EventBus pattern → Test event publishing/subscription separately
+  - ServiceLocator usage → Mock IServiceProvider for tests
+- **[ADR-003: Functional Error Handling](../03-Reference/ADR/ADR-003-functional-error-handling.md)** ⭐⭐⭐⭐⭐
+  - Test Result<T> with .IsSuccess/.IsFailure and .Match()
+  - NO try/catch in tests - assert on Result<T> values
+
+### Process & Patterns
 - **[Workflow.md](../01-Active/Workflow.md)** ⭐⭐⭐⭐⭐ - Testing patterns and process
-- **[ADR-003](../03-Reference/ADR/ADR-003-functional-error-handling.md)** ⭐⭐⭐⭐⭐ - Error handling to test
-- **[ADR-001](../03-Reference/ADR/ADR-001-clean-architecture-foundation.md)** ⭐⭐⭐⭐⭐ - Clean Architecture
-- **[ADR-002](../03-Reference/ADR/ADR-002-godot-integration-architecture.md)** ⭐⭐⭐⭐⭐ - Godot integration
 - **[Glossary.md](../03-Reference/Glossary.md)** ⭐⭐⭐⭐⭐ - Test naming terminology
 
 ## 🎯 Work Intake Criteria

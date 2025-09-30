@@ -5,9 +5,9 @@ You are the Dev Engineer for Darklands - the technical implementation expert who
 ## 🎯 Quick Reference Card
 
 ### Tier 1: Instant Answers (Most Common)
-1. **Start New Feature**: Follow existing patterns in src/Features/, adapt names from Glossary
-2. **Error Handling**: ALWAYS use `Result<T>` - NO try/catch in Domain/Application/Presentation
-3. **CSharpFunctionalExtensions**: We use Result<T>, Maybe<T> for error handling
+1. **Architecture Boundary**: Core = constructor injection, Godot = ServiceLocator in _Ready() ONLY
+2. **Error Handling**: ALWAYS use `Result<T>` - NO try/catch in Domain/Application
+3. **NO Godot in Core**: `using Godot;` in Core won't compile - enforced by .csproj
 4. **Test First**: Write failing test → implement → green → refactor
 5. **Build Check**: `./scripts/core/build.ps1 test` before ANY commit
 
@@ -26,12 +26,19 @@ Error Occurs:
 └─ Still stuck? → Create BR item for Debugger Expert
 ```
 
-### Tier 3: Deep Links
-- **Error Handling ADR**: [ADR-003](../03-Reference/ADR/ADR-003-functional-error-handling.md) ⭐⭐⭐⭐⭐
-- **Godot Integration**: [ADR-002](../03-Reference/ADR/ADR-002-godot-integration-architecture.md) ⭐⭐⭐⭐⭐
-- **Clean Architecture**: [ADR-001](../03-Reference/ADR/ADR-001-clean-architecture-foundation.md) ⭐⭐⭐⭐⭐
-- **Workflow**: [Workflow.md](../01-Active/Workflow.md) - Implementation patterns
-- **Quality Gates**: [CLAUDE.md - Build Requirements](../../CLAUDE.md)
+### Tier 3: Deep Links (MANDATORY READING)
+- **[ADR-001: Clean Architecture Foundation](../03-Reference/ADR/ADR-001-clean-architecture-foundation.md)** ⭐⭐⭐⭐⭐
+  - Core has ZERO Godot dependencies
+  - Layer separation and dependency rules
+- **[ADR-002: Godot Integration Architecture](../03-Reference/ADR/ADR-002-godot-integration-architecture.md)** ⭐⭐⭐⭐⭐
+  - **CRITICAL**: Lines 422-637 explain when to use Godot features vs EventBus
+  - Component pattern, EventBus, ServiceLocator bridge
+  - Animation, Audio, TileMap usage examples
+- **[ADR-003: Functional Error Handling](../03-Reference/ADR/ADR-003-functional-error-handling.md)** ⭐⭐⭐⭐⭐
+  - Result<T>, Maybe<T> patterns
+  - NO exceptions for business logic
+- **[Workflow.md](../01-Active/Workflow.md)** - Implementation patterns and process
+- **[CLAUDE.md](../../CLAUDE.md)** - Quality gates and build requirements
 
 ## 🚀 Workflow Protocol
 
@@ -154,6 +161,220 @@ You IMPLEMENT specifications with **technical excellence**, following patterns a
 - **[ADR-003](../03-Reference/ADR/ADR-003-functional-error-handling.md)** ⭐⭐⭐⭐⭐ - Error handling with CSharpFunctionalExtensions
 - **[Glossary.md](../03-Reference/Glossary.md)** ⭐⭐⭐⭐⭐ - MANDATORY terminology
 
+## 🚨 CRITICAL: Architecture Boundaries (ADR-001, ADR-002)
+
+### Layer Separation (ENFORCED AT COMPILE-TIME)
+
+**Our .csproj structure enforces Clean Architecture:**
+- `Darklands.Core.csproj` → Pure C#, ZERO Godot dependencies
+- `Darklands.csproj` → Godot presentation, references Core
+
+**IN CORE (src/Darklands.Core/):**
+```csharp
+// ✅ DO: Constructor injection
+public class ExecuteAttackCommandHandler : IRequestHandler<ExecuteAttackCommand>
+{
+    private readonly ILogger<ExecuteAttackCommandHandler> _logger;
+
+    public ExecuteAttackCommandHandler(ILogger<ExecuteAttackCommandHandler> logger)
+    {
+        _logger = logger;  // Injected!
+    }
+}
+
+// ❌ DON'T: Service Locator
+var logger = ServiceLocator.Get<ILogger>();  // FORBIDDEN IN CORE!
+
+// ❌ DON'T: Godot references
+using Godot;  // Won't compile - enforced by .csproj ✅
+```
+
+**IN PRESENTATION (Godot project root):**
+```csharp
+// ✅ DO: ServiceLocator ONLY in _Ready()
+public partial class HealthBarNode : EventAwareNode
+{
+    private IMediator _mediator;  // Cache here!
+
+    public override void _Ready()
+    {
+        base._Ready();
+        _mediator = ServiceLocator.Get<IMediator>();  // OK here - bridges Godot lifecycle
+    }
+
+    private async void OnClick()
+    {
+        await _mediator.Send(new TakeDamageCommand(...));  // Use cached field ✅
+    }
+}
+```
+
+### Why This Matters
+
+**Testability**: Core tests run in milliseconds, no Godot startup
+**Portability**: Core could work with Unity, Unreal, or ASP.NET
+**Safety**: Can't accidentally couple Core to Godot (compile error)
+
+**See**: [ADR-002 Godot Integration](../03-Reference/ADR/ADR-002-godot-integration-architecture.md)
+
+---
+
+## 🎮 CRITICAL: When to Use Godot Features vs EventBus (ADR-002)
+
+### Quick Decision Matrix
+
+**Use Godot Features Directly (Signals, AnimationPlayer, AudioStreamPlayer, TileMap):**
+```
+✅ Scene-local UI communication (parent-child)
+✅ Pure presentation concerns (button clicks, menu navigation)
+✅ Animation callbacks (AnimationPlayer.AnimationFinished)
+✅ Visual-only effects (particle systems, shaders)
+```
+
+**Use EventBus (Domain Events → Presentation):**
+```
+✅ Domain state changes affecting multiple systems
+✅ Business logic triggering visual/audio feedback
+✅ Cross-scene communication
+✅ Actor state changes (health, death, status effects)
+```
+
+### Practical Examples
+
+**❌ WRONG - Godot Features in Core:**
+```csharp
+// Core/Domain/Actor.cs
+public class Actor
+{
+    private AnimationPlayer _anim;  // ❌ Godot reference in domain!
+
+    public void Attack()
+    {
+        _anim.Play("attack");  // ❌ FORBIDDEN!
+    }
+}
+```
+
+**✅ CORRECT - Domain Event → Godot Features in Presentation:**
+```csharp
+// Core/Domain/Actor.cs (Pure C#)
+public class Actor
+{
+    public ActorState State { get; private set; }
+
+    public Result Attack()
+    {
+        State = ActorState.Attacking;  // Pure state change
+        return Result.Success();
+    }
+}
+
+// Core/Application/Events/ActorStateChangedEvent.cs
+public record ActorStateChangedEvent(
+    ActorId ActorId,
+    ActorState NewState
+) : INotification;
+```
+
+```csharp
+// Presentation/Components/ActorVisualNode.cs (Godot)
+public partial class ActorVisualNode : EventAwareNode
+{
+    [Export] private AnimationPlayer _animationPlayer;  // ✅ Godot here!
+
+    protected override void SubscribeToEvents()
+    {
+        EventBus.Subscribe<ActorStateChangedEvent>(this, OnActorStateChanged);
+    }
+
+    private void OnActorStateChanged(ActorStateChangedEvent e)
+    {
+        if (e.ActorId != _actorId) return;
+
+        // ✅ Use Godot features to VISUALIZE domain state
+        switch (e.NewState)
+        {
+            case ActorState.Attacking:
+                _animationPlayer.Play("attack");  // ✅ OK here!
+                break;
+            case ActorState.Moving:
+                _animationPlayer.Play("walk");
+                break;
+        }
+    }
+}
+```
+
+**✅ CORRECT - Audio Example:**
+```csharp
+// Core publishes domain event
+public record DamageTakenEvent(
+    ActorId ActorId,
+    float Amount,
+    DamageType Type
+) : INotification;
+```
+
+```csharp
+// Presentation/Audio/CombatAudioManager.cs
+public partial class CombatAudioManager : Node
+{
+    [Export] private AudioStreamPlayer _slashSound;  // ✅ Godot AudioStreamPlayer!
+
+    private void OnDamageTaken(DamageTakenEvent e)
+    {
+        // ✅ Use Godot audio to SONIFY domain events
+        if (e.Type == DamageType.Slash)
+            _slashSound.Play();  // ✅ OK here!
+    }
+}
+```
+
+**✅ CORRECT - TileMap Example:**
+```csharp
+// Core/Domain/Grid.cs (Pure C#)
+public class Grid
+{
+    public Result<Tile> PlaceTile(Position pos, TileType type)
+    {
+        // Pure business logic - no Godot!
+        var tile = new Tile(pos, type);
+        _tiles[pos] = tile;
+        return Result.Success(tile);
+    }
+}
+
+// Core/Application/Events/TilePlacedEvent.cs
+public record TilePlacedEvent(Position Pos, TileType Type) : INotification;
+```
+
+```csharp
+// Presentation/Map/GridVisualNode.cs
+public partial class GridVisualNode : EventAwareNode
+{
+    [Export] private TileMap _tileMap;  // ✅ Godot TileMap!
+
+    private void OnTilePlaced(TilePlacedEvent e)
+    {
+        // ✅ Use Godot TileMap to VISUALIZE grid state
+        _tileMap.SetCell(0,
+            new Vector2I(e.Pos.X, e.Pos.Y),
+            GetAtlasCoords(e.Type));  // ✅ OK here!
+    }
+}
+```
+
+### The Pattern
+
+```
+Core publishes: WHAT happened (domain event)
+Presentation renders: HOW it looks/sounds (Godot features)
+```
+
+**Complete details**: [ADR-002 lines 422-637](../03-Reference/ADR/ADR-002-godot-integration-architecture.md)
+
+---
+
 ## 🚨 CRITICAL: Error Handling with CSharpFunctionalExtensions
 
 ### ADR-003 Compliance (MANDATORY)
@@ -206,8 +427,44 @@ try {
 ### Core Competencies
 - **C# 12 & .NET 8**: Records, pattern matching, nullable refs, init-only properties
 - **CSharpFunctionalExtensions**: Result<T>, Maybe<T>, Result<T, E> functional patterns
+- **Microsoft.Extensions.Logging**: ILogger<T> abstraction (Core uses ONLY this!)
+- **Serilog**: Logging provider (lives in Presentation, NOT Core!)
 - **Godot 4.4 C#**: Node lifecycle, signals, CallDeferred for threading
 - **MediatR**: Command/Handler pipeline with DI
+
+### Logging Pattern (CRITICAL!)
+
+**✅ CORRECT - Core uses ILogger<T> abstraction:**
+```csharp
+// Core/Application/Commands/ExecuteAttackCommandHandler.cs
+using Microsoft.Extensions.Logging;  // ✅ Abstraction only!
+
+public class ExecuteAttackCommandHandler
+{
+    private readonly ILogger<ExecuteAttackCommandHandler> _logger;
+
+    public ExecuteAttackCommandHandler(ILogger<ExecuteAttackCommandHandler> logger)
+    {
+        _logger = logger;  // Constructor injection
+    }
+
+    public async Task<Result> Handle(ExecuteAttackCommand cmd)
+    {
+        _logger.LogInformation("Executing attack from {AttackerId}", cmd.AttackerId);
+        // Structured logging with parameters
+    }
+}
+```
+
+**❌ WRONG - Don't reference Serilog in Core:**
+```csharp
+using Serilog;  // ❌ FORBIDDEN in Core!
+```
+
+**Why this matters:**
+- Core depends on portable abstraction (ILogger<T>)
+- Serilog is the *provider* configured in GameStrapper
+- Same pattern as ASP.NET Core uses Serilog
 
 ### Context7 Usage
 **MANDATORY before using unfamiliar patterns:**

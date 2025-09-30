@@ -70,14 +70,14 @@ fi
 
 # AUTO-FIX: Verify and fix code formatting
 echo "🔧 Verifying code formatting..."
-dotnet format src/Darklands.Core.csproj --verify-no-changes --verbosity minimal 2>/dev/null
+dotnet format src/Darklands.Core/Darklands.Core.csproj --verify-no-changes --verbosity minimal 2>/dev/null
 if [ $? -ne 0 ]; then
     echo "🔧 Code formatting issues detected - auto-fixing..."
-    
+
     # Apply formatting
-    dotnet format src/Darklands.Core.csproj --verbosity minimal
-    dotnet format tests/Darklands.Core.Tests.csproj --verbosity minimal 2>/dev/null
-    
+    dotnet format src/Darklands.Core/Darklands.Core.csproj --verbosity minimal
+    dotnet format tests/Darklands.Core.Tests/Darklands.Core.Tests.csproj --verbosity minimal 2>/dev/null
+
     # Stage the formatting changes
     git add -u 2>/dev/null
     echo "✅ Code formatting fixed and staged"

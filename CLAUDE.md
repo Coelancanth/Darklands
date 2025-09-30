@@ -97,6 +97,154 @@ Product Owner → Tech Lead → Dev Engineer → Test Specialist → DevOps
 
 **Process**: Persona completes work → Suggests updates → User chooses to execute
 
+## 🏗️ ARCHITECTURE: Clean Architecture with Godot Integration
+
+**MANDATORY**: Follow these architectural boundaries strictly.
+
+### Core Principles (ADR-001, ADR-002, ADR-003)
+
+**Three-Layer Architecture:**
+```
+┌────────────────────────────────────────────────┐
+│ Presentation Layer (Godot C#)                 │
+│ - Godot nodes, scenes, UI                     │
+│ - Uses ServiceLocator.Get<T>() ✅             │
+│ - References: Darklands.Core ✅               │
+│ - Project: Darklands.csproj (Godot SDK)       │
+└─────────────────┬──────────────────────────────┘
+                  │ One-way dependency
+                  ↓
+┌────────────────────────────────────────────────┐
+│ Core Layer (Pure C#)                          │
+│ - Domain, Application, Infrastructure         │
+│ - Uses constructor injection ✅               │
+│ - ZERO Godot dependencies ✅                  │
+│ - Project: Darklands.Core.csproj (NET SDK)    │
+└────────────────────────────────────────────────┘
+```
+
+### 🚨 CRITICAL: Dependency Rules (ENFORCED AT COMPILE-TIME)
+
+**IN CORE (Darklands.Core.csproj):**
+```csharp
+// ✅ ALLOWED - Portable abstractions
+using CSharpFunctionalExtensions;
+using MediatR;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
+
+// ❌ FORBIDDEN - Will not compile!
+using Godot;  // ERROR: Type or namespace 'Godot' could not be found
+```
+
+**IN PRESENTATION (Darklands.csproj - Godot):**
+```csharp
+// ✅ ALLOWED - Can reference both
+using Godot;
+using Darklands.Core.Application.Commands;
+using Darklands.Core.Infrastructure;
+
+// ✅ Use ServiceLocator ONLY in _Ready()
+public override void _Ready()
+{
+    _mediator = ServiceLocator.Get<IMediator>();  // OK here!
+}
+```
+
+### ServiceLocator Pattern - When to Use
+
+**✅ USE in Presentation Layer (_Ready() methods):**
+```csharp
+// Godot instantiates nodes via scene loading, not DI
+public override void _Ready()
+{
+    base._Ready();
+
+    // ServiceLocator bridges Godot → DI container
+    _mediator = ServiceLocator.Get<IMediator>();
+    _logger = ServiceLocator.Get<ILogger<HealthBarNode>>();
+}
+```
+
+**❌ NEVER USE in Core Layer:**
+```csharp
+// ❌ WRONG - Core uses constructor injection
+public class ExecuteAttackCommandHandler
+{
+    // ✅ CORRECT - Explicit dependencies
+    public ExecuteAttackCommandHandler(
+        ILogger<ExecuteAttackCommandHandler> logger,
+        IActorRepository actors)
+    {
+        _logger = logger;
+        _actors = actors;
+    }
+}
+```
+
+### Why ServiceLocator at Godot Boundary is OK
+
+**Context Matters:**
+- ❌ Service Locator in business logic = Anti-pattern (hides dependencies, breaks testability)
+- ✅ Service Locator at framework boundary = Pragmatic (Godot constraint, isolated to _Ready())
+
+**Our Approach:**
+- Core uses constructor injection (testable, explicit dependencies)
+- Presentation uses ServiceLocator bridge (adapts Godot's instantiation model)
+- Result: Clean Core + Pragmatic Godot integration
+
+**See**: [ADR-002: Godot Integration Architecture](Docs/03-Reference/ADR/ADR-002-godot-integration-architecture.md)
+
+### Error Handling - CSharpFunctionalExtensions
+
+**ALWAYS use Result<T> for operations that can fail:**
+```csharp
+// ✅ CORRECT - Functional error handling
+public Result<Health> TakeDamage(float amount) =>
+    CurrentHealth.Reduce(amount)
+        .Tap(newHealth => CurrentHealth = newHealth);
+
+// ❌ WRONG - Exceptions for business logic
+public Health TakeDamage(float amount)
+{
+    if (amount <= 0) throw new ArgumentException();
+    // ...
+}
+```
+
+**See**: [ADR-003: Functional Error Handling](Docs/03-Reference/ADR/ADR-003-functional-error-handling.md)
+
+### Logging - Microsoft.Extensions.Logging + Serilog
+
+**Core uses ONLY abstractions:**
+```csharp
+// Core/Application/Commands/ExecuteAttackCommandHandler.cs
+using Microsoft.Extensions.Logging;  // ✅ Abstraction
+
+public class ExecuteAttackCommandHandler
+{
+    private readonly ILogger<ExecuteAttackCommandHandler> _logger;
+
+    // ✅ Constructor injection with ILogger<T>
+    public ExecuteAttackCommandHandler(
+        ILogger<ExecuteAttackCommandHandler> logger)
+    {
+        _logger = logger;
+    }
+
+    public async Task<Result> Handle(ExecuteAttackCommand cmd)
+    {
+        _logger.LogInformation("Executing attack from {AttackerId}", cmd.AttackerId);
+        // ...
+    }
+}
+```
+
+**Infrastructure/Presentation provides Serilog implementation:**
+- Core.csproj: Microsoft.Extensions.Logging.**Abstractions** only
+- Darklands.csproj: Serilog packages + MS.Extensions.Logging
+- GameStrapper configures Serilog as logging provider
+
 ## 🔄 MANDATORY: Phased Implementation Protocol
 
 **YOU MUST implement all features in strict phases:**

@@ -5,7 +5,7 @@ echo "🔍 Pre-commit validation..."
 
 # Auto-fix code formatting BEFORE testing (zero friction)
 echo "🔧 Auto-formatting code..."
-dotnet format src/Darklands.Core.csproj --verbosity minimal
+dotnet format src/Darklands.Core/Darklands.Core.csproj --verbosity minimal
 if [ $? -eq 0 ]; then
     # Stage any formatting changes automatically
     git add -u 2>/dev/null
@@ -16,16 +16,16 @@ fi
 
 # Run Core tests (fast feedback)
 echo "Running Core tests..."
-dotnet test tests/Darklands.Core.Tests.csproj --no-build --verbosity minimal
+dotnet test tests/Darklands.Core.Tests/Darklands.Core.Tests.csproj --no-build --verbosity minimal
 if [ $? -ne 0 ]; then
     echo "❌ Tests failed. Attempting auto-fix..."
 
     # Try to rebuild in case of stale builds
     echo "🔧 Attempting fresh build..."
-    dotnet build src/Darklands.Core.csproj --verbosity minimal
+    dotnet build src/Darklands.Core/Darklands.Core.csproj --verbosity minimal
 
     # Retry tests
-    dotnet test tests/Darklands.Core.Tests.csproj --no-build --verbosity minimal
+    dotnet test tests/Darklands.Core.Tests/Darklands.Core.Tests.csproj --no-build --verbosity minimal
     if [ $? -ne 0 ]; then
         echo "❌ Tests still failing after rebuild. Please fix manually."
         echo "💡 Tip: Run './scripts/test/quick.ps1' for detailed output"
