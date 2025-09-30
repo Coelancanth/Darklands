@@ -56,7 +56,8 @@ public class GodotConsoleSink : ILogEventSink
 
     /// <summary>
     /// Apply BBCode color tags to different parts of the log message.
-    /// Colors: Level (level-specific), Timestamp (same as level), Category (cyan), Message (white/level-specific)
+    /// Colors: Level, Timestamp, and Message all share the same level-specific color. Category is cyan.
+    /// This ensures visual consistency across the entire log line.
     /// </summary>
     private static string ApplyColors(string formatted, LogEventLevel level)
     {
@@ -81,24 +82,24 @@ public class GodotConsoleSink : ILogEventSink
         var coloredTime = $"[color={levelColor}]{timePart}[/color]";  // Same color as level
         var coloredCategory = $"[color=#8ec07c]{categoryPart}[/color]";  // Gruvbox aqua (bright cyan)
 
-        // Message inherits level color for warnings/errors, default fg for others
-        var messageColor = level >= LogEventLevel.Warning ? levelColor : "#ebdbb2";  // Gruvbox fg0
-        var coloredMessage = $"[color={messageColor}]{messagePart}[/color]";
+        // Message always inherits level color for consistency
+        var coloredMessage = $"[color={levelColor}]{messagePart}[/color]";
 
         return coloredLevel + coloredTime + coloredCategory + coloredMessage;
     }
 
     /// <summary>
     /// Get BBCode hex color for log level using Gruvbox Dark theme palette.
-    /// Adjusted for Godot console visibility (more saturated than standard Gruvbox).
+    /// Gruvbox: Retro groove color scheme with warm, muted tones (easy on eyes).
+    /// Base16 compatible for consistency across terminals/editors.
     /// </summary>
     private static string GetLevelColorName(LogEventLevel level) => level switch
     {
-        LogEventLevel.Verbose => "#7c6f64",      // Gruvbox gray (darker for contrast)
-        LogEventLevel.Debug => "#b8bb26",        // Gruvbox green (stands out from INF)
-        LogEventLevel.Information => "#458588",  // Gruvbox blue (darker/more saturated)
-        LogEventLevel.Warning => "#fabd2f",      // Gruvbox yellow (bright yellow) ✓ working
-        LogEventLevel.Error => "#fb4934",        // Gruvbox red (bright red) ✓ working
+        LogEventLevel.Verbose => "#928374",      // Gruvbox gray (fg4)
+        LogEventLevel.Debug => "#a89984",        // Gruvbox light gray (fg3)
+        LogEventLevel.Information => "#83a598",  // Gruvbox blue (bright blue)
+        LogEventLevel.Warning => "#fabd2f",      // Gruvbox yellow (bright yellow)
+        LogEventLevel.Error => "#fb4934",        // Gruvbox red (bright red)
         LogEventLevel.Fatal => "#cc241d",        // Gruvbox dark red (red)
         _ => "#ebdbb2"                           // Gruvbox fg0 (default foreground)
     };
