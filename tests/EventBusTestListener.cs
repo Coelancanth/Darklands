@@ -21,22 +21,32 @@ namespace Darklands.Tests;
 /// </summary>
 public partial class EventBusTestListener : EventAwareNode
 {
-    [Export]
-    public Label? MessageLabel;
-
-    [Export]
-    public Button? TestButton;
-
+    private Label? _messageLabel;
+    private Button? _testButton;
     private int _eventCount = 0;
 
     public override void _Ready()
     {
         base._Ready(); // CRITICAL: Call base to setup EventBus
 
-        // Wire button if provided
-        if (TestButton != null)
+        // Get nodes from scene tree
+        _messageLabel = GetNode<Label>("../CenterContainer/VBoxContainer/MessageLabel");
+        _testButton = GetNode<Button>("../CenterContainer/VBoxContainer/TestButton");
+
+        // Wire button
+        if (_testButton != null)
         {
-            TestButton.Pressed += OnButtonPressed;
+            _testButton.Pressed += OnButtonPressed;
+            GD.Print("[EventBusTestListener] Button connected");
+        }
+        else
+        {
+            GD.PrintErr("[EventBusTestListener] Failed to find TestButton in scene");
+        }
+
+        if (_messageLabel == null)
+        {
+            GD.PrintErr("[EventBusTestListener] Failed to find MessageLabel in scene");
         }
     }
 
@@ -52,30 +62,30 @@ public partial class EventBusTestListener : EventAwareNode
     {
         _eventCount++;
 
-        GD.Print($"[EventBusTestListener] Received TestEvent #{_eventCount}: {evt.Message}");
+        GD.Print($"[EventBusTestListener] ✅ Received TestEvent #{_eventCount}: {evt.Message}");
 
-        // Update label if provided
-        if (MessageLabel != null)
+        // Update label
+        if (_messageLabel != null)
         {
-            MessageLabel.Text = $"Event #{_eventCount}: {evt.Message}";
+            _messageLabel.Text = $"Event #{_eventCount}: {evt.Message}";
         }
     }
 
     private void OnButtonPressed()
     {
-        GD.Print("[EventBusTestListener] Button pressed - publishing TestEvent via MediatR");
+        GD.Print("[EventBusTestListener] 🔵 Button pressed - publishing TestEvent");
 
-        // In real scenario, would resolve IMediator and publish
-        // For Phase 3 manual test, directly call GodotEventBus.PublishAsync
+        // For manual test, directly call GodotEventBus.PublishAsync
+        // In production: resolve IMediator and call mediator.Publish()
         EventBus?.PublishAsync(new TestEvent($"Button pressed at {Time.GetTicksMsec()}"));
     }
 
     public override void _ExitTree()
     {
         // Cleanup button subscription
-        if (TestButton != null)
+        if (_testButton != null)
         {
-            TestButton.Pressed -= OnButtonPressed;
+            _testButton.Pressed -= OnButtonPressed;
         }
 
         base._ExitTree(); // CRITICAL: Call base to UnsubscribeAll

@@ -17,6 +17,7 @@ config/icon="res://icon.svg"
 
 [autoload]
 
+Main="*res://Main.tscn"
 DebugConsole="*res://Infrastructure/DebugConsoleController.cs"
 
 [dotnet]
