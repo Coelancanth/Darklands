@@ -1,6 +1,6 @@
-[gd_scene load_steps=2 format=3 uid="uid://c2qxwf47dfb55"]
+[gd_scene load_steps=2 format=3 uid="uid://bixq7l2qbn23v"]
 
-[ext_resource type="Script" uid="uid://c1bxyawnat23j" path="res://TestScenes/DIBootstrapTest.cs" id="1_vsj4g"]
+[ext_resource type="Script" path="res://TestScenes/DIBootstrapTest.cs" id="1_vsj4g"]
 
 [node name="DIBootstrapTest" type="Node2D"]
 script = ExtResource("1_vsj4g")

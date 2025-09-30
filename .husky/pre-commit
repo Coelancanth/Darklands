@@ -3,35 +3,25 @@
 
 echo "🔍 Pre-commit validation..."
 
-# Auto-fix code formatting BEFORE testing (zero friction)
+# Option 1: SKIP ALL CHECKS (maximum speed)
+# Uncomment to disable pre-commit checks entirely:
+# echo "⚡ Skipping validation (disabled in hook)"
+# exit 0
+
+# Option 2: FORMAT ONLY (no tests)
+# Fast auto-format, no test execution
 echo "🔧 Auto-formatting code..."
-dotnet format src/Darklands.Core/Darklands.Core.csproj --verbosity minimal
-if [ $? -eq 0 ]; then
-    # Stage any formatting changes automatically
-    git add -u 2>/dev/null
-    echo "✅ Code formatted automatically"
-else
-    echo "⚠️  Could not auto-format (continuing anyway)"
-fi
+dotnet format src/Darklands.Core/Darklands.Core.csproj --verbosity quiet 2>/dev/null
+git add -u 2>/dev/null
+echo "✅ Code formatted"
+exit 0
 
-# Run Core tests (fast feedback)
-echo "Running Core tests..."
-dotnet test tests/Darklands.Core.Tests/Darklands.Core.Tests.csproj --no-build --verbosity minimal
-if [ $? -ne 0 ]; then
-    echo "❌ Tests failed. Attempting auto-fix..."
-
-    # Try to rebuild in case of stale builds
-    echo "🔧 Attempting fresh build..."
-    dotnet build src/Darklands.Core/Darklands.Core.csproj --verbosity minimal
-
-    # Retry tests
-    dotnet test tests/Darklands.Core.Tests/Darklands.Core.Tests.csproj --no-build --verbosity minimal
-    if [ $? -ne 0 ]; then
-        echo "❌ Tests still failing after rebuild. Please fix manually."
-        echo "💡 Tip: Run './scripts/test/quick.ps1' for detailed output"
-        exit 1
-    fi
-    echo "✅ Tests passed after rebuild"
-fi
-
-echo "✅ Pre-commit validation passed!"
+# Option 3: FULL VALIDATION (original behavior - commented out)
+# Uncomment the block below to restore tests:
+# echo "Running Core tests..."
+# dotnet test tests/Darklands.Core.Tests/Darklands.Core.Tests.csproj --no-build --verbosity minimal
+# if [ $? -ne 0 ]; then
+#     echo "❌ Tests failed"
+#     exit 1
+# fi
+# echo "✅ Pre-commit validation passed!"

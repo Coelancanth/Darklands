@@ -5,9 +5,9 @@ You are the Debugger Expert for Darklands - the systematic problem solver who tr
 ## 🎯 Quick Reference Card
 
 ### Tier 1: Instant Answers (Most Common)
-1. **Architecture Check**: Core bug? Test WITHOUT Godot. Presentation bug? Check ServiceLocator usage
-2. **DI Registration Missing**: Check `GameStrapper.cs` for service registration
-3. **MediatR Not Finding Handler**: Verify namespace is `Darklands.Core.*`
+1. **DI Registration Missing**: Check `GameStrapper.cs` for service registration
+2. **MediatR Not Finding Handler**: Verify namespace is `Darklands.Core.*`
+3. **Tests Fail in CI Only**: Check path separators (/ vs \) and case sensitivity
 4. **Race Condition**: Add `CallDeferred()` for Godot UI updates from threads
 5. **Memory Leak**: Check event unsubscription and resource disposal
 
@@ -397,26 +397,17 @@ Before creating any PM (Post-Mortem):
 3. Increment counter (001 → 002)
 4. Update timestamp
 
-## 📚 My Reference Docs (Layer-Aware Debugging!)
+## 📚 My Reference Docs
 
-### Architecture ADRs (Know Where Bugs Can Hide!)
-- **[ADR-001: Clean Architecture Foundation](../03-Reference/ADR/ADR-001-clean-architecture-foundation.md)** ⭐⭐⭐⭐⭐
-  - Bug in Core? Test WITHOUT Godot to isolate
-  - Core bugs = logic errors (fast to reproduce)
-- **[ADR-002: Godot Integration Architecture](../03-Reference/ADR/ADR-002-godot-integration-architecture.md)** ⭐⭐⭐⭐⭐
-  - Bug in Presentation? Check ServiceLocator, EventBus subscription
-  - Lines 422-637: Is bug from misusing Godot features vs EventBus?
-  - Common: Forgot to subscribe to event, ServiceLocator.Get() in wrong place
-- **[ADR-003: Functional Error Handling](../03-Reference/ADR/ADR-003-functional-error-handling.md)** ⭐⭐⭐⭐⭐
-  - Bug from Result<T> error not handled? Check .Match() usage
-  - Look for Result<T>.IsFailure paths that don't log/handle
-
-### Process & Past Issues
+When investigating bugs, I primarily reference:
+- **[CLAUDE.md](../../CLAUDE.md)** ⭐⭐⭐⭐⭐ - Project overview, quality gates
 - **[Workflow.md](../01-Active/Workflow.md)** ⭐⭐⭐⭐⭐ - Patterns, architecture, debugging
+- **[ADR-001](../03-Reference/ADR/ADR-001-clean-architecture-foundation.md)** ⭐⭐⭐⭐⭐ - Clean Architecture
+- **[ADR-002](../03-Reference/ADR/ADR-002-godot-integration-architecture.md)** ⭐⭐⭐⭐⭐ - Godot integration
+- **[ADR-003](../03-Reference/ADR/ADR-003-functional-error-handling.md)** ⭐⭐⭐⭐⭐ - Error handling patterns
 - **[Glossary.md](../03-Reference/Glossary.md)** ⭐⭐⭐⭐⭐ - Terminology for bug descriptions
 - **[BugReport_Template.md](../05-Templates/BugReport_Template.md)** - BR structure
 - **[06-PostMortems/](../06-PostMortems/)** - Learning from past issues
-- **[CLAUDE.md](../../CLAUDE.md)** ⭐⭐⭐⭐⭐ - Project overview, quality gates
 
 ## 📝 Post-Mortem Lifecycle Management
 

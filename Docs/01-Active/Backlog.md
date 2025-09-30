@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-30 15:38 (VS_003 approved with category-based design - Tech Lead decision)
+**Last Updated**: 2025-09-30 21:07 (VS_004 archived - completed and verified)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 001
-- **Next TD**: 001
+- **Next TD**: 002
 - **Next VS**: 005 
 
 
@@ -67,64 +67,6 @@
 
 ## 🔥 Critical (Do First)
 *Blockers preventing other work, production bugs, dependencies for other features*
-
-
-### VS_004: Infrastructure - Event Bus System [ARCHITECTURE]
-**Status**: Proposed
-**Owner**: Product Owner → Tech Lead (breakdown)
-**Size**: S (4-6h)
-**Priority**: Critical (Prerequisite for Core → Godot communication)
-**Markers**: [ARCHITECTURE] [INFRASTRUCTURE]
-**Created**: 2025-09-30
-
-**What**: GodotEventBus to bridge MediatR domain events to Godot nodes
-**Why**: Core domain logic needs to notify Godot UI of state changes without coupling
-
-**Scope**:
-1. **Infrastructure Layer**:
-   - GodotEventBus (subscribes to MediatR INotification)
-   - Thread marshalling to main thread (CallDeferred)
-   - EventAwareNode base class (subscribe/unsubscribe pattern)
-   - Automatic cleanup on node disposal
-
-2. **Tests**:
-   - Can publish event from Core
-   - Godot node receives event
-   - Thread marshalling works correctly
-   - Unsubscribe prevents memory leaks
-
-**How** (Implementation Order):
-1. **Phase 1: Domain** (~1h)
-   - Define event interfaces
-   - Simple test event (TestEvent)
-
-2. **Phase 2: Application** (~1h)
-   - GodotEventBus implements INotificationHandler<T>
-   - Event subscription registry
-
-3. **Phase 3: Infrastructure** (~2h)
-   - Thread marshalling implementation
-   - EventAwareNode base class
-   - Automatic unsubscribe on _ExitTree()
-
-4. **Phase 4: Presentation** (~1h)
-   - Simple test scene with EventAwareNode
-   - Publish test event from Core
-   - Verify node receives event on main thread
-   - Manual test: Event updates Godot UI correctly
-
-**Done When**:
-- ✅ Can publish MediatR notification from Core
-- ✅ Godot nodes receive events via EventBus.Subscribe<T>()
-- ✅ Events delivered on main thread (no threading issues)
-- ✅ EventAwareNode auto-unsubscribes on disposal
-- ✅ Tests verify no memory leaks from subscriptions
-- ✅ Simple test scene demonstrates Core → Godot event flow
-- ✅ Code committed with message: "feat: event bus system [VS_004]"
-
-**Depends On**: VS_002 (needs DI)
-
----
 
 ### VS_001: Architectural Skeleton - Health System Walking Skeleton [ARCHITECTURE]
 **Status**: Proposed
@@ -255,7 +197,113 @@
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*
 
+### TD_001: Architecture Enforcement Tests (NetArchTest + Custom)
+**Status**: Proposed
+**Owner**: Tech Lead → Dev Engineer (after approval)
+**Size**: M (2-3h)
+**Priority**: Important (Prevents architectural drift)
+**Markers**: [ARCHITECTURE] [TESTING] [POST-MORTEM]
+**Created**: 2025-09-30 (VS_004 post-mortem)
 
+**What**: Automated tests enforcing ADR-001/ADR-002/ADR-003 architectural rules + VS_004 lessons
+
+**Why**:
+- VS_004 revealed MediatR double-registration bug (caught by tests, but needs permanent guard)
+- DebugConsole LoggingService not registered (need completeness tests)
+- ADR-003 mandates Result<T> pattern but no automated enforcement
+- **Tests as living documentation** > static docs (self-updating, enforced, always accurate)
+- **NOTE**: Core → Godot already enforced by `.csproj` SDK choice (compile-time beats runtime!)
+
+**How** (Test Categories):
+
+**1. NetArchTest - Naming/Pattern Enforcement** (~1h)
+```csharp
+// NOTE: Core → Godot dependency already prevented by SDK choice!
+// Darklands.Core.csproj uses Microsoft.NET.Sdk (pure C#)
+// → Compile-time enforcement is better than runtime tests
+
+// ADR-003: Enforce Result<T> pattern for error handling
+[Fact]
+public void CommandHandlers_ShouldReturnResult()
+{
+    // WHY: ADR-003 mandates Result<T> for all operations that can fail
+    Types.InAssembly(typeof(IRequest).Assembly)
+        .That().ImplementInterface(typeof(IRequestHandler<,>))
+        .Should().HaveMethodMatching("Handle", method =>
+            method.ReturnType.Name.StartsWith("Result"))
+        .GetResult().IsSuccessful.Should().BeTrue();
+}
+
+// Namespace organization (if needed)
+[Fact]
+public void Domain_ShouldNotDependOnApplication()
+{
+    // WHY: Domain layer must be pure, no application logic
+    Types.InNamespace("Darklands.Core.Domain")
+        .Should().NotHaveDependencyOnAny(
+            "Darklands.Core.Application",
+            "Darklands.Core.Infrastructure")
+        .GetResult().IsSuccessful.Should().BeTrue();
+}
+```
+
+**2. MediatR Registration Tests** (~30min)
+```csharp
+// VS_004 POST-MORTEM: Prevent double-registration
+[Fact]
+public void MediatR_ShouldNotDoubleRegisterHandlers()
+{
+    // LESSON: assembly scan + open generic = 2x registration
+    var services = new ServiceCollection();
+    ConfigureServicesLikeMain(services);
+
+    var handlers = services.BuildServiceProvider()
+        .GetServices<INotificationHandler<TestEvent>>();
+
+    handlers.Should().HaveCount(1,
+        "UIEventForwarder should only be registered once (open generic pattern)");
+}
+```
+
+**3. DI Registration Completeness** (~30min)
+```csharp
+// VS_004 POST-MORTEM: DebugConsole failed to resolve LoggingService
+[Fact]
+public void AllAutoloadDependencies_ShouldBeRegistered()
+{
+    // LESSON: Autoloads using ServiceLocator need dependencies in Main.cs
+    var services = new ServiceCollection();
+    ConfigureServicesLikeMain(services);
+    var provider = services.BuildServiceProvider();
+
+    provider.GetService<LoggingService>()
+        .Should().NotBeNull("DebugConsole requires LoggingService");
+    provider.GetService<IGodotEventBus>()
+        .Should().NotBeNull("EventAwareNode requires IGodotEventBus");
+}
+```
+
+**Done When**:
+- ✅ NetArchTest package added to test project
+- ✅ ArchitectureTests.cs created with dependency rules
+- ✅ MediatRRegistrationTests.cs validates no double-registration
+- ✅ DICompletenessTests.cs validates autoload dependencies
+- ✅ All architecture tests passing (added to CI pipeline)
+- ✅ Category="Architecture" for easy filtering
+- ✅ Tests committed with comments explaining VS_004 post-mortem lessons
+
+**Depends On**: None (VS_004 complete)
+
+**Tech Lead Decision** (awaiting approval):
+- [ ] Approve scope and priority
+- [ ] Add NetArchTest to test infrastructure?
+- [ ] Any additional architectural rules to enforce?
+
+**Dev Engineer Notes** (after approval):
+- NetArchTest 8.x supports .NET 8
+- Tests will be fast (<100ms) - just reflection, no runtime overhead
+- Living documentation: Test comments reference ADR-001/002/003 + VS_004 post-mortem
+- CI integration: Add `--filter "Category=Architecture"` to quick.ps1
 
 ---
 
