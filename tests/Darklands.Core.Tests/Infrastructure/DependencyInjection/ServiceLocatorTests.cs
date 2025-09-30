@@ -107,20 +107,20 @@ public class ServiceLocatorTests
     [Fact]
     public void GetService_ShouldReturnNewInstances_AfterContainerReset()
     {
-        // Arrange
+        // Arrange - First container
         GameStrapper.Reset();
         GameStrapper.Initialize();
-        var result1 = ServiceLocator.GetService<ITestService>();
+        var service1 = ServiceLocator.GetService<ITestService>().Value; // Get value before reset
 
         // Act - Reset and re-initialize creates NEW container
         GameStrapper.Reset();
         GameStrapper.Initialize();
-        var result2 = ServiceLocator.GetService<ITestService>();
+        var service2 = ServiceLocator.GetService<ITestService>().Value;
 
         // Assert
-        result1.IsSuccess.Should().BeTrue();
-        result2.IsSuccess.Should().BeTrue();
-        result1.Value.Should().NotBeSameAs(result2.Value,
+        service1.Should().NotBeNull();
+        service2.Should().NotBeNull();
+        service1.Should().NotBeSameAs(service2,
             "New container should create new singleton instances");
     }
 }
