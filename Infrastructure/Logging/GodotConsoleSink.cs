@@ -28,7 +28,7 @@ public class GodotConsoleSink : ILogEventSink
     /// Emit a log event to Godot's output console with multi-color BBCode formatting.
     /// Uses GD.PrintRich() for all levels to support colored components (level, timestamp, category).
     /// Format: [LVL] [timestamp] [category] message
-    /// Colors: Level-specific, gray timestamp, cyan category, white message
+    /// Colors: Level+timestamp share color, category (cyan), message (white or level-color for warnings/errors)
     /// </summary>
     public void Emit(LogEvent logEvent)
     {
@@ -56,7 +56,7 @@ public class GodotConsoleSink : ILogEventSink
 
     /// <summary>
     /// Apply BBCode color tags to different parts of the log message.
-    /// Colors: Level (level-specific), Timestamp (gray), Category (cyan), Message (white/level-specific)
+    /// Colors: Level (level-specific), Timestamp (same as level), Category (cyan), Message (white/level-specific)
     /// </summary>
     private static string ApplyColors(string formatted, LogEventLevel level)
     {
@@ -78,7 +78,7 @@ public class GodotConsoleSink : ILogEventSink
         // Apply colors to each component
         var levelColor = GetLevelColorName(level);
         var coloredLevel = $"[color={levelColor}]{levelPart}[/color]";
-        var coloredTime = $"[color=gray]{timePart}[/color]";
+        var coloredTime = $"[color={levelColor}]{timePart}[/color]";  // Same color as level
         var coloredCategory = $"[color=cyan]{categoryPart}[/color]";
 
         // Message inherits level color for warnings/errors, white for others
