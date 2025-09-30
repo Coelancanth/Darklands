@@ -6,6 +6,7 @@
 **Decision Makers**: Tech Lead
 
 **Changelog**:
+- 2025-09-30: Added **Three Types of Errors** framework (Domain/Infrastructure/Programmer), Result.Of() vs try-catch decision guidance, layer-specific rules, common mistakes section
 - 2025-09-30: Added Result.Of(), TryFirst/TryLast, TryFind, Analyzers recommendation, corrected Match syntax
 
 ## Context
@@ -22,6 +23,299 @@ We need a functional approach where **errors are data, not control flow**.
 ## Decision
 
 Use **CSharpFunctionalExtensions** for functional error handling throughout the codebase.
+
+## The Three Types of Errors
+
+**Critical Framework**: Not all errors are the same. Choose your error handling strategy based on error type.
+
+### 1. Domain Errors (Expected Business Failures)
+
+**Definition**: Failures that are part of the business domain and must be handled by callers.
+
+**Characteristics**:
+- Expected as part of normal business logic
+- Part of the method's contract
+- Caller MUST handle these cases
+- Should never crash the application
+
+**Examples**:
+- Validation failures ("Health cannot be negative")
+- Business rule violations ("Cannot attack dead target", "Insufficient resources")
+- Expected "not found" scenarios ("Actor not in registry")
+- State transition failures ("Cannot move while stunned")
+
+**Implementation Pattern**: Return `Result<T>` with descriptive error messages
+```csharp
+// ✅ CORRECT - Domain error handling
+public Result<Health> TakeDamage(float amount)
+{
+    if (amount < 0)
+        return Result.Failure<Health>("Damage cannot be negative");
+
+    var newValue = Math.Max(0, Current - amount);
+    return Result.Success(new Health(newValue, Maximum));
+}
+
+// ✅ CORRECT - Business rule validation
+public Result ValidateAttack(Actor attacker, Actor target)
+{
+    if (!target.IsAlive)
+        return Result.Failure("Cannot attack dead target");
+
+    if (attacker.IsStunned)
+        return Result.Failure("Attacker is stunned");
+
+    return Result.Success();
+}
+```
+
+**Why Result<T>**: Makes failure modes explicit in the signature, forces callers to handle, enables railway-oriented composition.
+
+### 2. Infrastructure Errors (Expected Technical Failures)
+
+**Definition**: Technical failures from external systems that we expect might happen.
+
+**Characteristics**:
+- Expected failures from infrastructure/external systems
+- Not part of business domain
+- Caller should handle gracefully
+- Boundary between our code and external systems
+
+**Examples**:
+- File I/O failures (resource loading, save/load)
+- Network timeouts
+- Database connection failures
+- External API errors
+- Godot resource loading failures
+
+**Implementation Pattern**: Convert exceptions to `Result<T>` at boundary
+
+```csharp
+// ✅ PREFERRED - Use Result.Of() for simple cases
+public Result<Scene> LoadScene(string path)
+{
+    return Result.Of(() => GD.Load<Scene>(path))
+        .Ensure(scene => scene != null, "Scene is null after load")
+        .MapError(ex => $"Failed to load scene {path}: {ex.Message}");
+}
+
+// ✅ ALTERNATIVE - Manual try-catch for fine-grained control
+public Result<Config> LoadConfig(string path)
+{
+    try
+    {
+        var json = File.ReadAllText(path);
+        var config = JsonSerializer.Deserialize<Config>(json);
+        return config != null
+            ? Result.Success(config)
+            : Result.Failure<Config>("Deserialization returned null");
+    }
+    catch (FileNotFoundException)
+    {
+        _logger.LogWarning("Config file not found: {Path}", path);
+        return Result.Failure<Config>($"Config file not found: {path}");
+    }
+    catch (JsonException ex)
+    {
+        _logger.LogError(ex, "Invalid config JSON in {Path}", path);
+        return Result.Failure<Config>("Invalid config file format");
+    }
+    catch (IOException ex)
+    {
+        _logger.LogError(ex, "IO error reading config");
+        return Result.Failure<Config>($"Could not read config: {ex.Message}");
+    }
+}
+```
+
+**Why Convert to Result**: Keeps the functional pipeline intact, allows composition with domain logic, makes infrastructure failures explicit.
+
+### 3. Programmer Errors (Unexpected Bugs)
+
+**Definition**: Bugs in our code that should never happen if the code is correct.
+
+**Characteristics**:
+- Indicates programming mistakes
+- Should NEVER happen in correct code
+- Cannot be meaningfully recovered from
+- Should fail fast to expose the bug
+
+**Examples**:
+- Null reference violations (`ArgumentNullException`)
+- Invalid state transitions (`InvalidOperationException`)
+- Contract violations (precondition failures)
+- Array out of bounds
+- DI misconfiguration (missing service registration)
+
+**Implementation Pattern**: Throw exceptions - FAIL FAST!
+
+```csharp
+// ✅ CORRECT - Fail fast on programmer errors
+public Result<Actor> GetActor(ActorId id)
+{
+    // Null check: This is a programming error
+    if (id == null)
+        throw new ArgumentNullException(nameof(id));
+
+    // Business logic: Not found is a domain concern
+    return _actors.TryFind(id)
+        .ToResult($"Actor {id} not found");
+}
+
+// ✅ CORRECT - Precondition enforcement
+public Result ApplyDamage(Actor actor, float amount)
+{
+    if (actor == null)
+        throw new ArgumentNullException(nameof(actor));
+
+    if (amount < 0)
+        throw new ArgumentOutOfRangeException(nameof(amount), "Must be non-negative");
+
+    // Business logic starts here
+    return actor.TakeDamage(amount);
+}
+
+// ❌ WRONG - Don't wrap programmer errors in Result
+public Result<ServiceProvider> BuildServiceProvider()
+{
+    try
+    {
+        // If service registration fails, it's a config bug
+        // Let it throw - you can't run the app anyway!
+        return Result.Success(services.BuildServiceProvider());
+    }
+    catch (Exception ex)
+    {
+        // This swallows critical startup bugs
+        return Result.Failure<ServiceProvider>($"DI failed: {ex.Message}");
+    }
+}
+
+// ✅ BETTER - Let it crash, fix the bug
+public ServiceProvider BuildServiceProvider()
+{
+    // If this throws, you have a configuration bug
+    // Fix the bug, don't hide it!
+    return services.BuildServiceProvider();
+}
+```
+
+**Why Exceptions**: Programmer errors indicate bugs that must be fixed, not business scenarios that need handling. Fail fast exposes bugs quickly during development.
+
+## Decision Framework: Which Pattern to Use?
+
+### Quick Decision Tree
+
+```
+Is this error expected as part of the business domain?
+├─ YES → Return Result<T> (Domain Error)
+└─ NO → Is this error from an external system?
+    ├─ YES → Use Result.Of() or try-catch → Result (Infrastructure Error)
+    └─ NO → Does this indicate a programming bug?
+        ├─ YES → throw Exception (Programmer Error)
+        └─ NO → Re-evaluate: probably a Domain or Infrastructure error
+```
+
+### Decision Table
+
+| Error Type | When It Occurs | Pattern | Example |
+|------------|----------------|---------|---------|
+| **Domain** | Business logic execution | `Result<T>` with descriptive error | `Result.Failure<Health>("Damage cannot be negative")` |
+| **Infrastructure** | External system calls | `Result.Of()` or `try-catch → Result` | `Result.Of(() => File.ReadAllText(path))` |
+| **Programmer** | Code bugs, contract violations | `throw Exception` | `throw new ArgumentNullException(nameof(id))` |
+
+### Result.Of() vs Manual try-catch
+
+**Use Result.Of() when**:
+- ✅ Wrapping simple external calls
+- ✅ You don't need exception-specific handling
+- ✅ You want concise boundary conversion
+- ✅ All exceptions can be treated uniformly
+
+**Use manual try-catch → Result when**:
+- ✅ You need different handling per exception type
+- ✅ You want to add context-specific logging
+- ✅ Some exceptions are programmer errors (rethrow them)
+- ✅ You need more control over error messages
+
+```csharp
+// ✅ Result.Of() - Simple and clean
+public Result<Scene> LoadScene(string path)
+{
+    return Result.Of(() => GD.Load<Scene>(path))
+        .MapError(ex => $"Scene load failed: {ex.Message}");
+}
+
+// ✅ Manual try-catch - Fine-grained control
+public Result<Scene> LoadSceneAdvanced(string path)
+{
+    try
+    {
+        if (!ResourceLoader.Exists(path))
+            return Result.Failure<Scene>($"Scene not found: {path}");
+
+        var scene = GD.Load<Scene>(path);
+        return scene != null
+            ? Result.Success(scene)
+            : Result.Failure<Scene>("Scene loaded but was null");
+    }
+    catch (ArgumentException ex)
+    {
+        // Programmer error - invalid path format
+        throw;
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Unexpected error loading scene");
+        return Result.Failure<Scene>($"Scene load error: {ex.Message}");
+    }
+}
+```
+
+### Layer-Specific Rules
+
+| Layer | Domain Errors | Infrastructure Errors | Programmer Errors |
+|-------|---------------|----------------------|-------------------|
+| **Domain** | Return `Result<T>` | N/A (no infrastructure) | Throw exceptions |
+| **Application** | Return `Result<T>` | Convert to `Result<T>` | Throw exceptions |
+| **Infrastructure** | Return `Result<T>` | Convert to `Result<T>` at boundary | Throw exceptions |
+| **Presentation** | Handle with `Match()` | Handle with `Match()` | Let crash (fix bug) |
+
+### Common Mistakes to Avoid
+
+```csharp
+// ❌ MISTAKE 1: Using Result for programmer errors
+public Result<Actor> UpdateActor(Actor actor)
+{
+    if (actor == null)
+        return Result.Failure<Actor>("Actor is null");  // WRONG! Throw ArgumentNullException
+    // ...
+}
+
+// ❌ MISTAKE 2: Using exceptions for domain errors
+public Health TakeDamage(float amount)
+{
+    if (amount < 0)
+        throw new ArgumentException("Negative damage");  // WRONG! Return Result.Failure
+    // ...
+}
+
+// ❌ MISTAKE 3: Catching and hiding programmer errors
+try
+{
+    var service = provider.GetRequiredService<IMyService>();
+}
+catch (InvalidOperationException)
+{
+    return Result.Failure<IMyService>("Service not found");  // WRONG! Let it throw
+}
+
+// ❌ MISTAKE 4: Not converting infrastructure exceptions
+public Scene LoadScene(string path)
+{
+    return GD.Load<Scene>(path);  // WRONG! Throws exception, breaks railway
+}
+```
 
 ### Core Types
 
@@ -540,12 +834,16 @@ GetActor(id).Match(
 
 ## Success Metrics
 
-- ✅ Zero `try/catch` in Domain/Application layers (use `Result.Of()` at boundaries)
+- ✅ **Domain errors** always return `Result<T>` (never throw exceptions for business logic)
+- ✅ **Infrastructure errors** converted to `Result<T>` at boundaries (use `Result.Of()` or try-catch)
+- ✅ **Programmer errors** throw exceptions (ArgumentNullException, InvalidOperationException)
+- ✅ Zero `try/catch` in Domain/Application layers except at infrastructure boundaries
 - ✅ All operations returning `Result<T>` or `Maybe<T>`
 - ✅ Error handling tested in all handlers
 - ✅ No unhandled exceptions in production
 - ✅ CSharpFunctionalExtensions.Analyzers installed and enforcing patterns
 - ✅ Use `TryFirst/TryLast/TryFind` instead of nullable-returning methods
+- ✅ Team can articulate the difference between Domain/Infrastructure/Programmer errors
 
 ## References
 

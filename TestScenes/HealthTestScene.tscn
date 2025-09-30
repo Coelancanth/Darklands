@@ -1,0 +1,76 @@
+[gd_scene load_steps=2 format=3 uid="uid://bo24dcm1kdywh"]
+
+[ext_resource type="Script" uid="uid://kchfl6ro0fxq" path="res://Components/HealthBarNode.cs" id="1_health"]
+
+[node name="HealthTestScene" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="HealthBarNode" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -200.0
+offset_top = -150.0
+offset_right = 200.0
+offset_bottom = 150.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 10
+script = ExtResource("1_health")
+
+[node name="Title" type="Label" parent="HealthBarNode"]
+layout_mode = 2
+text = "🎮 Health System Test (VS_001 Phase 4)"
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="HSeparator" type="HSeparator" parent="HealthBarNode"]
+layout_mode = 2
+
+[node name="HealthLabel" type="Label" parent="HealthBarNode"]
+layout_mode = 2
+text = "Health: 100/100"
+horizontal_alignment = 1
+
+[node name="HealthBar" type="ProgressBar" parent="HealthBarNode"]
+custom_minimum_size = Vector2(0, 30)
+layout_mode = 2
+value = 100.0
+show_percentage = false
+
+[node name="HSeparator2" type="HSeparator" parent="HealthBarNode"]
+layout_mode = 2
+
+[node name="ButtonContainer" type="HBoxContainer" parent="HealthBarNode"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="DamageButton" type="Button" parent="HealthBarNode/ButtonContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "💥 Take Damage (20)"
+
+[node name="HSeparator3" type="HSeparator" parent="HealthBarNode"]
+layout_mode = 2
+
+[node name="Instructions" type="Label" parent="HealthBarNode"]
+layout_mode = 2
+text = "📋 Instructions:
+• Click 'Take Damage' to test event pipeline
+• Health bar changes color automatically:
+  - 🟢 Green = Healthy
+  - 🟠 Orange = Critical (<25%)
+  - ⚫ Gray = Dead (0 HP)
+• Validates: Command → Handler → Event → UI"
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[connection signal="pressed" from="HealthBarNode/ButtonContainer/DamageButton" to="HealthBarNode" method="OnDamageButtonPressed"]

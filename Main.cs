@@ -70,14 +70,21 @@ public partial class Main : Node
         services.AddSingleton(new LoggingService(enabledCategories));
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        // 2. MEDIATR - Register MediatR core (NOT handlers - open generics handle that)
+        // 2. MEDIATR - Register MediatR core + command handlers from Core assembly
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-        // CRITICAL: Do NOT scan for handlers with RegisterServicesFromAssembly(typeof(TestEvent).Assembly)
-        // WHY: Would register UIEventForwarder twice (assembly scan + open generic) → events published twice
-        // SOLUTION: Only scan MediatR's own assembly for core types (IMediator, etc.)
+        // CRITICAL: Scan Core assembly for command handlers (e.g., TakeDamageCommandHandler)
+        // DOUBLE REGISTRATION FIX (VS_004 post-mortem):
+        // - Assembly scan finds UIEventForwarder (it's in Core assembly)
+        // - Open generic registration (line 95) adds UIEventForwarder again
+        // - Result: TWO UIEventForwarder instances = duplicate events!
+        // - Solution: Use ONLY open generic registration, skip assembly scan for UIEventForwarder
         services.AddMediatR(cfg =>
-            cfg.RegisterServicesFromAssembly(typeof(IMediator).Assembly));
+        {
+            // Register command handlers from Core assembly
+            // NOTE: This ALSO registers UIEventForwarder via assembly scan
+            cfg.RegisterServicesFromAssembly(typeof(Darklands.Core.Features.Health.Application.Commands.TakeDamageCommand).Assembly);
+        });
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // 3. EVENT BUS (VS_004) - GodotEventBus + UIEventForwarder bridge
@@ -86,15 +93,13 @@ public partial class Main : Node
         // Register GodotEventBus as singleton (shared state across all nodes)
         services.AddSingleton<IGodotEventBus, GodotEventBus>();
 
-        // Register UIEventForwarder with OPEN GENERICS (zero boilerplate!)
-        // MediatR will auto-resolve UIEventForwarder<TEvent> for ANY INotification
-        services.AddTransient(typeof(INotificationHandler<>), typeof(UIEventForwarder<>));
+        // REMOVED: Duplicate UIEventForwarder registration (already registered by assembly scan above)
+        // services.AddTransient(typeof(INotificationHandler<>), typeof(UIEventForwarder<>));
 
         GD.Print("📦 Services registered:");
         GD.Print("   - Logging (Serilog → Console + File)");
         GD.Print("   - LoggingService (category filtering for DebugConsole)");
-        GD.Print("   - MediatR (IMediator only, handlers via open generics)");
+        GD.Print("   - MediatR (command handlers + UIEventForwarder via assembly scan)");
         GD.Print("   - IGodotEventBus → GodotEventBus");
-        GD.Print("   - UIEventForwarder<T> (open generic registration)");
     }
 }

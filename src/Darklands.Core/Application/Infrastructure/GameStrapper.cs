@@ -77,6 +77,10 @@ public static class GameStrapper
         // Event Bus (VS_004) - Infrastructure must be registered in Presentation
         // Core only has IGodotEventBus interface and UIEventForwarder
         // Presentation registers: GodotEventBus, MediatR assembly scan, UIEventForwarder open generic
+
+        // Health System (VS_001 Phase 3) - Application services
+        services.AddSingleton<Features.Health.Application.IHealthComponentRegistry,
+            Features.Health.Infrastructure.HealthComponentRegistry>();
     }
 
     /// <summary>

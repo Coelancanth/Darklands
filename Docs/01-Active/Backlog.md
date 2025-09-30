@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-30 21:07 (VS_004 archived - completed and verified)
+**Last Updated**: 2025-10-01 00:48 (All VS_001 bugs fixed and verified: BR_001, BR_002, BR_003 completed + 2 bonus bugs)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -9,7 +9,7 @@
 ## 🔢 Next Item Numbers by Type
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
-- **Next BR**: 001
+- **Next BR**: 004
 - **Next TD**: 002
 - **Next VS**: 005 
 
@@ -68,132 +68,16 @@
 ## 🔥 Critical (Do First)
 *Blockers preventing other work, production bugs, dependencies for other features*
 
-### VS_001: Architectural Skeleton - Health System Walking Skeleton [ARCHITECTURE]
-**Status**: Proposed
-**Owner**: Product Owner → Tech Lead (breakdown)
-**Size**: S (4-6h)
-**Priority**: Critical (Validates architecture with real feature)
-**Markers**: [ARCHITECTURE] [WALKING-SKELETON] [END-TO-END]
-**Created**: 2025-09-30
-**Updated**: 2025-09-30 (Reduced scope - DI/Logger/EventBus now separate)
+**No critical items!** ✅
 
-**What**: Implement minimal health system to validate complete architecture end-to-end
-**Why**: Prove the architecture works with a real feature after infrastructure is in place
-
-**Context**:
-- VS_002, VS_003, VS_004 provide foundation (DI, Logger, EventBus)
-- This is the FIRST REAL FEATURE using that foundation
-- Follow "Walking Skeleton" pattern: thinnest possible slice through all layers
-- Validates ADR-001, ADR-002, ADR-003 work together
-
-**Scope** (Minimal Health System):
-1. **Domain Layer** (Pure C#):
-   - Health value object with Create/Reduce/Increase
-   - IHealthComponent interface
-   - HealthComponent implementation
-   - Use Result<T> for all operations
-
-2. **Application Layer** (CQRS):
-   - TakeDamageCommand + Handler (uses ILogger<T>, publishes events)
-   - HealthChangedEvent (INotification)
-   - Simple in-memory component registry
-
-3. **Infrastructure Layer**:
-   - Register health services in GameStrapper
-   - ComponentRegistry implementation
-
-4. **Presentation Layer** (Godot):
-   - Simple test scene with one actor sprite
-   - HealthComponentNode (EventAwareNode, shows health bar)
-   - Button to damage actor
-   - Verify: Click button → Command → Event → Health bar updates
-
-5. **Tests**:
-   - Health value object tests (validation, reduce, increase)
-   - TakeDamageCommandHandler tests (with mocked logger)
-   - Integration test: Command → Event flow
-
-**NOT in Scope** (defer to later):
-- Grid system
-- Movement
-- Complex combat mechanics
-- Multiple actors
-- AI
-- Turn system
-- Fancy UI
-
-**How** (Implementation Order):
-1. **Phase 1: Domain** (~1h)
-   - Create Health value object with tests
-   - Create IHealthComponent + HealthComponent
-   - Tests: Health.Create, Reduce, validation with Result<T>
-
-2. **Phase 2: Application** (~2h)
-   - TakeDamageCommand + Handler (inject ILogger, IMediator)
-   - HealthChangedEvent (INotification)
-   - ComponentRegistry service
-   - Tests: Handler logic with mocked logger and registry
-
-3. **Phase 3: Infrastructure** (~1h)
-   - Register services in GameStrapper
-   - ComponentRegistry implementation
-   - Verify DI resolution works
-
-4. **Phase 4: Presentation** (~2h)
-   - Simple scene (1 sprite + health bar + damage button)
-   - HealthComponentNode extends EventAwareNode
-   - Subscribe to HealthChangedEvent
-   - Wire button click → Send TakeDamageCommand
-   - Manual test: Click button → see logs → health bar updates
-
-**Done When**:
-- ✅ Build succeeds (dotnet build)
-- ✅ Core tests pass (100% pass rate)
-- ✅ Godot project loads without errors
-- ✅ Can click "Damage" button and health bar updates smoothly
-- ✅ Logs appear in debug console showing command execution
-- ✅ No Godot references in Darklands.Core project
-- ✅ GodotEventBus routes HealthChangedEvent correctly
-- ✅ CSharpFunctionalExtensions Result<T> works end-to-end
-- ✅ All 3 ADRs validated with working code
-- ✅ Code committed with message: "feat: health system walking skeleton [VS_001]"
-
-**Depends On**: VS_002 (DI), VS_003 (Logger), VS_004 (EventBus)
-
-**Product Owner Notes** (2025-09-30):
-- This is the FOUNDATION - everything else builds on this
-- Keep it MINIMAL - resist adding features
-- Validate architecture first, optimize later
-- Success = simple but complete end-to-end flow
-
-**Acceptance Test Script**:
-```
-1. Run: dotnet build src/Darklands.Core/Darklands.Core.csproj
-   Expected: Build succeeds, no warnings
-
-2. Run: dotnet test tests/Darklands.Core.Tests/Darklands.Core.Tests.csproj
-   Expected: All tests pass
-
-3. Open Godot project
-   Expected: No errors in console
-
-4. Run test scene
-   Expected: See sprite with health bar above it
-
-5. Click "Damage" button
-   Expected: Health bar decreases, animation plays
-
-6. Click repeatedly until health reaches 0
-   Expected: Sprite disappears or "Dead" appears
-```
+*Recently completed and archived (2025-10-01):*
+- **VS_001**: Health System Walking Skeleton - Architectural foundation validated ✅
+- **BR_001**: Race Condition - Fixed with WithComponentLock pattern ✅
+- **BR_002**: Fire-and-Forget Events - Fixed with async/await ✅
+- **BR_003**: Heal Button CQRS Bypass - Removed per YAGNI ✅
+- *See: [Completed_Backlog_2025-10.md](../07-Archive/Completed_Backlog_2025-10.md)*
 
 ---
-
-
-
-
----
-
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*
 
@@ -201,9 +85,10 @@
 **Status**: Proposed
 **Owner**: Tech Lead → Dev Engineer (after approval)
 **Size**: M (2-3h)
-**Priority**: Important (Prevents architectural drift)
+**Priority**: Important (Do AFTER BR_001/002/003 - prevents architectural drift)
 **Markers**: [ARCHITECTURE] [TESTING] [POST-MORTEM]
 **Created**: 2025-09-30 (VS_004 post-mortem)
+**Updated**: 2025-10-01 (Deprioritized below critical bugs)
 
 **What**: Automated tests enforcing ADR-001/ADR-002/ADR-003 architectural rules + VS_004 lessons
 
@@ -294,16 +179,24 @@ public void AllAutoloadDependencies_ShouldBeRegistered()
 
 **Depends On**: None (VS_004 complete)
 
-**Tech Lead Decision** (awaiting approval):
-- [ ] Approve scope and priority
-- [ ] Add NetArchTest to test infrastructure?
-- [ ] Any additional architectural rules to enforce?
+**Tech Lead Decision** (2025-10-01 00:24):
+- **Approved**: Scope and priority (do AFTER critical bug fixes)
+- **Rejected**: NetArchTest rule for `async void` (high false positive rate - use code review checklist instead)
+- **Approved**: NetArchTest for Result<T> pattern enforcement in handlers
+- **Approved**: MediatR double-registration tests
+- **Approved**: DI completeness tests
+
+**Additional Rules NOT in Scope** (VS_001 post-mortem review):
+- `async void` enforcement: Rejected - too many valid Godot event handlers, use code review checklist
+- NaN/Infinity validation: Should be in handler code, not architectural test
+- EVENT_TOPOLOGY.md existence: Manual governance, not automated test
 
 **Dev Engineer Notes** (after approval):
 - NetArchTest 8.x supports .NET 8
 - Tests will be fast (<100ms) - just reflection, no runtime overhead
 - Living documentation: Test comments reference ADR-001/002/003 + VS_004 post-mortem
 - CI integration: Add `--filter "Category=Architecture"` to quick.ps1
+- Focus on low false-positive rules (Result<T>, MediatR registration, DI completeness)
 
 ---
 

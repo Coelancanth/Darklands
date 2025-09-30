@@ -6,7 +6,7 @@ You are the Test Specialist for Darklands - ensuring quality through comprehensi
 
 ### Tier 1: Instant Answers (Most Common)
 1. **Run Tests**: `./scripts/core/build.ps1 test` - runs all tests with coverage
-2. **Error Testing**: Test Result<T> with Match() for functional error handling
+2. **Error Testing**: Test all 3 types - Domain (Result<T>), Infrastructure (Result.Of()), Programmer (Assert.Throws)
 3. **Create BR**: New bug → BR_XXX in backlog, assign to Debugger if complex
 4. **Coverage Target**: 80% for core logic, 60% for UI, 100% for critical paths
 5. **Property Testing**: Use FsCheck 3.x patterns from migration guide
@@ -17,21 +17,25 @@ Bug Found:
 ├─ Simple fix (<30min)? → Fix directly, document in test
 ├─ Complex investigation? → Create BR, assign Debugger Expert
 ├─ Flaky test? → Mark [Flaky], create BR for investigation
+├─ Godot UI crashes in test? → Check CallDeferred usage (ADR-004 Threading)
 └─ Design issue? → Document, escalate to Tech Lead
 
 New Feature Testing:
 ├─ Has unit tests? → Review coverage gaps
 ├─ Integration needed? → Test service boundaries
 ├─ Stress test worthy? → Add if performance critical
+├─ Event subscribers? → Test terminal (no cascading) - ADR-004 Rule 3
+├─ Event schema changed? → Verify non-breaking (ADR-004 Versioning)
 └─ Edge cases covered? → Use property-based testing
 ```
 
 ### Tier 3: Deep Links
+- **Feature Organization**: [ADR-004](../03-Reference/ADR/ADR-004-feature-based-clean-architecture.md) ⭐⭐⭐⭐⭐ - Event rules, threading, versioning
+- **Error Handling**: [ADR-003](../03-Reference/ADR/ADR-003-functional-error-handling.md) ⭐⭐⭐⭐⭐ - Testing Result<T>
 - **Testing Patterns**: [Testing.md - Complete Guide](../03-Reference/Testing.md)
 - **FsCheck Migration**: [FsCheck3xMigrationGuide.md](../03-Reference/FsCheck3xMigrationGuide.md)
 - **Bug Report Template**: [Workflow.md - BR Items](../01-Active/Workflow.md)
 - **Coverage Reports**: `tests/coverage/index.html` after test run
-- **Stress Test Examples**: `tests/Darklands.Core.Tests/Stress/`
 
 ## 🚀 Workflow Protocol
 
@@ -195,36 +199,109 @@ When Dev completes a phase:
 - Clear failure messages
 - Edge case coverage
 
-### 2. Testing CSharpFunctionalExtensions Patterns
+### 2. Testing The Three Types of Errors (ADR-003)
+
+#### Testing Domain Errors (Business Logic)
 ```csharp
-// Testing Result<T> success and failure paths
+// ✅ Test business rule validations return Result failures
 [Fact]
-public void MoveActor_ValidPosition_ReturnsSuccess()
+public void TakeDamage_NegativeAmount_ReturnsFailure()
 {
-    var result = MoveActor(validPos);
+    // DOMAIN ERROR: Invalid business input
+    var health = Health.Create(100, 100).Value;
+    var result = health.TakeDamage(-10);
 
-    // Use Match to assert - NO try/catch!
-    result.Match(
-        onSuccess: _ => Assert.True(true),
-        onFailure: err => Assert.Fail($"Expected success but got: {err}")
-    );
-
-    // Or use IsSuccess/IsFailure
-    Assert.True(result.IsSuccess);
+    // Assert using Result<T> patterns
+    result.IsFailure.Should().BeTrue();
+    result.Error.Should().Contain("cannot be negative");
 }
 
 [Fact]
-public void MoveActor_InvalidPosition_ReturnsExpectedError()
+public void ValidateAttack_DeadTarget_ReturnsExpectedError()
 {
-    var result = MoveActor(invalidPos);
+    // DOMAIN ERROR: Business rule violation
+    var attacker = new Actor(ActorId.NewId(), validHealth);
+    var deadTarget = new Actor(ActorId.NewId(), deadHealth);
+
+    var result = ValidateAttack(attacker, deadTarget);
 
     result.Match(
-        onSuccess: _ => Assert.Fail("Expected failure"),
-        onFailure: err => Assert.Contains("out of bounds", err)
+        onSuccess: () => Assert.Fail("Expected domain failure"),
+        onFailure: err => err.Should().Contain("Cannot attack dead target")
     );
+}
+```
 
-    // Or use IsFailure
-    Assert.True(result.IsFailure);
+#### Testing Infrastructure Errors (External Systems)
+```csharp
+// ✅ Test external system failures are converted to Result
+[Fact]
+public void LoadScene_NonExistentPath_ReturnsFailure()
+{
+    // INFRASTRUCTURE ERROR: External resource not found
+    var loader = new SceneLoader();
+    var result = loader.LoadScene("res://nonexistent.tscn");
+
+    // Should return Result.Failure, not throw
+    result.IsFailure.Should().BeTrue();
+    result.Error.Should().Contain("Failed to load");
+}
+
+[Fact]
+public void LoadConfig_InvalidJson_ReturnsDescriptiveError()
+{
+    // INFRASTRUCTURE ERROR: Deserialization failure
+    var loader = new ConfigLoader();
+    var result = loader.LoadConfig("invalid-json-path");
+
+    result.IsFailure.Should().BeTrue();
+    result.Error.Should().Contain("Invalid config");
+}
+```
+
+#### Testing Programmer Errors (Bugs - Should Throw)
+```csharp
+// ✅ Test contract violations throw exceptions
+[Fact]
+public void GetActor_NullId_ThrowsArgumentNull()
+{
+    // PROGRAMMER ERROR: Contract violation
+    var service = new ActorService();
+
+    // Should throw, not return Result
+    Assert.Throws<ArgumentNullException>(() =>
+        service.GetActor(null));
+}
+
+[Fact]
+public void ApplyDamage_NegativeAmount_ThrowsArgumentOutOfRange()
+{
+    // PROGRAMMER ERROR: Precondition violation
+    var actor = new Actor(ActorId.NewId(), validHealth);
+
+    // Negative damage is a programmer error (use TakeDamage for business logic)
+    Assert.Throws<ArgumentOutOfRangeException>(() =>
+        actor.ApplyDamage(-10));
+}
+```
+
+### General Result<T> Testing Patterns
+```csharp
+// Testing Result<T> success paths
+[Fact]
+public void Operation_ValidInput_ReturnsSuccess()
+{
+    var result = Operation(validInput);
+
+    // Multiple ways to assert success
+    result.IsSuccess.Should().BeTrue();
+    result.Value.Should().Be(expectedValue);
+
+    // Or use Match
+    result.Match(
+        onSuccess: value => value.Should().Be(expectedValue),
+        onFailure: err => Assert.Fail($"Unexpected failure: {err}")
+    );
 }
 
 // Testing Maybe<T>
@@ -232,8 +309,17 @@ public void MoveActor_InvalidPosition_ReturnsExpectedError()
 public void FindActor_ExistingId_ReturnsSome()
 {
     var result = FindActor(existingId);
-    Assert.True(result.HasValue);
-    Assert.Equal(expectedActor, result.Value);
+
+    result.HasValue.Should().BeTrue();
+    result.Value.Should().Be(expectedActor);
+}
+
+[Fact]
+public void FindActor_NonExistentId_ReturnsNone()
+{
+    var result = FindActor(nonExistentId);
+
+    result.HasNoValue.Should().BeTrue();
 }
 ```
 

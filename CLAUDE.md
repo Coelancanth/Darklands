@@ -101,7 +101,7 @@ Product Owner → Tech Lead → Dev Engineer → Test Specialist → DevOps
 
 **MANDATORY**: Follow these architectural boundaries strictly.
 
-### Core Principles (ADR-001, ADR-002, ADR-003)
+### Core Principles (ADR-001, ADR-002, ADR-003, ADR-004)
 
 **Three-Layer Architecture:**
 ```
@@ -213,6 +213,37 @@ public Health TakeDamage(float amount)
 ```
 
 **See**: [ADR-003: Functional Error Handling](Docs/03-Reference/ADR/ADR-003-functional-error-handling.md)
+
+### Feature Organization - Feature-Based Clean Architecture
+
+**Hybrid approach** combining VSA + Clean Architecture:
+
+```
+src/Darklands.Core/
+├── Domain/Common/              # Shared primitives (used by 3+ features)
+│   ├── ActorId.cs
+│   ├── Health.cs
+│   └── Position.cs            # Max ~10 files
+│
+└── Features/                   # Feature organization (VSA)
+    ├── Combat/
+    │   ├── Domain/            # Layer separation (Clean Architecture)
+    │   ├── Application/
+    │   └── Infrastructure/
+    └── Health/
+        ├── Domain/
+        ├── Application/
+        └── Infrastructure/
+```
+
+**The Five Event Rules** (Prevent Event Soup):
+1. **Commands Orchestrate, Events Notify** - All work in handlers, events are facts
+2. **Events Are Facts** - Past tense (HealthChangedEvent), not commands
+3. **Event Handlers Are Terminal Subscribers** - No cascading events/commands, allows UI/sound/analytics
+4. **Max Event Depth = 1** - No cascading events (leaf nodes only)
+5. **Document Event Topology** - EVENT_TOPOLOGY.md per feature
+
+**See**: [ADR-004: Feature-Based Clean Architecture](Docs/03-Reference/ADR/ADR-004-feature-based-clean-architecture.md)
 
 ### Logging - Microsoft.Extensions.Logging + Serilog
 
