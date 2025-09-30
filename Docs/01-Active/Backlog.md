@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-30 23:22 (VS_001 Phase 1 complete - domain layer implemented)
+**Last Updated**: 2025-09-30 23:33 (VS_001 Phase 2 complete - application layer implemented)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -69,13 +69,13 @@
 *Blockers preventing other work, production bugs, dependencies for other features*
 
 ### VS_001: Architectural Skeleton - Health System Walking Skeleton [ARCHITECTURE]
-**Status**: In Progress (Phase 1 Complete: Domain Layer)
+**Status**: In Progress (Phases 1-2 Complete: Domain + Application)
 **Owner**: Dev Engineer
-**Size**: S (4-6h total, ~1.5h Phase 1 complete, ~4.5h remaining)
+**Size**: S (4-6h total, ~2.25h complete, ~3.75h remaining)
 **Priority**: Critical (Validates architecture with real feature)
 **Markers**: [ARCHITECTURE] [WALKING-SKELETON] [END-TO-END]
 **Created**: 2025-09-30
-**Updated**: 2025-09-30 23:22 (Phase 1 complete - 61 tests passing, commit afe421c)
+**Updated**: 2025-09-30 23:33 (Phase 2 complete - 91 tests passing, commit 733a2bb)
 
 **What**: Implement minimal health system to validate complete architecture end-to-end
 **Why**: Prove the architecture works with a real feature after infrastructure is in place
@@ -420,18 +420,24 @@ Complexity: O(1) ✅
 
 ---
 
-**Progress Tracker** (Updated 2025-09-30 23:22):
+**Progress Tracker** (Updated 2025-09-30 23:33):
 - ✅ **Phase 1: Domain Layer** (1.5h, commit afe421c)
   - ActorId value object (readonly record struct)
   - Health value object (immutable, smart constructor)
   - IHealthComponent + HealthComponent
   - 61 unit tests (100% coverage)
   - Resolved: Namespace collision with type alias pattern
-- ⏳ **Phase 2: Application Layer** (next, estimated 2h)
-  - TakeDamageCommand + Handler
-  - HealthChangedEvent
-  - Handler tests
-- ⏸️ **Phase 3: Infrastructure Layer** (estimated 1h)
+- ✅ **Phase 2: Application Layer** (0.75h, commit 733a2bb)
+  - TakeDamageCommand + DamageResult + Handler
+  - HealthChangedEvent (INotification, past tense)
+  - IHealthComponentRegistry interface
+  - 30 handler tests with mocked dependencies
+  - Railway-oriented composition (Bind → Tap)
+  - Event publishing at END (ADR-004 Rule 1)
+- ⏳ **Phase 3: Infrastructure Layer** (next, estimated 1h)
+  - HealthComponentRegistry implementation
+  - DI registration in GameStrapper
+  - Integration tests
 - ⏸️ **Phase 4: Presentation Layer** (estimated 2h)
 
 ---
