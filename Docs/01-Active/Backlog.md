@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 001
-- **Next TD**: 001
+- **Next TD**: 002
 - **Next VS**: 005 
 
 
@@ -339,7 +339,110 @@
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*
 
+### TD_001: Architecture Enforcement Tests (NetArchTest + Custom)
+**Status**: Proposed
+**Owner**: Tech Lead → Dev Engineer (after approval)
+**Size**: M (2-3h)
+**Priority**: Important (Prevents architectural drift)
+**Markers**: [ARCHITECTURE] [TESTING] [POST-MORTEM]
+**Created**: 2025-09-30 (VS_004 post-mortem)
 
+**What**: Automated tests enforcing ADR-001/ADR-002/ADR-003 architectural rules + VS_004 lessons
+
+**Why**:
+- VS_004 revealed MediatR double-registration bug (caught by tests, but needs permanent guard)
+- DebugConsole LoggingService not registered (need completeness tests)
+- ADR-001 says "Core cannot depend on Godot" but no automated enforcement
+- **Tests as living documentation** > static docs (self-updating, enforced, always accurate)
+
+**How** (Test Categories):
+
+**1. NetArchTest - Dependency Rules** (~1h)
+```csharp
+// ADR-001: Core independence from Godot
+[Fact]
+public void Core_ShouldNotDependOnGodot()
+{
+    Types.InAssembly(typeof(IGodotEventBus).Assembly)
+        .Should().NotHaveDependencyOn("Godot")
+        .GetResult().IsSuccessful.Should().BeTrue();
+}
+
+// ADR-001: Core independence from Presentation
+[Fact]
+public void Core_ShouldNotDependOnPresentation()
+{
+    Types.InAssembly(typeof(IGodotEventBus).Assembly)
+        .That().ResideInNamespace("Darklands.Core")
+        .Should().NotHaveDependencyOn("Darklands.Infrastructure")
+        .GetResult().IsSuccessful.Should().BeTrue();
+}
+
+// ADR-003: Result<T> usage (future - optional)
+[Fact]
+public void PublicMethods_InCommandHandlers_ShouldReturnResult()
+{
+    // Enforce Result<T> pattern from ADR-003
+}
+```
+
+**2. MediatR Registration Tests** (~30min)
+```csharp
+// VS_004 POST-MORTEM: Prevent double-registration
+[Fact]
+public void MediatR_ShouldNotDoubleRegisterHandlers()
+{
+    // LESSON: assembly scan + open generic = 2x registration
+    var services = new ServiceCollection();
+    ConfigureServicesLikeMain(services);
+
+    var handlers = services.BuildServiceProvider()
+        .GetServices<INotificationHandler<TestEvent>>();
+
+    handlers.Should().HaveCount(1,
+        "UIEventForwarder should only be registered once (open generic pattern)");
+}
+```
+
+**3. DI Registration Completeness** (~30min)
+```csharp
+// VS_004 POST-MORTEM: DebugConsole failed to resolve LoggingService
+[Fact]
+public void AllAutoloadDependencies_ShouldBeRegistered()
+{
+    // LESSON: Autoloads using ServiceLocator need dependencies in Main.cs
+    var services = new ServiceCollection();
+    ConfigureServicesLikeMain(services);
+    var provider = services.BuildServiceProvider();
+
+    provider.GetService<LoggingService>()
+        .Should().NotBeNull("DebugConsole requires LoggingService");
+    provider.GetService<IGodotEventBus>()
+        .Should().NotBeNull("EventAwareNode requires IGodotEventBus");
+}
+```
+
+**Done When**:
+- ✅ NetArchTest package added to test project
+- ✅ ArchitectureTests.cs created with dependency rules
+- ✅ MediatRRegistrationTests.cs validates no double-registration
+- ✅ DICompletenessTests.cs validates autoload dependencies
+- ✅ All architecture tests passing (added to CI pipeline)
+- ✅ Category="Architecture" for easy filtering
+- ✅ Tests committed with comments explaining VS_004 post-mortem lessons
+
+**Depends On**: None (VS_004 complete)
+
+**Tech Lead Decision** (awaiting approval):
+- [ ] Approve scope and priority
+- [ ] Add NetArchTest to test infrastructure?
+- [ ] Any additional architectural rules to enforce?
+
+**Dev Engineer Notes** (after approval):
+- NetArchTest 8.x supports .NET 8
+- Tests will be fast (<100ms) - just reflection, no runtime overhead
+- Living documentation: Test comments reference ADR-001/002/003 + VS_004 post-mortem
+- CI integration: Add `--filter "Category=Architecture"` to quick.ps1
 
 ---
 
