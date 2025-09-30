@@ -39,6 +39,10 @@ public partial class DIBootstrapTest : Node2D
             "Combat", "Movement", "AI", "Infrastructure", "Network"
         };
 
+        // Create Godot sink (third sink for in-game debug console)
+        var godotFormatter = new Darklands.Infrastructure.Logging.GodotBBCodeFormatter();
+        var godotSink = new Darklands.Infrastructure.Logging.GodotRichTextSink(_logOutput, godotFormatter);
+
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Debug()
 
@@ -63,9 +67,10 @@ public partial class DIBootstrapTest : Node2D
                 outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] {SourceContext:l}: {Message:lj}{NewLine}",
                 shared: true  // Allow concurrent reads (for tail -f)
             )
+            .WriteTo.Sink(godotSink)  // Third sink: Godot RichTextLabel with BBCode
             .CreateLogger();
 
-        GD.Print("✅ Serilog configured (Console + File sinks with category filtering)");
+        GD.Print("✅ Serilog configured (Console + File + Godot sinks with category filtering)");
 
         // Initialize DI container with logging configuration
         var initResult = GameStrapper.Initialize(services =>
@@ -129,6 +134,19 @@ public partial class DIBootstrapTest : Node2D
         GD.Print($"✅ Extracted category 'Combat' from handler name: {testCategory}");
 
         AddLog($"[color=cyan]Category filtering test passed ✅[/color]");
+
+        // ===== VS_003 Phase 3: Test Godot RichText Sink with BBCode =====
+        GD.Print("\n=== Testing Godot RichText Sink (VS_003 Phase 3) ===");
+
+        // Get a logger and emit test logs at different levels
+        var logger = ServiceLocator.Get<Microsoft.Extensions.Logging.ILogger<DIBootstrapTest>>();
+
+        logger.LogDebug("This is a DEBUG message (gray) - low importance development info");
+        logger.LogInformation("This is an INFORMATION message (cyan) - normal operation");
+        logger.LogWarning("This is a WARNING message (gold) - attention needed!");
+        logger.LogError("This is an ERROR message (orange-red) - something went wrong");
+
+        GD.Print("✅ Emitted test logs at multiple levels to Godot sink");
 
         // Button is already connected via .tscn signal connection
         // No need to wire it up in code (would cause double-firing)
