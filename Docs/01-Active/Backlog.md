@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-09-08 17:32 (TD_019 completed by DevOps Engineer)
+**Last Updated**: 2025-09-30 10:58 (VS_002-004 created for skeleton infrastructure)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -11,7 +11,7 @@
 
 - **Next BR**: 001
 - **Next TD**: 001
-- **Next VS**: 002 
+- **Next VS**: 005 
 
 
 **Protocol**: Check your type's counter → Use that number → Increment the counter → Update timestamp
@@ -68,97 +68,323 @@
 ## 🔥 Critical (Do First)
 *Blockers preventing other work, production bugs, dependencies for other features*
 
-### VS_01: Architectural Skeleton - Walking Skeleton Implementation [ARCHITECTURE] [Score: 30/100]
+### VS_002: Infrastructure - Dependency Injection Foundation [ARCHITECTURE]
+**Status**: Ready for Dev
+**Owner**: Tech Lead → Dev Engineer (implement)
+**Size**: S (4-6h)
+**Priority**: Critical (Foundation for VS_003, VS_004, VS_001)
+**Markers**: [ARCHITECTURE] [FRESH-START] [INFRASTRUCTURE]
+**Created**: 2025-09-30
+**Broken Down**: 2025-09-30 (Tech Lead)
+
+**What**: Set up Microsoft.Extensions.DependencyInjection as the foundation for the application
+**Why**: Need DI container before we can inject loggers, event bus, or any services
+
+**Tech Lead Breakdown** (2025-09-30):
+Implementation follows phased protocol with test gates. Each phase must complete with passing tests before proceeding.
+
+**Phase 1: Domain Layer** (~1h)
+- File: `src/Darklands.Core/Domain/Infrastructure/IServiceLocator.cs`
+- Interface definition for Godot boundary pattern
+- Tests: Interface accessibility and signatures
+- Commit: `feat(VS_002): add IServiceLocator interface [Phase 1/4]`
+
+**Phase 2: Application Layer** (~1h)
+- File: `src/Darklands.Core/Application/Infrastructure/GameStrapper.cs`
+- Implements: Initialize(), GetServices(), RegisterCoreServices()
+- Includes temporary ITestService for validation
+- Tests: Initialization idempotency, service resolution, test service
+- Gate: `dotnet test --filter "Category=Phase2"` must pass
+- Commit: `feat(VS_002): add GameStrapper with service registration [Phase 2/4]`
+
+**Phase 3: Infrastructure Layer** (~2h)
+- File: `src/Darklands.Core/Infrastructure/DependencyInjection/ServiceLocatorBridge.cs`
+- Implements: GetService<T>(), GetRequiredService<T>()
+- Returns Result<T> for functional error handling
+- Service lifetime examples (Singleton, Transient)
+- Tests: Resolution success/failure, lifecycle validation
+- Gate: `dotnet test --filter "Category=Phase3"` must pass
+- Commit: `feat(VS_002): add ServiceLocatorBridge with lifetime tests [Phase 3/4]`
+
+**Phase 4: Presentation Layer** (~1-2h)
+- Files:
+  - `TestScenes/DI_Bootstrap_Test.tscn` (Godot scene)
+  - `TestScenes/DIBootstrapTest.cs` (test script)
+- Manual test: Button click resolves service, updates label
+- Validation: Console shows success messages, no errors
+- Commit: `feat(VS_002): add Godot test scene for DI validation [Phase 4/4]`
+
+**Done When**:
+- ✅ All Core tests pass (dotnet test)
+- ✅ GameStrapper.Initialize() succeeds
+- ✅ ServiceLocatorBridge.GetService<T>() returns Result<T>
+- ✅ Godot test scene works (manual validation)
+- ✅ No Godot references in Core project (dotnet list package)
+- ✅ All 4 phase commits exist in git history
+
+**Depends On**: None (first foundation piece)
+
+**Tech Lead Notes**:
+- ServiceLocator ONLY for Godot _Ready() methods (ADR-002)
+- Core code uses constructor injection
+- ITestService is temporary—remove after VS_001 complete
+- Pattern proven from old project, not speculative design
+
+---
+
+### VS_003: Infrastructure - Logging System with Runtime Configuration [ARCHITECTURE]
 **Status**: Proposed
 **Owner**: Product Owner → Tech Lead (breakdown)
 **Size**: M (6-8h)
-**Priority**: Critical (Foundation for all other work)
-**Markers**: [ARCHITECTURE] [FRESH-START] [WALKING-SKELETON]
+**Priority**: Critical (Prerequisite for debugging all other features)
+**Markers**: [ARCHITECTURE] [INFRASTRUCTURE] [DEVELOPER-EXPERIENCE]
 **Created**: 2025-09-30
 
-**What**: Implement minimal walking skeleton following new ADR-001, ADR-002, ADR-003 architecture
-**Why**: Fresh start with clean architecture - need proven foundation before building features
+**What**: Production-grade logging system with Microsoft.Extensions.Logging supporting multiple sinks and runtime configuration
+**Why**: Need comprehensive logging for development, debugging, and monitoring - must work in both Core C# and Godot contexts
+
+**Architecture Decision**:
+- ❌ NOT Godot Autoload (would violate ADR-001 Clean Architecture)
+- ✅ **Microsoft.Extensions.Logging abstractions in Core** (portable, industry standard)
+- ✅ **Serilog as provider in Presentation** (implementations live in Godot project)
+- ✅ Core uses `ILogger<T>` from MS.Extensions.Logging.Abstractions (zero concrete dependencies)
+- ✅ Presentation provides Serilog with multiple sinks (Console, Godot RichText, File)
+- ✅ Runtime dynamic configuration (change levels/sinks without restart)
+
+**Scope**:
+1. **Core Layer (Abstractions Only)**:
+   - Uses `ILogger<T>` from Microsoft.Extensions.Logging.Abstractions
+   - No concrete logging implementations (enforced by .csproj)
+
+2. **Infrastructure Layer (Serilog Implementation)**:
+   - GameStrapper configures Serilog as MS.Extensions.Logging provider
+   - Serilog sinks: Console, File, GodotRichText (custom)
+   - ILoggingService interface for runtime sink management
+   - LoggingService implementation with LoggingLevelSwitch
+   - Runtime sink enable/disable/toggle
+   - Runtime log level changes (Trace → Debug → Info → Warn → Error)
+
+3. **Presentation Layer (Godot Project)**:
+   - Custom Serilog sink: GodotRichTextSink (BBCode formatting)
+   - DebugConsoleNode (RichTextLabel for in-game log display)
+   - LogSettingsPanel (UI for runtime toggles)
+   - Serilog packages live in Darklands.csproj (not Core!)
+
+4. **Tests**:
+   - Core code uses ILogger<T> from abstractions only
+   - Verify: Core.csproj has NO Serilog packages (only MS.Extensions.Logging.Abstractions)
+   - Serilog can write to multiple sinks simultaneously
+   - Can enable/disable sinks at runtime
+   - Can change log level at runtime
+
+**Rich Format Support**:
+```
+[color=red][b]ERROR[/b][/color] [10:45:12] ActorService: Actor 123 not found
+[color=yellow]WARN[/color] [10:45:13] CombatHandler: Low health warning
+[color=cyan]INFO[/color] [10:45:14] GameStrapper: Services initialized
+[color=gray]DEBUG[/color] [10:45:15] EventBus: Subscribed to HealthChangedEvent
+[color=#666]TRACE[/color] [10:45:16] Handler: Entering ExecuteAttack method
+```
+
+**How** (Implementation Order):
+1. **Phase 1: Core** (~0.5h)
+   - Verify Core.csproj uses ONLY Microsoft.Extensions.Logging.Abstractions
+   - NO Serilog packages in Core!
+   - Define ILoggingService interface (optional - for runtime config)
+
+2. **Phase 2: Infrastructure - GameStrapper** (~1.5h)
+   - Configure Serilog as MS.Extensions.Logging provider
+   - Add Serilog sinks: Console, File
+   - Register ILogger<T> with DI via `services.AddLogging(builder => builder.AddSerilog())`
+   - Add LoggingLevelSwitch for runtime level changes
+   - Test: Core handler uses ILogger<T> and logs appear
+
+3. **Phase 3: Infrastructure - Custom Godot Sink** (~2h)
+   - Create GodotRichTextSink : ILogEventSink (Serilog custom sink)
+   - BBCode formatting for rich colors
+   - CallDeferred for thread-safe UI updates
+   - Register in GameStrapper: `.WriteTo.GodotRichText()`
+   - LoggingService for runtime sink enable/disable
+
+4. **Phase 4: Presentation - UI** (~2h)
+   - DebugConsoleNode (RichTextLabel scene for logs)
+   - LogSettingsPanel (dropdowns: log level, checkboxes: sinks)
+   - Wire to LoggingService for runtime config
+   - Manual test: Toggle sinks, change levels at runtime
+
+**Done When**:
+- ✅ Core code can use ILogger<T> via constructor injection
+- ✅ Logs appear in System.Console with colors
+- ✅ Logs appear in Godot in-game console with rich BBCode formatting
+- ✅ Logs persist to file
+- ✅ Can toggle each sink on/off at runtime (immediate effect)
+- ✅ Can change log level at runtime (Trace/Debug/Info/Warn/Error)
+- ✅ Tests verify Core has no Godot dependencies
+- ✅ In-game debug window shows logs beautifully formatted
+- ✅ Code committed with message: "feat: logging system with runtime config [VS_003]"
+
+**Depends On**: VS_002 (needs DI to inject ILogger)
+
+**Tech Lead Notes**:
+- **CRITICAL**: Core uses `ILogger<T>` from Microsoft.Extensions.Logging.**Abstractions** ONLY
+- **CRITICAL**: All Serilog packages go in Darklands.csproj (Godot project), NOT Core!
+- Pattern: Core → Abstraction, Infrastructure/Presentation → Implementation
+- Serilog acts as provider: `services.AddLogging(builder => builder.AddSerilog(Log.Logger))`
+- Custom sink: GodotRichTextSink : ILogEventSink (Serilog interface)
+- GodotRichTextSink must use CallDeferred for thread-safe UI updates
+- LogSettingsPanel should be accessible via F12 or debug menu
+- Reference: Same pattern as ASP.NET Core uses Serilog
+
+---
+
+### VS_004: Infrastructure - Event Bus System [ARCHITECTURE]
+**Status**: Proposed
+**Owner**: Product Owner → Tech Lead (breakdown)
+**Size**: S (4-6h)
+**Priority**: Critical (Prerequisite for Core → Godot communication)
+**Markers**: [ARCHITECTURE] [INFRASTRUCTURE]
+**Created**: 2025-09-30
+
+**What**: GodotEventBus to bridge MediatR domain events to Godot nodes
+**Why**: Core domain logic needs to notify Godot UI of state changes without coupling
+
+**Scope**:
+1. **Infrastructure Layer**:
+   - GodotEventBus (subscribes to MediatR INotification)
+   - Thread marshalling to main thread (CallDeferred)
+   - EventAwareNode base class (subscribe/unsubscribe pattern)
+   - Automatic cleanup on node disposal
+
+2. **Tests**:
+   - Can publish event from Core
+   - Godot node receives event
+   - Thread marshalling works correctly
+   - Unsubscribe prevents memory leaks
+
+**How** (Implementation Order):
+1. **Phase 1: Domain** (~1h)
+   - Define event interfaces
+   - Simple test event (TestEvent)
+
+2. **Phase 2: Application** (~1h)
+   - GodotEventBus implements INotificationHandler<T>
+   - Event subscription registry
+
+3. **Phase 3: Infrastructure** (~2h)
+   - Thread marshalling implementation
+   - EventAwareNode base class
+   - Automatic unsubscribe on _ExitTree()
+
+4. **Phase 4: Presentation** (~1h)
+   - Simple test scene with EventAwareNode
+   - Publish test event from Core
+   - Verify node receives event on main thread
+   - Manual test: Event updates Godot UI correctly
+
+**Done When**:
+- ✅ Can publish MediatR notification from Core
+- ✅ Godot nodes receive events via EventBus.Subscribe<T>()
+- ✅ Events delivered on main thread (no threading issues)
+- ✅ EventAwareNode auto-unsubscribes on disposal
+- ✅ Tests verify no memory leaks from subscriptions
+- ✅ Simple test scene demonstrates Core → Godot event flow
+- ✅ Code committed with message: "feat: event bus system [VS_004]"
+
+**Depends On**: VS_002 (needs DI)
+
+---
+
+### VS_001: Architectural Skeleton - Health System Walking Skeleton [ARCHITECTURE]
+**Status**: Proposed
+**Owner**: Product Owner → Tech Lead (breakdown)
+**Size**: S (4-6h)
+**Priority**: Critical (Validates architecture with real feature)
+**Markers**: [ARCHITECTURE] [WALKING-SKELETON] [END-TO-END]
+**Created**: 2025-09-30
+**Updated**: 2025-09-30 (Reduced scope - DI/Logger/EventBus now separate)
+
+**What**: Implement minimal health system to validate complete architecture end-to-end
+**Why**: Prove the architecture works with a real feature after infrastructure is in place
 
 **Context**:
-- Deleted ALL existing source code for fresh start
-- Created 3 new ADRs defining clean architecture
-- Need to prove architecture works end-to-end with simplest possible feature
+- VS_002, VS_003, VS_004 provide foundation (DI, Logger, EventBus)
+- This is the FIRST REAL FEATURE using that foundation
 - Follow "Walking Skeleton" pattern: thinnest possible slice through all layers
+- Validates ADR-001, ADR-002, ADR-003 work together
 
 **Scope** (Minimal Health System):
 1. **Domain Layer** (Pure C#):
    - Health value object with Create/Reduce/Increase
    - IHealthComponent interface
    - HealthComponent implementation
+   - Use Result<T> for all operations
 
 2. **Application Layer** (CQRS):
-   - TakeDamageCommand + Handler
-   - HealthChangedEvent
+   - TakeDamageCommand + Handler (uses ILogger<T>, publishes events)
+   - HealthChangedEvent (INotification)
    - Simple in-memory component registry
 
 3. **Infrastructure Layer**:
-   - GameStrapper (DI container setup)
-   - GodotEventBus implementation
-   - EventAwareNode base class
-   - ServiceLocatorBridge
-   - SelectMany extensions for CSharpFunctionalExtensions
+   - Register health services in GameStrapper
+   - ComponentRegistry implementation
 
 4. **Presentation Layer** (Godot):
-   - Simple test scene with one actor
-   - HealthComponentNode (shows health bar)
+   - Simple test scene with one actor sprite
+   - HealthComponentNode (EventAwareNode, shows health bar)
    - Button to damage actor
-   - Verify: Click button → Health bar updates
+   - Verify: Click button → Command → Event → Health bar updates
 
 5. **Tests**:
-   - Health value object tests
-   - TakeDamageCommandHandler tests
-   - EventBus subscription tests
+   - Health value object tests (validation, reduce, increase)
+   - TakeDamageCommandHandler tests (with mocked logger)
+   - Integration test: Command → Event flow
 
 **NOT in Scope** (defer to later):
 - Grid system
 - Movement
-- Combat mechanics
+- Complex combat mechanics
 - Multiple actors
 - AI
 - Turn system
-- Complex UI
+- Fancy UI
 
 **How** (Implementation Order):
-1. **Phase 1: Domain** (~2h)
+1. **Phase 1: Domain** (~1h)
    - Create Health value object with tests
    - Create IHealthComponent + HealthComponent
-   - Tests: Health.Create, Reduce, validation
+   - Tests: Health.Create, Reduce, validation with Result<T>
 
 2. **Phase 2: Application** (~2h)
-   - TakeDamageCommand + Handler
-   - HealthChangedEvent
+   - TakeDamageCommand + Handler (inject ILogger, IMediator)
+   - HealthChangedEvent (INotification)
    - ComponentRegistry service
-   - Tests: Handler logic with mocked registry
+   - Tests: Handler logic with mocked logger and registry
 
-3. **Phase 3: Infrastructure** (~2h)
-   - GameStrapper with DI setup
-   - GodotEventBus + UIEventForwarder
-   - EventAwareNode base class
-   - SelectMany extensions
+3. **Phase 3: Infrastructure** (~1h)
+   - Register services in GameStrapper
+   - ComponentRegistry implementation
+   - Verify DI resolution works
 
 4. **Phase 4: Presentation** (~2h)
    - Simple scene (1 sprite + health bar + damage button)
-   - HealthComponentNode
-   - Wire everything together
-   - Manual test: Click button → health bar updates
+   - HealthComponentNode extends EventAwareNode
+   - Subscribe to HealthChangedEvent
+   - Wire button click → Send TakeDamageCommand
+   - Manual test: Click button → see logs → health bar updates
 
 **Done When**:
 - ✅ Build succeeds (dotnet build)
-- ✅ Core tests pass (dotnet test)
+- ✅ Core tests pass (100% pass rate)
 - ✅ Godot project loads without errors
-- ✅ Can click "Damage" button and health bar updates
+- ✅ Can click "Damage" button and health bar updates smoothly
+- ✅ Logs appear in debug console showing command execution
 - ✅ No Godot references in Darklands.Core project
-- ✅ GodotEventBus routes events correctly
+- ✅ GodotEventBus routes HealthChangedEvent correctly
 - ✅ CSharpFunctionalExtensions Result<T> works end-to-end
 - ✅ All 3 ADRs validated with working code
-- ✅ Code committed with message: "feat: architectural skeleton [VS_011]"
+- ✅ Code committed with message: "feat: health system walking skeleton [VS_001]"
 
-**Depends On**: None (fresh start)
+**Depends On**: VS_002 (DI), VS_003 (Logger), VS_004 (EventBus)
 
 **Product Owner Notes** (2025-09-30):
 - This is the FOUNDATION - everything else builds on this

@@ -10,14 +10,28 @@
   <ItemGroup>
     <ProjectReference Include="src\Darklands.Core\Darklands.Core.csproj" />
   </ItemGroup>
-  
+
+  <ItemGroup>
+    <!-- Logging - Serilog as provider for Microsoft.Extensions.Logging -->
+    <PackageReference Include="Serilog" Version="4.3.0" />
+    <PackageReference Include="Serilog.Extensions.Logging" Version="8.0.0" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
+
+    <!-- Microsoft.Extensions.Logging implementations -->
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.0" />
+
+    <!-- Dependency Injection implementations -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
+  </ItemGroup>
+
   <ItemGroup>
     <!-- Exclude src folder from Godot compilation -->
     <Compile Remove="src\**" />
     <EmbeddedResource Remove="src\**" />
     <None Remove="src\**" />
   </ItemGroup>
-  
+
   <ItemGroup>
     <!-- Exclude tests folder from Godot compilation -->
     <Compile Remove="tests\**" />

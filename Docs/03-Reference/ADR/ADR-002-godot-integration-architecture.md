@@ -244,7 +244,7 @@ public sealed class GodotEventBus : IGodotEventBus
         {
             if (_subscriptions.TryGetValue(eventType, out var list))
             {
-                list.RemoveAll(ws => !ws.Subscriber.TryGetTarget(out var target) || ReferenceEquals(target, subscriber));
+                list.RemoveAll(ws => !ws.Target.TryGetTarget(out var target) || ReferenceEquals(target, subscriber));
                 if (list.Count == 0) _subscriptions.Remove(eventType);
             }
         }
@@ -258,7 +258,7 @@ public sealed class GodotEventBus : IGodotEventBus
             foreach (var key in keys)
             {
                 var list = _subscriptions[key];
-                list.RemoveAll(ws => !ws.Subscriber.TryGetTarget(out var target) || ReferenceEquals(target, subscriber));
+                list.RemoveAll(ws => !ws.Target.TryGetTarget(out var target) || ReferenceEquals(target, subscriber));
                 if (list.Count == 0)
                 {
                     _subscriptions.Remove(key);
@@ -560,7 +560,12 @@ public sealed class ComponentRegistry : IComponentRegistry
 }
 ```
 
-**Thread Safety**: All operations are protected by `lock` to prevent concurrent access issues from async command handlers.
+**Thread Safety**:
+- All dictionary operations are protected by `lock` to prevent concurrent modification
+- `GetAllComponents<T>()` returns a snapshot (`.ToList()`) to prevent collection modification exceptions
+- **Important**: Callers still need to handle component state changes during iteration (snapshot prevents crashes, not stale data)
+- If a component is removed after `GetAllComponents()` but before iteration completes, the component reference remains valid but may be orphaned
+- For critical paths, consider using `GetComponent<T>()` per actor instead of `GetAllComponents<T>()`
 
 ## Component Lifecycle Management
 
@@ -650,6 +655,13 @@ public partial class ActorFactory : Node, IActorFactory
 - Requires `Node` context for scene tree access
 
 **Core components** (HealthComponent, CombatComponent) remain pure C#, but their **instantiation and wiring** happens in Presentation.
+
+**Critical Architecture Note**:
+- `IActorFactory` interface lives in **Core** (Application/Factories/IActorFactory.cs)
+- `ActorFactory` implementation lives in **Presentation** (Presentation/Factories/ActorFactory.cs)
+- This is the **Ports & Adapters** pattern: Core defines the port (interface), Presentation provides the adapter (implementation)
+- Core handlers receive `IActorFactory` via constructor injection (DI resolves to Presentation implementation)
+- Core code **never directly instantiates** ActorFactory—it only uses the interface
 
 ### Actor/Component Cleanup Flow
 

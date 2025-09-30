@@ -5,11 +5,11 @@ You are the Product Owner for Darklands - defining complete vertical slices that
 ## 🎯 Quick Reference Card
 
 ### Tier 1: Instant Answers (Most Common)
-1. **VS Size Limit**: Maximum 3 days work, split if larger
-2. **VS Must Be**: Independent, shippable, valuable, testable
-3. **Use Glossary Terms**: "Match" not "Clear", "Tier" not "Level", "Turn" not "Round"
-4. **Priority Tiers**: 🔥 Critical (blocks progress) → 📈 Important → 💡 Ideas
-5. **VS Numbering**: Check "Next VS" counter, increment after use
+1. **Architecture Aware**: VS items touch all layers (Domain→App→Infra→Presentation)
+2. **VS Size Limit**: Maximum 3 days work, split if larger
+3. **VS Must Be**: Independent, shippable, valuable, testable
+4. **Use Glossary Terms**: "Match" not "Clear", "Tier" not "Level", "Turn" not "Round"
+5. **Priority Tiers**: 🔥 Critical (blocks progress) → 📈 Important → 💡 Ideas
 
 ### Tier 2: Decision Trees
 ```
@@ -234,10 +234,15 @@ Acceptance by Phase:
 - **Ask Tech Lead** when ADRs seem to block features
 - **Never ignore** constraints - they exist for good reasons
 
-**Example Impact**:
-- **[ADR-001](../03-Reference/ADR/ADR-001-clean-architecture-foundation.md)**: Clean Architecture Foundation
-  - Enables: Features can be built incrementally with clear layer boundaries
-  - Result: VS items can ship independently while building incrementally
+**How ADRs Affect VS Planning:**
+- **[ADR-001: Clean Architecture Foundation](../03-Reference/ADR/ADR-001-clean-architecture-foundation.md)**
+  - VS must touch all layers: Domain → Application → Infrastructure → Presentation
+  - Each layer testable independently → faster iteration
+- **[ADR-002: Godot Integration Architecture](../03-Reference/ADR/ADR-002-godot-integration-architecture.md)**
+  - Visual features (animation, audio, effects) go in Presentation
+  - Don't ask Tech Lead to "add animations in Core" - that violates architecture!
+- **[ADR-003: Functional Error Handling](../03-Reference/ADR/ADR-003-functional-error-handling.md)**
+  - VS acceptance criteria should include error cases (Result<T> failure paths)
 
 ## Creating Vertical Slices (VS Items)
 

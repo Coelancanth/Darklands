@@ -24,7 +24,71 @@
 
 **Complete Protocols**: [BranchAndCommitDecisionProtocols.md](../02-Design/Protocols/BranchAndCommitDecisionProtocols.md)
 
-## 🔄 Model-First Implementation Protocol (ADR-006)
+## 🏗️ Architecture: Clean Core + Godot Integration
+
+### MANDATORY: Strict Layer Separation
+
+**Our architecture enforces separation at COMPILE-TIME via project structure:**
+
+```
+Darklands.Core.csproj (Pure C#)         Darklands.csproj (Godot C#)
+- Domain Layer                          - Presentation Layer ONLY
+- Application Layer                     - Godot nodes, scenes
+- Infrastructure Layer                  - References Core ✅
+- ZERO Godot dependencies ✅            - Uses ServiceLocator bridge
+- Uses constructor injection            - Adapts to Godot lifecycle
+```
+
+### Critical Rules
+
+**IN CORE (src/Darklands.Core/):**
+```csharp
+// ✅ DO: Constructor injection
+public ExecuteAttackCommandHandler(
+    ILogger<ExecuteAttackCommandHandler> logger,
+    IMediator mediator) { ... }
+
+// ❌ DON'T: Service Locator
+var logger = ServiceLocator.Get<ILogger>();  // FORBIDDEN!
+
+// ❌ DON'T: Godot references
+using Godot;  // Won't compile - good!
+```
+
+**IN PRESENTATION (Godot project root):**
+```csharp
+// ✅ DO: ServiceLocator ONLY in _Ready()
+public override void _Ready()
+{
+    base._Ready();
+    _mediator = ServiceLocator.Get<IMediator>();  // OK here
+}
+
+// ❌ DON'T: ServiceLocator outside _Ready()
+public void OnClick()
+{
+    var mediator = ServiceLocator.Get<IMediator>();  // Bad - cache in _Ready()!
+}
+
+// ✅ DO: Reference Core for commands/events
+using Darklands.Core.Application.Commands;
+await _mediator.Send(new ExecuteAttackCommand(...));
+```
+
+### Why ServiceLocator at Boundary is Pragmatic
+
+**The Constraint**: Godot instantiates nodes via scene loading, not DI.
+
+**The Solution**: ServiceLocator as thin bridge (NOT core architecture).
+
+**Benefits**:
+- ✅ Core remains testable (constructor injection)
+- ✅ Godot integration stays natural
+- ✅ Clear separation enforced by project structure
+
+**See**: [ADR-002: Godot Integration Architecture](../03-Reference/ADR/ADR-002-godot-integration-architecture.md)
+
+## 🔄 Model-First Implementation Protocol
 
 ### Core Principle: Build Inside-Out
 All features MUST be implemented in strict phases, starting with pure domain logic and expanding outward. **NO EXCEPTIONS**.
@@ -70,7 +134,7 @@ Phases:
   ⬜ Presentation (not started)
 ```
 
-**Complete Details**: [ADR-006](../03-Reference/ADR/ADR-006-model-first-implementation-protocol.md) | **Reference**: [Move Block Pattern](../../src/Features/Block/Move/)
+**Complete Details**: [ADR-001](../03-Reference/ADR/ADR-001-clean-architecture-foundation.md), [ADR-002](../03-Reference/ADR/ADR-002-godot-integration-architecture.md)
 
 ## 🧠 Owner-Based Ultra-Think Protocol
 

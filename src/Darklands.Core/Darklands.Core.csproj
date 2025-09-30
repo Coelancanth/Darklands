@@ -14,15 +14,16 @@
     <!-- CQRS Pattern -->
     <PackageReference Include="MediatR" Version="12.4.1" />
 
-    <!-- Logging -->
-    <PackageReference Include="Serilog" Version="4.3.0" />
-    <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
-    <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
-    <PackageReference Include="Serilog.Extensions.Logging" Version="8.0.0" />
+    <!-- Logging (Abstractions ONLY - implementations in Godot project) -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
 
-    <!-- Dependency Injection -->
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.0" />
+    <!-- Dependency Injection (Abstractions ONLY - implementations in Godot project) -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
+  </ItemGroup>
+
+  <!-- Allow tests to access internal types -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Darklands.Core.Tests" />
   </ItemGroup>
 
   <!-- CRITICAL: Husky.NET auto-installation -->
