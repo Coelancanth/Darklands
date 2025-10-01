@@ -158,10 +158,12 @@ git checkout -b feat/VS_005-grid-fov-terrain
 - Tests: 41 new Phase 1 tests (102 total suite, 0.38s execution)
 - Railway-oriented: `IsPassable`/`IsOpaque` use functional composition via `.Map()`
 
-**🔄 Phase 2 In Progress** - Application layer (started 2025-10-01 12:00)
-- ✅ Service abstractions: `IFOVService`, `IActorPositionService` (Clean Architecture boundaries)
-- ✅ MoveActorCommand: Passability validation + position updates (10 tests, NSubstitute mocking)
-- 🚧 Next: `CalculateFOVQuery`, `GetVisibleActorsQuery` (query composition pattern)
+**✅ Phase 2 Complete** - Application layer ([a587a3f](https://github.com/user/repo/commit/a587a3f) + next commit)
+- Service abstractions: `IFOVService`, `IActorPositionService` (Clean Architecture boundaries)
+- Commands: `MoveActorCommand` with passability validation + position updates
+- Queries: `CalculateFOVQuery` (FOV delegation), `GetVisibleActorsQuery` (query composition via IMediator)
+- Tests: 28 new Phase 2 tests using NSubstitute (130 total suite, 0.57s execution)
+- **Next**: Phase 3 - Infrastructure (real IFOVService with GoRogue, ActorPositionService impl)
 
 ---
 
