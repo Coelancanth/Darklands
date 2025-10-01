@@ -160,7 +160,7 @@
 - **Risks**: A* performance (mitigated by algorithm choice + benchmark test), Godot Tween async (mitigated by existing pattern)
 - **Next Step**: Hand off to Dev Engineer for Phase 1-4 implementation
 
-**Dev Engineer Progress** (2025-10-01 16:32, Phase 1 complete 16:33):
+**Dev Engineer Progress** (2025-10-01 16:32, Phase 1 complete 16:33, Phase 2 complete 16:40):
 - **Architecture Review Complete**: ADR alignment validated, existing Grid/FOV patterns studied
 - **Interface Refinement**: Separated passability check from cost calculation for clearer A* semantics
   - **Rationale**: Boolean passability (can/cannot) vs quantitative cost (how expensive) are distinct concerns
@@ -170,7 +170,15 @@
   - Defined `IPathfindingService` interface with `isPassable` + `getCost` parameters
   - **Tests**: All 189 existing tests pass ✅
   - **Key Insight**: No new domain models needed - Position from Domain/Common sufficient (validates ADR-004 shared primitive strategy)
-  - **Next**: Phase 2 - Application layer (Commands/Handlers/Queries)
+- **✅ Phase 2 Complete** (~1h actual, 3h estimated - ahead of schedule!)
+  - **Query Layer**: `FindPathQuery` + handler (thin wrapper, delegates to service)
+  - **Command Layer**: `MoveAlongPathCommand` + handler with cancellation support
+  - **Key Design**: Command composition - delegates to existing `MoveActorCommand` per step (reuses validation, FOV, events)
+  - **Cancellation Strategy**: Checks `IsCancellationRequested` before each step (graceful stop, no rollback)
+  - **Tests**: 14 new tests (7 query, 7 command) covering valid paths, failures, cancellation, architecture validation
+  - **Total Tests**: 203 pass (189 existing + 14 new Phase 2) ✅
+  - **Key Insight**: Graceful cancellation returns `Result.Success()` with partial completion (not exception) - actor stays at current tile
+  - **Next**: Phase 3 - Infrastructure (A* pathfinding service implementation)
 
 ---
 
