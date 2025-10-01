@@ -34,17 +34,18 @@ public class AStarPathfindingService : IPathfindingService
 {
     private readonly ILogger<AStarPathfindingService> _logger;
 
-    // 8 directions: N, S, E, W, NE, NW, SE, SW
+    // 8 directions: Diagonals first for optimal pathfinding, then cardinals
+    // Diagonal-first order ensures shortest paths on uniform-cost grids
     private static readonly Position[] Directions = new[]
     {
-        new Position(0, -1),  // N
-        new Position(0, 1),   // S
-        new Position(-1, 0),  // W
-        new Position(1, 0),   // E
         new Position(1, -1),  // NE
         new Position(-1, -1), // NW
         new Position(1, 1),   // SE
-        new Position(-1, 1)   // SW
+        new Position(-1, 1),  // SW
+        new Position(0, -1),  // N
+        new Position(0, 1),   // S
+        new Position(-1, 0),  // W
+        new Position(1, 0)    // E
     };
 
     public AStarPathfindingService(ILogger<AStarPathfindingService> logger)
