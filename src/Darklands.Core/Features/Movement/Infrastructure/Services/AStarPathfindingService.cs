@@ -87,10 +87,11 @@ public class AStarPathfindingService : IPathfindingService
         }
 
         // A* data structures
-        var openSet = new PriorityQueue<Position, int>();
+        // Use double for costs to preserve diagonal movement precision (1.414 vs 1.0)
+        var openSet = new PriorityQueue<Position, double>();
         var openSetHash = new HashSet<Position>(); // O(1) membership check
         var closedSet = new HashSet<Position>();
-        var gScore = new Dictionary<Position, int>(); // Cost from start to position
+        var gScore = new Dictionary<Position, double>(); // Cost from start to position
         var parent = new Dictionary<Position, Position>(); // For path reconstruction
 
         // Initialize with start position
@@ -133,8 +134,13 @@ public class AStarPathfindingService : IPathfindingService
                 if (!isPassable(neighbor))
                     continue;
 
-                // Calculate tentative gScore
-                var movementCost = getCost(neighbor);
+                // Calculate movement cost: diagonal = √2 ≈ 1.414, cardinal = 1.0
+                // This ensures geometrically shortest paths are found
+                // Use double precision to avoid truncation (e.g., 1.414 truncated to 1)
+                bool isDiagonal = direction.X != 0 && direction.Y != 0;
+                double baseCost = getCost(neighbor);
+                double movementCost = isDiagonal ? baseCost * Math.Sqrt(2) : baseCost;
+
                 var tentativeGScore = gScore[current] + movementCost;
 
                 // If this path to neighbor is better than any previous one
@@ -143,7 +149,7 @@ public class AStarPathfindingService : IPathfindingService
                     // Record this path
                     parent[neighbor] = current;
                     gScore[neighbor] = tentativeGScore;
-                    var fScoreValue = tentativeGScore + ChebyshevDistance(neighbor, goal);
+                    double fScoreValue = tentativeGScore + ChebyshevDistance(neighbor, goal);
 
                     // Add to open set (even if already there - priority queue will handle it)
                     openSet.Enqueue(neighbor, fScoreValue);

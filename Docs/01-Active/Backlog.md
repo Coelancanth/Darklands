@@ -203,6 +203,15 @@
   - **Alternative Considered**: Diagonal cost = 1.414 (Euclidean) - rejected to follow roguelike genre convention (Nethack, DCSS use 1.0)
   - **Tests**: All 215 tests still pass ✅
   - **Status**: Ready for manual verification in Godot
+- **✅ Pathfinding Precision Fix** (Bug fix #2, 2025-10-01 17:27):
+  - **Bug**: Visually incorrect paths (zigzags instead of straight diagonals) despite diagonal-first exploration
+  - **Root Cause**: Integer truncation in diagonal cost calculation - `(int)(baseCost * 1.414)` truncated to `1` when `baseCost=1`
+  - **Impact**: Diagonal moves cost 1 instead of ~1.414, making A* unable to distinguish straight vs zigzag paths (both cost 3)
+  - **Fix**: Changed internal A* costs from `int` to `double`, used `Math.Sqrt(2)` for precise diagonal calculation
+  - **Changes**: `PriorityQueue<Position, double>`, `Dictionary<Position, double> gScore`, diagonal cost = `baseCost * Math.Sqrt(2)`
+  - **Tests**: All 162 tests pass (Core + Movement) ✅
+  - **Key Insight**: Geometric accuracy requires floating-point precision - integer costs break A* optimality for diagonal movement
+  - **Status**: ✅ Complete - paths now geometrically optimal
 
 ---
 
