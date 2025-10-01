@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-01 16:17 (Tech Lead: VS_006 updated with 8-directional + right-click cancellation)
+**Last Updated**: 2025-10-01 17:54 (Dev Engineer: VS_006 complete, TD_002 created for debug panel)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 004
-- **Next TD**: 002
+- **Next TD**: 003
 - **Next VS**: 007
 
 
@@ -69,8 +69,8 @@
 *Blockers preventing other work, production bugs, dependencies for other features*
 
 ### VS_006: Interactive Movement System
-**Status**: Approved
-**Owner**: Tech Lead → Dev Engineer (for implementation)
+**Status**: ✅ Done (2025-10-01 17:54)
+**Owner**: Dev Engineer (completed)
 **Size**: L (2-3 days)
 **Priority**: Critical (core gameplay mechanic)
 **Markers**: [GAMEPLAY] [USER-EXPERIENCE]
@@ -212,10 +212,30 @@
   - **Tests**: All 162 tests pass (Core + Movement) ✅
   - **Key Insight**: Geometric accuracy requires floating-point precision - integer costs break A* optimality for diagonal movement
   - **Status**: ✅ Complete - paths now geometrically optimal
+- **✅ UI Bug Fixes** (Post-Phase 4, 2025-10-01 17:30-17:45):
+  - **Bug #1**: Path preview artifact - old path overlayed new path when hovering to different destination
+    - **Fix**: Call `ClearPathPreview()` FIRST before calculating new path (line 619)
+  - **Bug #2**: Fog of war didn't hide actors - enemies visible through unexplored fog
+    - **Fix**: Added actor overlay layer at Z=20 (above fog at Z=10), conditional visibility based on FOV state
+  - **Bug #3**: Path preview shown during movement - confusing UX
+    - **Fix**: Suppress hover preview when `_movementCancellation != null` (active movement)
+  - **Bug #4**: Fog of war didn't hide terrain - walls visible in unexplored areas
+    - **Fix**: Progressive terrain painting - cells start black, revealed when explored (OnFOVCalculated)
+  - **Bug #5**: Fog of war showed actors in explored areas - enemies should only be visible in active FOV
+    - **Fix**: Hide actors in explored areas (line 422) - true roguelike fog of war
+  - **Commits**: 4 UI bug fixes (35a9afa, 4c17f2b, 3f17eb9, 5cc7016)
+- **✅ Logging Refactor** (ADR-001 compliance, 2025-10-01 17:50):
+  - **Issue**: GridTestSceneController used GD.Print() (Godot-specific, not portable)
+  - **Fix**: Replaced ALL GD.Print/PrintErr with ILogger<T> (structured logging, log levels, testable)
+  - **Pattern**: Retrieved logger via ServiceLocator in _Ready(), used LogInformation/LogDebug/LogError
+  - **Benefit**: Consistent with Core layer (ADR-001), structured logs, filterable by level
+  - **Commit**: 9ca924f (removed 69 lines of GD.Print, added 35 lines of ILogger)
+- **✅ Final Status**: All acceptance criteria met, 215 tests pass, ADR-compliant, production-ready
 
 ---
 
 *Recently completed and archived (2025-10-01):*
+- **VS_006**: Interactive Movement System - A* pathfinding, hover preview, fog of war, ILogger refactor ✅ (2025-10-01 17:54)
 - **VS_005**: Grid, FOV & Terrain System - Custom shadowcasting, 189 tests, event-driven integration ✅ (2025-10-01 15:19)
 - **VS_001**: Health System Walking Skeleton - Architectural foundation validated ✅
 - **BR_001**: Race Condition - Fixed with WithComponentLock pattern ✅
@@ -228,7 +248,46 @@
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*
 
-**No important items!** ✅ (Clear until VS_006 progresses to next owner)
+### TD_002: In-Game Debug Panel with ILogger Integration
+**Status**: Proposed
+**Owner**: Tech Lead (for approval) → Dev Engineer (for implementation)
+**Size**: S (<4h)
+**Priority**: Important (affects debugging velocity)
+**Markers**: [DEVELOPER-EXPERIENCE] [INFRASTRUCTURE]
+
+**What**: Create in-game debug panel that displays ILogger output with filtering capabilities
+
+**Why**:
+- **Current Issue**: ILogger logs go to Serilog backend but not visible in GridTestScene
+- Godot Output panel is empty (no messages) despite extensive logging added
+- Developers need real-time log visibility during gameplay testing
+- Log level filtering (Debug/Info/Warning/Error) speeds up debugging
+
+**How** (Implementation Approach):
+- Create `DebugPanelNode.cs` (Godot UI panel, bottom of screen)
+- Implement custom `ILoggerProvider` that forwards logs to UI
+- Register provider in `GameStrapper` (ADR-001: logging infrastructure)
+- Panel features:
+  - **Log display**: ScrollContainer with recent N messages (circular buffer)
+  - **Level filtering**: Buttons to toggle Debug/Info/Warning/Error visibility
+  - **Color coding**: Debug=gray, Info=white, Warning=yellow, Error=red
+  - **Toggle visibility**: F12 key to show/hide panel (default: visible in dev builds)
+  - **Performance**: Async message queue to avoid blocking game loop
+
+**Done When**:
+- ✅ DebugPanelNode integrated in GridTestScene
+- ✅ ILogger messages appear in panel in real-time
+- ✅ Log level filtering works (can hide Debug, show only Errors, etc.)
+- ✅ F12 toggles panel visibility
+- ✅ No performance impact (logs don't block rendering)
+- ✅ Messages color-coded by severity
+- ✅ All 215 existing tests still pass
+
+**Depends On**: None (infrastructure already in place)
+
+**Tech Lead Decision**: _(Pending approval)_
+
+---
 
 ---
 
