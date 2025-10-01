@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using CSharpFunctionalExtensions;
 using Darklands.Core.Domain.Common;
 using Darklands.Core.Features.Grid.Application.Commands;
 using Darklands.Core.Features.Grid.Application.Queries;
@@ -380,15 +381,22 @@ public partial class GridTestSceneController : Node2D
 
     /// <summary>
     /// Event handler: FOV calculated - update fog of war (3-state system).
-    /// Unexplored = nearly opaque black, Explored = semi-transparent black, Visible = no fog.
+    /// TRUE FOG OF WAR:
+    /// - Unexplored: Pure black (no terrain, no actors visible)
+    /// - Explored: Show terrain memory, HIDE actors (they may have moved)
+    /// - Visible (FOV): Show terrain AND actors (real-time)
     /// </summary>
-    private void OnFOVCalculated(FOVCalculatedEvent evt)
+    private async void OnFOVCalculated(FOVCalculatedEvent evt)
     {
         if (!evt.ActorId.Equals(_activeActorId))
             return; // Only show active actor's FOV
 
         // Create set of currently visible positions for fast lookup
         var visibleSet = new HashSet<Position>(evt.VisiblePositions);
+
+        // Get actor positions for visibility checking
+        var playerPosResult = await _mediator.Send(new GetActorPositionQuery(_playerId));
+        var dummyPosResult = await _mediator.Send(new GetActorPositionQuery(_dummyId));
 
         // Update fog of war for all cells (3-state system)
         for (int x = 0; x < GridSize; x++)
@@ -399,24 +407,60 @@ public partial class GridTestSceneController : Node2D
 
                 if (visibleSet.Contains(pos))
                 {
-                    // Currently visible: No fog, mark as explored
+                    // Currently visible (FOV): No fog, mark as explored
                     _fovCells[x, y].Color = VisibleFog;
                     _exploredCells[x, y] = true;
+
+                    // Show actors ONLY in currently visible areas (real-time)
+                    UpdateActorVisibility(pos, playerPosResult, dummyPosResult, true);
                 }
                 else if (_exploredCells[x, y])
                 {
                     // Previously explored but not currently visible: Dim fog
                     _fovCells[x, y].Color = ExploredFog;
+
+                    // HIDE actors in explored areas (they may have moved - no memory of enemies)
+                    UpdateActorVisibility(pos, playerPosResult, dummyPosResult, false);
                 }
                 else
                 {
-                    // Never explored: Heavy fog
+                    // Never explored: Heavy fog (pure black)
                     _fovCells[x, y].Color = UnexploredFog;
+
+                    // HIDE actors in unexplored areas (true fog of war)
+                    UpdateActorVisibility(pos, playerPosResult, dummyPosResult, false);
                 }
             }
         }
 
         GD.Print($"FOV updated: {evt.VisiblePositions.Count} positions visible");
+    }
+
+    /// <summary>
+    /// Updates actor visibility based on exploration state.
+    /// </summary>
+    private void UpdateActorVisibility(
+        Position pos,
+        Result<Position> playerPosResult,
+        Result<Position> dummyPosResult,
+        bool shouldBeVisible)
+    {
+        // Check if player is at this position
+        if (playerPosResult.IsSuccess && playerPosResult.Value.Equals(pos))
+        {
+            _actorCells[pos.X, pos.Y].Color = shouldBeVisible ? PlayerColor : Colors.Transparent;
+            return;
+        }
+
+        // Check if dummy is at this position
+        if (dummyPosResult.IsSuccess && dummyPosResult.Value.Equals(pos))
+        {
+            _actorCells[pos.X, pos.Y].Color = shouldBeVisible ? DummyColor : Colors.Transparent;
+            return;
+        }
+
+        // No actor here
+        _actorCells[pos.X, pos.Y].Color = Colors.Transparent;
     }
 
     /// <summary>
