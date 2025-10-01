@@ -16,6 +16,13 @@ namespace Darklands.Core.Tests.Application.Infrastructure;
 [Collection("GameStrapperCollection")]
 public class GameStrapperTests
 {
+    public GameStrapperTests()
+    {
+        // CRITICAL: Reset GameStrapper before each test to ensure clean state
+        // This prevents test pollution from previous test failures
+        GameStrapper.Reset();
+    }
+
     [Fact]
     public void Initialize_ShouldSucceed_OnFirstCall()
     {
