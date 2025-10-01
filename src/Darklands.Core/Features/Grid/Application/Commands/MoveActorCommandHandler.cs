@@ -47,6 +47,19 @@ public class MoveActorCommandHandler : IRequestHandler<MoveActorCommand, Result>
             request.TargetPosition.X,
             request.TargetPosition.Y);
 
+        // Get current position BEFORE moving (needed for complete event)
+        var oldPositionResult = _actorPositionService.GetPosition(request.ActorId);
+        if (oldPositionResult.IsFailure)
+        {
+            _logger.LogWarning(
+                "Move failed for actor {ActorId}: {Error}",
+                request.ActorId,
+                oldPositionResult.Error);
+            return Result.Failure(oldPositionResult.Error);
+        }
+
+        var oldPosition = oldPositionResult.Value;
+
         // Validate target position is passable (railway-oriented programming)
         var passabilityResult = _gridMap.IsPassable(request.TargetPosition);
 
@@ -101,7 +114,8 @@ public class MoveActorCommandHandler : IRequestHandler<MoveActorCommand, Result>
 
         // Emit events (facts): Actor moved + FOV calculated
         // Presentation layer subscribes to update UI
-        await _eventBus.PublishAsync(new ActorMovedEvent(request.ActorId, request.TargetPosition));
+        // Event contains complete fact: moved FROM oldPosition TO newPosition
+        await _eventBus.PublishAsync(new ActorMovedEvent(request.ActorId, oldPosition, request.TargetPosition));
 
         if (fovResult.IsSuccess)
         {

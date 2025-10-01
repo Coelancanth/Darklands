@@ -259,29 +259,22 @@ public partial class GridTestSceneController : Node2D
     }
 
     /// <summary>
-    /// Event handler: Actor moved - update cell color.
+    /// Event handler: Actor moved - update cell colors.
+    /// Event contains complete information (old + new positions) - no state tracking needed!
     /// </summary>
     private void OnActorMoved(ActorMovedEvent evt)
     {
-        // Get old position to restore terrain color
-        var oldPosResult = _mediator.Send(new GetActorPositionQuery(evt.ActorId)).Result;
-
-        // Restore old cell to terrain color (clear actor color)
-        if (oldPosResult.IsSuccess)
+        // Restore old cell to terrain color (event tells us the old position!)
+        if (evt.OldPosition.X != evt.NewPosition.X || evt.OldPosition.Y != evt.NewPosition.Y)
         {
-            var oldPos = oldPosResult.Value;
-            // Only restore if we actually moved (old != new)
-            if (oldPos.X != evt.NewPosition.X || oldPos.Y != evt.NewPosition.Y)
-            {
-                RestoreTerrainColor(oldPos.X, oldPos.Y);
-            }
+            RestoreTerrainColor(evt.OldPosition.X, evt.OldPosition.Y);
         }
 
         // Set new cell to actor color
         var actorColor = evt.ActorId.Equals(_playerId) ? PlayerColor : DummyColor;
         SetCellColor(evt.NewPosition.X, evt.NewPosition.Y, actorColor);
 
-        GD.Print($"Actor moved to ({evt.NewPosition.X}, {evt.NewPosition.Y})");
+        GD.Print($"Actor moved from ({evt.OldPosition.X},{evt.OldPosition.Y}) to ({evt.NewPosition.X},{evt.NewPosition.Y})");
     }
 
     /// <summary>
