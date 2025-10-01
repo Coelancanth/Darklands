@@ -12,24 +12,31 @@ The Core architecture is complete and event-driven - this is just the visual lay
 
 ---
 
-## Step 1: Import Kenney Tileset (~2 minutes)
+## Step 1: Configure Pixel-Perfect Rendering (~1 minute)
 
-### 1.1 Check Asset Import
-1. Open Godot project
-2. Navigate to `assets/micro-roguelike/` in FileSystem dock
-3. Click `colored_tilemap.png`
-4. In Import dock (right side), verify:
-   - **Import As**: Texture2D
-   - **Filter**: Nearest (for pixel-perfect rendering)
-   - Click "Reimport" if you changed anything
+### 1.1 Set Global Texture Filter (For Pixel Art)
+1. **Menu Bar** → **Project** → **Project Settings**
+2. Search for: `default_texture_filter`
+3. Find: **Rendering → Textures → Canvas Textures → Default Texture Filter**
+4. Set to: **Nearest** (disables texture blurring for crisp pixels)
+5. Click **Close**
 
-### 1.2 Create TileSet Resource
+### 1.2 Verify Asset Import
+1. Navigate to `assets/micro-roguelike/` in FileSystem dock
+2. Click `colored_tilemap.png`
+3. In Import dock (right side), verify:
+   - **Import As**: Texture2D ✅
+   - **Compress Mode**: Lossless ✅
+   - **Fix Alpha Border**: On ✅
+   - (Filter is controlled by Project Settings, not here)
+
+### 1.3 Create TileSet Resource
 1. In FileSystem dock, right-click `assets/` → **New Resource**
 2. Search for "TileSet" → Click "Create"
 3. Save as `assets/grid_tileset.tres`
 4. Double-click `grid_tileset.tres` to open TileSet editor (bottom panel)
 
-### 1.3 Configure TileSet Atlas
+### 1.4 Configure TileSet Atlas
 1. In TileSet editor bottom panel, click **"+ Create a new atlas"**
 2. Select `assets/micro-roguelike/colored_tilemap.png`
 3. **Atlas settings** (in right Inspector):
@@ -38,7 +45,7 @@ The Core architecture is complete and event-driven - this is just the visual lay
    - Use Texture Padding: OFF
 4. The grid should now overlay the tilemap correctly
 
-### 1.4 Add Terrain Tiles
+### 1.5 Add Terrain Tiles
 The atlas has 160 tiles (16 wide × 10 tall). You need to select 3 tiles:
 
 **Floor Tile** (ID 16 - row 1, col 0):
@@ -57,7 +64,7 @@ The atlas has 160 tiles (16 wide × 10 tall). You need to select 3 tiles:
 1. Pick any visually distinct tile (e.g., bright yellow square)
 2. Remember its ID for FOV visualization
 
-### 1.5 Verify TileSet
+### 1.6 Verify TileSet
 - You should see at least 4 tiles selected in the atlas
 - IDs should be: 0 (wall), 16 (floor), 96 (smoke), + 1 for FOV
 - **Save** (Ctrl+S)
