@@ -142,7 +142,7 @@
   - Clear separation prevents Grid from becoming god-feature
 - **Phase 1 (~1h)**: Minimal - folder structure only, no new domain models (reuse Position)
 - **Phase 2 (~3h)**: `FindPathQuery` + `MoveAlongPathCommand`
-  - `IPathfindingService.FindPath(map, start, goal, Func<Position,int> getCost)` - cost function param NOW
+  - `IPathfindingService.FindPath(start, goal, isPassable, getCost)` - **REFINED**: Separate `Func<Position,bool> isPassable` and `Func<Position,int> getCost` for clearer semantics
   - `MoveAlongPathCommand` delegates to existing `MoveActorCommand` per step (reuses validation, FOV, events)
   - **Key Decision**: Emit `ActorMovedEvent` PER STEP (enables discrete tile animation + FOV updates)
   - **Cancellation**: Handler respects `CancellationToken` - checks `ct.ThrowIfCancellationRequested()` before each step
@@ -153,12 +153,24 @@
 - **Phase 4 (~4.5h)**: `MovementInputController` + `PathVisualizationNode` (Godot)
   - Left-click → FindPathQuery → Preview → Left-click again → MoveAlongPathCommand → Animate
   - Right-click → Cancel active movement (via `CancellationTokenSource.Cancel()`)
-  - **No new animation code** - existing ActorMovedEvent handler works for multi-step paths!
+  - **Animation**: Godot Tween for 0.1-0.2s tile-to-tile "jump" (current handler does instant teleport - needs update)
 - **Event Topology**: Reuse `ActorMovedEvent` (terminal subscriber, depth=1, ADR-004 compliant)
 - **ADR Compliance**: ✅ All 4 ADRs validated (Clean Architecture, Godot boundary, Result<T>, Event Rules)
 - **Total Estimate**: 12.5h (1.5-2 days) - includes manual cancellation via right-click
 - **Risks**: A* performance (mitigated by algorithm choice + benchmark test), Godot Tween async (mitigated by existing pattern)
 - **Next Step**: Hand off to Dev Engineer for Phase 1-4 implementation
+
+**Dev Engineer Progress** (2025-10-01 16:32, Phase 1 complete 16:33):
+- **Architecture Review Complete**: ADR alignment validated, existing Grid/FOV patterns studied
+- **Interface Refinement**: Separated passability check from cost calculation for clearer A* semantics
+  - **Rationale**: Boolean passability (can/cannot) vs quantitative cost (how expensive) are distinct concerns
+  - **Benefit**: A* checks passability first (more efficient), clearer contract for callers
+- **✅ Phase 1 Complete** (~30 min actual, 1h estimated)
+  - Created `Features/Movement/` folder structure (Domain/Application/Infrastructure layers)
+  - Defined `IPathfindingService` interface with `isPassable` + `getCost` parameters
+  - **Tests**: All 189 existing tests pass ✅
+  - **Key Insight**: No new domain models needed - Position from Domain/Common sufficient (validates ADR-004 shared primitive strategy)
+  - **Next**: Phase 2 - Application layer (Commands/Handlers/Queries)
 
 ---
 
