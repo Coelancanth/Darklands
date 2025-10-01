@@ -104,6 +104,23 @@ public class MoveAlongPathCommandHandler : IRequestHandler<MoveAlongPathCommand,
 
             // Success: MoveActorCommand emitted ActorMovedEvent
             // Presentation layer will animate this step via event handler
+
+            // VS_006 Phase 4: Add delay between steps for visible movement
+            // TODO: Replace with proper animation system in future iteration
+            try
+            {
+                await Task.Delay(100, cancellationToken); // 100ms per tile = 10 tiles/second
+            }
+            catch (TaskCanceledException)
+            {
+                // Cancellation during delay is expected - return gracefully
+                _logger.LogInformation(
+                    "Movement cancelled for actor {ActorId} at step {Step}/{Total} (during delay)",
+                    request.ActorId,
+                    i,
+                    request.Path.Count);
+                return Result.Success(); // Graceful stop
+            }
         }
 
         _logger.LogInformation(

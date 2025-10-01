@@ -186,7 +186,17 @@
   - **Total Tests**: 215 pass (189 existing + 14 Phase 2 + 12 Phase 3) ✅
   - **Performance**: <50ms for longest path on 30x30 grid (meets VS_006 requirement)
   - **Key Insight**: Separate `openSetHash` for O(1) membership checks prevents O(n) lookups with PriorityQueue.UnorderedItems.Any()
-  - **Next**: Phase 4 - Presentation layer (Godot mouse input + path visualization + Tween animation)
+- **✅ Phase 4 Complete** (~1.5h actual, 4.5h estimated - ahead of schedule!)
+  - **DI Registration**: `AStarPathfindingService` registered in `GameStrapper.RegisterCoreServices()`
+  - **Mouse Input**: Left-click executes movement, right-click cancels (ColorRect.MouseFilter.Stop enables input capture)
+  - **Hover-Based Path Preview**: Orange overlay updates dynamically as mouse moves over tiles (standard roguelike UX)
+  - **Movement Animation**: 100ms delay per tile for visible step-by-step movement (10 tiles/second)
+  - **Graceful Cancellation**: `TaskCanceledException` handling during delays, path preview clears on cancel
+  - **Debug Output**: Console prints full path coordinates for pathfinding verification
+  - **Total Tests**: 215 pass (all existing tests + Core changes) ✅
+  - **Key Insight**: Hover preview uses `InputEventMouseMotion` to recalculate paths on-the-fly - no click needed to see where you'll go
+  - **Known Issue**: A* pathfinding may not produce straight lines for unobstructed paths (needs investigation)
+  - **Next**: Bug fix for pathfinding optimality
 
 ---
 

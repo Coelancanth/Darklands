@@ -88,6 +88,10 @@ public static class GameStrapper
         services.AddSingleton<Features.Grid.Application.Services.IActorPositionService,
             Features.Grid.Infrastructure.Services.ActorPositionService>();
         services.AddSingleton<Features.Grid.Domain.GridMap>();
+
+        // Movement System (VS_006 Phase 3+4) - Pathfinding service
+        services.AddSingleton<Features.Movement.Application.Services.IPathfindingService,
+            Features.Movement.Infrastructure.Services.AStarPathfindingService>();
     }
 
     /// <summary>

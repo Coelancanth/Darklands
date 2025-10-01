@@ -1,10 +1,15 @@
 using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Darklands.Core.Domain.Common;
 using Darklands.Core.Features.Grid.Application.Commands;
 using Darklands.Core.Features.Grid.Application.Queries;
 using Darklands.Core.Features.Grid.Domain;
 using Darklands.Core.Features.Grid.Domain.Events;
+using Darklands.Core.Features.Movement.Application.Commands;
+using Darklands.Core.Features.Movement.Application.Queries;
+using Darklands.Core.Features.Movement.Application.Services;
 using Darklands.Core.Infrastructure.DependencyInjection;
 using Darklands.Core.Infrastructure.Events;
 using Godot;
@@ -24,10 +29,15 @@ public partial class GridTestSceneController : Node2D
 {
     private IMediator _mediator = null!;
     private IGodotEventBus _eventBus = null!;
+    private IPathfindingService _pathfindingService = null!;
 
     private ActorId _playerId;
     private ActorId _dummyId;
     private ActorId _activeActorId; // Whose FOV is currently displayed (toggle with Tab)
+
+    // Movement state (VS_006 Phase 4)
+    private CancellationTokenSource? _movementCancellation;
+    private Position? _lastHoveredPosition; // Track last hovered position for path preview
 
     private const int GridSize = 30;
     private const int CellSize = 48; // 48x48 pixels per cell
@@ -39,6 +49,9 @@ public partial class GridTestSceneController : Node2D
     // Fog of War state: [x, y] = has this cell been explored?
     private readonly bool[,] _exploredCells = new bool[GridSize, GridSize];
 
+    // VS_006 Phase 4: Path visualization
+    private readonly List<ColorRect> _pathOverlayNodes = new();
+
     // Colors for terrain
     private static readonly Color WallColor = Colors.Black;
     private static readonly Color FloorColor = Colors.White;
@@ -46,6 +59,7 @@ public partial class GridTestSceneController : Node2D
     private static readonly Color PlayerColor = Colors.Green;
     private static readonly Color DummyColor = Colors.Red;
     private static readonly Color FOVColor = new Color(1f, 1f, 0f, 0.3f); // Semi-transparent yellow
+    private static readonly Color PathPreviewColor = new Color(1f, 0.65f, 0f, 0.6f); // Semi-transparent orange (VS_006)
 
     // Fog of War overlay colors
     private static readonly Color UnexploredFog = new Color(0, 0, 0, 0.9f); // Nearly opaque black
@@ -57,6 +71,7 @@ public partial class GridTestSceneController : Node2D
         // ADR-002: ServiceLocator ONLY in _Ready() to bridge Godot → DI
         _mediator = ServiceLocator.Get<IMediator>();
         _eventBus = ServiceLocator.Get<IGodotEventBus>();
+        _pathfindingService = ServiceLocator.Get<IPathfindingService>(); // VS_006 Phase 4
 
         // Create grid visualization
         CreateGridCells();
@@ -67,6 +82,14 @@ public partial class GridTestSceneController : Node2D
 
         // Initialize game state
         InitializeGameState();
+
+        // VS_006 Phase 4: Print instructions
+        GD.Print("=== VS_006 Movement Controls ===");
+        GD.Print("Arrow keys: Move player (single step)");
+        GD.Print("WASD: Move dummy (single step)");
+        GD.Print("Left Click: Move player to clicked tile (pathfinding)");
+        GD.Print("Right Click: Cancel movement");
+        GD.Print("Tab: Switch FOV view");
     }
 
     public override void _ExitTree()
@@ -89,7 +112,8 @@ public partial class GridTestSceneController : Node2D
                 {
                     Position = new Vector2(x * CellSize, y * CellSize),
                     Size = new Vector2(CellSize, CellSize),
-                    Color = FloorColor // Default to floor
+                    Color = FloorColor, // Default to floor
+                    MouseFilter = Control.MouseFilterEnum.Stop // VS_006: Capture mouse input
                 };
                 AddChild(terrainCell);
                 _gridCells[x, y] = terrainCell;
@@ -100,7 +124,8 @@ public partial class GridTestSceneController : Node2D
                     Position = new Vector2(x * CellSize, y * CellSize),
                     Size = new Vector2(CellSize, CellSize),
                     Color = UnexploredFog, // Start with unexplored fog
-                    ZIndex = 10 // Above terrain
+                    ZIndex = 10, // Above terrain
+                    MouseFilter = Control.MouseFilterEnum.Ignore // VS_006: Let clicks pass through to terrain
                 };
                 AddChild(fovCell);
                 _fovCells[x, y] = fovCell;
@@ -166,8 +191,50 @@ public partial class GridTestSceneController : Node2D
         GD.Print($"Cell size: {CellSize}×{CellSize} pixels, Grid: {GridSize}×{GridSize} cells");
     }
 
-    public override void _UnhandledInput(InputEvent @event)
+    public override void _Input(InputEvent @event)
     {
+        // VS_006 Phase 4: Mouse hover for path preview
+        if (@event is InputEventMouseMotion motionEvent)
+        {
+            var gridPos = ScreenToGridPosition(motionEvent.Position);
+            if (IsValidGridPosition(gridPos) && gridPos != _lastHoveredPosition)
+            {
+                _lastHoveredPosition = gridPos;
+                ShowPathPreviewForHover(_playerId, gridPos);
+            }
+            return;
+        }
+
+        // VS_006 Phase 4: Mouse click to execute movement
+        if (@event is InputEventMouseButton mouseEvent && mouseEvent.Pressed)
+        {
+            if (mouseEvent.ButtonIndex == MouseButton.Left)
+            {
+                // Left click: Execute movement along previewed path
+                var gridPos = ScreenToGridPosition(mouseEvent.Position);
+                GD.Print($"Mouse clicked at screen ({mouseEvent.Position.X}, {mouseEvent.Position.Y}) → grid ({gridPos.X}, {gridPos.Y})");
+
+                if (IsValidGridPosition(gridPos))
+                {
+                    ClickToMove(_playerId, gridPos);
+                    GetViewport().SetInputAsHandled();
+                }
+                else
+                {
+                    GD.Print($"Click outside grid bounds");
+                }
+                return;
+            }
+            else if (mouseEvent.ButtonIndex == MouseButton.Right)
+            {
+                // Right click: Cancel active movement
+                CancelMovement();
+                GetViewport().SetInputAsHandled();
+                return;
+            }
+        }
+
+        // Keyboard input handling (existing)
         if (@event is not InputEventKey keyEvent || !keyEvent.Pressed)
             return;
 
@@ -411,5 +478,204 @@ public partial class GridTestSceneController : Node2D
         }
 
         _gridCells[x, y].Color = color;
+    }
+
+    // ===== VS_006 Phase 4: Click-to-Move Pathfinding =====
+
+    /// <summary>
+    /// Converts screen coordinates to grid position.
+    /// </summary>
+    private Position ScreenToGridPosition(Vector2 screenPos)
+    {
+        var gridX = (int)(screenPos.X / CellSize);
+        var gridY = (int)(screenPos.Y / CellSize);
+        return new Position(gridX, gridY);
+    }
+
+    /// <summary>
+    /// Checks if position is within grid bounds.
+    /// </summary>
+    private bool IsValidGridPosition(Position pos)
+    {
+        return pos.X >= 0 && pos.X < GridSize && pos.Y >= 0 && pos.Y < GridSize;
+    }
+
+    /// <summary>
+    /// Click-to-move: Pathfind to target and execute movement.
+    /// </summary>
+    private async void ClickToMove(ActorId actorId, Position target)
+    {
+        // Cancel any active movement first
+        CancelMovement();
+
+        // Get current position
+        var currentPosResult = await _mediator.Send(new GetActorPositionQuery(actorId));
+        if (currentPosResult.IsFailure)
+        {
+            GD.PrintErr($"Failed to get actor position: {currentPosResult.Error}");
+            return;
+        }
+
+        var currentPos = currentPosResult.Value;
+
+        // If already at target, do nothing
+        if (currentPos.Equals(target))
+        {
+            GD.Print("Already at target position");
+            return;
+        }
+
+        // Find path using A* pathfinding
+        var pathResult = _pathfindingService.FindPath(
+            currentPos,
+            target,
+            pos => IsPassable(pos),
+            pos => 1); // Uniform cost for VS_006
+
+        if (pathResult.IsFailure)
+        {
+            GD.Print($"No path to ({target.X}, {target.Y}): {pathResult.Error}");
+            return;
+        }
+
+        var path = pathResult.Value;
+        GD.Print($"Found path with {path.Count} steps to ({target.X}, {target.Y})");
+
+        // Debug: Print full path for verification
+        var pathString = string.Join(" → ", path.Select(p => $"({p.X},{p.Y})"));
+        GD.Print($"Path: {pathString}");
+
+        // Path preview already visible from hover - just execute movement
+        // Create cancellation token for this movement
+        _movementCancellation = new CancellationTokenSource();
+
+        // Execute movement along path
+        var moveResult = await _mediator.Send(
+            new MoveAlongPathCommand(actorId, path),
+            _movementCancellation.Token);
+
+        // Clear path preview after movement completes/fails/cancels
+        ClearPathPreview();
+
+        if (moveResult.IsFailure)
+        {
+            GD.PrintErr($"Movement failed: {moveResult.Error}");
+        }
+        else
+        {
+            GD.Print($"Movement completed to ({target.X}, {target.Y})");
+        }
+
+        // Clean up cancellation token
+        _movementCancellation?.Dispose();
+        _movementCancellation = null;
+    }
+
+    /// <summary>
+    /// Cancel active movement (right-click).
+    /// </summary>
+    private void CancelMovement()
+    {
+        if (_movementCancellation != null)
+        {
+            GD.Print("Movement cancelled!");
+            _movementCancellation.Cancel();
+            _movementCancellation.Dispose();
+            _movementCancellation = null;
+
+            // Clear path preview when cancelling
+            ClearPathPreview();
+        }
+    }
+
+    /// <summary>
+    /// Check if a position is passable (for pathfinding).
+    /// </summary>
+    private bool IsPassable(Position pos)
+    {
+        // Bounds check
+        if (!IsValidGridPosition(pos)) return false;
+
+        // Check terrain (walls are impassable)
+        // Edges are walls
+        if (pos.X == 0 || pos.X == GridSize - 1 || pos.Y == 0 || pos.Y == GridSize - 1)
+            return false;
+
+        // Horizontal wall at Y=15, X=[5,10)
+        if (pos.Y == 15 && pos.X >= 5 && pos.X < 10)
+            return false;
+
+        // All other tiles are passable (smoke is passable)
+        return true;
+    }
+
+    /// <summary>
+    /// Show path preview for hover (before click to commit).
+    /// </summary>
+    private void ShowPathPreviewForHover(ActorId actorId, Position target)
+    {
+        // Get current position (synchronous - use cached position if available)
+        var currentPosResult = _mediator.Send(new GetActorPositionQuery(actorId)).Result;
+        if (currentPosResult.IsFailure) return;
+
+        var currentPos = currentPosResult.Value;
+        if (currentPos.Equals(target))
+        {
+            ClearPathPreview(); // No path needed
+            return;
+        }
+
+        // Calculate path using A* pathfinding
+        var pathResult = _pathfindingService.FindPath(
+            currentPos,
+            target,
+            pos => IsPassable(pos),
+            pos => 1); // Uniform cost
+
+        if (pathResult.IsFailure)
+        {
+            ClearPathPreview(); // No valid path
+            return;
+        }
+
+        // Show the preview
+        ShowPathPreview(pathResult.Value);
+    }
+
+    /// <summary>
+    /// Show path visualization overlay.
+    /// </summary>
+    private void ShowPathPreview(IReadOnlyList<Position> path)
+    {
+        // Clear any existing path overlay
+        ClearPathPreview();
+
+        // Create overlay nodes for each position in path
+        foreach (var pos in path)
+        {
+            var pathNode = new ColorRect
+            {
+                Position = new Vector2(pos.X * CellSize, pos.Y * CellSize),
+                Size = new Vector2(CellSize, CellSize),
+                Color = PathPreviewColor,
+                ZIndex = 15, // Above FOV overlay (which is 10)
+                MouseFilter = Control.MouseFilterEnum.Ignore // Let clicks pass through
+            };
+            AddChild(pathNode);
+            _pathOverlayNodes.Add(pathNode);
+        }
+    }
+
+    /// <summary>
+    /// Clear path visualization overlay.
+    /// </summary>
+    private void ClearPathPreview()
+    {
+        foreach (var node in _pathOverlayNodes)
+        {
+            RemoveChild(node);
+            node.QueueFree();
+        }
+        _pathOverlayNodes.Clear();
     }
 }
