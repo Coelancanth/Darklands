@@ -54,6 +54,12 @@ public partial class GridTestSceneController : Node2D
         _playerSprite = GetNode<Sprite2D>("Player");
         _dummySprite = GetNode<Sprite2D>("Dummy");
 
+        // Scale TileMaps to match sprite scale (sprites are 6x, tiles default to 1x)
+        // This makes 8x8 tiles render as 48x48 pixels to match sprite size
+        const float tileScale = 6.0f;
+        _terrainLayer.Scale = new Vector2(tileScale, tileScale);
+        _fovLayer.Scale = new Vector2(tileScale, tileScale);
+
         // Subscribe to events (ADR-004: Terminal subscriber)
         _eventBus.Subscribe<ActorMovedEvent>(this, OnActorMoved);
         _eventBus.Subscribe<FOVCalculatedEvent>(this, OnFOVCalculated);
