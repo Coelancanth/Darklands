@@ -1,16 +1,16 @@
 # Backlog Archive Index
 
-**Last Updated**: 2025-10-01 10:05
-**Current Active Archive**: Completed_Backlog_2025-10.md (Lines: 540/1000 - healthy capacity)
+**Last Updated**: 2025-10-01 15:19
+**Current Active Archive**: Completed_Backlog_2025-10.md (Lines: 739/1000 - healthy capacity)
 
 ## Archive Files (Newest First)
 
 ### Completed_Backlog_2025-10.md (✅ ACTIVE - October 2025)
 - **Created**: 2025-10-01 00:48
-- **Line Count**: 540/1000 (460 lines remaining)
+- **Line Count**: 739/1000 (261 lines remaining)
 - **Date Range**: 2025-10-01 to present
 - **Status**: ✅ Active (healthy capacity)
-- **Extraction Status**: 1/5 partially extracted (4 NOT EXTRACTED ⚠️, 1 PARTIALLY EXTRACTED 🔄)
+- **Extraction Status**: 1/6 partially extracted (5 NOT EXTRACTED ⚠️, 1 PARTIALLY EXTRACTED 🔄)
 
 **Items**:
 - **VS_001**: Health System Walking Skeleton (phased implementation pattern, 101 tests, 5 bugs fixed) [PARTIALLY EXTRACTED 🔄]
@@ -18,6 +18,7 @@
 - **BR_002**: Fire-and-Forget Event Publishing (async/await fix) [NOT EXTRACTED ⚠️]
 - **BR_003**: Heal Button Bypasses CQRS (YAGNI deletion + 2 bonus bugs) [NOT EXTRACTED ⚠️]
 - **TD_001**: Architecture Enforcement Tests (NetArchTest + 10 tests enforcing 4 ADRs) [NOT EXTRACTED ⚠️]
+- **VS_005**: Grid, FOV & Terrain System (custom shadowcasting, 189 tests, event-driven Godot integration) [NOT EXTRACTED ⚠️]
 
 ### Completed_Backlog.md (📦 ARCHIVED - September 2025)
 - **Created**: 2025-09-30
@@ -37,5 +38,5 @@
 2. Open that specific archive file (newest first: Completed_Backlog_2025-10.md)
 3. Use Ctrl+F to search for item ID
 
-**Current Active Capacity**: 540/1000 lines (460 lines remaining)
-**Total Archived Items**: 8 (5 in Oct 2025, 3 in Sept 2025)
+**Current Active Capacity**: 739/1000 lines (261 lines remaining)
+**Total Archived Items**: 9 (6 in Oct 2025, 3 in Sept 2025)
