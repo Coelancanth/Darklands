@@ -55,7 +55,7 @@ public partial class Main : Node
         // Configure Serilog
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Debug()
-            .WriteTo.Console()
+            .WriteTo.Sink(new GodotConsoleSink(new GodotConsoleFormatter()))
             .WriteTo.File("logs/darklands.log", rollingInterval: RollingInterval.Day)
             .CreateLogger();
 
