@@ -382,3 +382,159 @@ private async void OnDamageButtonPressed()
 - [ ] Test pattern: EventAwareNode for terminal subscribers
 - [ ] Reference implementation: Copy for future VS items
 
+---
+
+### TD_001: Architecture Enforcement Tests (NetArchTest + Custom)
+**Extraction Status**: NOT EXTRACTED ⚠️
+**Completed**: 2025-10-01 10:05
+**Archive Note**: Automated tests enforcing all 4 ADRs + VS_004 lessons - prevents architectural drift, 10 architecture tests passing in 34ms
+
+---
+
+**Status**: Done ✅
+**Owner**: Tech Lead → Dev Engineer (approved and implemented)
+**Size**: M (2-3h)
+**Priority**: Important (prevents architectural drift)
+**Markers**: [ARCHITECTURE] [TESTING] [POST-MORTEM]
+**Created**: 2025-09-30 (VS_004 post-mortem)
+**Updated**: 2025-10-01 (Deprioritized below critical bugs)
+**Completed**: 2025-10-01 10:05
+
+**What**: Automated tests enforcing ADR-001/ADR-002/ADR-003 architectural rules + VS_004 lessons
+
+**Why**:
+- VS_004 revealed MediatR double-registration bug (caught by tests, but needs permanent guard)
+- DebugConsole LoggingService not registered (need completeness tests)
+- ADR-003 mandates Result<T> pattern but no automated enforcement
+- **Tests as living documentation** > static docs (self-updating, enforced, always accurate)
+- **NOTE**: Core → Godot already enforced by `.csproj` SDK choice (compile-time beats runtime!)
+
+**How** (Test Categories):
+
+**1. NetArchTest - Naming/Pattern Enforcement** (~1h)
+```csharp
+// NOTE: Core → Godot dependency already prevented by SDK choice!
+// Darklands.Core.csproj uses Microsoft.NET.Sdk (pure C#)
+// → Compile-time enforcement is better than runtime tests
+
+// ADR-003: Enforce Result<T> pattern for error handling
+[Fact]
+public void CommandHandlers_ShouldReturnResult()
+{
+    // WHY: ADR-003 mandates Result<T> for all operations that can fail
+    Types.InAssembly(typeof(IRequest).Assembly)
+        .That().ImplementInterface(typeof(IRequestHandler<,>))
+        .Should().HaveMethodMatching("Handle", method =>
+            method.ReturnType.Name.StartsWith("Result"))
+        .GetResult().IsSuccessful.Should().BeTrue();
+}
+
+// Namespace organization (if needed)
+[Fact]
+public void Domain_ShouldNotDependOnApplication()
+{
+    // WHY: Domain layer must be pure, no application logic
+    Types.InNamespace("Darklands.Core.Domain")
+        .Should().NotHaveDependencyOnAny(
+            "Darklands.Core.Application",
+            "Darklands.Core.Infrastructure")
+        .GetResult().IsSuccessful.Should().BeTrue();
+}
+```
+
+**2. MediatR Registration Tests** (~30min)
+```csharp
+// VS_004 POST-MORTEM: Prevent double-registration
+[Fact]
+public void MediatR_ShouldNotDoubleRegisterHandlers()
+{
+    // LESSON: assembly scan + open generic = 2x registration
+    var services = new ServiceCollection();
+    ConfigureServicesLikeMain(services);
+
+    var handlers = services.BuildServiceProvider()
+        .GetServices<INotificationHandler<TestEvent>>();
+
+    handlers.Should().HaveCount(1,
+        "UIEventForwarder should only be registered once (open generic pattern)");
+}
+```
+
+**3. DI Registration Completeness** (~30min)
+```csharp
+// VS_004 POST-MORTEM: DebugConsole failed to resolve LoggingService
+[Fact]
+public void AllAutoloadDependencies_ShouldBeRegistered()
+{
+    // LESSON: Autoloads using ServiceLocator need dependencies in Main.cs
+    var services = new ServiceCollection();
+    ConfigureServicesLikeMain(services);
+    var provider = services.BuildServiceProvider();
+
+    provider.GetService<LoggingService>()
+        .Should().NotBeNull("DebugConsole requires LoggingService");
+    provider.GetService<IGodotEventBus>()
+        .Should().NotBeNull("EventAwareNode requires IGodotEventBus");
+}
+```
+
+**Done When**:
+- ✅ NetArchTest package added to test project
+- ✅ ArchitectureTests.cs created with dependency rules
+- ✅ MediatRRegistrationTests.cs validates no double-registration
+- ✅ DICompletenessTests.cs validates autoload dependencies
+- ✅ All architecture tests passing (added to CI pipeline)
+- ✅ Category="Architecture" for easy filtering
+- ✅ Tests committed with comments explaining VS_004 post-mortem lessons
+
+**Depends On**: None (VS_004 complete)
+
+**Tech Lead Decision** (2025-10-01 00:24):
+- **Approved**: Scope and priority (do AFTER critical bug fixes)
+- **Rejected**: NetArchTest rule for `async void` (high false positive rate - use code review checklist instead)
+- **Approved**: NetArchTest for Result<T> pattern enforcement in handlers
+- **Approved**: MediatR double-registration tests
+- **Approved**: DI completeness tests
+
+**Additional Rules NOT in Scope** (VS_001 post-mortem review):
+- `async void` enforcement: Rejected - too many valid Godot event handlers, use code review checklist
+- NaN/Infinity validation: Should be in handler code, not architectural test
+- EVENT_TOPOLOGY.md existence: Manual governance, not automated test
+
+**Dev Engineer Notes** (after approval):
+- NetArchTest 8.x supports .NET 8
+- Tests will be fast (<100ms) - just reflection, no runtime overhead
+- Living documentation: Test comments reference ADR-001/002/003 + VS_004 post-mortem
+- CI integration: Add `--filter "Category=Architecture"` to quick.ps1
+- Focus on low false-positive rules (Result<T>, MediatR registration, DI completeness)
+
+**Implementation Details** (2025-10-01):
+- ✅ Added NetArchTest.Rules v1.3.2 to Darklands.Core.Tests.csproj
+- ✅ Created tests/Darklands.Core.Tests/Architecture/ folder
+- ✅ Implemented LayerDependencyTests.cs (6 tests - ADR-001, ADR-002, ADR-004):
+  - Core_ShouldNotDependOnGodot (compile-time enforced, documented in test)
+  - Core_ShouldNotDependOnPresentation
+  - Domain_ShouldNotDependOnApplication
+  - Domain_ShouldNotDependOnInfrastructure
+  - Application_ShouldNotDependOnInfrastructure
+  - Application_ShouldNotDependOnPresentation
+- ✅ Implemented ResultPatternTests.cs (1 test - ADR-003):
+  - CommandHandlers_ShouldReturnResult
+- ✅ Implemented DependencyInjectionTests.cs (3 tests - VS_004 post-mortem):
+  - MediatR_ShouldNotDoubleRegisterNotificationHandlers
+  - ServiceCollection_ShouldRegisterLoggingService
+  - ServiceCollection_ShouldRegisterGodotEventBus
+- ✅ All 10 architecture tests passing in 34ms
+- ✅ No regressions: 111 total tests passing (101 existing + 10 new)
+- ✅ Commit ready: feat/td001-architecture-tests branch
+
+---
+
+**Extraction Targets**:
+- [ ] HANDBOOK update: NetArchTest usage patterns for C# architecture enforcement
+- [ ] HANDBOOK update: MediatR registration best practices (assembly scan vs explicit)
+- [ ] Test pattern: Architecture testing as living documentation
+- [ ] Code review checklist: Architecture test coverage when adding new handlers/layers
+
+---
+
