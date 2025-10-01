@@ -207,9 +207,15 @@ public partial class GridTestSceneController : Node2D
 
     public override void _Input(InputEvent @event)
     {
-        // VS_006 Phase 4: Mouse hover for path preview
+        // VS_006 Phase 4: Mouse hover for path preview (only when NOT moving)
         if (@event is InputEventMouseMotion motionEvent)
         {
+            // Don't show path preview during active movement
+            if (_movementCancellation != null)
+            {
+                return;
+            }
+
             var gridPos = ScreenToGridPosition(motionEvent.Position);
             if (IsValidGridPosition(gridPos) && gridPos != _lastHoveredPosition)
             {
