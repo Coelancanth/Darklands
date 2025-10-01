@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-01 11:40 (VS_005 approved by Tech Lead with architecture breakdown)
+**Last Updated**: 2025-10-01 13:15 (VS_005 implementation approach revised - no GoRogue NuGet, custom implementation + Kenney assets)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -77,7 +77,7 @@
 **Created**: 2025-10-01 11:15
 **Approved**: 2025-10-01 11:40 (Tech Lead)
 
-**What**: Grid-based movement with libtcod-style FOV (via GoRogue library), terrain variety (wall/floor/smoke), and manually controlled dummy enemy for testing
+**What**: Grid-based movement with libtcod-style FOV (custom shadowcasting implementation), terrain variety (wall/floor/smoke), Kenney tileset visuals, and manually controlled dummy enemy for testing
 
 **Why**:
 - Positioning creates tactical depth (cover, line-of-sight, ambush mechanics)
@@ -87,17 +87,20 @@
 - Foundation for all future combat features (VS_006-010 depend on this)
 
 **How**:
-- **GoRogue NuGet Integration** - Use RecursiveShadowcastingFOV (libtcod shadowcasting algorithm)
-- **Study GoRogue source code** - Understand algorithm for future extensions (sound propagation, semi-transparency)
-- **Godot TileMap** - 30x30 grid with 3 terrain types (wall/floor/smoke)
-- **FOV Service** - Wraps GoRogue, adapts our GridMap to GoRogue's IMapView
+- **Custom Shadowcasting** - Implement from reference sources (libtcod C + GoRogue C# in `References/` folder)
+- **Study reference implementations** - Understand recursive shadowcasting algorithm (octants, slope tracking)
+- **Kenney Assets** - Use Micro Roguelike tileset (CC0 license) for professional 8x8 pixel visuals
+- **Godot TileMap** - 30x30 grid with 3 terrain types (wall/floor/smoke), rendered via TileMap node
+- **FOV Service** - Pure C# `ShadowcastingFOVService` implementing `IFOVService` (~150 LOC)
 - **Dummy Controls** - Arrow keys = player, WASD = dummy, Tab = switch FOV display
 
 **Done When**:
-- ✅ GoRogue package added, RecursiveShadowcastingFOV source studied and documented
-- ✅ Unit tests: Wall blocks movement + vision, Smoke blocks vision only, Vision radius = 8 tiles
-- ✅ Integration tests: MoveActorCommand → FOV recalculates, GetVisibleActorsQuery uses FOV
-- ✅ Godot scene: 30x30 test map loads, player + dummy controllable, FOV visualization works
+- ✅ Reference sources studied (libtcod + GoRogue), shadowcasting algorithm understood
+- ✅ `ShadowcastingFOVService` implemented (~150 LOC), performance <10ms for 30x30 grid
+- ✅ Phase 3 tests: Wall blocks vision, Smoke blocks vision only, Radius limits correctly, Origin always visible
+- ✅ Kenney assets integrated: Tileset imported, TileMap configured with 8x8 tiles
+- ✅ Godot scene: 30x30 test map renders correctly (walls/floors/smoke visually distinct)
+- ✅ Player + dummy controllable, FOV visualization highlights visible tiles
 - ✅ Manual validation: Hide player behind smoke → dummy's FOV doesn't include player tile
 - ✅ Fog of war persists correctly (explored tiles stay darker when not currently visible)
 
@@ -111,42 +114,58 @@
 
 ---
 
-**Tech Lead Decision** (2025-10-01 11:40):
+**Tech Lead Decision** (2025-10-01 11:40 - Updated 13:15):
 
 **Architecture Approval**: ✅ **Proceed with implementation**
 
-**Key Technical Decisions**:
-1. **Adapter Pattern for GoRogue** - Core defines `IFOVService` abstraction, Infrastructure provides `GoRogueFOVService` implementation. This keeps GoRogue swappable and maintains Clean Architecture boundaries.
+**REVISED APPROACH** (2025-10-01 13:15):
+- ❌ **No GoRogue NuGet dependency** - Avoid version compatibility friction
+- ✅ **Custom shadowcasting implementation** - Reference local sources (`References/libtcod/` + `References/GoRogue/`)
+- ✅ **Kenney Micro Roguelike assets** - Professional 8x8 tileset for Phase 4 visualization
+- ✅ **Pure C# implementation** - Full ownership, no external dependencies
 
-2. **Three-Layer Separation**:
+**Key Technical Decisions**:
+1. **Custom FOV Implementation** - Study libtcod C (`References/libtcod/src/libtcod/fov_recursive_shadowcasting.c`) and GoRogue C# (`References/GoRogue/GoRogue/FOV/RecursiveShadowcastingFOV.cs`) as references. Implement `ShadowcastingFOVService` (~150 LOC) using recursive shadowcasting algorithm.
+
+2. **Three-Layer Separation** (unchanged):
    - **Domain**: `GridMap` entity with `TerrainType` enum (Wall/Floor/Smoke), enforces business rules
    - **Application**: Commands (`MoveActorCommand`) and Queries (`CalculateFOVQuery`, `GetVisibleActorsQuery`) using MediatR
-   - **Infrastructure**: `TransparencyMapAdapter` bridges `GridMap` → GoRogue's `IMapView<bool>`, isolating external dependency
+   - **Infrastructure**: `ShadowcastingFOVService` implements `IFOVService` with octant-based recursive algorithm
 
-3. **Smoke Terrain Design** - Opaque (blocks vision) + Passable (can walk through) creates tactical depth. This differentiates smoke from walls and enables hide/ambush mechanics.
+3. **Smoke Terrain Design** (unchanged) - Opaque (blocks vision) + Passable (can walk through) creates tactical depth. This differentiates smoke from walls and enables hide/ambush mechanics.
 
-4. **Phase Enforcement** - Strict progression: Domain → Application → Infrastructure → Presentation. Each phase must pass tests before proceeding:
-   - Phase 1 (Domain): Pure C#, `[Category("Phase1")]` tests, <10ms each
-   - Phase 2 (Application): MOCKED `IFOVService`, `[Category("Phase2")]` tests
-   - Phase 3 (Infrastructure): REAL GoRogue integration, `[Category("Phase3")]` tests with performance validation (<10ms)
-   - Phase 4 (Presentation): Godot UI with manual testing checklist
+4. **Phase Enforcement** (unchanged) - Strict progression: Domain → Application → Infrastructure → Presentation. Each phase must pass tests before proceeding:
+   - Phase 1 (Domain): Pure C#, `[Category("Phase1")]` tests, <10ms each ✅ COMPLETE
+   - Phase 2 (Application): MOCKED `IFOVService`, `[Category("Phase2")]` tests ✅ COMPLETE
+   - Phase 3 (Infrastructure): Custom shadowcasting, `[Category("Phase3")]` tests with performance validation (<10ms) ⏭️ NEXT
+   - Phase 4 (Presentation): Godot TileMap + Kenney assets, manual testing checklist
+
+5. **Kenney Asset Integration** (Phase 4):
+   - Copy `Tilemap/` and `Tiles/` folders from `C:\Users\Coel\Downloads\kenney_micro-roguelike` → `assets/kenney_micro_roguelike/`
+   - Create TileSet resource in Godot using `colored_tilemap.png` (8x8 tiles)
+   - Map terrain types: Floor=tile16, Wall=tile0, Smoke=tile96
+   - Create `GridManager.cs` to sync Core `GridMap` → Godot `TileMap` visualization
 
 **Risks Identified & Mitigated**:
-- ⚠️ **GoRogue dependency lock-in** → Mitigated via `IFOVService` abstraction (swappable)
+- ⚠️ **Implementation complexity** → Mitigated by referencing two battle-tested implementations (libtcod + GoRogue)
+- ⚠️ **Development time** (~4h vs 1h with NuGet) → Investment pays off in understanding and maintainability
 - ⚠️ **Performance (FOV recalc every move)** → Phase 3 performance test enforces <10ms (expected: 2-5ms for 30x30)
 - ⚠️ **Fog of war complexity** → Separate concern in Phase 4, can ship without it if needed
 
 **Implementation Notes**:
-- Study GoRogue source during Phase 3, document findings in `Docs/03-Reference/GoRogue_FOV_Analysis.md`
+- **Primary reference**: libtcod C implementation (cleaner, easier to understand)
+- **Secondary reference**: GoRogue C# (same algorithm, more features)
+- **Algorithm**: 8 octants, slope tracking, recursive shadow propagation
 - `GridMap` is singleton for Phase 1 (YAGNI), refactor to repository if Phase 3 needs multiple maps
 - Fog of war is 3-state: Unexplored (black) → Explored (dark gray) → Visible (full brightness)
 
-**Next Step**: Hand off to Dev Engineer for Phase 1 implementation (Domain layer)
+**Next Step**: Dev Engineer implements Phase 3 (Infrastructure layer) with custom shadowcasting
 
-**Command to Start**:
+**Phase 3 Reference Files**:
 ```bash
-git checkout -b feat/VS_005-grid-fov-terrain
-./scripts/core/build.ps1 test --filter "Category=Phase1"  # Should have 0 tests initially
+# Study these implementations:
+References/libtcod/src/libtcod/fov_recursive_shadowcasting.c      # Primary (lines 58-114)
+References/GoRogue/GoRogue/FOV/RecursiveShadowcastingFOV.cs       # Secondary (lines 122-181)
 ```
 
 ---
@@ -158,12 +177,155 @@ git checkout -b feat/VS_005-grid-fov-terrain
 - Tests: 41 new Phase 1 tests (102 total suite, 0.38s execution)
 - Railway-oriented: `IsPassable`/`IsOpaque` use functional composition via `.Map()`
 
-**✅ Phase 2 Complete** - Application layer ([a587a3f](https://github.com/user/repo/commit/a587a3f) + next commit)
+**✅ Phase 2 Complete** - Application layer ([a587a3f](https://github.com/user/repo/commit/a587a3f) + [ffb1bee](https://github.com/user/repo/commit/ffb1bee))
 - Service abstractions: `IFOVService`, `IActorPositionService` (Clean Architecture boundaries)
 - Commands: `MoveActorCommand` with passability validation + position updates
 - Queries: `CalculateFOVQuery` (FOV delegation), `GetVisibleActorsQuery` (query composition via IMediator)
 - Tests: 28 new Phase 2 tests using NSubstitute (130 total suite, 0.57s execution)
-- **Next**: Phase 3 - Infrastructure (real IFOVService with GoRogue, ActorPositionService impl)
+
+**⏭️ Phase 3 Next** - Infrastructure (Custom Shadowcasting)
+
+**Implementation Tasks**:
+
+**1. Study reference implementations (~30 min)**:
+   - Primary: `References/libtcod/src/libtcod/fov_recursive_shadowcasting.c` (lines 58-114)
+   - Secondary: `References/GoRogue/GoRogue/FOV/RecursiveShadowcastingFOV.cs` (lines 122-181)
+   - Understand: Octant matrices, slope tracking, recursion triggers
+
+**2. Implement `ShadowcastingFOVService` (~2-3 hours)**:
+   - **Location**: `src/Darklands.Core/Features/Grid/Infrastructure/Services/ShadowcastingFOVService.cs`
+   - **Interface**: Must implement `IFOVService` (Application/Services)
+   - **Method signature** (CRITICAL - must match Phase 2):
+     ```csharp
+     public Result<HashSet<Position>> CalculateFOV(GridMap map, Position observer, int radius)
+     ```
+   - **Algorithm structure**:
+     - Octant matrix (8x4 int array) for coordinate transformations
+     - Main method: Input validation → 8 octant loop → Return `Result.Success(visibleSet)`
+     - Recursive method: `CastLight(map, origin, distance, slopeHigh, slopeLow, radius, octant, visibleSet)`
+   - **Result<T> handling**:
+     - Validate radius > 0 → return `Result.Failure<HashSet<Position>>("Radius must be positive")`
+     - Validate observer in bounds → return `Result.Failure<HashSet<Position>>("...")`
+     - Call `map.GetTerrain(pos)` returns `Result<TerrainType>` → handle `.IsSuccess` / `.IsFailure`
+     - Success path → return `Result.Success(visible)`
+   - **Lines of code**: ~150 LOC total
+
+**3. Write Phase 3 tests (~1 hour)**:
+   - **Location**: `tests/Darklands.Core.Tests/Features/Grid/Infrastructure/ShadowcastingFOVServiceTests.cs`
+   - **Test framework**: xUnit (NOT NUnit!)
+   - **Attributes**: `[Trait("Category", "Phase3")]` and `[Trait("Category", "Unit")]`
+   - **Assertions**: FluentAssertions (`.Should().BeTrue()`, `.Should().Contain()`)
+   - **Required tests**:
+     ```csharp
+     [Fact]
+     [Trait("Category", "Phase3")]
+     public void CalculateFOV_EmptyGrid_AllTilesVisible()
+     {
+         var map = new GridMap(); // 30x30, all Floor
+         var fov = new ShadowcastingFOVService();
+
+         var result = fov.CalculateFOV(map, new Position(15, 15), 8);
+
+         result.IsSuccess.Should().BeTrue();
+         result.Value.Should().Contain(new Position(15, 15));
+     }
+
+     [Fact]
+     [Trait("Category", "Phase3")]
+     public void CalculateFOV_WallBlocksVision_TilesBehindWallNotVisible()
+     {
+         var map = new GridMap();
+         map.SetTerrain(new Position(10, 10), TerrainType.Wall);
+         var fov = new ShadowcastingFOVService();
+
+         var result = fov.CalculateFOV(map, new Position(5, 5), 10);
+
+         result.IsSuccess.Should().BeTrue();
+         result.Value.Should().Contain(new Position(10, 10)); // Wall itself visible
+         result.Value.Should().NotContain(new Position(15, 15)); // Behind wall
+     }
+
+     [Fact]
+     [Trait("Category", "Phase3")]
+     public void CalculateFOV_SmokeBlocksVision_ButIsPassable()
+     {
+         var map = new GridMap();
+         map.SetTerrain(new Position(10, 10), TerrainType.Smoke);
+         var fov = new ShadowcastingFOVService();
+
+         var result = fov.CalculateFOV(map, new Position(5, 5), 10);
+
+         result.IsSuccess.Should().BeTrue();
+         result.Value.Should().Contain(new Position(10, 10)); // Smoke visible
+         result.Value.Should().NotContain(new Position(15, 15)); // Behind smoke
+
+         // Verify Smoke is passable (separate business rule)
+         map.GetTerrain(new Position(10, 10)).Value.IsPassable().Should().BeTrue();
+     }
+
+     [Fact]
+     [Trait("Category", "Phase3")]
+     public void CalculateFOV_InvalidRadius_ShouldReturnFailure()
+     {
+         var map = new GridMap();
+         var fov = new ShadowcastingFOVService();
+
+         var result = fov.CalculateFOV(map, new Position(15, 15), -1);
+
+         result.IsFailure.Should().BeTrue();
+         result.Error.Should().Contain("positive");
+     }
+
+     [Fact]
+     [Trait("Category", "Phase3")]
+     [Trait("Category", "Performance")]
+     public void CalculateFOV_30x30Grid_CompletesInUnder10Milliseconds()
+     {
+         // PERFORMANCE: Must be fast enough for real-time recalculation
+         var map = new GridMap();
+         // Add walls for realistic scenario
+         for (int i = 5; i < 25; i += 3)
+             map.SetTerrain(new Position(i, 15), TerrainType.Wall);
+
+         var fov = new ShadowcastingFOVService();
+
+         var sw = System.Diagnostics.Stopwatch.StartNew();
+         fov.CalculateFOV(map, new Position(15, 15), 8);
+         sw.Stop();
+
+         sw.ElapsedMilliseconds.Should().BeLessThan(10);
+     }
+     ```
+
+**4. Register service in DI (~5 min)**:
+   - **Location**: `src/Darklands.Core/Application/Infrastructure/GameStrapper.cs`
+   - **Method**: `RegisterCoreServices()` (line 69)
+   - **Add after line 83**:
+     ```csharp
+     // Grid System (VS_005 Phase 3) - FOV service
+     services.AddSingleton<Features.Grid.Application.Services.IFOVService,
+         Features.Grid.Infrastructure.Services.ShadowcastingFOVService>();
+
+     // Grid domain (singleton for now, refactor if multiple maps needed)
+     services.AddSingleton<Features.Grid.Domain.GridMap>();
+     ```
+
+**Test Commands**:
+```bash
+# Run Phase 3 tests only
+./scripts/core/build.ps1 test --filter "Category=Phase3"
+
+# CRITICAL: Verify Phase 2 still passes (proves abstraction works!)
+./scripts/core/build.ps1 test --filter "Category=Phase2"
+
+# Full test suite
+./scripts/core/build.ps1 test
+```
+
+**Expected Outcome**:
+- All Phase 3 tests green (5 new tests)
+- **All Phase 2 tests still green** (proves `IFOVService` abstraction correct)
+- Performance test shows 2-5ms typical (well under 10ms limit)
 
 ---
 
