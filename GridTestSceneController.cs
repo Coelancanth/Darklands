@@ -11,7 +11,7 @@ using MediatR;
 namespace Darklands;
 
 /// <summary>
-/// Controller for Grid FOV Test Scene.
+/// Controller for Grid FOV Test Scene using pure color rectangles.
 /// Demonstrates event-driven architecture: Commands → Core → Events → UI updates.
 /// </summary>
 /// <remarks>
@@ -23,24 +23,24 @@ public partial class GridTestSceneController : Node2D
     private IMediator _mediator = null!;
     private IGodotEventBus _eventBus = null!;
 
-    private TileMapLayer _terrainLayer = null!;
-    private TileMapLayer _fovLayer = null!;
-    private Sprite2D _playerSprite = null!;
-    private Sprite2D _dummySprite = null!;
-
     private ActorId _playerId;
     private ActorId _dummyId;
     private ActorId _activeActorId; // Whose FOV is currently displayed (toggle with Tab)
 
-    private const int TileSize = 8;
-    private const int VisionRadius = 8;
+    private const int GridSize = 30;
+    private const int CellSize = 48; // 48x48 pixels per cell
 
-    // Atlas coordinates for terrain tiles (Kenney Micro Roguelike tileset)
-    // Format: new Vector2I(column, row) - remember, it's (col, row) not (x, y)!
-    private static readonly Vector2I WallAtlasCoord = new(0, 0);   // Top-left: solid gray block
-    private static readonly Vector2I FloorAtlasCoord = new(0, 1);  // Row 1, Col 0: simple floor
-    private static readonly Vector2I SmokeAtlasCoord = new(0, 6);  // Row 6, Col 0: cloud sprite
-    private static readonly Vector2I FOVAtlasCoord = new(4, 3);    // Row 3, Col 4: bright green tile
+    // Grid cells: [x, y] = ColorRect node
+    private readonly ColorRect[,] _gridCells = new ColorRect[GridSize, GridSize];
+    private readonly ColorRect[,] _fovCells = new ColorRect[GridSize, GridSize];
+
+    // Colors for terrain
+    private static readonly Color WallColor = Colors.Black;
+    private static readonly Color FloorColor = Colors.White;
+    private static readonly Color SmokeColor = new Color(0.3f, 0.3f, 0.3f); // Dark gray
+    private static readonly Color PlayerColor = Colors.Green;
+    private static readonly Color DummyColor = Colors.Red;
+    private static readonly Color FOVColor = new Color(1f, 1f, 0f, 0.3f); // Semi-transparent yellow
 
     public override void _Ready()
     {
@@ -48,17 +48,8 @@ public partial class GridTestSceneController : Node2D
         _mediator = ServiceLocator.Get<IMediator>();
         _eventBus = ServiceLocator.Get<IGodotEventBus>();
 
-        // Get scene nodes
-        _terrainLayer = GetNode<TileMapLayer>("TerrainLayer");
-        _fovLayer = GetNode<TileMapLayer>("FOVLayer");
-        _playerSprite = GetNode<Sprite2D>("Player");
-        _dummySprite = GetNode<Sprite2D>("Dummy");
-
-        // Scale TileMaps to match sprite scale (sprites are 6x, tiles default to 1x)
-        // This makes 8x8 tiles render as 48x48 pixels to match sprite size
-        const float tileScale = 6.0f;
-        _terrainLayer.Scale = new Vector2(tileScale, tileScale);
-        _fovLayer.Scale = new Vector2(tileScale, tileScale);
+        // Create grid visualization
+        CreateGridCells();
 
         // Subscribe to events (ADR-004: Terminal subscriber)
         _eventBus.Subscribe<ActorMovedEvent>(this, OnActorMoved);
@@ -74,6 +65,41 @@ public partial class GridTestSceneController : Node2D
         _eventBus.UnsubscribeAll(this);
     }
 
+    /// <summary>
+    /// Creates ColorRect nodes for each grid cell (terrain + FOV overlay layers).
+    /// </summary>
+    private void CreateGridCells()
+    {
+        for (int x = 0; x < GridSize; x++)
+        {
+            for (int y = 0; y < GridSize; y++)
+            {
+                // Terrain layer (bottom)
+                var terrainCell = new ColorRect
+                {
+                    Position = new Vector2(x * CellSize, y * CellSize),
+                    Size = new Vector2(CellSize, CellSize),
+                    Color = FloorColor // Default to floor
+                };
+                AddChild(terrainCell);
+                _gridCells[x, y] = terrainCell;
+
+                // FOV overlay layer (top)
+                var fovCell = new ColorRect
+                {
+                    Position = new Vector2(x * CellSize, y * CellSize),
+                    Size = new Vector2(CellSize, CellSize),
+                    Color = new Color(0, 0, 0, 0), // Transparent by default
+                    ZIndex = 10 // Above terrain
+                };
+                AddChild(fovCell);
+                _fovCells[x, y] = fovCell;
+            }
+        }
+
+        GD.Print($"Created {GridSize}×{GridSize} grid cells");
+    }
+
     private async void InitializeGameState()
     {
         // Create actor IDs
@@ -82,16 +108,16 @@ public partial class GridTestSceneController : Node2D
         _activeActorId = _playerId; // Start with player's FOV
 
         // Initialize test terrain: Walls around edges, smoke patches
-        for (int x = 0; x < 30; x++)
+        for (int x = 0; x < GridSize; x++)
         {
             await _mediator.Send(new SetTerrainCommand(new Position(x, 0), TerrainType.Wall));
-            await _mediator.Send(new SetTerrainCommand(new Position(x, 29), TerrainType.Wall));
+            await _mediator.Send(new SetTerrainCommand(new Position(x, GridSize - 1), TerrainType.Wall));
         }
 
-        for (int y = 0; y < 30; y++)
+        for (int y = 0; y < GridSize; y++)
         {
             await _mediator.Send(new SetTerrainCommand(new Position(0, y), TerrainType.Wall));
-            await _mediator.Send(new SetTerrainCommand(new Position(29, y), TerrainType.Wall));
+            await _mediator.Send(new SetTerrainCommand(new Position(GridSize - 1, y), TerrainType.Wall));
         }
 
         // Add some smoke patches for testing vision blocking
@@ -112,19 +138,19 @@ public partial class GridTestSceneController : Node2D
         await _mediator.Send(new RegisterActorCommand(_playerId, playerStartPos));
         await _mediator.Send(new RegisterActorCommand(_dummyId, dummyStartPos));
 
-        // Update sprites to initial positions
-        _playerSprite.Position = GridToPixel(playerStartPos);
-        _dummySprite.Position = GridToPixel(dummyStartPos);
-
-        // Render all terrain to TileMap (visualization layer)
-        // This must happen after terrain commands complete but before FOV calculation
+        // Render all terrain
         RenderAllTerrain();
 
+        // Set initial actor colors
+        SetCellColor(playerStartPos.X, playerStartPos.Y, PlayerColor);
+        SetCellColor(dummyStartPos.X, dummyStartPos.Y, DummyColor);
+
         // Calculate initial FOV for player
-        await _mediator.Send(new MoveActorCommand(_playerId, playerStartPos)); // Triggers FOV calc
+        await _mediator.Send(new MoveActorCommand(_playerId, playerStartPos));
 
         GD.Print("Grid Test Scene initialized!");
         GD.Print("Controls: Arrow Keys = Player, WASD = Dummy, Tab = Switch FOV view");
+        GD.Print($"Cell size: {CellSize}×{CellSize} pixels, Grid: {GridSize}×{GridSize} cells");
     }
 
     public override void _UnhandledInput(InputEvent @event)
@@ -137,6 +163,9 @@ public partial class GridTestSceneController : Node2D
         {
             _activeActorId = _activeActorId.Equals(_playerId) ? _dummyId : _playerId;
             GD.Print($"Switched FOV view to: {(_activeActorId.Equals(_playerId) ? "Player" : "Dummy")}");
+
+            // Trigger FOV refresh for newly active actor
+            RefreshFOVDisplay();
             return;
         }
 
@@ -190,98 +219,151 @@ public partial class GridTestSceneController : Node2D
     }
 
     /// <summary>
-    /// Renders the entire 30x30 grid terrain to the TileMap.
-    /// Called once during initialization to visualize the terrain setup.
+    /// Renders terrain colors for all grid cells.
     /// </summary>
-    /// <remarks>
-    /// This method duplicates the terrain setup logic from InitializeGameState().
-    /// The terrain is defined by SetTerrainCommands (Core state) and then rendered
-    /// here (Presentation visualization). This separation maintains Clean Architecture.
-    /// </remarks>
     private void RenderAllTerrain()
     {
-        for (int x = 0; x < 30; x++)
+        for (int x = 0; x < GridSize; x++)
         {
-            for (int y = 0; y < 30; y++)
+            for (int y = 0; y < GridSize; y++)
             {
-                // Determine terrain type (matches SetTerrainCommand logic in InitializeGameState)
-                Vector2I atlasCoord;
+                // Determine terrain color (matches SetTerrainCommand logic)
+                Color color;
 
                 // Edges are walls
-                if (x == 0 || x == 29 || y == 0 || y == 29)
+                if (x == 0 || x == GridSize - 1 || y == 0 || y == GridSize - 1)
                 {
-                    atlasCoord = WallAtlasCoord;
+                    color = WallColor;
                 }
-                // Smoke patches at specific positions
+                // Smoke patches
                 else if ((x == 10 && y == 10) || (x == 10 && y == 11) || (x == 11 && y == 10))
                 {
-                    atlasCoord = SmokeAtlasCoord;
+                    color = SmokeColor;
                 }
-                // Interior wall (horizontal line at y=15, x from 5-9)
+                // Interior wall
                 else if (y == 15 && x >= 5 && x < 10)
                 {
-                    atlasCoord = WallAtlasCoord;
+                    color = WallColor;
                 }
                 // Everything else is floor
                 else
                 {
-                    atlasCoord = FloorAtlasCoord;
+                    color = FloorColor;
                 }
 
-                // Render to TileMap
-                // SetCell signature: (grid_position, source_id, atlas_coords)
-                // - grid_position: Where on the map (0-29, 0-29)
-                // - source_id: Which atlas (always 0 for our single atlas)
-                // - atlas_coords: Which tile in the atlas (column, row)
-                _terrainLayer.SetCell(new Vector2I(x, y), 0, atlasCoord);
+                _gridCells[x, y].Color = color;
             }
         }
 
-        GD.Print("Terrain rendered: 30x30 grid");
+        GD.Print("Terrain rendered with pure colors");
     }
 
     /// <summary>
-    /// Event handler: Actor moved - update sprite position.
+    /// Event handler: Actor moved - update cell color.
     /// </summary>
     private void OnActorMoved(ActorMovedEvent evt)
     {
-        var sprite = evt.ActorId.Equals(_playerId) ? _playerSprite : _dummySprite;
-        sprite.Position = GridToPixel(evt.NewPosition);
+        // Get old position to restore terrain color
+        var oldPosResult = _mediator.Send(new GetActorPositionQuery(evt.ActorId)).Result;
+
+        // Restore old cell to terrain color (clear actor color)
+        if (oldPosResult.IsSuccess)
+        {
+            var oldPos = oldPosResult.Value;
+            // Only restore if we actually moved (old != new)
+            if (oldPos.X != evt.NewPosition.X || oldPos.Y != evt.NewPosition.Y)
+            {
+                RestoreTerrainColor(oldPos.X, oldPos.Y);
+            }
+        }
+
+        // Set new cell to actor color
+        var actorColor = evt.ActorId.Equals(_playerId) ? PlayerColor : DummyColor;
+        SetCellColor(evt.NewPosition.X, evt.NewPosition.Y, actorColor);
 
         GD.Print($"Actor moved to ({evt.NewPosition.X}, {evt.NewPosition.Y})");
     }
 
     /// <summary>
     /// Event handler: FOV calculated - update visibility overlay.
-    /// Only update if this is the active actor's FOV.
     /// </summary>
     private void OnFOVCalculated(FOVCalculatedEvent evt)
     {
         if (!evt.ActorId.Equals(_activeActorId))
             return; // Only show active actor's FOV
 
-        // Clear previous FOV overlay
-        _fovLayer.Clear();
+        // Clear all FOV cells
+        for (int x = 0; x < GridSize; x++)
+        {
+            for (int y = 0; y < GridSize; y++)
+            {
+                _fovCells[x, y].Color = new Color(0, 0, 0, 0); // Transparent
+            }
+        }
 
-        // Highlight visible tiles using atlas coordinates
+        // Highlight visible cells
         foreach (var pos in evt.VisiblePositions)
         {
-            // SetCell parameters:
-            // - new Vector2I(pos.X, pos.Y): Grid position (where on the map)
-            // - 0: Source ID (which atlas - always 0 for our single atlas)
-            // - FOVAtlasCoord: Atlas coordinates (which tile from the tileset)
-            _fovLayer.SetCell(
-                new Vector2I(pos.X, pos.Y),
-                0,
-                FOVAtlasCoord
-            );
+            if (pos.X >= 0 && pos.X < GridSize && pos.Y >= 0 && pos.Y < GridSize)
+            {
+                _fovCells[pos.X, pos.Y].Color = FOVColor;
+            }
         }
 
         GD.Print($"FOV updated: {evt.VisiblePositions.Count} positions visible");
     }
 
-    private Vector2 GridToPixel(Position gridPos)
+    /// <summary>
+    /// Manually refresh FOV display (used when switching active actor with Tab).
+    /// </summary>
+    private async void RefreshFOVDisplay()
     {
-        return new Vector2(gridPos.X * TileSize, gridPos.Y * TileSize);
+        // Get active actor position
+        var posResult = await _mediator.Send(new GetActorPositionQuery(_activeActorId));
+        if (posResult.IsFailure) return;
+
+        // Recalculate FOV
+        await _mediator.Send(new MoveActorCommand(_activeActorId, posResult.Value));
+    }
+
+    /// <summary>
+    /// Sets a grid cell to a specific color.
+    /// </summary>
+    private void SetCellColor(int x, int y, Color color)
+    {
+        if (x >= 0 && x < GridSize && y >= 0 && y < GridSize)
+        {
+            _gridCells[x, y].Color = color;
+        }
+    }
+
+    /// <summary>
+    /// Restores a cell to its terrain color.
+    /// </summary>
+    private void RestoreTerrainColor(int x, int y)
+    {
+        if (x < 0 || x >= GridSize || y < 0 || y >= GridSize) return;
+
+        // Determine terrain color (same logic as RenderAllTerrain)
+        Color color;
+
+        if (x == 0 || x == GridSize - 1 || y == 0 || y == GridSize - 1)
+        {
+            color = WallColor;
+        }
+        else if ((x == 10 && y == 10) || (x == 10 && y == 11) || (x == 11 && y == 10))
+        {
+            color = SmokeColor;
+        }
+        else if (y == 15 && x >= 5 && x < 10)
+        {
+            color = WallColor;
+        }
+        else
+        {
+            color = FloorColor;
+        }
+
+        _gridCells[x, y].Color = color;
     }
 }
