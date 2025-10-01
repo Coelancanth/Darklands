@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Threading.Tasks;
 using Darklands.Core.Domain.Common;
 using Darklands.Core.Features.Grid.Application.Commands;
 using Darklands.Core.Features.Grid.Application.Queries;
@@ -34,6 +36,9 @@ public partial class GridTestSceneController : Node2D
     private readonly ColorRect[,] _gridCells = new ColorRect[GridSize, GridSize];
     private readonly ColorRect[,] _fovCells = new ColorRect[GridSize, GridSize];
 
+    // Fog of War state: [x, y] = has this cell been explored?
+    private readonly bool[,] _exploredCells = new bool[GridSize, GridSize];
+
     // Colors for terrain
     private static readonly Color WallColor = Colors.Black;
     private static readonly Color FloorColor = Colors.White;
@@ -41,6 +46,11 @@ public partial class GridTestSceneController : Node2D
     private static readonly Color PlayerColor = Colors.Green;
     private static readonly Color DummyColor = Colors.Red;
     private static readonly Color FOVColor = new Color(1f, 1f, 0f, 0.3f); // Semi-transparent yellow
+
+    // Fog of War overlay colors
+    private static readonly Color UnexploredFog = new Color(0, 0, 0, 0.9f); // Nearly opaque black
+    private static readonly Color ExploredFog = new Color(0, 0, 0, 0.6f); // Semi-transparent black
+    private static readonly Color VisibleFog = new Color(0, 0, 0, 0); // Transparent (no fog)
 
     public override void _Ready()
     {
@@ -84,16 +94,19 @@ public partial class GridTestSceneController : Node2D
                 AddChild(terrainCell);
                 _gridCells[x, y] = terrainCell;
 
-                // FOV overlay layer (top)
+                // FOV overlay layer (top) - starts as unexplored (black fog)
                 var fovCell = new ColorRect
                 {
                     Position = new Vector2(x * CellSize, y * CellSize),
                     Size = new Vector2(CellSize, CellSize),
-                    Color = new Color(0, 0, 0, 0), // Transparent by default
+                    Color = UnexploredFog, // Start with unexplored fog
                     ZIndex = 10 // Above terrain
                 };
                 AddChild(fovCell);
                 _fovCells[x, y] = fovCell;
+
+                // Mark all cells as unexplored initially
+                _exploredCells[x, y] = false;
             }
         }
 
@@ -262,12 +275,13 @@ public partial class GridTestSceneController : Node2D
     /// Event handler: Actor moved - update cell colors.
     /// Event contains complete information (old + new positions) - no state tracking needed!
     /// </summary>
-    private void OnActorMoved(ActorMovedEvent evt)
+    private async void OnActorMoved(ActorMovedEvent evt)
     {
         // Restore old cell to terrain color (event tells us the old position!)
         if (evt.OldPosition.X != evt.NewPosition.X || evt.OldPosition.Y != evt.NewPosition.Y)
         {
-            RestoreTerrainColor(evt.OldPosition.X, evt.OldPosition.Y);
+            // Check if another actor is still at the old position
+            await RestoreCellColor(evt.OldPosition);
         }
 
         // Set new cell to actor color
@@ -278,28 +292,40 @@ public partial class GridTestSceneController : Node2D
     }
 
     /// <summary>
-    /// Event handler: FOV calculated - update visibility overlay.
+    /// Event handler: FOV calculated - update fog of war (3-state system).
+    /// Unexplored = nearly opaque black, Explored = semi-transparent black, Visible = no fog.
     /// </summary>
     private void OnFOVCalculated(FOVCalculatedEvent evt)
     {
         if (!evt.ActorId.Equals(_activeActorId))
             return; // Only show active actor's FOV
 
-        // Clear all FOV cells
+        // Create set of currently visible positions for fast lookup
+        var visibleSet = new HashSet<Position>(evt.VisiblePositions);
+
+        // Update fog of war for all cells (3-state system)
         for (int x = 0; x < GridSize; x++)
         {
             for (int y = 0; y < GridSize; y++)
             {
-                _fovCells[x, y].Color = new Color(0, 0, 0, 0); // Transparent
-            }
-        }
+                var pos = new Position(x, y);
 
-        // Highlight visible cells
-        foreach (var pos in evt.VisiblePositions)
-        {
-            if (pos.X >= 0 && pos.X < GridSize && pos.Y >= 0 && pos.Y < GridSize)
-            {
-                _fovCells[pos.X, pos.Y].Color = FOVColor;
+                if (visibleSet.Contains(pos))
+                {
+                    // Currently visible: No fog, mark as explored
+                    _fovCells[x, y].Color = VisibleFog;
+                    _exploredCells[x, y] = true;
+                }
+                else if (_exploredCells[x, y])
+                {
+                    // Previously explored but not currently visible: Dim fog
+                    _fovCells[x, y].Color = ExploredFog;
+                }
+                else
+                {
+                    // Never explored: Heavy fog
+                    _fovCells[x, y].Color = UnexploredFog;
+                }
             }
         }
 
@@ -328,6 +354,33 @@ public partial class GridTestSceneController : Node2D
         {
             _gridCells[x, y].Color = color;
         }
+    }
+
+    /// <summary>
+    /// Restores a cell to its terrain color, or keeps actor color if another actor is there.
+    /// </summary>
+    private async Task RestoreCellColor(Position pos)
+    {
+        if (pos.X < 0 || pos.X >= GridSize || pos.Y < 0 || pos.Y >= GridSize) return;
+
+        // Check if player is at this position
+        var playerPosResult = await _mediator.Send(new GetActorPositionQuery(_playerId));
+        if (playerPosResult.IsSuccess && playerPosResult.Value.Equals(pos))
+        {
+            _gridCells[pos.X, pos.Y].Color = PlayerColor;
+            return;
+        }
+
+        // Check if dummy is at this position
+        var dummyPosResult = await _mediator.Send(new GetActorPositionQuery(_dummyId));
+        if (dummyPosResult.IsSuccess && dummyPosResult.Value.Equals(pos))
+        {
+            _gridCells[pos.X, pos.Y].Color = DummyColor;
+            return;
+        }
+
+        // No actor here, restore terrain color
+        RestoreTerrainColor(pos.X, pos.Y);
     }
 
     /// <summary>

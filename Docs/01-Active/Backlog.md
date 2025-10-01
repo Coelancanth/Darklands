@@ -244,6 +244,11 @@ References/GoRogue/GoRogue/FOV/RecursiveShadowcastingFOV.cs       # Secondary (l
 
 **Test Suite Status**: ✅ 189 tests passing, 54ms total execution time
 
+**Post-Completion Bug Fixes** (2025-10-01):
+- **Fixed**: Fog of war not working → Implemented 3-state system (unexplored/explored/visible)
+- **Fixed**: Actor overlap rendering bug → `RestoreCellColor()` queries Core for actor positions before restoring terrain
+- Both fixes maintain Clean Architecture (Presentation queries Core, no state duplication)
+
 ---
 
 *Recently completed and archived (2025-10-01):*
