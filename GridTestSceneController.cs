@@ -45,6 +45,7 @@ public partial class GridTestSceneController : Node2D
     // Grid cells: [x, y] = ColorRect node
     private readonly ColorRect[,] _gridCells = new ColorRect[GridSize, GridSize];
     private readonly ColorRect[,] _fovCells = new ColorRect[GridSize, GridSize];
+    private readonly ColorRect[,] _actorCells = new ColorRect[GridSize, GridSize]; // Actor overlay above fog
 
     // Fog of War state: [x, y] = has this cell been explored?
     private readonly bool[,] _exploredCells = new bool[GridSize, GridSize];
@@ -55,8 +56,8 @@ public partial class GridTestSceneController : Node2D
     // Colors for terrain
     private static readonly Color WallColor = Colors.Black;
     private static readonly Color FloorColor = Colors.White;
-    private static readonly Color SmokeColor = new Color(0.3f, 0.3f, 0.3f); // Dark gray
-    private static readonly Color PlayerColor = Colors.Green;
+    private static readonly Color SmokeColor = new Color(0f, 0.6f, 0f); // Green (bushes)
+    private static readonly Color PlayerColor = Colors.Blue; // Changed from green
     private static readonly Color DummyColor = Colors.Red;
     private static readonly Color FOVColor = new Color(1f, 1f, 0f, 0.3f); // Semi-transparent yellow
     private static readonly Color PathPreviewColor = new Color(1f, 0.65f, 0f, 0.6f); // Semi-transparent orange (VS_006)
@@ -99,7 +100,8 @@ public partial class GridTestSceneController : Node2D
     }
 
     /// <summary>
-    /// Creates ColorRect nodes for each grid cell (terrain + FOV overlay layers).
+    /// Creates ColorRect nodes for each grid cell (terrain + FOV + actor layers).
+    /// Layer ordering: Terrain (Z=0) → FOV (Z=10) → Actors (Z=20) → Path Preview (Z=15 in ShowPathPreview)
     /// </summary>
     private void CreateGridCells()
     {
@@ -107,7 +109,7 @@ public partial class GridTestSceneController : Node2D
         {
             for (int y = 0; y < GridSize; y++)
             {
-                // Terrain layer (bottom)
+                // Terrain layer (bottom, Z=0)
                 var terrainCell = new ColorRect
                 {
                     Position = new Vector2(x * CellSize, y * CellSize),
@@ -118,7 +120,7 @@ public partial class GridTestSceneController : Node2D
                 AddChild(terrainCell);
                 _gridCells[x, y] = terrainCell;
 
-                // FOV overlay layer (top) - starts as unexplored (black fog)
+                // FOV overlay layer (middle, Z=10) - starts as unexplored (black fog)
                 var fovCell = new ColorRect
                 {
                     Position = new Vector2(x * CellSize, y * CellSize),
@@ -130,12 +132,24 @@ public partial class GridTestSceneController : Node2D
                 AddChild(fovCell);
                 _fovCells[x, y] = fovCell;
 
+                // Actor overlay layer (top, Z=20) - starts transparent
+                var actorCell = new ColorRect
+                {
+                    Position = new Vector2(x * CellSize, y * CellSize),
+                    Size = new Vector2(CellSize, CellSize),
+                    Color = Colors.Transparent, // Transparent by default
+                    ZIndex = 20, // Above FOV (fog of war doesn't hide actors)
+                    MouseFilter = Control.MouseFilterEnum.Ignore // Let clicks pass through
+                };
+                AddChild(actorCell);
+                _actorCells[x, y] = actorCell;
+
                 // Mark all cells as unexplored initially
                 _exploredCells[x, y] = false;
             }
         }
 
-        GD.Print($"Created {GridSize}×{GridSize} grid cells");
+        GD.Print($"Created {GridSize}×{GridSize} grid cells (3 layers: terrain, FOV, actors)");
     }
 
     private async void InitializeGameState()
@@ -413,18 +427,18 @@ public partial class GridTestSceneController : Node2D
     }
 
     /// <summary>
-    /// Sets a grid cell to a specific color.
+    /// Sets a grid cell to a specific actor color (on actor overlay layer, above fog).
     /// </summary>
     private void SetCellColor(int x, int y, Color color)
     {
         if (x >= 0 && x < GridSize && y >= 0 && y < GridSize)
         {
-            _gridCells[x, y].Color = color;
+            _actorCells[x, y].Color = color; // Paint on actor layer (Z=20) not terrain
         }
     }
 
     /// <summary>
-    /// Restores a cell to its terrain color, or keeps actor color if another actor is there.
+    /// Restores a cell's actor layer to transparent, or keeps actor color if another actor is there.
     /// </summary>
     private async Task RestoreCellColor(Position pos)
     {
@@ -434,7 +448,7 @@ public partial class GridTestSceneController : Node2D
         var playerPosResult = await _mediator.Send(new GetActorPositionQuery(_playerId));
         if (playerPosResult.IsSuccess && playerPosResult.Value.Equals(pos))
         {
-            _gridCells[pos.X, pos.Y].Color = PlayerColor;
+            _actorCells[pos.X, pos.Y].Color = PlayerColor;
             return;
         }
 
@@ -442,12 +456,12 @@ public partial class GridTestSceneController : Node2D
         var dummyPosResult = await _mediator.Send(new GetActorPositionQuery(_dummyId));
         if (dummyPosResult.IsSuccess && dummyPosResult.Value.Equals(pos))
         {
-            _gridCells[pos.X, pos.Y].Color = DummyColor;
+            _actorCells[pos.X, pos.Y].Color = DummyColor;
             return;
         }
 
-        // No actor here, restore terrain color
-        RestoreTerrainColor(pos.X, pos.Y);
+        // No actor here, make actor layer transparent
+        _actorCells[pos.X, pos.Y].Color = Colors.Transparent;
     }
 
     /// <summary>
@@ -614,6 +628,10 @@ public partial class GridTestSceneController : Node2D
     /// </summary>
     private void ShowPathPreviewForHover(ActorId actorId, Position target)
     {
+        // CRITICAL: Clear existing preview BEFORE calculating new path
+        // Prevents artifact of old path overlaying new path when destination changes
+        ClearPathPreview();
+
         // Get current position (synchronous - use cached position if available)
         var currentPosResult = _mediator.Send(new GetActorPositionQuery(actorId)).Result;
         if (currentPosResult.IsFailure) return;
@@ -621,8 +639,7 @@ public partial class GridTestSceneController : Node2D
         var currentPos = currentPosResult.Value;
         if (currentPos.Equals(target))
         {
-            ClearPathPreview(); // No path needed
-            return;
+            return; // No path needed (already cleared above)
         }
 
         // Calculate path using A* pathfinding
@@ -634,8 +651,7 @@ public partial class GridTestSceneController : Node2D
 
         if (pathResult.IsFailure)
         {
-            ClearPathPreview(); // No valid path
-            return;
+            return; // No valid path (already cleared above)
         }
 
         // Show the preview
@@ -658,7 +674,7 @@ public partial class GridTestSceneController : Node2D
                 Position = new Vector2(pos.X * CellSize, pos.Y * CellSize),
                 Size = new Vector2(CellSize, CellSize),
                 Color = PathPreviewColor,
-                ZIndex = 15, // Above FOV overlay (which is 10)
+                ZIndex = 15, // Between FOV (10) and actors (20)
                 MouseFilter = Control.MouseFilterEnum.Ignore // Let clicks pass through
             };
             AddChild(pathNode);
