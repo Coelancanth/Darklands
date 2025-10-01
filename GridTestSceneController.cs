@@ -15,6 +15,7 @@ using Darklands.Core.Infrastructure.DependencyInjection;
 using Darklands.Core.Infrastructure.Events;
 using Godot;
 using MediatR;
+using Microsoft.Extensions.Logging;
 
 namespace Darklands;
 
@@ -31,6 +32,7 @@ public partial class GridTestSceneController : Node2D
     private IMediator _mediator = null!;
     private IGodotEventBus _eventBus = null!;
     private IPathfindingService _pathfindingService = null!;
+    private ILogger<GridTestSceneController> _logger = null!;
 
     private ActorId _playerId;
     private ActorId _dummyId;
@@ -74,6 +76,7 @@ public partial class GridTestSceneController : Node2D
         _mediator = ServiceLocator.Get<IMediator>();
         _eventBus = ServiceLocator.Get<IGodotEventBus>();
         _pathfindingService = ServiceLocator.Get<IPathfindingService>(); // VS_006 Phase 4
+        _logger = ServiceLocator.Get<ILogger<GridTestSceneController>>(); // ADR-001: Use ILogger<T>, not GD.Print
 
         // Create grid visualization
         CreateGridCells();
@@ -85,13 +88,13 @@ public partial class GridTestSceneController : Node2D
         // Initialize game state
         InitializeGameState();
 
-        // VS_006 Phase 4: Print instructions
-        GD.Print("=== VS_006 Movement Controls ===");
-        GD.Print("Arrow keys: Move player (single step)");
-        GD.Print("WASD: Move dummy (single step)");
-        GD.Print("Left Click: Move player to clicked tile (pathfinding)");
-        GD.Print("Right Click: Cancel movement");
-        GD.Print("Tab: Switch FOV view");
+        // VS_006 Phase 4: Log instructions
+        _logger.LogInformation("=== VS_006 Movement Controls ===");
+        _logger.LogInformation("Arrow keys: Move player (single step)");
+        _logger.LogInformation("WASD: Move dummy (single step)");
+        _logger.LogInformation("Left Click: Move player to clicked tile (pathfinding)");
+        _logger.LogInformation("Right Click: Cancel movement");
+        _logger.LogInformation("Tab: Switch FOV view");
     }
 
     public override void _ExitTree()
@@ -150,7 +153,7 @@ public partial class GridTestSceneController : Node2D
             }
         }
 
-        GD.Print($"Created {GridSize}×{GridSize} grid cells (3 layers: terrain, FOV, actors)");
+        _logger.LogInformation("Created {GridSize}x{GridSize} grid cells (3 layers: terrain, FOV, actors)", GridSize, GridSize);
     }
 
     private async void InitializeGameState()
@@ -201,9 +204,9 @@ public partial class GridTestSceneController : Node2D
         // Calculate initial FOV for player (this will reveal starting area)
         await _mediator.Send(new MoveActorCommand(_playerId, playerStartPos));
 
-        GD.Print("Grid Test Scene initialized!");
-        GD.Print("Controls: Arrow Keys = Player, WASD = Dummy, Tab = Switch FOV view");
-        GD.Print($"Cell size: {CellSize}×{CellSize} pixels, Grid: {GridSize}×{GridSize} cells");
+        _logger.LogInformation("Grid Test Scene initialized!");
+        _logger.LogInformation("Controls: Arrow Keys = Player, WASD = Dummy, Tab = Switch FOV view");
+        _logger.LogInformation("Cell size: {CellSize}x{CellSize} pixels, Grid: {GridSize}x{GridSize} cells", CellSize, CellSize, GridSize, GridSize);
     }
 
     public override void _Input(InputEvent @event)
@@ -233,7 +236,8 @@ public partial class GridTestSceneController : Node2D
             {
                 // Left click: Execute movement along previewed path
                 var gridPos = ScreenToGridPosition(mouseEvent.Position);
-                GD.Print($"Mouse clicked at screen ({mouseEvent.Position.X}, {mouseEvent.Position.Y}) → grid ({gridPos.X}, {gridPos.Y})");
+                _logger.LogDebug("Mouse clicked at screen ({ScreenX}, {ScreenY}) → grid ({GridX}, {GridY})",
+                    mouseEvent.Position.X, mouseEvent.Position.Y, gridPos.X, gridPos.Y);
 
                 if (IsValidGridPosition(gridPos))
                 {
@@ -242,7 +246,7 @@ public partial class GridTestSceneController : Node2D
                 }
                 else
                 {
-                    GD.Print($"Click outside grid bounds");
+                    _logger.LogDebug("Click outside grid bounds");
                 }
                 return;
             }
@@ -263,7 +267,8 @@ public partial class GridTestSceneController : Node2D
         if (keyEvent.Keycode == Key.Tab)
         {
             _activeActorId = _activeActorId.Equals(_playerId) ? _dummyId : _playerId;
-            GD.Print($"Switched FOV view to: {(_activeActorId.Equals(_playerId) ? "Player" : "Dummy")}");
+            var actorName = _activeActorId.Equals(_playerId) ? "Player" : "Dummy";
+            _logger.LogInformation("Switched FOV view to: {ActorName}", actorName);
 
             // Trigger FOV refresh for newly active actor
             RefreshFOVDisplay();
@@ -302,7 +307,7 @@ public partial class GridTestSceneController : Node2D
 
         if (currentPosResult.IsFailure)
         {
-            GD.PrintErr($"Failed to get actor position: {currentPosResult.Error}");
+            _logger.LogError("Failed to get actor position: {Error}", currentPosResult.Error);
             return;
         }
 
@@ -314,49 +319,9 @@ public partial class GridTestSceneController : Node2D
 
         if (moveResult.IsFailure)
         {
-            GD.Print($"Move blocked: {moveResult.Error}");
+            _logger.LogDebug("Move blocked: {Error}", moveResult.Error);
         }
         // Success: Events will trigger OnActorMoved + OnFOVCalculated
-    }
-
-    /// <summary>
-    /// Renders terrain colors for all grid cells.
-    /// </summary>
-    private void RenderAllTerrain()
-    {
-        for (int x = 0; x < GridSize; x++)
-        {
-            for (int y = 0; y < GridSize; y++)
-            {
-                // Determine terrain color (matches SetTerrainCommand logic)
-                Color color;
-
-                // Edges are walls
-                if (x == 0 || x == GridSize - 1 || y == 0 || y == GridSize - 1)
-                {
-                    color = WallColor;
-                }
-                // Smoke patches
-                else if ((x == 10 && y == 10) || (x == 10 && y == 11) || (x == 11 && y == 10))
-                {
-                    color = SmokeColor;
-                }
-                // Interior wall
-                else if (y == 15 && x >= 5 && x < 10)
-                {
-                    color = WallColor;
-                }
-                // Everything else is floor
-                else
-                {
-                    color = FloorColor;
-                }
-
-                _gridCells[x, y].Color = color;
-            }
-        }
-
-        GD.Print("Terrain rendered with pure colors");
     }
 
     /// <summary>
@@ -376,7 +341,8 @@ public partial class GridTestSceneController : Node2D
         var actorColor = evt.ActorId.Equals(_playerId) ? PlayerColor : DummyColor;
         SetCellColor(evt.NewPosition.X, evt.NewPosition.Y, actorColor);
 
-        GD.Print($"Actor moved from ({evt.OldPosition.X},{evt.OldPosition.Y}) to ({evt.NewPosition.X},{evt.NewPosition.Y})");
+        _logger.LogDebug("Actor moved from ({OldX},{OldY}) to ({NewX},{NewY})",
+            evt.OldPosition.X, evt.OldPosition.Y, evt.NewPosition.X, evt.NewPosition.Y);
     }
 
     /// <summary>
@@ -440,7 +406,7 @@ public partial class GridTestSceneController : Node2D
             }
         }
 
-        GD.Print($"FOV updated: {evt.VisiblePositions.Count} positions visible");
+        _logger.LogDebug("FOV updated: {VisibleCount} positions visible", evt.VisiblePositions.Count);
     }
 
     /// <summary>
@@ -522,13 +488,13 @@ public partial class GridTestSceneController : Node2D
     }
 
     /// <summary>
-    /// Restores a cell to its terrain color.
+    /// Restores a cell to its terrain color when revealed by FOV.
     /// </summary>
     private void RestoreTerrainColor(int x, int y)
     {
         if (x < 0 || x >= GridSize || y < 0 || y >= GridSize) return;
 
-        // Determine terrain color (same logic as RenderAllTerrain)
+        // Determine terrain color based on position
         Color color;
 
         if (x == 0 || x == GridSize - 1 || y == 0 || y == GridSize - 1)
@@ -583,7 +549,7 @@ public partial class GridTestSceneController : Node2D
         var currentPosResult = await _mediator.Send(new GetActorPositionQuery(actorId));
         if (currentPosResult.IsFailure)
         {
-            GD.PrintErr($"Failed to get actor position: {currentPosResult.Error}");
+            _logger.LogError("Failed to get actor position: {Error}", currentPosResult.Error);
             return;
         }
 
@@ -592,7 +558,7 @@ public partial class GridTestSceneController : Node2D
         // If already at target, do nothing
         if (currentPos.Equals(target))
         {
-            GD.Print("Already at target position");
+            _logger.LogDebug("Already at target position");
             return;
         }
 
@@ -605,16 +571,16 @@ public partial class GridTestSceneController : Node2D
 
         if (pathResult.IsFailure)
         {
-            GD.Print($"No path to ({target.X}, {target.Y}): {pathResult.Error}");
+            _logger.LogDebug("No path to ({TargetX}, {TargetY}): {Error}", target.X, target.Y, pathResult.Error);
             return;
         }
 
         var path = pathResult.Value;
-        GD.Print($"Found path with {path.Count} steps to ({target.X}, {target.Y})");
+        _logger.LogInformation("Found path with {PathLength} steps to ({TargetX}, {TargetY})", path.Count, target.X, target.Y);
 
-        // Debug: Print full path for verification
+        // Debug: Log full path for verification
         var pathString = string.Join(" → ", path.Select(p => $"({p.X},{p.Y})"));
-        GD.Print($"Path: {pathString}");
+        _logger.LogDebug("Path: {PathString}", pathString);
 
         // Path preview already visible from hover - just execute movement
         // Create cancellation token for this movement
@@ -630,11 +596,11 @@ public partial class GridTestSceneController : Node2D
 
         if (moveResult.IsFailure)
         {
-            GD.PrintErr($"Movement failed: {moveResult.Error}");
+            _logger.LogError("Movement failed: {Error}", moveResult.Error);
         }
         else
         {
-            GD.Print($"Movement completed to ({target.X}, {target.Y})");
+            _logger.LogInformation("Movement completed to ({TargetX}, {TargetY})", target.X, target.Y);
         }
 
         // Clean up cancellation token
@@ -649,7 +615,7 @@ public partial class GridTestSceneController : Node2D
     {
         if (_movementCancellation != null)
         {
-            GD.Print("Movement cancelled!");
+            _logger.LogInformation("Movement cancelled!");
             _movementCancellation.Cancel();
             _movementCancellation.Dispose();
             _movementCancellation = null;
