@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-01 19:12 (Dev Engineer: TD_003 + TD_004 created for logging improvements)
+**Last Updated**: 2025-10-01 20:42 (Backlog Assistant: Archived TD_002 - archive now at 1073 lines, rotation needed)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -73,6 +73,7 @@
 ---
 
 *Recently completed and archived (2025-10-01):*
+- **TD_002**: Debug Console Scene Refactor - Scene-based UI, pause isolation, ILogger integration ✅ (2025-10-01 20:37)
 - **VS_006**: Interactive Movement System - A* pathfinding, hover preview, fog of war, ILogger refactor ✅ (2025-10-01 17:54)
 - **VS_005**: Grid, FOV & Terrain System - Custom shadowcasting, 189 tests, event-driven integration ✅ (2025-10-01 15:19)
 - **VS_001**: Health System Walking Skeleton - Architectural foundation validated ✅
@@ -86,66 +87,7 @@
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*
 
-
-### TD_002: Refactor Debug Console to .tscn Scene with .tres Config
-**Status**: Proposed
-**Owner**: Tech Lead (for approval) → Dev Engineer (for implementation)
-**Size**: M (4-6h)
-**Priority**: Important (affects maintainability + fixes UI bugs)
-**Markers**: [DEVELOPER-EXPERIENCE] [REFACTOR]
-
-**What**: Convert procedural Debug Console to proper Godot scene + resource architecture
-
-**Why**:
-- **Current Issues**:
-  - CheckBoxes not visible (Z-index issues with procedural UI)
-  - OptionButton not responding to clicks (mouse filter problems)
-  - No game pause when console visible
-  - Hard to debug/maintain (200+ lines of UI creation code)
-  - No hot-reload for defaults
-- **Better Architecture**:
-  - Visual scene editing (see layout instantly)
-  - Proper Godot containers (auto-layout, responsive)
-  - Resource-based config (hot-reloadable defaults)
-  - Clean separation (UI in scene, logic in script, config in resource)
-
-**How**:
-1. **Create DebugConsole.tscn scene**:
-   - Panel (semi-transparent background)
-   - MarginContainer (40px margins)
-   - VBoxContainer (auto-layout children vertically)
-   - OptionButton for log level
-   - VBoxContainer for category checkboxes (populated at runtime)
-
-2. **Create DebugConsoleConfig.tres resource**:
-   ```csharp
-   public partial class DebugConsoleConfig : Resource
-   {
-       [Export] public LogLevel DefaultLogLevel { get; set; } = LogLevel.Information;
-       [Export] public string[] DefaultCategories { get; set; } = Array.Empty<string>();
-   }
-   ```
-
-3. **Refactor DebugConsoleController.cs**:
-   - Remove all CreateUI() procedural code
-   - Load DebugConsole.tscn as child scene
-   - Load DebugConsoleConfig.tres for defaults
-   - Wire up signals (CheckBox.Toggled, OptionButton.ItemSelected)
-   - Add pause handling (`GetTree().Paused = _container.Visible`)
-
-4. **Keep JSON for user state**:
-   - Loading priority: JSON user overrides → .tres defaults → hardcoded fallback
-
-**Done When**:
-- ✅ DebugConsole.tscn exists and loads correctly
-- ✅ DebugConsoleConfig.tres hot-reloads (change default level in Editor, see effect)
-- ✅ CheckBoxes visible and clickable
-- ✅ OptionButton responds to clicks and changes log level
-- ✅ Game pauses when F12 opens console
-- ✅ User preferences persist via JSON (between sessions)
-- ✅ All 215 tests pass
-
-**Depends On**: None
+**No items in Important section!** ✅
 
 ---
 

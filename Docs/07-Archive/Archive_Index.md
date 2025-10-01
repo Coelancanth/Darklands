@@ -1,16 +1,16 @@
 # Backlog Archive Index
 
-**Last Updated**: 2025-10-01 17:59
-**Current Active Archive**: Completed_Backlog_2025-10.md (Lines: 924/1000 - healthy capacity)
+**Last Updated**: 2025-10-01 20:42
+**Current Active Archive**: Completed_Backlog_2025-10.md (Lines: 1073/1000 - over capacity, rotation needed soon)
 
 ## Archive Files (Newest First)
 
 ### Completed_Backlog_2025-10.md (✅ ACTIVE - October 2025)
 - **Created**: 2025-10-01 00:48
-- **Line Count**: 924/1000 (76 lines remaining)
-- **Date Range**: 2025-10-01 to present
-- **Status**: ✅ Active (healthy capacity)
-- **Extraction Status**: 1/7 partially extracted (6 NOT EXTRACTED ⚠️, 1 PARTIALLY EXTRACTED 🔄)
+- **Line Count**: 1073/1000 (over capacity - rotation needed)
+- **Date Range**: 2025-10-01 to 2025-10-01 20:37
+- **Status**: ⚠️ Active (over capacity - rotate on next archive)
+- **Extraction Status**: 1/8 partially extracted (7 NOT EXTRACTED ⚠️, 1 PARTIALLY EXTRACTED 🔄)
 
 **Items**:
 - **VS_001**: Health System Walking Skeleton (phased implementation pattern, 101 tests, 5 bugs fixed) [PARTIALLY EXTRACTED 🔄]
@@ -20,6 +20,7 @@
 - **TD_001**: Architecture Enforcement Tests (NetArchTest + 10 tests enforcing 4 ADRs) [NOT EXTRACTED ⚠️]
 - **VS_005**: Grid, FOV & Terrain System (custom shadowcasting, 189 tests, event-driven Godot integration) [NOT EXTRACTED ⚠️]
 - **VS_006**: Interactive Movement System (A* pathfinding, hover preview, fog of war, 215 tests) [NOT EXTRACTED ⚠️]
+- **TD_002**: Debug Console Scene Refactor (scene-based UI, pause isolation, ILogger integration) [NOT EXTRACTED ⚠️]
 
 ### Completed_Backlog.md (📦 ARCHIVED - September 2025)
 - **Created**: 2025-09-30
@@ -39,5 +40,5 @@
 2. Open that specific archive file (newest first: Completed_Backlog_2025-10.md)
 3. Use Ctrl+F to search for item ID
 
-**Current Active Capacity**: 924/1000 lines (76 lines remaining)
-**Total Archived Items**: 10 (7 in Oct 2025, 3 in Sept 2025)
+**Current Active Capacity**: 1073/1000 lines (over capacity - rotation needed)
+**Total Archived Items**: 11 (8 in Oct 2025, 3 in Sept 2025)

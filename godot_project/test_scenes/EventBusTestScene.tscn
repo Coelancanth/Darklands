@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://dmehqiiqmm4v"]
 
-[ext_resource type="Script" uid="uid://q4hqoop1ucya" path="res://TestScenes/EventBusTestListener.cs" id="1_listener"]
+[ext_resource type="Script" uid="uid://q4hqoop1ucya" path="res://godot_project/test_scenes/EventBusTestListener.cs" id="1_listener"]
 
 [node name="EventBusTestScene" type="Control"]
 layout_mode = 3
