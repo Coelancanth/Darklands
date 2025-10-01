@@ -110,12 +110,12 @@ public partial class GridTestSceneController : Node2D
         {
             for (int y = 0; y < GridSize; y++)
             {
-                // Terrain layer (bottom, Z=0)
+                // Terrain layer (bottom, Z=0) - starts as pure black (unexplored)
                 var terrainCell = new ColorRect
                 {
                     Position = new Vector2(x * CellSize, y * CellSize),
                     Size = new Vector2(CellSize, CellSize),
-                    Color = FloorColor, // Default to floor
+                    Color = Colors.Black, // Unexplored = pure black
                     MouseFilter = Control.MouseFilterEnum.Stop // VS_006: Capture mouse input
                 };
                 AddChild(terrainCell);
@@ -191,14 +191,14 @@ public partial class GridTestSceneController : Node2D
         await _mediator.Send(new RegisterActorCommand(_playerId, playerStartPos));
         await _mediator.Send(new RegisterActorCommand(_dummyId, dummyStartPos));
 
-        // Render all terrain
-        RenderAllTerrain();
+        // DON'T render terrain - it will be revealed through FOV exploration
+        // Terrain stays pure black until explored
 
         // Set initial actor colors
         SetCellColor(playerStartPos.X, playerStartPos.Y, PlayerColor);
         SetCellColor(dummyStartPos.X, dummyStartPos.Y, DummyColor);
 
-        // Calculate initial FOV for player
+        // Calculate initial FOV for player (this will reveal starting area)
         await _mediator.Send(new MoveActorCommand(_playerId, playerStartPos));
 
         GD.Print("Grid Test Scene initialized!");
@@ -411,6 +411,12 @@ public partial class GridTestSceneController : Node2D
                     _fovCells[x, y].Color = VisibleFog;
                     _exploredCells[x, y] = true;
 
+                    // Reveal terrain when first explored
+                    if (_gridCells[x, y].Color == Colors.Black)
+                    {
+                        RestoreTerrainColor(x, y); // Paint actual terrain color
+                    }
+
                     // Show actors ONLY in currently visible areas (real-time)
                     UpdateActorVisibility(pos, playerPosResult, dummyPosResult, true);
                 }
@@ -424,8 +430,9 @@ public partial class GridTestSceneController : Node2D
                 }
                 else
                 {
-                    // Never explored: Heavy fog (pure black)
-                    _fovCells[x, y].Color = UnexploredFog;
+                    // Never explored: Pure black (hide terrain completely)
+                    _fovCells[x, y].Color = Colors.Transparent; // No fog overlay needed
+                    _gridCells[x, y].Color = Colors.Black; // Terrain layer is pure black
 
                     // HIDE actors in unexplored areas (true fog of war)
                     UpdateActorVisibility(pos, playerPosResult, dummyPosResult, false);
