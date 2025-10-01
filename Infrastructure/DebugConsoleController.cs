@@ -31,6 +31,7 @@ public partial class DebugConsoleController : CanvasLayer
     private Control? _container;
     private VBoxContainer? _categoryFiltersContainer;
     private LoggingService? _loggingService;
+    private Serilog.Core.LoggingLevelSwitch? _levelSwitch;
     private bool _initialized = false;
 
     public override void _Ready()
@@ -95,6 +96,19 @@ public partial class DebugConsoleController : CanvasLayer
 
         _loggingService = loggingServiceResult.Value;
         GD.Print("✅ LoggingService resolved from DI container");
+
+        // Try to get LoggingLevelSwitch from DI container
+        var levelSwitchResult = ServiceLocator.GetService<Serilog.Core.LoggingLevelSwitch>();
+        if (levelSwitchResult.IsSuccess)
+        {
+            _levelSwitch = levelSwitchResult.Value;
+            GD.Print("✅ LoggingLevelSwitch resolved from DI container");
+        }
+        else
+        {
+            GD.PrintErr($"⚠️ LoggingLevelSwitch not found: {levelSwitchResult.Error}");
+            GD.PrintErr("   Log level control will be unavailable");
+        }
 
         // Load saved category state from disk (if exists)
         LoadCategoryState();
@@ -166,12 +180,38 @@ public partial class DebugConsoleController : CanvasLayer
         subtitle.AddThemeFontSizeOverride("font_size", 16);
         _container.AddChild(subtitle);
 
+        // Log Level label and dropdown
+        var logLevelLabel = new Label
+        {
+            Name = "LogLevelLabel",
+            Text = "Minimum Log Level:",
+            Position = new Vector2(40, 140),
+            Size = new Vector2(240, 30)
+        };
+        logLevelLabel.AddThemeFontSizeOverride("font_size", 20);
+        _container.AddChild(logLevelLabel);
+
+        var logLevelDropdown = new OptionButton
+        {
+            Name = "LogLevelDropdown",
+            Position = new Vector2(280, 140),
+            Size = new Vector2(200, 40)
+        };
+        logLevelDropdown.AddItem("Debug", 0);
+        logLevelDropdown.AddItem("Information", 1);
+        logLevelDropdown.AddItem("Warning", 2);
+        logLevelDropdown.AddItem("Error", 3);
+        logLevelDropdown.Selected = 1; // Default to Information
+        logLevelDropdown.AddThemeFontSizeOverride("font_size", 18);
+        logLevelDropdown.ItemSelected += OnLogLevelChanged;
+        _container.AddChild(logLevelDropdown);
+
         // Category label
         var categoryLabel = new Label
         {
             Name = "CategoryLabel",
             Text = "Log Categories:",
-            Position = new Vector2(40, 140),
+            Position = new Vector2(40, 200),
             Size = new Vector2(240, 30)
         };
         categoryLabel.AddThemeFontSizeOverride("font_size", 20);
@@ -181,12 +221,37 @@ public partial class DebugConsoleController : CanvasLayer
         _categoryFiltersContainer = new VBoxContainer
         {
             Name = "CategoryFilters",
-            Position = new Vector2(40, 180),
+            Position = new Vector2(40, 240),
             Size = new Vector2(400, 400)
         };
+        _categoryFiltersContainer.AddThemeConstantOverride("separation", 8); // 8px spacing between checkboxes
         _container.AddChild(_categoryFiltersContainer);
 
         GD.Print("✅ Debug Console UI created procedurally");
+    }
+
+    /// <summary>
+    /// Handle log level dropdown selection change.
+    /// </summary>
+    private void OnLogLevelChanged(long index)
+    {
+        if (_levelSwitch == null)
+        {
+            GD.PrintErr("⚠️ LoggingLevelSwitch not available, cannot change log level");
+            return;
+        }
+
+        var newLevel = index switch
+        {
+            0 => Serilog.Events.LogEventLevel.Debug,
+            1 => Serilog.Events.LogEventLevel.Information,
+            2 => Serilog.Events.LogEventLevel.Warning,
+            3 => Serilog.Events.LogEventLevel.Error,
+            _ => Serilog.Events.LogEventLevel.Information
+        };
+
+        _levelSwitch.MinimumLevel = newLevel;
+        GD.Print($"🔧 Log level changed to: {newLevel}");
     }
 
     /// <summary>
@@ -226,6 +291,7 @@ public partial class DebugConsoleController : CanvasLayer
                 Text = category,
                 ButtonPressed = enabledCategories.Contains(category)
             };
+            checkbox.AddThemeFontSizeOverride("font_size", 18); // Larger font for visibility
 
             // Wire up toggle handler
             // IMPORTANT: Capture category in local variable to avoid closure issues
