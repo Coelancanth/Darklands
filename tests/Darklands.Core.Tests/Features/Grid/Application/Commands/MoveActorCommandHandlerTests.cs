@@ -1,9 +1,12 @@
 using CSharpFunctionalExtensions;
 using Darklands.Core.Domain.Common;
 using Darklands.Core.Features.Grid.Application.Commands;
+using Darklands.Core.Features.Grid.Application.Queries;
 using Darklands.Core.Features.Grid.Application.Services;
 using Darklands.Core.Features.Grid.Domain;
+using Darklands.Core.Infrastructure.Events;
 using FluentAssertions;
+using MediatR;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Xunit;
@@ -16,6 +19,8 @@ public class MoveActorCommandHandlerTests
 {
     private readonly GridMap _gridMap;
     private readonly IActorPositionService _mockPositionService;
+    private readonly IMediator _mockMediator;
+    private readonly IGodotEventBus _mockEventBus;
     private readonly ILogger<MoveActorCommandHandler> _mockLogger;
     private readonly MoveActorCommandHandler _handler;
 
@@ -23,8 +28,16 @@ public class MoveActorCommandHandlerTests
     {
         _gridMap = new GridMap(); // Real GridMap (pure domain, no mocking needed)
         _mockPositionService = Substitute.For<IActorPositionService>();
+        _mockMediator = Substitute.For<IMediator>();
+        _mockEventBus = Substitute.For<IGodotEventBus>();
         _mockLogger = Substitute.For<ILogger<MoveActorCommandHandler>>();
-        _handler = new MoveActorCommandHandler(_gridMap, _mockPositionService, _mockLogger);
+
+        // Setup default FOV query response (success with empty set)
+        _mockMediator
+            .Send(Arg.Any<CalculateFOVQuery>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success<HashSet<Position>>(new HashSet<Position>()));
+
+        _handler = new MoveActorCommandHandler(_gridMap, _mockPositionService, _mockMediator, _mockEventBus, _mockLogger);
     }
 
     #region Valid Movement Tests
