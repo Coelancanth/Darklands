@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-01 15:19 (VS_005 archived - backlog cleared, ready for new work)
+**Last Updated**: 2025-10-01 16:17 (Tech Lead: VS_006 updated with 8-directional + right-click cancellation)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -11,7 +11,7 @@
 
 - **Next BR**: 004
 - **Next TD**: 002
-- **Next VS**: 006 
+- **Next VS**: 007
 
 
 **Protocol**: Check your type's counter → Use that number → Increment the counter → Update timestamp
@@ -68,7 +68,97 @@
 ## 🔥 Critical (Do First)
 *Blockers preventing other work, production bugs, dependencies for other features*
 
-**No critical items!** ✅ (Ready for new work)
+### VS_006: Interactive Movement System
+**Status**: Approved
+**Owner**: Tech Lead → Dev Engineer (for implementation)
+**Size**: L (2-3 days)
+**Priority**: Critical (core gameplay mechanic)
+**Markers**: [GAMEPLAY] [USER-EXPERIENCE]
+
+**What**: Point-and-click movement with A* pathfinding, visual path preview, and smooth tile-to-tile animation
+
+**Why**:
+- Natural interaction model (click where you want to go vs. mashing arrow keys)
+- Tactical clarity (see path before committing → enables strategic planning)
+- Game feel (animation eliminates prototype jank)
+- Foundation for all future targeting/interaction features
+
+**How** (4-Phase Implementation):
+- **Phase 1 (Domain)**: Minimal (existing Position/GridMap sufficient, ~1h)
+- **Phase 2 (Application)**: `FindPathQuery` + `MoveAlongPathCommand` with waypoint list (~3h)
+  - **CRITICAL**: Design `IPathfindingService.FindPath()` to accept `Func<Position, int> getMovementCost` parameter NOW (prevents refactoring later when action costs added)
+- **Phase 3 (Infrastructure)**: `AStarPathfindingService` with Chebyshev distance heuristic (~4h)
+  - A* implementation uses `getMovementCost(neighbor)` instead of hardcoded `1`
+  - Performance target: <50ms for longest path on 30x30 grid
+  - Tests: No path exists, start=end, complex obstacle navigation, varied costs (floor=1, smoke=2)
+- **Phase 4 (Presentation)**: Mouse input + path visualization + Godot Tween animation (~4h)
+  - Click → show path overlay → confirm → animate each step
+  - Initial usage passes `pos => 1` lambda (uniform cost for now)
+  - FOV updates during movement (leverage existing event system)
+
+**Scope:**
+- ✅ A* pathfinding around obstacles (8-directional movement per roguelike standard)
+- ✅ Mouse click to select destination
+- ✅ Visual path preview (highlight tiles)
+- ✅ Discrete tile-to-tile "jump" animation (0.1-0.2s per tile)
+- ✅ Path validation (clicking impassable tiles gives feedback)
+- ✅ **Design for action costs** (interface accepts cost function, implementation uses it, gameplay passes uniform cost=1)
+- ✅ Diagonal movement (8 directions: N/S/E/W + NE/NW/SE/SW, diagonal cost=1.0 per Caves of Qud)
+- ✅ **Manual path cancellation** via right-click (CancellationToken pattern, stops movement immediately)
+- ❌ **Using** variable action costs in gameplay (Phase 4 passes `pos => 1`, but infrastructure ready for future VS)
+- ❌ **Auto-interruption** (enemy spotted, loot discovered) - deferred to VS_007
+
+**Done When**:
+- ✅ Click passable tile → path visualized → confirm → smooth animated movement
+- ✅ Animation feels "jumpy" (discrete tiles, not smooth slide)
+- ✅ FOV overlay updates properly during movement
+- ✅ Clicking walls/impassable shows clear error feedback
+- ✅ All 189 existing tests still pass
+- ✅ Phase 3 performance test: Pathfinding completes in <50ms
+- ✅ Phase 3 cost variation test: A* finds optimal path when floor=1, smoke=2 (validates cost system works)
+- ✅ Manual test: Click across map → actor navigates around walls → FOV follows
+- ✅ Manual test: Right-click during movement → movement stops immediately at current tile
+- ✅ Code review confirms:
+  - Event-driven architecture (no polling in Presentation)
+  - `IPathfindingService.FindPath()` accepts cost function (future-proof interface)
+  - A* implementation uses provided cost function (not hardcoded)
+
+**Depends On**: VS_005 (Grid + FOV) - ✅ Complete
+
+**Product Owner Decision** (2025-10-01 15:40, updated 15:50):
+- **Scope Challenge Resolved**: Keep as ONE comprehensive VS (not split into pathfinding + animation)
+- **Rationale**: Path visualization, animation, and pathfinding deliver incomplete value when separated. Shipping "click to move but it teleports" would feel broken.
+- **Movement Direction Revised**: 8-directional (changed from initial 4-directional to match roguelike genre standard per Tech Lead research)
+- **Action Cost Decision** (credit: user feedback): Design infrastructure to accept variable costs NOW, use uniform cost=1 in VS_006 gameplay
+  - **Why**: Adding `Func<Position, int> getCost` parameter costs ~10 minutes but prevents major refactoring when action costs added later (VS_008+)
+  - **Benefit**: Phase 3 can test cost variations (floor=1, smoke=2) even though gameplay doesn't use them yet → validates algorithm correctness
+  - **Risk Mitigation**: Zero cost to gameplay in VS_006, zero breaking changes when costs become real in future VS
+- **Risk Assessment**: Medium (mostly animation complexity with Godot Tween async)
+- **Next Step**: Tech Lead breaks down implementation and approves architecture
+
+**Tech Lead Decision** (2025-10-01 16:02, updated 16:17 for 8-directional + right-click cancel):
+- **Architecture Approved**: NEW FEATURE `Features/Movement/` (separate from Grid per ADR-004)
+  - **Rationale**: Grid handles terrain/positions/FOV, Movement handles pathfinding/navigation
+  - Clear separation prevents Grid from becoming god-feature
+- **Phase 1 (~1h)**: Minimal - folder structure only, no new domain models (reuse Position)
+- **Phase 2 (~3h)**: `FindPathQuery` + `MoveAlongPathCommand`
+  - `IPathfindingService.FindPath(map, start, goal, Func<Position,int> getCost)` - cost function param NOW
+  - `MoveAlongPathCommand` delegates to existing `MoveActorCommand` per step (reuses validation, FOV, events)
+  - **Key Decision**: Emit `ActorMovedEvent` PER STEP (enables discrete tile animation + FOV updates)
+  - **Cancellation**: Handler respects `CancellationToken` - checks `ct.ThrowIfCancellationRequested()` before each step
+- **Phase 3 (~4h)**: `AStarPathfindingService` with Chebyshev heuristic
+  - 8-directional (N/S/E/W + NE/NW/SE/SW), diagonal cost=1.0, PriorityQueue for open set
+  - Performance target: <50ms (enforced by test)
+  - Cost variation test validates algorithm correctness (floor=1, smoke=2 scenario)
+- **Phase 4 (~4.5h)**: `MovementInputController` + `PathVisualizationNode` (Godot)
+  - Left-click → FindPathQuery → Preview → Left-click again → MoveAlongPathCommand → Animate
+  - Right-click → Cancel active movement (via `CancellationTokenSource.Cancel()`)
+  - **No new animation code** - existing ActorMovedEvent handler works for multi-step paths!
+- **Event Topology**: Reuse `ActorMovedEvent` (terminal subscriber, depth=1, ADR-004 compliant)
+- **ADR Compliance**: ✅ All 4 ADRs validated (Clean Architecture, Godot boundary, Result<T>, Event Rules)
+- **Total Estimate**: 12.5h (1.5-2 days) - includes manual cancellation via right-click
+- **Risks**: A* performance (mitigated by algorithm choice + benchmark test), Godot Tween async (mitigated by existing pattern)
+- **Next Step**: Hand off to Dev Engineer for Phase 1-4 implementation
 
 ---
 
@@ -85,7 +175,16 @@
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*
 
-**No important items!** ✅ (Ready for new work)
+**No important items!** ✅ (Clear until VS_006 progresses to next owner)
+
+---
+
+## 💡 Ideas (Future Work)
+*Future features, nice-to-haves, deferred work*
+
+**No items in Ideas section!** ✅
+
+*Future work is tracked in [Roadmap.md](../02-Design/Game/Roadmap.md) with dependency chains and sequencing.*
 
 ---
 
