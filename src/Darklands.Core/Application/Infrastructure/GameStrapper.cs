@@ -111,7 +111,7 @@ public interface ITestService
 /// <summary>
 /// Simple implementation for DI validation.
 /// </summary>
-internal class TestService : ITestService
+public class TestService : ITestService
 {
     public string GetTestMessage() => "DI is working!";
 }
