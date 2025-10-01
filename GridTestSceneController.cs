@@ -35,6 +35,13 @@ public partial class GridTestSceneController : Node2D
     private const int TileSize = 8;
     private const int VisionRadius = 8;
 
+    // Atlas coordinates for terrain tiles (Kenney Micro Roguelike tileset)
+    // Format: new Vector2I(column, row) - remember, it's (col, row) not (x, y)!
+    private static readonly Vector2I WallAtlasCoord = new(0, 0);   // Top-left: solid gray block
+    private static readonly Vector2I FloorAtlasCoord = new(0, 1);  // Row 1, Col 0: simple floor
+    private static readonly Vector2I SmokeAtlasCoord = new(0, 6);  // Row 6, Col 0: cloud sprite
+    private static readonly Vector2I FOVAtlasCoord = new(4, 3);    // Row 3, Col 4: bright green tile
+
     public override void _Ready()
     {
         // ADR-002: ServiceLocator ONLY in _Ready() to bridge Godot → DI
@@ -102,6 +109,10 @@ public partial class GridTestSceneController : Node2D
         // Update sprites to initial positions
         _playerSprite.Position = GridToPixel(playerStartPos);
         _dummySprite.Position = GridToPixel(dummyStartPos);
+
+        // Render all terrain to TileMap (visualization layer)
+        // This must happen after terrain commands complete but before FOV calculation
+        RenderAllTerrain();
 
         // Calculate initial FOV for player
         await _mediator.Send(new MoveActorCommand(_playerId, playerStartPos)); // Triggers FOV calc
@@ -173,6 +184,57 @@ public partial class GridTestSceneController : Node2D
     }
 
     /// <summary>
+    /// Renders the entire 30x30 grid terrain to the TileMap.
+    /// Called once during initialization to visualize the terrain setup.
+    /// </summary>
+    /// <remarks>
+    /// This method duplicates the terrain setup logic from InitializeGameState().
+    /// The terrain is defined by SetTerrainCommands (Core state) and then rendered
+    /// here (Presentation visualization). This separation maintains Clean Architecture.
+    /// </remarks>
+    private void RenderAllTerrain()
+    {
+        for (int x = 0; x < 30; x++)
+        {
+            for (int y = 0; y < 30; y++)
+            {
+                // Determine terrain type (matches SetTerrainCommand logic in InitializeGameState)
+                Vector2I atlasCoord;
+
+                // Edges are walls
+                if (x == 0 || x == 29 || y == 0 || y == 29)
+                {
+                    atlasCoord = WallAtlasCoord;
+                }
+                // Smoke patches at specific positions
+                else if ((x == 10 && y == 10) || (x == 10 && y == 11) || (x == 11 && y == 10))
+                {
+                    atlasCoord = SmokeAtlasCoord;
+                }
+                // Interior wall (horizontal line at y=15, x from 5-9)
+                else if (y == 15 && x >= 5 && x < 10)
+                {
+                    atlasCoord = WallAtlasCoord;
+                }
+                // Everything else is floor
+                else
+                {
+                    atlasCoord = FloorAtlasCoord;
+                }
+
+                // Render to TileMap
+                // SetCell signature: (grid_position, source_id, atlas_coords)
+                // - grid_position: Where on the map (0-29, 0-29)
+                // - source_id: Which atlas (always 0 for our single atlas)
+                // - atlas_coords: Which tile in the atlas (column, row)
+                _terrainLayer.SetCell(new Vector2I(x, y), 0, atlasCoord);
+            }
+        }
+
+        GD.Print("Terrain rendered: 30x30 grid");
+    }
+
+    /// <summary>
     /// Event handler: Actor moved - update sprite position.
     /// </summary>
     private void OnActorMoved(ActorMovedEvent evt)
@@ -195,10 +257,18 @@ public partial class GridTestSceneController : Node2D
         // Clear previous FOV overlay
         _fovLayer.Clear();
 
-        // Highlight visible tiles
+        // Highlight visible tiles using atlas coordinates
         foreach (var pos in evt.VisiblePositions)
         {
-            _fovLayer.SetCell(new Vector2I(pos.X, pos.Y), 0, Vector2I.Zero); // FOV tile
+            // SetCell parameters:
+            // - new Vector2I(pos.X, pos.Y): Grid position (where on the map)
+            // - 0: Source ID (which atlas - always 0 for our single atlas)
+            // - FOVAtlasCoord: Atlas coordinates (which tile from the tileset)
+            _fovLayer.SetCell(
+                new Vector2I(pos.X, pos.Y),
+                0,
+                FOVAtlasCoord
+            );
         }
 
         GD.Print($"FOV updated: {evt.VisiblePositions.Count} positions visible");
