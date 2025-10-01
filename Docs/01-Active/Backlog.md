@@ -195,8 +195,14 @@
   - **Debug Output**: Console prints full path coordinates for pathfinding verification
   - **Total Tests**: 215 pass (all existing tests + Core changes) ✅
   - **Key Insight**: Hover preview uses `InputEventMouseMotion` to recalculate paths on-the-fly - no click needed to see where you'll go
-  - **Known Issue**: A* pathfinding may not produce straight lines for unobstructed paths (needs investigation)
-  - **Next**: Bug fix for pathfinding optimality
+- **✅ Pathfinding Optimization** (Post-Phase 4 bug fix, 2025-10-01 17:18):
+  - **Bug**: A* produced suboptimal paths (cardinal+diagonal mix instead of pure diagonal)
+  - **Root Cause**: Neighbor exploration order - cardinals listed before diagonals in Directions array
+  - **Fix**: Reordered neighbors to explore diagonals first (NE/NW/SE/SW), then cardinals (N/S/W/E)
+  - **Rationale**: With uniform movement cost (1.0), exploration order affects tie-breaking. Diagonal-first ensures shortest paths
+  - **Alternative Considered**: Diagonal cost = 1.414 (Euclidean) - rejected to follow roguelike genre convention (Nethack, DCSS use 1.0)
+  - **Tests**: All 215 tests still pass ✅
+  - **Status**: Ready for manual verification in Godot
 
 ---
 
