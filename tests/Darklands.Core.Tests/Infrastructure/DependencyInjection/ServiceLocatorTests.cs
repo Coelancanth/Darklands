@@ -15,6 +15,13 @@ namespace Darklands.Core.Tests.Infrastructure.DependencyInjection;
 [Collection("GameStrapperCollection")]
 public class ServiceLocatorTests
 {
+    public ServiceLocatorTests()
+    {
+        // CRITICAL: Reset GameStrapper before each test to ensure clean state
+        // This prevents test pollution from previous test failures
+        GameStrapper.Reset();
+    }
+
     [Fact]
     public void GetService_ShouldReturnFailure_BeforeInitialization()
     {
