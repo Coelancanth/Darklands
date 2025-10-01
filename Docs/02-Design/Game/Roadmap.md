@@ -2,8 +2,8 @@
 
 **Purpose**: Sequence the complete [Vision.md](Vision.md) into actionable vertical slices with clear dependencies and milestones.
 
-**Last Updated**: 2025-10-01
-**Status**: Planning Phase (nothing built yet except VS_001 health system foundation)
+**Last Updated**: 2025-10-01 16:20
+**Status**: Phase 1 In Progress (VS_001 Health + VS_005 Grid/FOV complete ✅, VS_006 Interactive Movement approved, VS_007 Smart Interruption planned)
 
 ---
 
@@ -64,15 +64,15 @@ Phase 4: Emergent Narrative (3-4 months)
 
 ---
 
-### VS_005: Grid, FOV & Terrain System ⭐ **START HERE**
+### VS_005: Grid, FOV & Terrain System ✅ **COMPLETE**
 
-**Status**: Not Started (Backlog item: VS_005)
-**Owner**: Tech Lead (study GoRogue) → Dev Engineer (implementation)
-**Size**: M (1-2 days: 4h GoRogue + 4h Godot + 4h dummy enemy)
+**Status**: Complete (2025-10-01)
+**Owner**: Dev Engineer (completed)
+**Size**: M (completed in 1 day - all 4 phases)
 **Priority**: Critical (tactical foundation for all combat)
-**Depends On**: VS_001 (Health System - already complete ✅)
+**Depends On**: VS_001 (Health System - ✅ Complete)
 
-**What**: Grid-based movement with libtcod-style FOV using GoRogue library, terrain variety, and dummy enemy for manual testing
+**What**: Grid-based movement with custom shadowcasting FOV implementation (no external dependencies), terrain variety (wall/floor/smoke), event-driven Godot integration
 
 **Why**:
 - Positioning creates tactical depth (cover, line-of-sight, ambush mechanics)
@@ -81,68 +81,143 @@ Phase 4: Emergent Narrative (3-4 months)
 - Dummy enemy validates mechanics before AI complexity
 - Foundation for all future combat features
 
-**Scope**:
-- **Domain**: `Position` (exists), `TerrainType` enum (Wall/Floor/Smoke), `GridMap` entity
-- **Application**: `MoveActorCommand`, `CalculateFOVQuery`, `GetVisibleActorsQuery`
-- **Infrastructure**:
-  - **GoRogue NuGet Integration** - RecursiveShadowcastingFOV
-  - FOVService wraps GoRogue, TransparencyMapAdapter for our GridMap
-  - Study GoRogue source code (understand algorithm for future extensions)
-- **Presentation**:
-  - Godot TileMap (30x30 grid, 3 terrain tiles)
-  - FOV visualization overlay, fog of war shader
-  - Dummy enemy controls (Arrow keys = player, WASD = dummy, Tab = switch FOV display)
+**Original Plan vs. Actual Implementation**:
 
-**Terrain Types** (Phase 1):
-- **Wall** (`#`) - Opaque (blocks vision + movement)
-- **Floor** (`.`) - Transparent (passable, see through)
-- **Smoke/Bush** (`*`) - Opaque (blocks vision) + Passable (can walk through)
+*See [Completed_Backlog_2025-10.md](../../07-Archive/Completed_Backlog_2025-10.md#vs_005-grid-fov--terrain-system) for detailed comparison of planned vs. actual approach.*
 
-**FOV Specifics** (libtcod via GoRogue):
-- Algorithm: Recursive shadowcasting (libtcod SHADOW mode)
-- Vision radius: 8 tiles (standard roguelike)
-- Fog of war: Unexplored (hidden), Explored (darker), Visible (full brightness)
+**Key Implementation Differences**:
+- ✅ **Custom shadowcasting** (not GoRogue NuGet) - Full ownership, no external dependencies
+- ✅ **ColorRect grid** (not TileMap/Kenney tileset) - Simpler, self-contained, perfect alignment
+- ✅ **Pure event-driven architecture** - Zero polling, `ActorMovedEvent` + `FOVCalculatedEvent` drive all updates
+- ✅ **Complete event pattern** - Events contain both old and new positions (eliminates state duplication in Presentation)
 
-**NOT in Scope**:
-- ❌ Pathfinding (manual movement only)
-- ❌ Semi-transparent smoke (treat as fully opaque for Phase 1)
-- ❌ Multiple light sources / vision radii
-- ❌ Procedural map generation (hand-craft test map)
-- ❌ Time costs (simple turn-based, add in VS_008)
-- ❌ AI behavior (dummy is manually controlled)
+**What Was Delivered** (All 4 Phases Complete):
 
-**Done When**:
-- ✅ GoRogue package added, RecursiveShadowcastingFOV source studied
-- ✅ Unit tests: Wall blocks movement + vision, Smoke blocks vision only, Vision radius = 8 tiles
-- ✅ Integration tests: MoveActorCommand → FOV recalculates, GetVisibleActorsQuery uses FOV
-- ✅ Godot scene: 30x30 test map, player + dummy controllable, FOV visualization works
-- ✅ Manual validation: Hide player behind smoke → dummy's FOV doesn't include player tile
-- ✅ Fog of war persists correctly (explored tiles stay darker when not visible)
+**Phase 1 - Domain** (41 tests):
+- `Position`, `TerrainType` enum (Wall/Floor/Smoke), `GridMap` (30×30)
+- Railway-oriented design: `IsPassable()` / `IsOpaque()` use functional composition
 
-**Phase**: 1 (Domain) → 2 (Application) → 3 (Infrastructure + GoRogue) → 4 (Presentation)
+**Phase 2 - Application** (28 tests):
+- Commands: `MoveActorCommand`, `RegisterActorCommand`, `SetTerrainCommand`
+- Queries: `CalculateFOVQuery`, `GetVisibleActorsQuery`, `GetActorPositionQuery`
+- Services: `IFOVService`, `IActorPositionService` abstractions
 
-**Reference**:
-- [GoRogue FOV Implementation](https://github.com/Chris3606/GoRogue/blob/master/GoRogue/FOV/RecursiveShadowcastingFOV.cs)
-- [libtcod Shadowcasting Tutorial](http://roguebasin.com/index.php?title=FOV_using_recursive_shadowcasting)
-- [RogueBasin: Field of Vision](http://roguebasin.com/index.php?title=Field_of_Vision)
+**Phase 3 - Infrastructure** (9 tests):
+- `ShadowcastingFOVService` (~220 LOC) - Custom 8-octant recursive shadowcasting
+- Referenced libtcod C + GoRogue C# implementations (no NuGet dependency)
+- Performance: <10ms for 30×30 grid with obstacles
+
+**Phase 4 - Presentation** (Manual testing):
+- `GridTestSceneController.cs` (370 LOC) - Pure reactive, event-driven
+- 900 ColorRect nodes (30×30 × 2 layers: terrain + FOV overlay)
+- Fog of war: 3-state system (unexplored/explored/visible)
+- Controls: Arrow keys (player), WASD (dummy), Tab (switch FOV view)
+
+**Test Coverage**: 189 tests passing, 54ms execution time
+
+**Architecture Highlights**:
+- Zero Godot dependencies in Core (ADR-002 compliant)
+- Events contain complete facts: `ActorMovedEvent(ActorId, OldPosition, NewPosition)`
+- ServiceLocator used ONLY in `_Ready()` (Godot → DI bridge)
+- Clean Architecture: Presentation queries Core, no state duplication
+
+**Full Details**: [Completed_Backlog_2025-10.md](../../07-Archive/Completed_Backlog_2025-10.md#vs_005-grid-fov--terrain-system) (lines 541-739)
 
 ---
 
-### VS_006: Basic Combat System (Turn-Based with Dummy Enemy)
+### VS_006: Interactive Movement System ⭐ **APPROVED**
 
-**Status**: Not Started
-**Owner**: Dev Engineer
-**Size**: S (4-6 hours)
-**Priority**: Critical (validate FOV + positioning mechanics)
-**Depends On**: VS_005 (Grid + FOV)
+**Status**: Approved (Tech Lead breakdown complete)
+**Owner**: Tech Lead → Dev Engineer (for implementation)
+**Size**: L (1.5-2 days, 12.5h)
+**Priority**: Critical (core gameplay mechanic)
+**Depends On**: VS_005 (Grid + FOV - ✅ Complete)
+
+**What**: Point-and-click movement with A* pathfinding (8-directional), visual path preview, tile-to-tile animation, and right-click cancellation
+
+**Why**:
+- Natural interaction model (click where you want to go vs. mashing arrow keys)
+- Tactical clarity (see path before committing)
+- User control (right-click to cancel long paths)
+- Foundation for all future targeting/interaction features
+
+**Key Features**:
+- ✅ 8-directional pathfinding (matches roguelike standard: NetHack, DCSS, Cogmind, Caves of Qud)
+- ✅ A* algorithm with Chebyshev heuristic (diagonal cost = 1.0 per Caves of Qud)
+- ✅ Click → preview path → click to confirm → animated movement
+- ✅ **Manual cancellation via right-click** (CancellationToken pattern)
+- ❌ Auto-interruption (enemy spotted, trap discovered) - deferred to VS_007
+
+**Scope**: See detailed specification in [Backlog.md](../../01-Active/Backlog.md#vs_006)
+
+---
+
+### VS_007: Smart Movement Interruption ⭐ **PLANNED**
+
+**Status**: Proposed (depends on VS_006 completion)
+**Owner**: Product Owner → Tech Lead (for breakdown)
+**Size**: M (4-6h)
+**Priority**: Important (UX polish for core mechanic)
+**Depends On**: VS_006 (Interactive Movement - manual cancellation foundation)
+
+**What**: Auto-interrupt movement when tactical situations change (enemy spotted in FOV, trap/loot discovered, dangerous terrain)
+
+**Why**:
+- **Safety**: Prevent walking into danger (enemy appears → stop immediately)
+- **Discovery**: Don't walk past important items (loot, traps require investigation)
+- **Roguelike Standard**: NetHack, DCSS, Cogmind all auto-stop on enemy detection
+- **Tactical Awareness**: Game alerts player to changing battlefield conditions
+
+**How** (4-Phase Implementation):
+- **Phase 1 (Domain)**: Minimal (reuse existing Position, ActorId)
+- **Phase 2 (Application)**: `IMovementStateService` to track active movements, `InterruptMovementCommand`
+- **Phase 3 (Infrastructure)**: Movement state tracking (in-memory), interruption policy engine
+- **Phase 4 (Presentation)**:
+  - Subscribe to `FOVCalculatedEvent` → detect new enemies → trigger interruption
+  - UI prompt: "Enemy spotted! Continue moving? [Y/N]" (optional auto-resume)
+  - Animation cleanup: Stop Tween gracefully when interrupted
+
+**Interruption Triggers**:
+1. **Enemy Detection** (Critical): New enemy appears in FOV → pause movement, alert player
+2. **Discovery Events** (Important): Step on tile reveals loot/trap → pause for investigation
+3. **Dangerous Terrain** (Future): About to enter fire/acid → confirm before proceeding
+
+**Scope**:
+- ✅ Auto-pause when enemy enters FOV during movement
+- ✅ UI confirmation prompt ("Continue? [Y/N]")
+- ✅ Clean animation stop (no mid-tile glitches)
+- ✅ Movement state service tracks active paths
+- ❌ Memory of "last seen enemy position" (AI feature, not movement)
+- ❌ Configurable interruption settings (add in settings VS later)
+
+**Done When**:
+- ✅ Walking across map → enemy appears in FOV → movement stops automatically
+- ✅ Prompt appears: "Goblin spotted! Continue moving? [Y/N]"
+- ✅ Player presses Y → resumes path, N → cancels remaining movement
+- ✅ Animation stops cleanly at current tile (no visual glitches)
+- ✅ Manual test: Walk toward hidden enemy behind smoke → movement stops when smoke clears and enemy visible
+- ✅ Code review: FOVCalculatedEvent subscriber triggers interruption (event-driven, no polling)
+
+**Architecture Integration**:
+- Builds on VS_006's `CancellationToken` foundation (manual cancel becomes "interruption trigger")
+- `MoveAlongPathCommand` already respects cancellation → just need external trigger
+- Event-driven: `FOVCalculatedEvent` → Check for new enemies → Call `InterruptMovementCommand`
+
+**Phase**: All 4 phases (Domain minimal, Application + Infrastructure core, Presentation UI prompts)
+
+---
+
+### Future: Basic Combat System (Turn-Based)
+
+**Status**: Not Yet Planned
+**Depends On**: VS_007 (Smart Interruption) OR VS_006 if auto-interruption deferred
 
 **What**: Simple turn-based combat with manually controlled dummy enemy
 
 **Why**:
 - Validate positioning tactics before adding AI complexity
 - Test FOV integration (ranged attacks require line-of-sight)
-- Manual dummy control lets us test edge cases (behind smoke, around corners)
-- Foundation for AI in VS_007
+- Foundation for AI behavior
 
 **Scope**:
 - **Domain**: `Weapon` value object (damage, no time costs yet)
@@ -179,17 +254,34 @@ Phase 4: Emergent Narrative (3-4 months)
   - Can melee attack enemy in smoke (adjacency check only)
   - Turn-based flow feels tactical (positioning before attacking)
 
-**Phase**: 1 (Domain) → 2 (Application) → 3 (Infrastructure) → 4 (Presentation)
+---
+
+### Future: Tileset & Procedural Generation System
+
+**Status**: Not Yet Planned (Ideas - Visual Polish)
+**Depends On**: None (independent of VS_006)
+
+**What**: Replace ColorRect grid with Godot TileMap + Kenney assets, add procedural map generation and autotiling
+
+**Why**:
+- Professional appearance (pixel art vs. colored rectangles)
+- Visual variety (procedurally generated maps)
+- Replayability (different map layouts each time)
+
+**Scope**:
+- Kenney Micro Roguelike tileset (8x8 sprites, CC0 license)
+- PCG algorithm (BSP trees, cellular automata, or dungeon generation)
+- Autotiling rules for seamless wall connections
+- GridMap remains single source of truth (Presentation reads from Core)
+
+**Notes**: ColorRect is currently functional - this is polish work that can be deferred until gameplay systems are mature.
 
 ---
 
-### VS_007: Turn-Based AI
+### Future: Turn-Based AI
 
-**Status**: Not Started
-**Owner**: Dev Engineer
-**Size**: S (4-6 hours)
-**Priority**: Important (replace dummy with AI)
-**Depends On**: VS_006 (Basic Combat)
+**Status**: Not Yet Planned
+**Depends On**: Basic Combat System
 
 **What**: Simple AI that uses FOV and makes turn-based tactical decisions
 
@@ -233,17 +325,12 @@ IF player not visible:
   - Step into AI's FOV → AI immediately moves toward you
   - 3 enemy types feel different (rat aggressive, bandit balanced, ogre defensive)
 
-**Phase**: 2 (Application) → 3 (Infrastructure) only (no new domain/UI)
-
 ---
 
-### VS_008: Time-Unit Queue Refactoring
+### Future: Time-Unit Queue Refactoring
 
-**Status**: Not Started
-**Owner**: Tech Lead (architecture) → Dev Engineer (refactor)
-**Size**: M (1-2 days)
-**Priority**: Important (adds timing tactical layer)
-**Depends On**: VS_007 (Turn-Based AI)
+**Status**: Not Yet Planned
+**Depends On**: Turn-Based AI
 
 **What**: Replace alternating turns with priority queue based on action time costs
 
@@ -287,19 +374,16 @@ IF player not visible:
 **Phase**: Refactoring (touches all 4 layers)
 
 **Risk Mitigation**:
-- Keep VS_007 turn-based version in git branch
-- If time-unit doesn't add value → revert and skip VS_009/010
+- Keep turn-based version in git branch
+- If time-unit doesn't add value → revert and simplify
 - Only proceed to proficiency if time-unit proves fun
 
 ---
 
-### VS_009: Weapon Proficiency Tracking
+### Future: Weapon Proficiency Tracking
 
-**Status**: Not Started
-**Owner**: Dev Engineer
-**Size**: M (1-2 days)
-**Priority**: Important (progression system)
-**Depends On**: VS_008 (Time-Unit Queue) - **ONLY if time-unit kept after playtesting**
+**Status**: Not Yet Planned
+**Depends On**: Time-Unit Queue (if that system is kept)
 
 **What**: Track weapon usage and improve proficiency, reducing action time costs
 
@@ -342,17 +426,12 @@ Time to mastery ≈ 50-70 attacks (5-10 fights)
 - ✅ Integration tests: 50 sword attacks → 15% faster
 - ✅ Manual playtest: Progression feels rewarding (visible every 2-3 fights)
 
-**Phase**: 1 (Domain) → 2 (Application) → 3 (Infrastructure) → 4 (Presentation)
-
 ---
 
-### VS_010: Arena Combat Integration (Phase 1 Complete)
+### Future: Arena Combat Integration (Phase 1 Complete)
 
-**Status**: Not Started
-**Owner**: Dev Engineer
-**Size**: S (4-6 hours)
-**Priority**: Important (playable milestone)
-**Depends On**: VS_009 (Proficiency) OR VS_007 (if time-unit skipped)
+**Status**: Not Yet Planned
+**Depends On**: Combat systems + AI + (optionally) Proficiency
 
 **What**: Fully playable arena with 5 waves, complete progression loop
 
