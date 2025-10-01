@@ -206,17 +206,16 @@ public partial class DebugConsoleController : CanvasLayer
         var availableCategories = _loggingService.GetAvailableCategories();
         var enabledCategories = _loggingService.GetEnabledCategories();
 
-        // FALLBACK: If no CQRS classes exist yet (VS_001/VS_004 not implemented),
-        // use the currently enabled categories for testing the UI
+        // FALLBACK: If no feature categories discovered, show Infrastructure category only
         if (availableCategories.Count == 0)
         {
-            GD.Print("⚠️ No CQRS classes discovered yet (VS_001/VS_004 pending)");
-            GD.Print("📋 Using enabled categories as fallback:");
-            availableCategories = enabledCategories.OrderBy(c => c).ToList();
+            GD.Print("⚠️ No feature categories discovered (Features.* namespaces not found)");
+            GD.Print("📋 Using Infrastructure as fallback category");
+            availableCategories = new List<string> { "Infrastructure" };
         }
         else
         {
-            GD.Print($"📋 Discovered {availableCategories.Count} categories from CQRS classes:");
+            GD.Print($"📋 Discovered {availableCategories.Count} categories from Features:");
         }
 
         // Create checkbox for each category

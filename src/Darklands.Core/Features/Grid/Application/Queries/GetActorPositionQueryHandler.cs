@@ -25,19 +25,11 @@ public class GetActorPositionQueryHandler : IRequestHandler<GetActorPositionQuer
 
     public Task<Result<Position>> Handle(GetActorPositionQuery request, CancellationToken cancellationToken)
     {
-        _logger.LogDebug("Querying position for actor {ActorId}", request.ActorId);
-
+        // HOT PATH: Called frequently (hover events, pathfinding, movement)
+        // Only log warnings/errors, not debug info
         var result = _actorPositionService.GetPosition(request.ActorId);
 
-        if (result.IsSuccess)
-        {
-            _logger.LogDebug(
-                "Actor {ActorId} is at position ({X}, {Y})",
-                request.ActorId,
-                result.Value.X,
-                result.Value.Y);
-        }
-        else
+        if (result.IsFailure)
         {
             _logger.LogWarning(
                 "Failed to get position for actor {ActorId}: {Error}",
