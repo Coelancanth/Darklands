@@ -202,7 +202,9 @@
       "Bash(./scripts/core/build.ps1 test --filter \"Category=Phase2\")",
       "Read(//c/**)",
       "Bash(dotnet restore:*)",
-      "Bash(./scripts/core/build.ps1 test --filter \"Category=Architecture\")"
+      "Bash(./scripts/core/build.ps1 test --filter \"Category=Architecture\")",
+      "Bash(./scripts/core/build.ps1 test --filter \"Category=Phase3\")",
+      "Bash(identify:*)"
     ],
     "deny": [],
     "ask": [],

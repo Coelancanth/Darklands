@@ -81,6 +81,13 @@ public static class GameStrapper
         // Health System (VS_001 Phase 3) - Application services
         services.AddSingleton<Features.Health.Application.IHealthComponentRegistry,
             Features.Health.Infrastructure.HealthComponentRegistry>();
+
+        // Grid System (VS_005 Phase 3+4) - FOV service, position service, and domain
+        services.AddSingleton<Features.Grid.Application.Services.IFOVService,
+            Features.Grid.Infrastructure.Services.ShadowcastingFOVService>();
+        services.AddSingleton<Features.Grid.Application.Services.IActorPositionService,
+            Features.Grid.Infrastructure.Services.ActorPositionService>();
+        services.AddSingleton<Features.Grid.Domain.GridMap>();
     }
 
     /// <summary>
