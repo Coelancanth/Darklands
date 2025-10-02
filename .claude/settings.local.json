@@ -208,7 +208,8 @@
       "Bash(timeout:*)",
       "Bash(test:*)",
       "Bash(./scripts/core/build.ps1 test --filter \"Category=Phase1&FullyQualifiedName~Inventory\")",
-      "Bash(curl -s \"https://docs.godotengine.org/en/stable/tutorials/2d/using_tilesets.html\")"
+      "Bash(curl -s \"https://docs.godotengine.org/en/stable/tutorials/2d/using_tilesets.html\")",
+      "Bash(do)"
     ],
     "deny": [],
     "ask": [],

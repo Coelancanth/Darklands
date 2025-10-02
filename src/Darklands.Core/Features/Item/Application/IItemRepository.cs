@@ -29,6 +29,14 @@ public interface IItemRepository
     Result<ItemEntity> GetById(ItemId itemId);
 
     /// <summary>
+    /// Retrieves an item by its unique ID (async wrapper for handler compatibility).
+    /// </summary>
+    /// <param name="itemId">Unique item identifier</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Result containing Item or error if not found</returns>
+    Task<Result<ItemEntity>> GetByIdAsync(ItemId itemId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Retrieves all items in the catalog.
     /// Used for item showcase UI, inventory dropdowns, loot tables.
     /// </summary>

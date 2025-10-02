@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using CSharpFunctionalExtensions;
 using Darklands.Core.Domain.Common;
 using Darklands.Core.Features.Item.Application;
@@ -143,6 +145,12 @@ public sealed class TileSetItemRepository : IItemRepository
         }
 
         return Result.Failure<ItemEntity>($"Item {itemId} not found in catalog");
+    }
+
+    public Task<Result<ItemEntity>> GetByIdAsync(ItemId itemId, CancellationToken cancellationToken = default)
+    {
+        // Sync-over-async wrapper (catalog is in-memory, no I/O)
+        return Task.FromResult(GetById(itemId));
     }
 
     public Result<List<ItemEntity>> GetAll()

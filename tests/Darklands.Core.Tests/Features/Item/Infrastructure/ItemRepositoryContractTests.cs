@@ -284,6 +284,11 @@ public class ItemRepositoryContractTests
             return Result.Failure<ItemEntity>($"Item {itemId} not found in catalog");
         }
 
+        public Task<Result<ItemEntity>> GetByIdAsync(ItemId itemId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(GetById(itemId));
+        }
+
         public Result<List<ItemEntity>> GetAll()
         {
             return Result.Success(_allItems);

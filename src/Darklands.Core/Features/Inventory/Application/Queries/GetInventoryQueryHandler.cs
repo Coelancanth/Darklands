@@ -38,6 +38,10 @@ public sealed class GetInventoryQueryHandler
                 inventory.Capacity,
                 inventory.Count,
                 inventory.IsFull,
-                inventory.Items));
+                inventory.Items,
+                inventory.GridWidth,
+                inventory.GridHeight,
+                inventory.ContainerType,
+                inventory.ItemPlacements));
     }
 }

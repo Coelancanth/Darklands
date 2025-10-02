@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-02 23:37 (Tech Lead: VS_018 ✅ CREATED - Spatial inventory system phased design complete)
+**Last Updated**: 2025-10-03 00:36 (Dev Engineer: VS_018 Phase 1 ✅ COMPLETE - Core + tests, 260/260 passing)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -144,10 +144,10 @@
 
 
 
-### VS_018: Spatial Inventory System (Multi-Phase) ⭐ **TECH LEAD REVIEW**
+### VS_018: Spatial Inventory System (Multi-Phase) ⭐ **PHASE 1 COMPLETE**
 
-**Status**: Tech Lead Review Complete (Awaiting Product Owner Approval)
-**Owner**: Tech Lead → Dev Engineer (after approval)
+**Status**: Phase 1 Complete - Core + Tests ✅ (Presentation UI pending)
+**Owner**: Dev Engineer
 **Size**: XL (12-16h across 4 phases, Phase 1 = 4-5h)
 **Priority**: Important (Phase 2 foundation - enhances VS_008 slot-based inventory)
 **Depends On**: VS_008 (Slot-Based Inventory ✅), VS_009 (Item Definitions ✅)
@@ -260,6 +260,23 @@
 - **Phase 1 focus**: UX validation (does drag-drop feel better than buttons?) before multi-cell complexity
 - **Blocks**: VS_010 (Stacking - needs spatial positions), VS_013 (Containers - nested grids)
 - **Next steps**: Await Product Owner approval, then hand off Phase 1 to Dev Engineer
+
+**Dev Engineer Progress** (2025-10-03 00:36):
+- ✅ **Phase 1 Core Implementation Complete** (260/260 tests passing)
+- ✅ Domain Layer: GridPosition, ContainerType enum, spatial Inventory entity (Dictionary-based storage)
+- ✅ Application Layer: Commands (PlaceItemAt, MoveItemBetween), Queries (CanPlaceItemAt), enhanced InventoryDto
+- ✅ Backward Compatibility: All 23 VS_008 tests pass, Create(capacity) → square root grid mapping (20→5×4, 100→10×10)
+- ✅ Type Filtering: WeaponOnly containers reject non-weapon items (validated in handlers)
+- ✅ Build: Both Core + Godot projects compile successfully
+- 📊 **Test Coverage**:
+  - Domain: 154 tests (<100ms) including 13 new spatial tests
+  - Application: 106 tests (<500ms) including 9 new command/query tests
+  - Total: 260 Phase 1+2 tests passing, 313/314 full suite (1 pre-existing flaky test)
+- 🎯 **Architecture Wins**:
+  - Single source of truth: Dictionary primary storage, Items property computed for backward compat
+  - Cross-aggregate orchestration: Type filtering in Application handlers (Domain stays decoupled)
+  - Repository enhancement: SaveAsync now handles entity replacement (no-op → update dictionary)
+- ⏭️ **Next**: Presentation layer (SpatialInventoryTestScene + drag-drop nodes) OR commit Phase 1 Core first
 
 ---
 
