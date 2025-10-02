@@ -55,17 +55,14 @@ public sealed class MoveItemBetweenContainersCommandHandler
 
         var item = itemResult.Value;
 
-        // Get source inventory and remove item
+        // Get source inventory
         var sourceResult = await _inventories.GetByActorIdAsync(command.SourceActorId, cancellationToken);
         if (sourceResult.IsFailure)
             return sourceResult;
 
         var sourceInventory = sourceResult.Value;
-        var removeResult = sourceInventory.RemoveItem(command.ItemId);
-        if (removeResult.IsFailure)
-            return removeResult;
 
-        // Get target inventory and place item
+        // Get target inventory
         var targetResult = await _inventories.GetByActorIdAsync(command.TargetActorId, cancellationToken);
         if (targetResult.IsFailure)
             return targetResult;
@@ -73,11 +70,21 @@ public sealed class MoveItemBetweenContainersCommandHandler
         var targetInventory = targetResult.Value;
 
         // BUSINESS RULE: Type filtering for specialized containers
+        // WHY: Validate BEFORE removing from source to prevent data loss
         if (targetInventory.ContainerType == ContainerType.WeaponOnly &&
             item.Type != "weapon")
         {
+            _logger.LogWarning(
+                "Item {ItemId} type '{Type}' rejected by weapon-only container",
+                command.ItemId,
+                item.Type);
             return Result.Failure("Target container only accepts weapons");
         }
+
+        // Remove from source inventory (after validation passes)
+        var removeResult = sourceInventory.RemoveItem(command.ItemId);
+        if (removeResult.IsFailure)
+            return removeResult;
 
         var placeResult = targetInventory.PlaceItemAt(command.ItemId, command.TargetPosition);
         if (placeResult.IsFailure)

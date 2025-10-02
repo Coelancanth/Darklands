@@ -2,9 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using CSharpFunctionalExtensions;
 using Darklands.Core.Domain.Common;
 using Darklands.Core.Features.Inventory.Application.Commands;
 using Darklands.Core.Features.Inventory.Application.Queries;
+using Darklands.Core.Features.Inventory.Domain;
 using Darklands.Core.Features.Item.Application.Queries;
 using Godot;
 using MediatR;
@@ -74,6 +76,7 @@ public partial class SpatialInventoryContainerNode : Control
     // Grid state
     private int _gridWidth;
     private int _gridHeight;
+    private ContainerType _containerType = ContainerType.General;
     private Dictionary<GridPosition, ItemId> _itemsAtPositions = new();
     private Dictionary<ItemId, string> _itemTypes = new(); // Cache item types for color coding
 
@@ -200,10 +203,49 @@ public partial class SpatialInventoryContainerNode : Control
         }
 
         // Check if position is free
-        bool canDrop = !_itemsAtPositions.ContainsKey(targetPos.Value);
-        _logger.LogDebug("Can drop at ({X}, {Y}): {CanDrop}", targetPos.Value.X, targetPos.Value.Y, canDrop);
+        if (_itemsAtPositions.ContainsKey(targetPos.Value))
+        {
+            _logger.LogDebug("Position ({X}, {Y}) occupied", targetPos.Value.X, targetPos.Value.Y);
+            return false;
+        }
 
-        return canDrop;
+        // Type validation for specialized containers (prevent data loss bug)
+        // WHY: Must validate BEFORE Godot removes item from source container
+        if (OwnerActorId != null)
+        {
+            var itemIdGuidStr = dragData["itemIdGuid"].AsString();
+            if (Guid.TryParse(itemIdGuidStr, out var itemIdGuid))
+            {
+                var itemId = new ItemId(itemIdGuid);
+
+                // Query item type (synchronous lookup from cache)
+                if (_itemTypes.TryGetValue(itemId, out var itemType))
+                {
+                    // Check type compatibility with this container
+                    if (!CanAcceptItemType(itemType))
+                    {
+                        _logger.LogDebug("Item type '{ItemType}' rejected by container type filter", itemType);
+                        return false;
+                    }
+                }
+                else
+                {
+                    // Item type not in cache - query via MediatR (blocks, but necessary)
+                    var itemTypeResult = GetItemTypeAsync(itemId).Result;
+                    if (itemTypeResult.IsSuccess)
+                    {
+                        if (!CanAcceptItemType(itemTypeResult.Value))
+                        {
+                            _logger.LogDebug("Item type '{ItemType}' rejected by container type filter", itemTypeResult.Value);
+                            return false;
+                        }
+                    }
+                }
+            }
+        }
+
+        _logger.LogDebug("Can drop at ({X}, {Y}): true", targetPos.Value.X, targetPos.Value.Y);
+        return true;
     }
 
     public override void _DropData(Vector2 atPosition, Variant data)
@@ -290,6 +332,7 @@ public partial class SpatialInventoryContainerNode : Control
         var inventory = result.Value;
         _gridWidth = inventory.GridWidth;
         _gridHeight = inventory.GridHeight;
+        _containerType = inventory.ContainerType;
 
         // Update title with capacity info
         if (_titleLabel != null)
@@ -479,5 +522,34 @@ public partial class SpatialInventoryContainerNode : Control
     public void RefreshDisplay()
     {
         LoadInventoryAsync();
+    }
+
+    /// <summary>
+    /// Checks if this container can accept the given item type based on ContainerType filter.
+    /// </summary>
+    private bool CanAcceptItemType(string itemType)
+    {
+        // WHY: Type filtering prevents invalid placements (e.g., potion in weapon slot)
+        if (_containerType == ContainerType.WeaponOnly)
+        {
+            return itemType == "weapon";
+        }
+
+        // General containers accept all types
+        return true;
+    }
+
+    /// <summary>
+    /// Queries item type from repository (used when item not in cache).
+    /// </summary>
+    private async Task<Result<string>> GetItemTypeAsync(ItemId itemId)
+    {
+        var query = new GetItemByIdQuery(itemId);
+        var result = await _mediator.Send(query);
+
+        if (result.IsFailure)
+            return Result.Failure<string>(result.Error);
+
+        return Result.Success(result.Value.Type);
     }
 }
