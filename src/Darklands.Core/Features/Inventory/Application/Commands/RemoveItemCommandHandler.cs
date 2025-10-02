@@ -1,0 +1,51 @@
+using CSharpFunctionalExtensions;
+using MediatR;
+using Microsoft.Extensions.Logging;
+
+namespace Darklands.Core.Features.Inventory.Application.Commands;
+
+/// <summary>
+/// Handler for RemoveItemCommand.
+/// Orchestrates removing an item from an actor's inventory.
+/// No events in MVP - UI queries on-demand.
+/// </summary>
+public sealed class RemoveItemCommandHandler : IRequestHandler<RemoveItemCommand, Result>
+{
+    private readonly IInventoryRepository _inventories;
+    private readonly ILogger<RemoveItemCommandHandler> _logger;
+
+    public RemoveItemCommandHandler(
+        IInventoryRepository inventories,
+        ILogger<RemoveItemCommandHandler> logger)
+    {
+        _inventories = inventories ?? throw new ArgumentNullException(nameof(inventories));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
+
+    public async Task<Result> Handle(
+        RemoveItemCommand command,
+        CancellationToken cancellationToken)
+    {
+        _logger.LogDebug(
+            "Removing item {ItemId} from actor {ActorId}'s inventory",
+            command.ItemId,
+            command.ActorId);
+
+        // Railway-oriented programming: Get inventory, remove item, save
+        return await _inventories
+            .GetByActorIdAsync(command.ActorId, cancellationToken)
+            .Bind(inventory => inventory
+                .RemoveItem(command.ItemId)
+                .Tap(async () =>
+                {
+                    _logger.LogInformation(
+                        "Item {ItemId} removed from actor {ActorId}'s inventory (count: {Count}/{Capacity})",
+                        command.ItemId,
+                        command.ActorId,
+                        inventory.Count,
+                        inventory.Capacity);
+
+                    await _inventories.SaveAsync(inventory, cancellationToken);
+                }));
+    }
+}

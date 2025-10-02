@@ -1,0 +1,51 @@
+using CSharpFunctionalExtensions;
+using MediatR;
+using Microsoft.Extensions.Logging;
+
+namespace Darklands.Core.Features.Inventory.Application.Commands;
+
+/// <summary>
+/// Handler for AddItemCommand.
+/// Orchestrates adding an item to an actor's inventory.
+/// No events in MVP - UI queries on-demand.
+/// </summary>
+public sealed class AddItemCommandHandler : IRequestHandler<AddItemCommand, Result>
+{
+    private readonly IInventoryRepository _inventories;
+    private readonly ILogger<AddItemCommandHandler> _logger;
+
+    public AddItemCommandHandler(
+        IInventoryRepository inventories,
+        ILogger<AddItemCommandHandler> logger)
+    {
+        _inventories = inventories ?? throw new ArgumentNullException(nameof(inventories));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
+
+    public async Task<Result> Handle(
+        AddItemCommand command,
+        CancellationToken cancellationToken)
+    {
+        _logger.LogDebug(
+            "Adding item {ItemId} to actor {ActorId}'s inventory",
+            command.ItemId,
+            command.ActorId);
+
+        // Railway-oriented programming: Get inventory, add item, save
+        return await _inventories
+            .GetByActorIdAsync(command.ActorId, cancellationToken)
+            .Bind(inventory => inventory
+                .AddItem(command.ItemId)
+                .Tap(async () =>
+                {
+                    _logger.LogInformation(
+                        "Item {ItemId} added to actor {ActorId}'s inventory (count: {Count}/{Capacity})",
+                        command.ItemId,
+                        command.ActorId,
+                        inventory.Count,
+                        inventory.Capacity);
+
+                    await _inventories.SaveAsync(inventory, cancellationToken);
+                }));
+    }
+}

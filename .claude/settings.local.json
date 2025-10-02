@@ -205,7 +205,9 @@
       "Bash(./scripts/core/build.ps1 test --filter \"Category=Architecture\")",
       "Bash(./scripts/core/build.ps1 test --filter \"Category=Phase3\")",
       "Bash(identify:*)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "Bash(test:*)",
+      "Bash(./scripts/core/build.ps1 test --filter \"Category=Phase1&FullyQualifiedName~Inventory\")"
     ],
     "deny": [],
     "ask": [],
