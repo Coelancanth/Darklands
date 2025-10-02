@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-02 22:14 (Dev Engineer: VS_009 Phase 2 complete - Application layer + 18 tests passing)
+**Last Updated**: 2025-10-02 22:28 (Dev Engineer: VS_009 Phase 3 complete - TileSetItemRepository + 13 contract tests)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -151,12 +151,21 @@
   - Repository failures (railway-oriented error propagation)
   - DTO integrity (all properties map correctly, IsStackable preserved)
 
-**Phase 3 - Infrastructure** (~2h):
-- `TileSetItemRepository` auto-discovers items:
-  - Loads `item_sprites.tres` resource
-  - Enumerates tiles → calls Item.CreateFromTileSet()
-  - Caches in dictionary for O(1) queries
-- Tests: Repository loads actual TileSet, verifies metadata
+**Phase 3 - Infrastructure** ✅ **COMPLETE** (2025-10-02):
+- `TileSetItemRepository` in Infrastructure/ (Godot project, not Core):
+  - Lives in Presentation layer (Godot SDK) - ADR-002 compliance
+  - Constructor accepts TileSet (loaded by DI container at startup)
+  - Auto-discovery: Enumerates tiles, reads custom data + size_in_atlas
+  - Extracts primitives, calls Item.Create() (keeps Domain Godot-free)
+  - Caches in Dictionary<ItemId, Item> for O(1) GetById lookups
+  - Caches full list for O(1) GetAll returns
+  - GetByType: LINQ filtering with case-insensitive matching
+- Tests: 13 contract tests passing in <10ms (<2s requirement met!):
+  - GetById: Exists, not exists, O(1) performance with 100 items
+  - GetAll: With items, empty catalog
+  - GetByType: Type filtering, case-insensitive, no matches, empty/whitespace validation
+  - In-memory test double validates IItemRepository contract
+  - Real TileSet integration validated manually in Phase 4
 
 **Phase 4 - Presentation** (~1h - Simple Sprite Display):
 - `ItemSpriteNode.cs`: Renders item sprite using TileSet
