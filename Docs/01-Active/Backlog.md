@@ -155,7 +155,12 @@
   - Tests: 10 test methods, 12 test executions, 100% pass rate (15ms)
   - Key insight: Namespace collision resolved using `InventoryEntity` alias (test namespace contains "Inventory" segment)
   - Architecture: Zero Godot dependencies, Result<T> for all operations, capacity enforcement (max 100 slots)
-  - **Next**: Phase 2 - Application layer (Commands, Queries, Handlers)
+- **✅ Phase 2 Complete** - Application layer implemented (2025-10-02 11:56)
+  - Implemented: AddItemCommand/RemoveItemCommand with handlers, GetInventoryQuery with DTO, IInventoryRepository interface
+  - Tests: 7 handler tests (3 add, 2 remove, 2 query), 100% pass rate (2ms)
+  - Key insight: Repository interface in Application (Dependency Inversion Principle), implementation in Infrastructure
+  - Railway-oriented: Handlers use `.Bind()`, `.Map()`, `.Tap()` for functional composition
+  - **Next**: Phase 3 - Infrastructure layer (DI registration) + Phase 4 - Presentation (UI)
 
 ---
 
