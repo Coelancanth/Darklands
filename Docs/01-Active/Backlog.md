@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-03 01:57 (Dev Engineer: VS_018 Phase 1 90% complete - backpack drag-drop working, weapon slot final bug)
+**Last Updated**: 2025-10-03 02:11 (Dev Engineer: VS_018 Phase 1 95% complete - cross-container sync fixed, weapon slot remaining)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -307,20 +307,24 @@
   - ✅ Capacity counts updating correctly (e.g., "Backpack B (3/64)")
   - ✅ Container expansion bug fixed (cells no longer duplicate on reload)
   - ✅ Comprehensive logging showing drag events flowing correctly
-- 🚫 **Remaining Issues** (Final 10%):
+- ✅ **CROSS-CONTAINER SYNC FIX** (2025-10-03 02:11):
+  - **Bug**: Ghost items persisted in source container after drag-drop to another container
+  - **Root Cause**: Only target container refreshed display, source container unaware of change
+  - **Solution**: Signal-based broadcast refresh system
+    - `SpatialInventoryContainerNode` emits `InventoryChanged` signal after successful move
+    - `SpatialInventoryTestController` subscribes to all container signals
+    - On signal: Calls `RefreshDisplay()` on ALL containers (broadcast sync)
+  - **Architecture**: Decoupled (containers don't know about each other), extensible (add containers via subscription)
+  - **Result**: Both source and target containers update correctly after cross-container drag-drop ✅
+- 🚫 **Remaining Issues** (Final 5%):
   - **Issue 1**: Weapon slot (EquipmentSlotNode) drag-drop not working
     - Mouse filter set to PASS/STOP but events still not reaching node
-    - Hypothesis: Scene tree depth or placeholder Control blocking events
-    - Needs investigation: Why backpacks work but weapon slot doesn't?
-  - **Issue 2**: PixelToGridPosition minor inaccuracy
-    - Drop at pixel (15, 207) calculated as (0, 3) - seems correct actually
-    - Not critical - drag-drop works, coordinates are functional
+    - Hypothesis: Different base class (EquipmentSlotNode vs SpatialInventoryContainerNode)
+    - **Next**: Replace EquipmentSlotNode with 1×1 SpatialInventoryContainerNode + WeaponOnly filter
 - ⏭️ **Next Session Tasks**:
-  1. Debug weapon slot mouse event flow (add _GuiInput logging to Panel)
-  2. Test if weapon slot placeholder needs explicit mouse_filter in .tscn
-  3. Verify EquipmentSlotNode scene hierarchy matches working SpatialInventoryContainerNode pattern
-  4. Once fixed: Run full Phase 1 manual test checklist (TC1-TC8)
-  5. Commit with message: "feat(inventory): Phase 1 drag-drop system [VS_018 Phase 1/4]"
+  1. Replace EquipmentSlotNode with 1×1 SpatialInventoryContainerNode (reuse working pattern)
+  2. Run full Phase 1 manual test checklist (TC1-TC8)
+  3. Commit with message: "feat(inventory): Phase 1 drag-drop system [VS_018 Phase 1/4]"
 
 ---
 

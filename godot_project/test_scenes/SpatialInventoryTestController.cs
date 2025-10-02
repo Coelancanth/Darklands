@@ -51,6 +51,11 @@ public partial class SpatialInventoryTestController : Control
     private ActorId _backpackBActorId = ActorId.NewId();
     private ActorId _weaponSlotActorId = ActorId.NewId();
 
+    // Container references (for cross-container refresh)
+    private Components.SpatialInventoryContainerNode? _backpackANode;
+    private Components.SpatialInventoryContainerNode? _backpackBNode;
+    private Components.EquipmentSlotNode? _weaponSlotNode;
+
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // GODOT LIFECYCLE
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -277,7 +282,7 @@ public partial class SpatialInventoryTestController : Control
         var weaponSlotPlaceholder = GetNode<Control>("VBoxContainer/ContainersRow/WeaponSlot");
 
         // Create and attach Backpack A container
-        var backpackA = new Components.SpatialInventoryContainerNode
+        _backpackANode = new Components.SpatialInventoryContainerNode
         {
             OwnerActorId = _backpackAActorId,
             ContainerTitle = "Backpack A",
@@ -285,10 +290,11 @@ public partial class SpatialInventoryTestController : Control
             Mediator = _mediator,
             ItemTileSet = ItemTileSet
         };
-        backpackAPlaceholder.AddChild(backpackA);
+        _backpackANode.InventoryChanged += OnInventoryChanged;
+        backpackAPlaceholder.AddChild(_backpackANode);
 
         // Create and attach Backpack B container
-        var backpackB = new Components.SpatialInventoryContainerNode
+        _backpackBNode = new Components.SpatialInventoryContainerNode
         {
             OwnerActorId = _backpackBActorId,
             ContainerTitle = "Backpack B",
@@ -296,10 +302,11 @@ public partial class SpatialInventoryTestController : Control
             Mediator = _mediator,
             ItemTileSet = ItemTileSet
         };
-        backpackBPlaceholder.AddChild(backpackB);
+        _backpackBNode.InventoryChanged += OnInventoryChanged;
+        backpackBPlaceholder.AddChild(_backpackBNode);
 
         // Create and attach Weapon Slot (equipment slot, not grid)
-        var weaponSlot = new Components.EquipmentSlotNode
+        _weaponSlotNode = new Components.EquipmentSlotNode
         {
             OwnerActorId = _weaponSlotActorId,
             SlotTitle = "Weapon",
@@ -308,8 +315,24 @@ public partial class SpatialInventoryTestController : Control
             Mediator = _mediator,
             ItemTileSet = ItemTileSet
         };
-        weaponSlotPlaceholder.AddChild(weaponSlot);
+        weaponSlotPlaceholder.AddChild(_weaponSlotNode);
 
         _logger.LogInformation("Container nodes attached to scene");
+    }
+
+    /// <summary>
+    /// Called when any container's inventory changes (via signal).
+    /// WHY: Refresh ALL containers to sync displays after cross-container moves.
+    /// </summary>
+    private void OnInventoryChanged()
+    {
+        _logger.LogDebug("Inventory changed signal received - refreshing all containers");
+
+        // Refresh all SpatialInventoryContainerNode instances
+        _backpackANode?.RefreshDisplay();
+        _backpackBNode?.RefreshDisplay();
+
+        // EquipmentSlotNode doesn't have RefreshDisplay yet (different base class)
+        // Will add if weapon slot needs it
     }
 }

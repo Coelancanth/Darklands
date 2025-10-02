@@ -31,6 +31,17 @@ namespace Darklands.Components;
 public partial class SpatialInventoryContainerNode : Control
 {
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // GODOT SIGNALS
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    /// <summary>
+    /// Emitted when inventory contents change (item moved/added/removed).
+    /// WHY: Parent controller subscribes to refresh ALL containers (cross-container sync).
+    /// </summary>
+    [Signal]
+    public delegate void InventoryChangedEventHandler();
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // GODOT EDITOR PROPERTIES
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -451,7 +462,21 @@ public partial class SpatialInventoryContainerNode : Control
         _logger.LogInformation("Item moved to {ContainerTitle} at ({X}, {Y})",
             ContainerTitle, targetPos.X, targetPos.Y);
 
-        // Reload inventory to reflect changes
+        // Emit signal to notify parent controller
+        // WHY: Cross-container moves affect both source and target inventories
+        EmitSignal(SignalName.InventoryChanged);
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // PUBLIC API (for external refresh triggers)
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    /// <summary>
+    /// Reloads inventory data and refreshes display.
+    /// WHY: Called by parent controller after cross-container moves to sync all displays.
+    /// </summary>
+    public void RefreshDisplay()
+    {
         LoadInventoryAsync();
     }
 }
