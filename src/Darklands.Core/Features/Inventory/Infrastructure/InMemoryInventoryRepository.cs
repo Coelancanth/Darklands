@@ -64,6 +64,19 @@ public sealed class InMemoryInventoryRepository : IInventoryRepository
         return Task.FromResult(Result.Success());
     }
 
+    /// <summary>
+    /// Registers an inventory for a specific actor (test/manual setup only).
+    /// </summary>
+    /// <remarks>
+    /// WHY: Test scenes need to create inventories with specific dimensions.
+    /// Production code uses auto-creation via GetByActorIdAsync.
+    /// </remarks>
+    public void RegisterInventoryForActor(ActorId actorId, InventoryEntity inventory)
+    {
+        _inventoriesByActor[actorId] = inventory;
+        _logger.LogDebug("Registered inventory {InventoryId} for actor {ActorId}", inventory.Id, actorId);
+    }
+
     public Task<Result> DeleteAsync(
         InventoryId inventoryId,
         CancellationToken cancellationToken = default)

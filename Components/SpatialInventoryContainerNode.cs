@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Darklands.Core.Domain.Common;
 using Darklands.Core.Features.Inventory.Application.Commands;
 using Darklands.Core.Features.Inventory.Application.Queries;
+using Darklands.Core.Features.Item.Application.Queries;
 using Godot;
 using MediatR;
 using Microsoft.Extensions.Logging;
@@ -49,16 +50,21 @@ public partial class SpatialInventoryContainerNode : Control
     [Export] public int CellSize { get; set; } = 48;
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // DEPENDENCIES
+    // DEPENDENCIES (injected via properties before AddChild)
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+    public IMediator? Mediator { get; set; }
+    public TileSet? ItemTileSet { get; set; }
+
     private IMediator _mediator = null!;
+    private ILogger<SpatialInventoryContainerNode> _logger = null!;
     private TileSet? _itemTileSet;
 
     // Grid state
     private int _gridWidth;
     private int _gridHeight;
     private Dictionary<GridPosition, ItemId> _itemsAtPositions = new();
+    private Dictionary<ItemId, string> _itemTypes = new(); // Cache item types for color coding
 
     // UI nodes
     private Label? _titleLabel;
@@ -72,22 +78,31 @@ public partial class SpatialInventoryContainerNode : Control
     {
         base._Ready();
 
-        // Get dependencies from parent controller
-        var parent = GetParent();
-        if (parent is Darklands.SpatialInventoryTestController controller)
+        // Resolve logger
+        var loggerResult = Darklands.Core.Infrastructure.DependencyInjection.ServiceLocator
+            .GetService<ILogger<SpatialInventoryContainerNode>>();
+
+        if (loggerResult.IsFailure)
         {
-            _mediator = controller.GetMediator();
-            _itemTileSet = controller.GetItemTileSet();
-        }
-        else
-        {
-            GD.PrintErr("[SpatialInventoryContainerNode] Parent must be SpatialInventoryTestController");
+            GD.PrintErr("[SpatialInventoryContainerNode] Failed to resolve logger");
             return;
         }
 
+        _logger = loggerResult.Value;
+
+        // Use dependencies injected via properties
+        if (Mediator == null)
+        {
+            _logger.LogError("Mediator not injected (set via property before AddChild)");
+            return;
+        }
+
+        _mediator = Mediator;
+        _itemTileSet = ItemTileSet; // Optional for Phase 1
+
         if (OwnerActorId == null)
         {
-            GD.PrintErr("[SpatialInventoryContainerNode] OwnerActorId not assigned");
+            _logger.LogError("OwnerActorId not assigned");
             return;
         }
 
@@ -104,12 +119,28 @@ public partial class SpatialInventoryContainerNode : Control
 
     public override Variant _GetDragData(Vector2 atPosition)
     {
+        _logger.LogDebug("_GetDragData called at position ({X}, {Y})", atPosition.X, atPosition.Y);
+
         // Find which grid cell was clicked
         var gridPos = PixelToGridPosition(atPosition);
-        if (gridPos == null || !_itemsAtPositions.ContainsKey(gridPos.Value))
+
+        if (gridPos == null)
+        {
+            _logger.LogDebug("PixelToGridPosition returned null (outside grid bounds)");
+            return default;
+        }
+
+        _logger.LogDebug("Grid position: ({GridX}, {GridY})", gridPos.Value.X, gridPos.Value.Y);
+
+        if (!_itemsAtPositions.ContainsKey(gridPos.Value))
+        {
+            _logger.LogDebug("No item at grid position ({GridX}, {GridY})", gridPos.Value.X, gridPos.Value.Y);
             return default; // No item at this position
+        }
 
         var itemId = _itemsAtPositions[gridPos.Value];
+        _logger.LogInformation("Starting drag: Item {ItemId} from {Container} at ({X}, {Y})",
+            itemId, ContainerTitle, gridPos.Value.X, gridPos.Value.Y);
 
         // Create drag preview (visual feedback)
         var preview = new Label
@@ -128,47 +159,73 @@ public partial class SpatialInventoryContainerNode : Control
             ["sourceY"] = gridPos.Value.Y
         };
 
+        _logger.LogDebug("Drag data created successfully");
         return dragData;
     }
 
     public override bool _CanDropData(Vector2 atPosition, Variant data)
     {
+        _logger.LogDebug("_CanDropData called at position ({X}, {Y})", atPosition.X, atPosition.Y);
+
         if (data.VariantType != Variant.Type.Dictionary)
+        {
+            _logger.LogDebug("Invalid drag data type: {Type}", data.VariantType);
             return false;
+        }
 
         var dragData = data.AsGodotDictionary();
         if (!dragData.ContainsKey("itemIdGuid"))
+        {
+            _logger.LogDebug("Drag data missing itemIdGuid key");
             return false;
+        }
 
         // Find target grid position
         var targetPos = PixelToGridPosition(atPosition);
         if (targetPos == null)
+        {
+            _logger.LogDebug("Target position outside grid bounds");
             return false;
+        }
 
         // Check if position is free
-        return !_itemsAtPositions.ContainsKey(targetPos.Value);
+        bool canDrop = !_itemsAtPositions.ContainsKey(targetPos.Value);
+        _logger.LogDebug("Can drop at ({X}, {Y}): {CanDrop}", targetPos.Value.X, targetPos.Value.Y, canDrop);
+
+        return canDrop;
     }
 
     public override void _DropData(Vector2 atPosition, Variant data)
     {
+        _logger.LogInformation("_DropData called at position ({X}, {Y})", atPosition.X, atPosition.Y);
+
         var dragData = data.AsGodotDictionary();
         var itemIdGuidStr = dragData["itemIdGuid"].AsString();
         var sourceActorIdGuidStr = dragData["sourceActorIdGuid"].AsString();
 
+        _logger.LogDebug("Parsing GUIDs: ItemId={ItemGuid}, SourceActor={ActorGuid}",
+            itemIdGuidStr, sourceActorIdGuidStr);
+
         if (!Guid.TryParse(itemIdGuidStr, out var itemIdGuid) ||
             !Guid.TryParse(sourceActorIdGuidStr, out var sourceActorIdGuid))
         {
-            GD.PrintErr("Failed to parse drag data GUIDs");
+            _logger.LogError("Failed to parse drag data GUIDs");
             return;
         }
 
         var targetPos = PixelToGridPosition(atPosition);
         if (targetPos == null)
+        {
+            _logger.LogError("Target position null after drop");
             return;
+        }
 
         // Reconstruct value objects from Guids
         var itemId = new ItemId(itemIdGuid);
         var sourceActorId = new ActorId(sourceActorIdGuid);
+
+        _logger.LogInformation("Drop confirmed: Moving item {ItemId} to ({X}, {Y})",
+            itemId, targetPos.Value.X, targetPos.Value.Y);
 
         // Send MoveItemBetweenContainersCommand
         MoveItemAsync(sourceActorId, itemId, targetPos.Value);
@@ -181,6 +238,8 @@ public partial class SpatialInventoryContainerNode : Control
     private void BuildUI()
     {
         var vbox = new VBoxContainer();
+        // WHY: Pass allows events to reach children (Panel cells) while also reaching parent
+        vbox.MouseFilter = MouseFilterEnum.Pass;
         AddChild(vbox);
 
         // Title
@@ -194,7 +253,9 @@ public partial class SpatialInventoryContainerNode : Control
         // Grid container (will be populated after loading inventory data)
         _gridContainer = new GridContainer
         {
-            CustomMinimumSize = new Vector2(CellSize, CellSize)
+            CustomMinimumSize = new Vector2(CellSize, CellSize),
+            // WHY: Pass allows events to reach Panel cells while also bubbling to parent
+            MouseFilter = MouseFilterEnum.Pass
         };
         _gridContainer.AddThemeConstantOverride("h_separation", 2);
         _gridContainer.AddThemeConstantOverride("v_separation", 2);
@@ -211,7 +272,7 @@ public partial class SpatialInventoryContainerNode : Control
 
         if (result.IsFailure)
         {
-            GD.PrintErr($"Failed to load inventory: {result.Error}");
+            _logger.LogError("Failed to load inventory: {Error}", result.Error);
             return;
         }
 
@@ -225,8 +286,8 @@ public partial class SpatialInventoryContainerNode : Control
             _titleLabel.Text = $"{ContainerTitle} ({inventory.Count}/{inventory.Capacity})";
         }
 
-        // Build grid cells
-        if (_gridContainer != null)
+        // Build grid cells (only if not already built)
+        if (_gridContainer != null && _gridContainer.GetChildCount() == 0)
         {
             _gridContainer.Columns = _gridWidth;
 
@@ -238,16 +299,39 @@ public partial class SpatialInventoryContainerNode : Control
                     _gridContainer.AddChild(cell);
                 }
             }
+
+            _logger.LogDebug("Created {Count} grid cells ({Width}×{Height})",
+                _gridContainer.GetChildCount(), _gridWidth, _gridHeight);
         }
 
         // Populate items
         _itemsAtPositions.Clear();
+        _itemTypes.Clear();
         foreach (var placement in inventory.ItemPlacements)
         {
             _itemsAtPositions[placement.Value] = placement.Key;
         }
 
+        // Query item types for color coding
+        await LoadItemTypes();
+
         RefreshGridDisplay();
+    }
+
+    private async Task LoadItemTypes()
+    {
+        // Query item details to determine types (weapon, item, etc.)
+        foreach (var itemId in _itemsAtPositions.Values.Distinct())
+        {
+            var query = new GetItemByIdQuery(itemId);
+            var result = await _mediator.Send(query);
+
+            if (result.IsSuccess)
+            {
+                _itemTypes[itemId] = result.Value.Type;
+                _logger.LogDebug("Item {ItemId} type: {Type}", itemId, result.Value.Type);
+            }
+        }
     }
 
     private Control CreateGridCell(GridPosition pos)
@@ -255,7 +339,9 @@ public partial class SpatialInventoryContainerNode : Control
         var cell = new Panel
         {
             CustomMinimumSize = new Vector2(CellSize, CellSize),
-            TooltipText = $"Grid ({pos.X}, {pos.Y})"
+            TooltipText = $"Grid ({pos.X}, {pos.Y})",
+            // Let parent container handle drag & drop
+            MouseFilter = MouseFilterEnum.Ignore
         };
 
         // Add visual styling (gray border for empty cells)
@@ -272,9 +358,49 @@ public partial class SpatialInventoryContainerNode : Control
 
     private void RefreshGridDisplay()
     {
-        // Update grid cells to show items
-        // (Simplified for Phase 1 - just show occupied/empty)
-        GD.Print($"[SpatialInventoryContainerNode] {ContainerTitle} loaded: {_itemsAtPositions.Count} items in {_gridWidth}×{_gridHeight} grid");
+        // WHY: Phase 1 visual feedback - highlight occupied cells (no sprites yet)
+        if (_gridContainer == null)
+            return;
+
+        // Update each grid cell's visual state
+        for (int i = 0; i < _gridContainer.GetChildCount(); i++)
+        {
+            if (_gridContainer.GetChild(i) is Panel cell)
+            {
+                // Calculate grid position for this cell index
+                int x = i % _gridWidth;
+                int y = i / _gridWidth;
+                var gridPos = new GridPosition(x, y);
+
+                // Highlight occupied cells with different color based on item type
+                var style = cell.GetThemeStylebox("panel") as StyleBoxFlat;
+                if (style != null)
+                {
+                    if (_itemsAtPositions.TryGetValue(gridPos, out var itemId))
+                    {
+                        // Occupied cell: Color by item type
+                        if (_itemTypes.TryGetValue(itemId, out var itemType))
+                        {
+                            style.BgColor = itemType == "weapon"
+                                ? new Color(0.2f, 0.4f, 0.8f, 0.7f) // Weapons: Blue
+                                : new Color(0.2f, 0.8f, 0.4f, 0.7f); // Items: Green
+                        }
+                        else
+                        {
+                            // Type unknown: Purple (fallback)
+                            style.BgColor = new Color(0.8f, 0.2f, 0.8f, 0.7f);
+                        }
+                    }
+                    else
+                    {
+                        // Empty cell: Dark gray
+                        style.BgColor = new Color(0.2f, 0.2f, 0.2f);
+                    }
+                }
+            }
+        }
+
+        GD.Print($"[SpatialInventoryContainerNode] {ContainerTitle}: {_itemsAtPositions.Count} items displayed");
     }
 
     private GridPosition? PixelToGridPosition(Vector2 pixelPos)
@@ -282,14 +408,25 @@ public partial class SpatialInventoryContainerNode : Control
         if (_gridContainer == null)
             return null;
 
-        // Convert pixel position to grid coordinates
-        int x = (int)(pixelPos.X / CellSize);
-        int y = (int)(pixelPos.Y / CellSize);
+        // Convert local position to global, then hit-test against grid cell rects
+        var selfGlobalPos = GetGlobalRect().Position;
+        var globalPoint = selfGlobalPos + pixelPos;
 
-        if (x < 0 || x >= _gridWidth || y < 0 || y >= _gridHeight)
-            return null;
+        for (int i = 0; i < _gridContainer.GetChildCount(); i++)
+        {
+            if (_gridContainer.GetChild(i) is Control cell)
+            {
+                var rect = cell.GetGlobalRect();
+                if (rect.HasPoint(globalPoint))
+                {
+                    int x = i % _gridWidth;
+                    int y = i / _gridWidth;
+                    return new GridPosition(x, y);
+                }
+            }
+        }
 
-        return new GridPosition(x, y);
+        return null;
     }
 
     private async void MoveItemAsync(ActorId sourceActorId, ItemId itemId, GridPosition targetPos)
@@ -307,11 +444,12 @@ public partial class SpatialInventoryContainerNode : Control
 
         if (result.IsFailure)
         {
-            GD.PrintErr($"Failed to move item: {result.Error}");
+            _logger.LogError("Failed to move item: {Error}", result.Error);
             return;
         }
 
-        GD.Print($"✅ Item moved to {ContainerTitle} at ({targetPos.X}, {targetPos.Y})");
+        _logger.LogInformation("Item moved to {ContainerTitle} at ({X}, {Y})",
+            ContainerTitle, targetPos.X, targetPos.Y);
 
         // Reload inventory to reflect changes
         LoadInventoryAsync();

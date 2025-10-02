@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-03 00:52 (Dev Engineer: VS_018 Phase 1 ✅ COMPLETE - Core + Tests + Presentation, ready for manual testing)
+**Last Updated**: 2025-10-03 01:57 (Dev Engineer: VS_018 Phase 1 90% complete - backpack drag-drop working, weapon slot final bug)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -67,8 +67,6 @@
 
 ## 🔥 Critical (Do First)
 *Blockers preventing other work, production bugs, dependencies for other features*
-
-**No critical items!** ✅
 
 ---
 
@@ -144,9 +142,9 @@
 
 
 
-### VS_018: Spatial Inventory System (Multi-Phase) ⭐ **PHASE 1 COMPLETE**
+### VS_018: Spatial Inventory System (Multi-Phase) ⭐ **PHASE 1 NEARLY COMPLETE**
 
-**Status**: Phase 1 Complete - Core + Tests ✅ (Presentation UI pending)
+**Status**: Phase 1 90% Complete - Backpack drag-drop working, weapon slot needs fix (BR_004 updated)
 **Owner**: Dev Engineer
 **Size**: XL (12-16h across 4 phases, Phase 1 = 4-5h)
 **Priority**: Important (Phase 2 foundation - enhances VS_008 slot-based inventory)
@@ -277,27 +275,52 @@
   - Cross-aggregate orchestration: Type filtering in Application handlers (Domain stays decoupled)
   - Repository enhancement: SaveAsync now handles entity replacement (no-op → update dictionary)
 
-**Dev Engineer Progress** (2025-10-03 00:52 - Presentation Layer):
-- ✅ **Phase 1 Presentation Complete** - Ready for manual testing in Godot editor
-- ✅ SpatialInventoryTestScene.tscn: Test scene with 3 container placeholders (Backpack A, Backpack B, Weapon Slot)
-- ✅ SpatialInventoryTestController: Initializes 3 inventories, provides IMediator/TileSet to child nodes
-- ✅ SpatialInventoryContainerNode: Grid rendering + drag-drop via Godot's `_GetDragData`/`_CanDropData`/`_DropData`
-- ✅ SPATIAL_INVENTORY_TEST_CHECKLIST.md: 8 manual test cases (TC1-TC8) with acceptance criteria
-- 🎨 **Presentation Architecture**:
-  - Controller instantiates container nodes programmatically (assigns ActorIds via code)
-  - Containers query inventory state via GetInventoryQuery (auto-triggers repository creation)
-  - Drag data uses Guid serialization (ItemId.Value.ToString()) for cross-node communication
-  - MoveItemBetweenContainersCommand sent on drop (handler validates type filtering)
-- 🎯 **Godot Integration (ADR-002)**:
-  - ServiceLocator used only in controller _Ready() (Godot boundary pattern)
-  - Child nodes receive dependencies from parent (avoids duplicate ServiceLocator calls)
-  - MediatR handlers auto-registered via assembly scan (Main.cs line 111)
-- ⚠️ **Known Phase 1 Limitations**:
-  - No visual feedback for valid/invalid drops (green/red highlight deferred)
-  - No item sprites rendered in grid cells (empty cells only)
-  - No item palette UI (must add items via code/console for testing)
-  - All items treated as 1×1 (multi-cell in Phase 2)
-- ⏭️ **Next**: Manual testing in Godot editor (F6 on SpatialInventoryTestScene.tscn), then Phase 2 planning
+**Dev Engineer Progress** (2025-10-03 01:55 - Drag-Drop Partially Working):
+- ✅ **Phase 1 Core Complete** (260/260 tests passing)
+  - Domain: GridPosition, ContainerType, spatial Inventory entity
+  - Application: Commands (PlaceItemAt, MoveItemBetween), Queries (CanPlaceItemAt)
+  - Infrastructure: InMemoryInventoryRepository with RegisterInventoryForActor
+- ✅ **Phase 1 Presentation Built**:
+  - SpatialInventoryTestScene.tscn: 3 containers (2 backpacks + weapon slot)
+  - SpatialInventoryContainerNode: Grid rendering, drag-drop implementation
+  - EquipmentSlotNode: Single-slot design for weapon (not grid-based)
+  - Item population: 4 test items pre-loaded (2 weapons in Backpack A, 2 items in Backpack B)
+- 🎨 **Visual Enhancements Added**:
+  - Color coding: Weapons = blue (0.2, 0.4, 0.8), Items = green (0.2, 0.8, 0.4)
+  - Cell highlighting: Occupied cells visually distinct from empty cells
+  - Mouse filter enabled: MouseFilter.Stop on all grid cells
+- 📊 **Comprehensive Logging Added**:
+  - _GetDragData: Logs click position, grid position, item lookup
+  - _CanDropData: Logs drop validation checks
+  - _DropData: Logs GUID parsing, command dispatch
+  - Item type queries: Logs type resolution for color coding
+- ✅ **DRAG-DROP BREAKTHROUGH** (BR_004 Resolution):
+  - **Root Cause Found**: Mouse filter hierarchy blocking events at multiple levels
+  - **Fix 1**: Scene placeholders (.tscn) - Removed `mouse_filter = 2` (IGNORE) from BackpackA/BackpackB nodes
+  - **Fix 2**: Container internals - Changed VBoxContainer/GridContainer from IGNORE → PASS
+  - **Fix 3**: Grid cells - Set `MouseFilter = Stop` on Panel cells to receive clicks
+  - **Fix 4**: Grid rebuild bug - Only create cells once (check `GetChildCount() == 0`)
+- 🎉 **Working Features**:
+  - ✅ Backpack A ↔ Backpack B drag-drop functional
+  - ✅ Color coding working (weapons=blue, items=green)
+  - ✅ 4 test items pre-loaded and visible
+  - ✅ Capacity counts updating correctly (e.g., "Backpack B (3/64)")
+  - ✅ Container expansion bug fixed (cells no longer duplicate on reload)
+  - ✅ Comprehensive logging showing drag events flowing correctly
+- 🚫 **Remaining Issues** (Final 10%):
+  - **Issue 1**: Weapon slot (EquipmentSlotNode) drag-drop not working
+    - Mouse filter set to PASS/STOP but events still not reaching node
+    - Hypothesis: Scene tree depth or placeholder Control blocking events
+    - Needs investigation: Why backpacks work but weapon slot doesn't?
+  - **Issue 2**: PixelToGridPosition minor inaccuracy
+    - Drop at pixel (15, 207) calculated as (0, 3) - seems correct actually
+    - Not critical - drag-drop works, coordinates are functional
+- ⏭️ **Next Session Tasks**:
+  1. Debug weapon slot mouse event flow (add _GuiInput logging to Panel)
+  2. Test if weapon slot placeholder needs explicit mouse_filter in .tscn
+  3. Verify EquipmentSlotNode scene hierarchy matches working SpatialInventoryContainerNode pattern
+  4. Once fixed: Run full Phase 1 manual test checklist (TC1-TC8)
+  5. Commit with message: "feat(inventory): Phase 1 drag-drop system [VS_018 Phase 1/4]"
 
 ---
 
