@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-02 22:05 (Dev Engineer: VS_009 Phase 1 complete - Item entity + 23 tests passing)
+**Last Updated**: 2025-10-02 22:14 (Dev Engineer: VS_009 Phase 2 complete - Application layer + 18 tests passing)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -136,10 +136,20 @@
   - Dimension validation (Theory tests with InlineData)
   - Stack size validation + IsStackable computed property
 
-**Phase 2 - Application** (~1.5h):
-- IItemRepository, queries (GetItem, GetAll, GetByType), DTOs
-- DTOs expose properties from Phase 0 contract
-- Tests: Query handlers return items with metadata
+**Phase 2 - Application** ✅ **COMPLETE** (2025-10-02):
+- IItemRepository interface (GetById, GetAll, GetByType)
+  - Synchronous methods (catalog data loaded once at startup)
+  - DIP: Interface in Application, implementation in Infrastructure
+- ItemDto for decoupling Presentation from Domain entities
+- 3 Query/Handler pairs with MediatR:
+  - GetAllItemsQuery: Retrieve full item catalog
+  - GetItemByIdQuery: Lookup single item
+  - GetItemsByTypeQuery: Filter by type (weapon, item, UI)
+- Tests: 18 unit tests passing in 56ms (<500ms requirement met!)
+  - Happy paths (valid queries, DTO mapping)
+  - Edge cases (empty catalogs, no matches, missing items)
+  - Repository failures (railway-oriented error propagation)
+  - DTO integrity (all properties map correctly, IsStackable preserved)
 
 **Phase 3 - Infrastructure** (~2h):
 - `TileSetItemRepository` auto-discovers items:
