@@ -2,8 +2,8 @@
 
 **Purpose**: Sequence the complete [Vision.md](Vision.md) into actionable vertical slices with clear dependencies and milestones.
 
-**Last Updated**: 2025-10-01 16:20
-**Status**: Phase 1 In Progress (VS_001 Health + VS_005 Grid/FOV complete ✅, VS_006 Interactive Movement approved, VS_007 Smart Interruption planned)
+**Last Updated**: 2025-10-01 23:01
+**Status**: Phase 1 In Progress (VS_001 Health + VS_005 Grid/FOV complete ✅, VS_006 Interactive Movement approved, VS_007 Smart Interruption planned, VS_008 Inventory awaiting approval)
 
 ---
 
@@ -204,6 +204,61 @@ Phase 4: Emergent Narrative (3-4 months)
 - Event-driven: `FOVCalculatedEvent` → Check for new enemies → Call `InterruptMovementCommand`
 
 **Phase**: All 4 phases (Domain minimal, Application + Infrastructure core, Presentation UI prompts)
+
+---
+
+### VS_008: Slot-Based Inventory System (MVP) ⭐ **PLANNED**
+
+**Status**: Tech Lead Review Complete (Awaiting Product Owner Approval)
+**Owner**: Tech Lead → Dev Engineer (after approval)
+**Size**: M (5-6.5 hours across 4 phases)
+**Priority**: Important (Core mechanic, parallel with movement)
+**Depends On**: None (ActorId already exists in Domain/Common)
+
+**What**: Slot-based inventory (20-slot backpack) for player-controlled actors with add/remove operations, capacity enforcement, and basic UI panel
+
+**Why**:
+- Core mechanic for loot management (foundational for roguelikes)
+- Zero conflicts with VS_006/007 (parallel development approved)
+- MVP philosophy: Slot-based first, spatial grid deferred until proven needed
+- Player-only system: NPCs/enemies use equipment slots (separate future VS)
+
+**How** (4-Phase Implementation):
+- **Phase 1 (Domain)**: `Inventory` entity (stores `List<ItemId>`), `ItemId` primitive added to Domain/Common
+- **Phase 2 (Application)**: `CreateInventoryCommand`, `AddItemCommand`, `RemoveItemCommand`, `GetInventoryQuery` with DTOs
+- **Phase 3 (Infrastructure)**: `InMemoryInventoryRepository` (explicit creation via CreateInventoryCommand)
+- **Phase 4 (Presentation)**: `InventoryPanelNode` (Godot UI with 20 slot visuals, test buttons)
+
+**Key Architectural Decisions**:
+1. **Inventory stores ItemIds** (not Item objects)
+   - Enables clean separation: Inventory = container logic, Item = content definition (future VS_009)
+   - Parallel development: Item feature can evolve independently
+   - Testability: No mocks needed, just `ItemId.NewId()`
+
+2. **Player-controlled actors only** (explicit creation pattern)
+   - Player and party members get inventories via `CreateInventoryCommand`
+   - NPCs/enemies use equipment slots only (wielded weapon, worn armor) - separate system
+   - Loot drops are ground items (ItemId at Position) - separate system
+   - Prevents memory waste (no backpacks for 100 enemies)
+
+**Scope**:
+- ✅ Explicit inventory creation for player-controlled actors
+- ✅ Add/remove items with capacity constraint (20 slots default)
+- ✅ Query inventory contents (returns list of ItemIds)
+- ✅ UI panel displays slots, capacity label, add/remove test buttons
+- ❌ Item definitions (name, sprite, properties) - Deferred to VS_009
+- ❌ Spatial grid (tetris placement) - Deferred to VS_017 (if playtesting shows need)
+- ❌ Equipment slots system (NPC gear, player worn items) - Separate future VS
+- ❌ Ground loot system (items at Position) - Separate future VS
+- ❌ Save/load persistence - Deferred to separate Save System VS
+
+**Done When**:
+- ✅ Unit tests: 20 tests passing (10 domain, 6 application, 4 infrastructure) <100ms
+- ✅ Architecture tests pass (zero Godot dependencies in Darklands.Core)
+- ✅ Manual UI test: Add 20 items → All slots filled → Button disables → Error on 21st item
+- ✅ Result<T> error handling with descriptive messages ("Inventory is full")
+
+**Full Specification**: See [VS_008_Inventory_Spec.md](../../01-Active/VS_008_Inventory_Spec.md) for detailed implementation guide
 
 ---
 
@@ -485,35 +540,85 @@ Time to mastery ≈ 50-70 attacks (5-10 fights)
 
 ### Planned Vertical Slices (High-Level)
 
-**VS_008: Simplified Armor System**
+**VS_009: Item Definition System (Data-Driven)**
+- JSON-based item definitions (data/items/*.json)
+- Item properties: name, type, sprite_path, weight, damage/defense values
+- Stack limits: stackable items (nStackLimit > 1) vs. unique items
+- ItemRepository loads from JSON (data-driven design)
+- Foundation for all item-based features
+- Reference: NeoScavenger itemtypes.xml (stack limits, item properties)
+
+**VS_010: Item Stacking System**
+- Stackable item support (e.g., "5× Branch", "20× Arrow")
+- Stack limits per item type (configurable in item definitions)
+- UI displays stack count overlay on slot visuals
+- Commands: AddItemToStack, SplitStack, MergeStacks
+- Benefits: Reduces inventory clutter for consumables and ammo
+- Reference: NeoScavenger nStackLimit (branches=5, ammo=20, unique items=1)
+
+**VS_011: Equipment Slots System**
+- Actor equipment slots (main hand, off hand, head, torso, legs, ring×2)
+- Used by ALL actors (player, NPCs, enemies) - not just player-controlled
+- Player: Equips items from inventory → equipment slots (affects stats)
+- NPCs/Enemies: Spawned with pre-equipped gear (defines combat capabilities)
+- Commands: EquipItem, UnequipItem, GetEquippedItems
+- Integration: Combat system reads equipment for damage/defense calculations
+- Reference: NeoScavenger battlemoves.xml (equipment affects available moves)
+- Architecture: Separate from VS_008 Inventory (equipment = worn, inventory = carried)
+
+**VS_012: Ground Loot System**
+- Items at map positions (dungeon loot, enemy drops, player discards)
+- WorldItemRepository: Dictionary<Position, List<ItemId>>
+- Commands: DropItemAtPosition, PickupItemAtPosition, GetItemsAtPosition
+- Integration: Player picks up loot → adds to inventory (VS_008)
+- Integration: Enemy dies → drops equipped items (VS_011) to ground
+- UI: Visual indicators on tiles with loot (sparkle effect, item sprite)
+- Foundation for dungeon generation loot placement
+
+**VS_013: Container System (Nested Inventories)**
+- Items can BE containers (bags, pouches, quivers)
+- Nested spatial grids: Bag (4×6) can contain Pouch (2×2)
+- Container properties: capacity grid size, allowed item types
+- Type filtering: Quiver accepts arrows only, waterskin accepts liquids only
+- Commands: OpenContainer, MoveItemToContainer
+- Benefits: Organization (ammo in quiver), specialization (waterproof bags)
+- Reference: NeoScavenger aCapacities ("4x6"), aContentIDs (whitelisted types)
+- Decision point: May defer if VS_010 stacking reduces inventory clutter sufficiently
+
+**VS_014: Simplified Armor System**
 - Single armor layer (protection + weight values)
 - Weight affects movement and action time costs
 - Foundation for Phase 2 layered armor
 
-**VS_009: Tetris Inventory UI**
-- Spatial grid inventory (item shapes matter)
-- Weight capacity and movement speed integration
-- Loot management puzzle
-
-**VS_010: Damage Type System**
+**VS_015: Damage Type System**
 - Slashing, Piercing, Blunt damage types
 - Armor resistance to damage types
 - Weapon choice matters based on enemy armor
 
-**VS_011: Layered Armor (Padding + Mail)**
+**VS_016: Layered Armor (Padding + Mail)**
 - Two armor layers (gambeson + chainmail)
 - Hit location system (head/torso/limbs)
 - Damage penetration mechanics
 
-**VS_012: Unique Weapons Collection**
+**VS_017: Unique Weapons Collection**
 - 10 unique weapons with build-enabling properties
 - Angband-style itemization (situational value)
 - Constrained randomization (minor stat variance)
 
-**VS_013: NeoScavenger Interaction Panel**
-- Drag-and-drop interaction grid
-- Item + skill combinations
-- Context-aware actions (location matters)
+**VS_018: Tetris Inventory Upgrade (Optional)**
+- Spatial grid inventory (item shapes matter)
+- Upgrade from VS_008 slot-based system IF playtesting shows demand
+- Item rotation support (2×1 sword can be stored as 1×2)
+- Reference: Diablo 2, Resident Evil spatial puzzles
+- Decision point: Only implement if players request spatial challenge
+
+**VS_019: Crafting System (NeoScavenger-Style)**
+- Grid-based crafting interface (drag items to recipe slots)
+- Tool vs. Consumed separation (lighter stays, tinder burns)
+- Time-based crafting (recipes take hours, not instant)
+- Recipe discovery (try combinations, learn new recipes)
+- Reference: NeoScavenger recipes.xml (tool/consumed/destroyed separation)
+- Benefits: Survival depth (repair gear, purify water, cook food)
 
 **Integration Milestone**: Phase 2 complete when 3+ viable builds emerge from playtesting
 
@@ -529,22 +634,22 @@ Time to mastery ≈ 50-70 attacks (5-10 fights)
 
 ### Planned Vertical Slices (High-Level)
 
-**VS_014: Overworld Map**
+**VS_020: Overworld Map**
 - Simple node-based map (3 towns, 2 dungeons)
 - Travel system with time passage
 - Location-based encounters
 
-**VS_015: Quest System**
+**VS_021: Quest System**
 - Basic contracts (clear dungeon, deliver item)
 - Quest giver NPCs in towns
 - Rewards (money, reputation)
 
-**VS_016: Economy System**
+**VS_022: Economy System**
 - Money from quests and loot
 - Equipment purchases in towns
 - Repair costs for gear degradation
 
-**VS_017: Simple Reputation System**
+**VS_023: Simple Reputation System**
 - 2-3 factions with standing values
 - Reputation affects prices and quest availability
 - Foundation for Phase 4 emergent narrative
@@ -563,22 +668,23 @@ Time to mastery ≈ 50-70 attacks (5-10 fights)
 
 ### Planned Vertical Slices (High-Level)
 
-**VS_018: Origins System**
+**VS_024: Origins System**
 - 3-5 starting backgrounds (noble, soldier, peasant, scholar, merchant)
 - Affects starting proficiencies, equipment, faction standings
 - Defines early viable strategies
 
-**VS_019: Event System**
+**VS_025: Event System**
 - Random encounters with branching choices
 - Consequences affect character state and reputation
 - RimWorld-style procedural storytelling
 
-**VS_020: Full Reputation System**
+**VS_026: Full Reputation System (N×N Matrix)**
 - Origin-specific quest lines unlock
-- Faction relationships create emergent conflicts
+- Faction relationships create emergent conflicts (enemy of my enemy)
 - Dynamic world reacts to player choices
+- Reference: NeoScavenger factions.xml (cross-faction reputation matrix)
 
-**VS_021: Character Aging & Time Pressure**
+**VS_027: Character Aging & Time Pressure**
 - Character ages over time
 - Stat degradation with age (realism)
 - Creates natural run duration (2-4 hours before retirement/death)
@@ -599,10 +705,10 @@ Time to mastery ≈ 50-70 attacks (5-10 fights)
 - + Integration, playtesting, tuning = 6-10 additional days
 - **Total: 3-6 months calendar time**
 
-**Phase 2** (Itemization):
-- 6 vertical slices × 1-3 days each = 15-25 dev days
-- + Balance testing, build diversity = 8-12 additional days
-- **Total: 3-4 months calendar time**
+**Phase 2** (Itemization & Systems):
+- 11 vertical slices × 1-3 days each = 24-38 dev days
+- + Balance testing, build diversity, crafting recipes = 10-15 additional days
+- **Total: 5-6 months calendar time**
 
 **Phase 3** (Strategic):
 - 4 vertical slices × 2-4 days each = 15-30 dev days
@@ -614,7 +720,7 @@ Time to mastery ≈ 50-70 attacks (5-10 fights)
 - + Event writing, faction balance = 8-12 additional days
 - **Total: 3-4 months calendar time**
 
-**Full Roadmap: 13-20 months to first complete game**
+**Full Roadmap: 15-23 months to first complete game** (27+ vertical slices)
 
 ---
 
@@ -677,4 +783,4 @@ Time to mastery ≈ 50-70 attacks (5-10 fights)
 
 ---
 
-*This roadmap sequences the complete [Vision.md](Vision.md) into 20+ vertical slices across 4 phases, balancing ambition with pragmatic incremental delivery. Each phase proves a core hypothesis before adding complexity.*
+*This roadmap sequences the complete [Vision.md](Vision.md) into 27+ vertical slices across 4 phases, balancing ambition with pragmatic incremental delivery. Each phase proves a core hypothesis before adding complexity.*

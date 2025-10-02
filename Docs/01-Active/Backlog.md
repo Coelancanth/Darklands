@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-01 20:42 (Backlog Assistant: Archived TD_002 - archive now at 1073 lines, rotation needed)
+**Last Updated**: 2025-10-02 10:48 (Tech Lead: Added VS_008 Inventory System with full specification)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -11,7 +11,7 @@
 
 - **Next BR**: 004
 - **Next TD**: 003
-- **Next VS**: 007
+- **Next VS**: 009
 
 
 **Protocol**: Check your type's counter → Use that number → Increment the counter → Update timestamp
@@ -87,7 +87,120 @@
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*
 
-**No items in Important section!** ✅
+### VS_008: Slot-Based Inventory System (MVP) ⭐ **AWAITING APPROVAL**
+
+**Status**: Tech Lead Review Complete (Awaiting Product Owner Approval)
+**Owner**: Tech Lead → Dev Engineer (after approval)
+**Size**: M (5-6.5h across 4 phases)
+**Priority**: Important (Core mechanic, parallel with movement)
+**Depends On**: None (ActorId already exists)
+**Markers**: [ARCHITECTURE] [DATA-DRIVEN]
+
+**What**: Slot-based inventory (20-slot backpack) with add/remove operations, capacity enforcement, and basic UI panel
+
+**Why**:
+- **Core Mechanic**: Loot management is fundamental to roguelikes
+- **Foundation**: Equipment, crafting, trading all depend on inventory
+- **Parallel Development**: Zero conflicts with VS_006/007 (Movement systems)
+- **MVP Philosophy**: Simplest inventory that provides value (defer tetris complexity)
+
+**How** (4-Phase Implementation):
+- **Phase 1 (Domain)**: `Inventory` entity stores `List<ItemId>`, `ItemId` primitive added to Domain/Common
+- **Phase 2 (Application)**: `AddItemCommand`, `RemoveItemCommand`, `GetInventoryQuery` with DTOs
+- **Phase 3 (Infrastructure)**: `InMemoryInventoryRepository` (auto-creates with default capacity 20)
+- **Phase 4 (Presentation)**: `InventoryPanelNode` (Godot UI with 20 slot visuals, test buttons)
+
+**Key Architectural Decision**: Inventory stores ItemIds (not Item objects)
+- Enables clean separation: Inventory = container logic, Item = content definition (future VS_009)
+- Parallel development: Item feature can evolve independently
+- Testability: No mocks needed, just `ItemId.NewId()`
+
+**Scope**:
+- ✅ Add/remove items with capacity constraint (20 slots)
+- ✅ Query inventory contents (returns list of ItemIds)
+- ✅ UI panel displays slots, capacity label, add/remove test buttons
+- ✅ Result<T> error handling ("Inventory is full", "Item not found")
+- ❌ Item definitions (name, sprite, properties) - Deferred to VS_009
+- ❌ Spatial grid (tetris placement) - Deferred to VS_017 (if playtesting shows need)
+- ❌ Equipment slots (weapon, armor) - Separate future VS
+- ❌ Save/load persistence - Deferred to separate Save System VS
+
+**Done When**:
+- ✅ Unit tests: 20 tests passing (10 domain, 6 application, 4 infrastructure) <100ms
+- ✅ Architecture tests pass (zero Godot dependencies in Darklands.Core)
+- ✅ Manual UI test: Add 20 items → All slots filled → Button disables → Error on 21st item
+- ✅ ServiceLocator used ONLY in _Ready() (ADR-002 compliant)
+- ✅ Result<T> error handling with descriptive messages
+
+**Full Specification**: See [VS_008_Inventory_Spec.md](VS_008_Inventory_Spec.md) for complete implementation details (1137 lines including code examples, tests, and architecture rationale)
+
+**Tech Lead Decision** (2025-10-02):
+- **Architecture validated**: ItemId separation enables clean feature boundaries
+- **Slot-based first**: Defer tetris complexity until playtesting proves demand (Shattered Pixel Dungeon proves slot-based is sufficient)
+- **Explicit creation pattern**: Inventory requires `CreateInventoryCommand` (only player-controlled actors get inventories, not NPCs/enemies)
+- **No events in MVP**: UI queries on-demand, defer events until cross-feature needs emerge
+- **Future-proof**: Design supports party members / multiplayer (each controlled actor can have separate inventory)
+- **Risks**: None - Orthogonal to movement systems, proven architecture from VS_001/005/006
+- **Next steps**: Await Product Owner approval, then hand off to Dev Engineer
+
+**Architecture Clarification** (2025-10-02):
+- **Who needs inventory**: Player-controlled actors ONLY (player, companions in multiplayer)
+- **NPCs/Enemies**: Equipment slots only (future VS) - what they're wielding/wearing, not a backpack
+- **Loot drops**: Separate ground item system (future VS) - items at Position on map
+- **Explicit creation**: Must call `CreateInventoryCommand(actorId, capacity)` to give actor an inventory
+
+---
+
+### VS_007: Smart Movement Interruption ⭐ **PLANNED**
+
+**Status**: Proposed (depends on VS_006 completion)
+**Owner**: Product Owner → Tech Lead (for breakdown)
+**Size**: M (4-6h)
+**Priority**: Important (UX polish for core mechanic)
+**Depends On**: VS_006 (Interactive Movement - manual cancellation foundation)
+
+**What**: Auto-interrupt movement when tactical situations change (enemy spotted in FOV, trap/loot discovered, dangerous terrain)
+
+**Why**:
+- **Safety**: Prevent walking into danger (enemy appears → stop immediately)
+- **Discovery**: Don't walk past important items (loot, traps require investigation)
+- **Roguelike Standard**: NetHack, DCSS, Cogmind all auto-stop on enemy detection
+- **Tactical Awareness**: Game alerts player to changing battlefield conditions
+
+**How** (4-Phase Implementation):
+- **Phase 1 (Domain)**: Minimal (reuse existing Position, ActorId)
+- **Phase 2 (Application)**: `IMovementStateService` to track active movements, `InterruptMovementCommand`
+- **Phase 3 (Infrastructure)**: Movement state tracking (in-memory), interruption policy engine
+- **Phase 4 (Presentation)**:
+  - Subscribe to `FOVCalculatedEvent` → detect new enemies → trigger interruption
+  - Animation cleanup: Stop Tween gracefully when interrupted
+
+**Interruption Triggers**:
+1. **Enemy Detection** (Critical): New enemy appears in FOV → pause movement
+2. **Discovery Events** (Important): Step on tile reveals loot/trap → pause for investigation
+3. **Dangerous Terrain** (Future): About to enter fire/acid → confirm before proceeding
+
+**Scope**:
+- ✅ Auto-pause when enemy enters FOV during movement
+- ✅ Clean animation stop (no mid-tile glitches)
+- ✅ Movement state service tracks active paths
+- ❌ Memory of "last seen enemy position" (AI feature, not movement)
+- ❌ Configurable interruption settings (add in settings VS later)
+
+**Done When**:
+- ✅ Walking across map → enemy appears in FOV → movement stops automatically
+- ✅ Prompt appears: "Goblin spotted! Continue moving? [Y/N]"
+- ✅ Player presses Y → resumes path, N → cancels remaining movement
+- ✅ Animation stops cleanly at current tile (no visual glitches)
+- ✅ Manual test: Walk toward hidden enemy behind smoke → movement stops when smoke clears and enemy visible
+- ✅ Code review: FOVCalculatedEvent subscriber triggers interruption (event-driven, no polling)
+
+**Architecture Integration**:
+- Builds on VS_006's `CancellationToken` foundation (manual cancel becomes "interruption trigger")
+- `MoveAlongPathCommand` already respects cancellation → just need external trigger
+- Event-driven: `FOVCalculatedEvent` → Check for new enemies → Call `InterruptMovementCommand`
+
+**Phase**: All 4 phases (Domain minimal, Application + Infrastructure core, Presentation UI prompts
 
 ---
 
