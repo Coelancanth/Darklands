@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-02 23:01 (Dev Engineer: VS_009 ✅ DONE - Item catalog system complete, sprites rendering correctly)
+**Last Updated**: 2025-10-02 23:37 (Tech Lead: VS_018 ✅ CREATED - Spatial inventory system phased design complete)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -11,7 +11,7 @@
 
 - **Next BR**: 004
 - **Next TD**: 003
-- **Next VS**: 010
+- **Next VS**: 019
 
 
 **Protocol**: Check your type's counter → Use that number → Increment the counter → Update timestamp
@@ -143,6 +143,125 @@
 ---
 
 
+
+### VS_018: Spatial Inventory System (Multi-Phase) ⭐ **TECH LEAD REVIEW**
+
+**Status**: Tech Lead Review Complete (Awaiting Product Owner Approval)
+**Owner**: Tech Lead → Dev Engineer (after approval)
+**Size**: XL (12-16h across 4 phases, Phase 1 = 4-5h)
+**Priority**: Important (Phase 2 foundation - enhances VS_008 slot-based inventory)
+**Depends On**: VS_008 (Slot-Based Inventory ✅), VS_009 (Item Definitions ✅)
+**Markers**: [ARCHITECTURE] [UX-CRITICAL] [BACKWARD-COMPATIBLE]
+
+**What**: Upgrade slot-based inventory (VS_008) to spatial grid system with drag-drop, multi-container support, type filtering, and progressive complexity (Phase 1: interactions → Phase 4: complex shapes)
+
+**Why**:
+- **User Experience**: Drag-drop is more intuitive than "Add/Remove" buttons (matches Diablo 2, Resident Evil, Tarkov UX expectations)
+- **Multi-Container**: Backpack + weapon slot + equipment slots (each with different rules)
+- **Type Safety**: Weapon slots only accept weapons (prevents invalid placements)
+- **Foundation**: Spatial grid enables item weight distribution, container nesting (future VS_013)
+- **Incremental**: 4 phases from simple (1×1 items) → complex (L-shapes + rotation)
+
+**How** (4-Phase Incremental Design):
+
+**Phase 1: Interaction Mechanics** (4-5h) **← START HERE**
+- **Goal**: Validate drag-drop UX feels good before adding spatial complexity
+- **Domain**:
+  - `GridPosition` value object (X, Y coordinates)
+  - Enhance `Inventory` entity: Add `_itemPositions: Dictionary<ItemId, GridPosition>`, `_gridWidth`, `_gridHeight`, `ContainerType` enum
+  - Keep existing `AddItem()` for backward compatibility (auto-places at first free position)
+  - New methods: `PlaceItemAt()`, `CanPlaceAt()`, `GetItemPosition()`, `IsPositionFree()`
+  - Type filtering: `ContainerType.WeaponOnly` rejects non-weapon items
+- **Application**:
+  - Commands: `PlaceItemAtPositionCommand`, `MoveItemBetweenContainersCommand`, `RemoveItemAtPositionCommand`
+  - Queries: `CanPlaceItemAtQuery`, `GetItemAtPositionQuery`
+  - Enhanced `InventoryDto`: Add GridWidth, GridHeight, ContainerType, ItemPlacements dictionary
+- **Infrastructure**: No changes (InMemoryInventoryRepository already stores Inventory entities)
+- **Presentation** (Focus):
+  - `SpatialInventoryTestScene.tscn`: 2 backpacks (different sizes) + 1 weapon slot + item spawn palette
+  - `SpatialInventoryContainerNode.cs`: Renders grid, handles drag-drop via Godot's `_GetDragData`/`_CanDropData`/`_DropData`
+  - `DraggableItemNode.cs`: Visual drag preview, source inventory tracking
+  - `ItemTooltipNode.cs`: Shows item name on hover (simple Label overlay)
+  - **All items treated as 1×1** (multi-cell in Phase 2)
+- **Tests**: 25-30 tests
+  - Domain: GridPosition validation, PlaceItemAt collision (1×1), type filtering
+  - Application: Command handlers (placement, movement, removal), query validation
+  - Manual: Drag item from Backpack A → Backpack B, drag weapon → weapon slot (success), drag potion → weapon slot (rejected)
+
+**Phase 2: Multi-Cell Rectangles** (3-4h)
+- **Goal**: Items occupy Width×Height cells (2×1 sword takes 2 adjacent slots)
+- **Domain**: Enhance collision detection to check all occupied cells
+- **Application**: Update `CanPlaceItemAtQuery` to validate rectangle fits
+- **Presentation**: Render items spanning multiple cells, snap to grid
+- **NO rotation yet** (sword is always 2×1, cannot become 1×2)
+- **Tests**: 15-20 additional tests (multi-cell collision, boundary checks)
+
+**Phase 3: Rotation Support** (2-3h)
+- **Goal**: Rotate items 90° (2×1 sword → 1×2 sword)
+- **Domain**: Add `Rotation` enum (Degrees0, Degrees90, Degrees180, Degrees270), swap Width↔Height logic
+- **Application**: `RotateItemCommand`, rotation state persistence
+- **Presentation**: Right-click or R key to rotate, visual rotation animation
+- **Tests**: 10-15 tests (rotation state, dimension swapping, collision after rotation)
+
+**Phase 4: Complex Shapes** (3-4h)
+- **Goal**: L-shapes, T-shapes via bool[] masks (Tetris-style)
+- **Domain**: `ItemShape` value object (bool[,] grid), per-cell collision
+- **Infrastructure**: Shape metadata storage (JSON file: `data/item_shapes/*.json` OR TileSet custom data string encoding)
+- **Presentation**: Render complex shapes, rotation affects shape orientation
+- **Tests**: 20-25 tests (shape parsing, complex collision, L-shape rotation)
+
+**Backward Compatibility (CRITICAL)**:
+- ✅ VS_008 tests MUST still pass (existing `AddItem()` API preserved)
+- ✅ `Inventory.Create(id, capacity)` → maps to `Inventory.Create(id, gridWidth: capacity/4, gridHeight: 4)`
+- ✅ Existing slot-based scenes (InventoryPanelNode) continue working
+- ✅ New overload: `Inventory.Create(id, gridWidth, gridHeight, type)` for spatial containers
+
+**Scope** (Phase 1 ONLY):
+- ✅ Drag-drop between 2 backpacks (different grid sizes: 10×6 and 8×8)
+- ✅ Weapon slot (1×4 grid) with type filter (rejects non-weapon items)
+- ✅ Hover tooltip displays item name
+- ✅ Visual feedback: Valid drop (green highlight), invalid drop (red highlight)
+- ✅ Item spawn palette (test UI to create items for dragging)
+- ✅ All items treated as 1×1 (multi-cell deferred to Phase 2)
+- ❌ Multi-cell placement (Phase 2)
+- ❌ Item rotation (Phase 3)
+- ❌ Complex shapes (Phase 4)
+- ❌ Container nesting/bags (future VS_013)
+- ❌ Weight-based capacity limits (future feature)
+
+**Done When** (Phase 1):
+- ✅ Domain tests: 15 tests passing (<100ms)
+  - GridPosition validation (negative coords fail)
+  - PlaceItemAt with 1×1 collision detection
+  - Type filtering (weapon slot rejects "item" type)
+  - Backward compat: AddItem() auto-places at first free position
+- ✅ Application tests: 12 tests passing (<500ms)
+  - PlaceItemAtPositionCommandHandler (success, collision, out-of-bounds)
+  - MoveItemBetweenContainersCommandHandler (inter-container movement)
+  - CanPlaceItemAtQuery (returns true/false for validation)
+- ✅ Manual UI test (SpatialInventoryTestScene.tscn):
+  - Drag item from palette → Backpack A → Item appears at grid position
+  - Drag item from Backpack A → Backpack B → Item moves successfully
+  - Drag weapon from palette → Weapon slot → Success (green highlight)
+  - Drag potion from palette → Weapon slot → Rejected (red highlight + error message)
+  - Hover over item → Tooltip shows item name
+  - Drag item to occupied cell → Red highlight, drop fails
+- ✅ VS_008 regression tests: All 23 existing tests still pass (backward compatibility verified)
+- ✅ Architecture tests: Zero Godot dependencies in Darklands.Core (ADR-002 compliance)
+
+**Tech Lead Decision** (2025-10-02 23:37):
+- **Phased approach validated**: Interaction mechanics (Phase 1) → Multi-cell (Phase 2) → Rotation (Phase 3) → Shapes (Phase 4)
+- **Backward compatibility**: VS_008 slot-based API preserved, spatial is additive evolution
+- **Container type filtering**: Enum-based system (General/WeaponOnly/ConsumableOnly) extensible for future slots
+- **Drag-drop architecture**: Godot's built-in `_GetDragData`/`_CanDropData`/`_DropData` (simpler than custom mouse tracking)
+- **GridPosition as value object**: Shared primitive in Domain/Common (reusable for map positions, crafting grids)
+- **Shape metadata strategy**: Defer to Phase 4, choose JSON vs TileSet string encoding based on designer feedback
+- **Migration risk**: LOW - backward compat overloads + existing tests ensure no VS_008 regressions
+- **Phase 1 focus**: UX validation (does drag-drop feel better than buttons?) before multi-cell complexity
+- **Blocks**: VS_010 (Stacking - needs spatial positions), VS_013 (Containers - nested grids)
+- **Next steps**: Await Product Owner approval, then hand off Phase 1 to Dev Engineer
+
+---
 
 ## 💡 Ideas (Future Work)
 *Future features, nice-to-haves, deferred work*
