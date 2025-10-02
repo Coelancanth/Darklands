@@ -112,7 +112,9 @@ public class AStarPathfindingService : IPathfindingService
             if (current == goal)
             {
                 var path = ReconstructPath(parent, current);
-                _logger.LogInformation(
+                // HOT PATH: Called frequently during hover preview (20+ times/second)
+                // A* internals are debug-level detail, not operational information
+                _logger.LogDebug(
                     "A* found path: {Length} steps, cost={Cost}",
                     path.Count,
                     gScore[goal]);

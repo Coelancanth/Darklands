@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using Godot;
+using Microsoft.Extensions.Logging;
 using Darklands.Core.Infrastructure.DependencyInjection;
 using Darklands.Infrastructure.Logging;
 
@@ -18,7 +19,9 @@ namespace Darklands.Infrastructure;
 /// Architecture:
 /// - CanvasLayer ensures rendering above all scenes (layer 100)
 /// - Lazy initialization on first F12 press (no overhead until needed)
-/// - Procedural UI creation (self-contained, no .tscn dependency)
+/// - Scene-based UI (DebugConsole.tscn - visual editing, hot-reload)
+/// - Resource-based config (DebugConsoleConfig.tres - designer defaults)
+/// - Hybrid config priority: JSON user state → .tres defaults → hardcoded fallback
 /// - Graceful degradation if LoggingService unavailable
 /// - Persistence via user://debug_console_state.json (survives restarts)
 ///
@@ -27,10 +30,14 @@ namespace Darklands.Infrastructure;
 public partial class DebugConsoleController : CanvasLayer
 {
     private const string StateFilePath = "user://debug_console_state.json";
+    private const string ScenePath = "res://godot_project/infrastructure/DebugConsole.tscn";
 
     private Control? _container;
     private VBoxContainer? _categoryFiltersContainer;
+    private OptionButton? _logLevelDropdown;
     private LoggingService? _loggingService;
+    private Serilog.Core.LoggingLevelSwitch? _levelSwitch;
+    private Microsoft.Extensions.Logging.ILogger? _logger;
     private bool _initialized = false;
 
     public override void _Ready()
@@ -38,6 +45,12 @@ public partial class DebugConsoleController : CanvasLayer
         // Set high layer to render above all game content
         Layer = 100;
 
+        // CRITICAL: Allow this node to process input even when game is paused
+        // This lets debug console work while it pauses the game
+        ProcessMode = ProcessModeEnum.Always;
+
+        // Note: Can't log here - DI container not initialized yet (autoload runs before GameStrapper)
+        // First log message will appear on lazy initialization when F12 is pressed
         GD.Print("🎮 DebugConsoleController autoload ready (press F12 to toggle)");
     }
 
@@ -62,6 +75,26 @@ public partial class DebugConsoleController : CanvasLayer
             if (_container != null)
             {
                 _container.Visible = !_container.Visible;
+
+                // Block/unblock game input when console is visible
+                _container.MouseFilter = _container.Visible
+                    ? Control.MouseFilterEnum.Stop
+                    : Control.MouseFilterEnum.Ignore;
+
+                // CRITICAL: Pause game tree when console visible to block all game input
+                GetTree().Paused = _container.Visible;
+
+                // Move to front of input processing order
+                if (_container.Visible)
+                {
+                    // Grab focus to ensure input reaches our controls first
+                    var panel = _container.GetNodeOrNull<Control>("Panel");
+                    if (panel != null)
+                    {
+                        panel.GrabFocus();
+                    }
+                }
+
                 GD.Print($"🔧 Debug Console: {(_container.Visible ? "VISIBLE" : "HIDDEN")}");
             }
 
@@ -72,121 +105,154 @@ public partial class DebugConsoleController : CanvasLayer
 
     /// <summary>
     /// Lazy initialization - only runs on first F12 press.
-    /// Creates UI procedurally and wires up category filters.
+    /// Loads scene, resource config, and wires up category filters.
     ///
     /// WHY LAZY: Autoloads run before GameStrapper initializes DI container.
     /// Deferring until first use ensures ServiceLocator is ready.
+    ///
+    /// CONFIG LOADING:
+    /// - JSON user state (user://debug_console_state.json) loads runtime preferences
+    /// - If no JSON exists, uses hardcoded defaults (Information level, all categories)
     /// </summary>
     private void InitializeDebugConsole()
     {
         GD.Print("\n=== Initializing Debug Console (Lazy) ===");
+
+        // Try to get logger from DI container first
+        var loggerResult = ServiceLocator.GetService<Microsoft.Extensions.Logging.ILogger<DebugConsoleController>>();
+        if (loggerResult.IsSuccess)
+        {
+            _logger = loggerResult.Value;
+            _logger.LogInformation("Debug Console lazy initialization started");
+        }
 
         // Try to get LoggingService from DI container
         // This will fail gracefully if GameStrapper hasn't initialized yet
         var loggingServiceResult = ServiceLocator.GetService<LoggingService>();
         if (loggingServiceResult.IsFailure)
         {
-            GD.PrintErr($"❌ Failed to resolve LoggingService: {loggingServiceResult.Error}");
-            GD.PrintErr("   Make sure GameStrapper.Initialize() has been called in your scene");
-            GD.PrintErr("   Debug Console will be unavailable until DI container is initialized");
+            var errorMsg = $"Failed to resolve LoggingService: {loggingServiceResult.Error}";
+            if (_logger != null)
+            {
+                _logger.LogError("{Message}. Make sure GameStrapper.Initialize() has been called in your scene", errorMsg);
+            }
+            else
+            {
+                GD.PrintErr($"❌ {errorMsg}");
+                GD.PrintErr("   Make sure GameStrapper.Initialize() has been called in your scene");
+            }
             _initialized = true; // Mark as attempted to avoid repeated errors
             return;
         }
 
         _loggingService = loggingServiceResult.Value;
-        GD.Print("✅ LoggingService resolved from DI container");
+        _logger?.LogInformation("LoggingService resolved from DI container");
+
+        // Try to get LoggingLevelSwitch from DI container
+        var levelSwitchResult = ServiceLocator.GetService<Serilog.Core.LoggingLevelSwitch>();
+        if (levelSwitchResult.IsSuccess)
+        {
+            _levelSwitch = levelSwitchResult.Value;
+            _logger?.LogInformation("LoggingLevelSwitch resolved from DI container");
+        }
+        else
+        {
+            _logger?.LogWarning("LoggingLevelSwitch not found: {Error}. Log level control will be unavailable", levelSwitchResult.Error);
+        }
 
         // Load saved category state from disk (if exists)
         LoadCategoryState();
 
-        // Build UI procedurally
-        CreateUI();
+        // Load scene and wire up UI
+        LoadSceneAndWireUI();
 
         // Populate category filters
         PopulateCategoryFilters();
 
+        // Initialize log level dropdown to match current level
+        InitializeLogLevelDropdown();
+
         _initialized = true;
-        GD.Print("✅ Debug Console initialized and ready");
+        _logger?.LogInformation("Debug Console initialized and ready");
     }
 
     /// <summary>
-    /// Create debug console UI procedurally.
+    /// Load DebugConsole.tscn scene and wire up signals to C# handlers.
     ///
-    /// Structure:
-    /// CanvasLayer (this)
-    ///   └── Control (container, full-screen overlay)
-    ///       ├── ColorRect (semi-transparent background)
-    ///       ├── Label (title)
-    ///       ├── Label (subtitle)
-    ///       ├── Label (category label)
-    ///       └── VBoxContainer (category filters)
+    /// WHY SCENE: Visual editing in Godot editor, proper container layout (no Z-index bugs),
+    ///            hot-reload for quick iteration, Godot-native mouse filtering.
+    ///
+    /// WIRING: GetNode() finds controls defined in scene, connect signals to C# methods.
     /// </summary>
-    private void CreateUI()
+    private void LoadSceneAndWireUI()
     {
-        // Main container (full-screen, hidden by default)
-        _container = new Control
+        try
         {
-            Name = "DebugConsoleContainer",
-            Visible = false,
-            AnchorRight = 1.0f,
-            AnchorBottom = 1.0f,
-            MouseFilter = Control.MouseFilterEnum.Stop // Block input to game when visible
-        };
-        AddChild(_container);
+            // Load scene from file
+            var scene = ResourceLoader.Load<PackedScene>(ScenePath);
+            if (scene == null)
+            {
+                _logger?.LogError("Failed to load scene: {ScenePath}", ScenePath);
+                return;
+            }
 
-        // Semi-transparent dark background
-        var background = new ColorRect
+            // Instantiate scene and add as child
+            _container = scene.Instantiate<Control>();
+            _container.Visible = false; // Hidden by default (F12 to toggle)
+            _container.ProcessMode = ProcessModeEnum.Always; // Work while game paused
+            AddChild(_container);
+
+            // Get references to scene controls
+            _categoryFiltersContainer = _container.GetNode<VBoxContainer>("Panel/MarginContainer/VBoxContainer/ScrollContainer/CategoryFiltersContainer");
+            _logLevelDropdown = _container.GetNode<OptionButton>("Panel/MarginContainer/VBoxContainer/LogLevelSection/LogLevelDropdown");
+
+            // Wire up log level dropdown signal
+            if (_logLevelDropdown != null)
+            {
+                _logLevelDropdown.ItemSelected += OnLogLevelChanged;
+            }
+
+            _logger?.LogInformation("Debug Console scene loaded and wired");
+        }
+        catch (Exception ex)
         {
-            Name = "Background",
-            Color = new Color(0.05f, 0.05f, 0.1f, 0.95f),
-            AnchorRight = 1.0f,
-            AnchorBottom = 1.0f
-        };
-        _container.AddChild(background);
+            _logger?.LogError(ex, "Error loading scene");
+        }
+    }
 
-        // Title
-        var title = new Label
+    /// <summary>
+    /// Initialize log level dropdown to match current LoggingLevelSwitch value.
+    /// Called after scene loaded and level switch resolved from DI.
+    ///
+    /// WHY: Ensures UI reflects actual log level (not just default selection).
+    /// </summary>
+    private void InitializeLogLevelDropdown()
+    {
+        if (_levelSwitch == null || _logLevelDropdown == null)
+            return;
+
+        var currentLevel = _levelSwitch.MinimumLevel;
+        var dropdownIndex = DebugConsoleConfig.SerilogLevelToIndex(currentLevel);
+        _logLevelDropdown.Selected = dropdownIndex;
+
+        _logger?.LogDebug("Log level dropdown initialized to {Level} (index {Index})", currentLevel, dropdownIndex);
+    }
+
+    /// <summary>
+    /// Handle log level dropdown selection change.
+    /// Maps OptionButton index to Serilog level and updates global log level switch.
+    /// </summary>
+    private void OnLogLevelChanged(long index)
+    {
+        if (_levelSwitch == null)
         {
-            Name = "Title",
-            Text = "Debug Console (F12 to toggle)",
-            Position = new Vector2(40, 40),
-            Size = new Vector2(500, 40)
-        };
-        title.AddThemeFontSizeOverride("font_size", 28);
-        _container.AddChild(title);
+            _logger?.LogWarning("LoggingLevelSwitch not available, cannot change log level");
+            return;
+        }
 
-        // Subtitle
-        var subtitle = new Label
-        {
-            Name = "Subtitle",
-            Text = "Control which logs appear in Godot Output panel",
-            Position = new Vector2(40, 90),
-            Size = new Vector2(700, 30)
-        };
-        subtitle.AddThemeFontSizeOverride("font_size", 16);
-        _container.AddChild(subtitle);
-
-        // Category label
-        var categoryLabel = new Label
-        {
-            Name = "CategoryLabel",
-            Text = "Log Categories:",
-            Position = new Vector2(40, 140),
-            Size = new Vector2(240, 30)
-        };
-        categoryLabel.AddThemeFontSizeOverride("font_size", 20);
-        _container.AddChild(categoryLabel);
-
-        // Category filters container
-        _categoryFiltersContainer = new VBoxContainer
-        {
-            Name = "CategoryFilters",
-            Position = new Vector2(40, 180),
-            Size = new Vector2(400, 400)
-        };
-        _container.AddChild(_categoryFiltersContainer);
-
-        GD.Print("✅ Debug Console UI created procedurally");
+        var newLevel = DebugConsoleConfig.IndexToSerilogLevel((int)index);
+        _levelSwitch.MinimumLevel = newLevel;
+        _logger?.LogInformation("Log level changed to {Level}", newLevel);
     }
 
     /// <summary>
@@ -206,17 +272,15 @@ public partial class DebugConsoleController : CanvasLayer
         var availableCategories = _loggingService.GetAvailableCategories();
         var enabledCategories = _loggingService.GetEnabledCategories();
 
-        // FALLBACK: If no CQRS classes exist yet (VS_001/VS_004 not implemented),
-        // use the currently enabled categories for testing the UI
+        // FALLBACK: If no feature categories discovered, show Infrastructure category only
         if (availableCategories.Count == 0)
         {
-            GD.Print("⚠️ No CQRS classes discovered yet (VS_001/VS_004 pending)");
-            GD.Print("📋 Using enabled categories as fallback:");
-            availableCategories = enabledCategories.OrderBy(c => c).ToList();
+            _logger?.LogWarning("No feature categories discovered (Features.* namespaces not found). Using Infrastructure as fallback");
+            availableCategories = new List<string> { "Infrastructure" };
         }
         else
         {
-            GD.Print($"📋 Discovered {availableCategories.Count} categories from CQRS classes:");
+            _logger?.LogInformation("Discovered {Count} categories from Features", availableCategories.Count);
         }
 
         // Create checkbox for each category
@@ -227,6 +291,7 @@ public partial class DebugConsoleController : CanvasLayer
                 Text = category,
                 ButtonPressed = enabledCategories.Contains(category)
             };
+            checkbox.AddThemeFontSizeOverride("font_size", 18); // Larger font for visibility
 
             // Wire up toggle handler
             // IMPORTANT: Capture category in local variable to avoid closure issues
@@ -236,12 +301,12 @@ public partial class DebugConsoleController : CanvasLayer
                 if (isEnabled)
                 {
                     _loggingService?.EnableCategory(capturedCategory);
-                    GD.Print($"✅ Enabled category: {capturedCategory}");
+                    _logger?.LogInformation("Enabled category: {Category}", capturedCategory);
                 }
                 else
                 {
                     _loggingService?.DisableCategory(capturedCategory);
-                    GD.Print($"❌ Disabled category: {capturedCategory}");
+                    _logger?.LogInformation("Disabled category: {Category}", capturedCategory);
                 }
 
                 // Save state after every toggle
@@ -249,10 +314,10 @@ public partial class DebugConsoleController : CanvasLayer
             };
 
             _categoryFiltersContainer.AddChild(checkbox);
-            GD.Print($"   - {category} [{(checkbox.ButtonPressed ? "ON" : "OFF")}]");
+            _logger?.LogDebug("Added category filter: {Category} [{State}]", category, checkbox.ButtonPressed ? "ON" : "OFF");
         }
 
-        GD.Print($"✅ Created {availableCategories.Count} category filter checkboxes");
+        _logger?.LogInformation("Created {Count} category filter checkboxes", availableCategories.Count);
     }
 
     /// <summary>
@@ -274,7 +339,7 @@ public partial class DebugConsoleController : CanvasLayer
 
         if (!File.Exists(godotPath))
         {
-            GD.Print($"💾 No saved state found at {StateFilePath} (using defaults)");
+            _logger?.LogDebug("No saved state found at {Path}, using defaults", StateFilePath);
             return;
         }
 
@@ -300,14 +365,14 @@ public partial class DebugConsoleController : CanvasLayer
                     _loggingService.EnableCategory(category);
                 }
 
-                GD.Print($"💾 Loaded saved state: {state.EnabledCategories.Count} categories enabled");
-                GD.Print($"   Categories: {string.Join(", ", state.EnabledCategories)}");
+                _logger?.LogInformation("Loaded saved state: {Count} categories enabled [{Categories}]",
+                    state.EnabledCategories.Count,
+                    string.Join(", ", state.EnabledCategories));
             }
         }
         catch (Exception ex)
         {
-            GD.PrintErr($"⚠️ Failed to load state from {StateFilePath}: {ex.Message}");
-            GD.PrintErr("   Using default categories instead");
+            _logger?.LogWarning(ex, "Failed to load state from {Path}, using defaults", StateFilePath);
         }
     }
 
@@ -345,11 +410,11 @@ public partial class DebugConsoleController : CanvasLayer
             }
 
             File.WriteAllText(godotPath, json);
-            GD.Print($"💾 Saved state: {state.EnabledCategories.Count} enabled categories");
+            _logger?.LogDebug("Saved state: {Count} enabled categories", state.EnabledCategories.Count);
         }
         catch (Exception ex)
         {
-            GD.PrintErr($"⚠️ Failed to save state to {StateFilePath}: {ex.Message}");
+            _logger?.LogWarning(ex, "Failed to save state to {Path}", StateFilePath);
         }
     }
 

@@ -102,8 +102,9 @@ public class LoggingService
 
     /// <summary>
     /// Extract category from namespace or SourceContext.
-    /// Pattern: "Darklands.Core.Application.Commands.{Category}.Handler" → "Category"
-    /// Pattern: "Darklands.Core.Application.Queries.{Category}.Handler" → "Category"
+    /// Pattern: "Darklands.Core.Features.{Category}.Application.Commands" → "Category"
+    /// Pattern: "Darklands.Core.Features.{Category}.Application.Queries" → "Category"
+    /// Fallback: "Infrastructure" for non-feature logs
     /// </summary>
     public static string? ExtractCategory(string sourceContext)
     {
@@ -112,15 +113,11 @@ public class LoggingService
 
         var parts = sourceContext.Split('.');
 
-        // Look for Commands.{Category}
-        var commandsIndex = Array.IndexOf(parts, "Commands");
-        if (commandsIndex >= 0 && commandsIndex + 1 < parts.Length)
-            return parts[commandsIndex + 1];
-
-        // Look for Queries.{Category}
-        var queriesIndex = Array.IndexOf(parts, "Queries");
-        if (queriesIndex >= 0 && queriesIndex + 1 < parts.Length)
-            return parts[queriesIndex + 1];
+        // Look for Features.{Category} pattern (ADR-004 feature-based architecture)
+        // Example: Darklands.Core.Features.Grid.Application.Commands.MoveActorCommandHandler
+        var featuresIndex = Array.IndexOf(parts, "Features");
+        if (featuresIndex >= 0 && featuresIndex + 1 < parts.Length)
+            return parts[featuresIndex + 1];
 
         // Fallback: Infrastructure logs (GameStrapper, ServiceLocator, etc.)
         return "Infrastructure";

@@ -24,11 +24,8 @@ public class SetTerrainCommandHandler : IRequestHandler<SetTerrainCommand, Resul
 
     public Task<Result> Handle(SetTerrainCommand request, CancellationToken cancellationToken)
     {
-        _logger.LogDebug(
-            "Setting terrain at ({X}, {Y}) to {TerrainType}",
-            request.Position.X,
-            request.Position.Y,
-            request.TerrainType);
+        // BULK OPERATION: Called hundreds of times during grid initialization
+        // Only log errors/warnings, skip debug spam
 
         // Validate position
         if (!_gridMap.IsValidPosition(request.Position))
@@ -38,13 +35,8 @@ public class SetTerrainCommandHandler : IRequestHandler<SetTerrainCommand, Resul
             return Task.FromResult(Result.Failure(error));
         }
 
-        // Set terrain
+        // Set terrain (errors logged by GridMap if needed)
         var result = _gridMap.SetTerrain(request.Position, request.TerrainType);
-
-        if (result.IsSuccess)
-        {
-            _logger.LogDebug("Terrain set successfully");
-        }
 
         return Task.FromResult(result);
     }

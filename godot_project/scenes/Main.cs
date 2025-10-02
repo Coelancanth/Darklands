@@ -52,10 +52,32 @@ public partial class Main : Node
         // Create shared category filter set for LoggingService
         var enabledCategories = new HashSet<string>();
 
-        // Configure Serilog
+        // Create level switch for runtime log level control
+        var levelSwitch = new Serilog.Core.LoggingLevelSwitch(Serilog.Events.LogEventLevel.Information);
+
+        // Configure Serilog with category-based filtering
         Log.Logger = new LoggerConfiguration()
-            .MinimumLevel.Debug()
-            .WriteTo.Console()
+            .MinimumLevel.ControlledBy(levelSwitch)
+            .Filter.ByIncludingOnly(logEvent =>
+            {
+                // Extract category from SourceContext property
+                if (logEvent.Properties.TryGetValue("SourceContext", out var sourceContextValue))
+                {
+                    var sourceContext = sourceContextValue.ToString().Trim('"');
+                    var category = LoggingService.ExtractCategory(sourceContext);
+
+                    // If no categories enabled, show all logs (permissive default)
+                    if (enabledCategories.Count == 0)
+                        return true;
+
+                    // Otherwise, only show logs from enabled categories
+                    return enabledCategories.Contains(category ?? "Infrastructure");
+                }
+
+                // No SourceContext = Infrastructure log (GameStrapper, ServiceLocator, etc.)
+                return enabledCategories.Count == 0 || enabledCategories.Contains("Infrastructure");
+            })
+            .WriteTo.Sink(new GodotConsoleSink(new GodotConsoleFormatter()))
             .WriteTo.File("logs/darklands.log", rollingInterval: RollingInterval.Day)
             .CreateLogger();
 
@@ -68,6 +90,9 @@ public partial class Main : Node
 
         // Register LoggingService for category-based filtering (used by DebugConsole)
         services.AddSingleton(new LoggingService(enabledCategories));
+
+        // Register LoggingLevelSwitch for runtime log level control (used by DebugConsole)
+        services.AddSingleton(levelSwitch);
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // 2. MEDIATR - Register MediatR core + command handlers from Core assembly
