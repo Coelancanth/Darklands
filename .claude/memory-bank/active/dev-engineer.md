@@ -71,6 +71,30 @@ if (string.IsNullOrEmpty(name))
 - ✅ Always use `ILogger<T>` from Microsoft.Extensions.Logging
 - Retrieve via ServiceLocator in `_Ready()`
 
+### Node2D vs Control Hierarchy (CRITICAL)
+**Rule**: Control containers (CenterContainer, VBoxContainer, etc.) ONLY layout Control children!
+
+**Common Mistake**:
+```csharp
+// ❌ WRONG - Sprite2D (Node2D) in Control container
+var sprite = new Sprite2D();
+var center = new CenterContainer();
+center.AddChild(sprite); // Centering won't work!
+```
+
+**Solution**:
+```csharp
+// ✅ CORRECT - TextureRect (Control) in Control container
+var texture = new TextureRect { StretchMode = KeepAspectCentered };
+var center = new CenterContainer();
+center.AddChild(texture); // Centering works perfectly!
+```
+
+**When to use each**:
+- `Sprite2D`: Game world objects (physics, 2D space positioning)
+- `TextureRect`: UI elements (HUD, menus, inventory grids)
+- Symptom of mixing: Sprites stuck at (0,0), layout properties ignored
+
 ---
 
 ## 🏗️ Architecture (ADRs)

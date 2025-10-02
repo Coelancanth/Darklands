@@ -17,12 +17,17 @@ namespace Darklands.Components;
 /// - Renders sprite using TileSet atlas coordinates from ItemDto
 /// - No direct TileSet dependency (queries provide coordinates)
 ///
+/// IMPLEMENTATION:
+/// - Extends TextureRect (Control node) instead of Sprite2D for proper layout
+/// - Works correctly with Control containers (CenterContainer, PanelContainer)
+/// - Uses ExpandMode.KeepAspectCentered for automatic centering
+///
 /// USAGE:
 /// 1. Add ItemSpriteNode to scene
 /// 2. Call DisplayItem(itemId) to show item sprite
-/// 3. Sprite automatically renders at correct atlas region
+/// 3. Sprite automatically renders centered in available space
 /// </remarks>
-public partial class ItemSpriteNode : Sprite2D
+public partial class ItemSpriteNode : TextureRect
 {
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // GODOT EDITOR PROPERTIES
@@ -33,12 +38,6 @@ public partial class ItemSpriteNode : Sprite2D
     /// Assign in Godot editor: res://assets/inventory_ref/item_sprites.tres
     /// </summary>
     [Export] public TileSet? ItemTileSet { get; set; }
-
-    /// <summary>
-    /// Scale factor for rendering items (default 1.0 = native size).
-    /// Increase for larger display, decrease for thumbnails.
-    /// </summary>
-    [Export] public float ItemScale { get; set; } = 1.0f;
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // DEPENDENCIES (resolved via ServiceLocator in _Ready)
@@ -75,11 +74,12 @@ public partial class ItemSpriteNode : Sprite2D
             return;
         }
 
-        // Configure sprite for atlas rendering
-        RegionEnabled = true;
-        Scale = new Vector2(ItemScale, ItemScale);
+        // Configure TextureRect rendering
+        ExpandMode = ExpandModeEnum.IgnoreSize; // Don't auto-resize, use CustomMinimumSize from parent
+        StretchMode = StretchModeEnum.KeepAspectCentered; // Center sprite, maintain aspect ratio
+        TextureFilter = TextureFilterEnum.Nearest; // Pixel-perfect rendering for pixel art
 
-        _logger.LogDebug("ItemSpriteNode initialized (scale: {Scale})", ItemScale);
+        _logger.LogDebug("ItemSpriteNode initialized");
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -136,6 +136,7 @@ public partial class ItemSpriteNode : Sprite2D
     {
         if (ItemTileSet == null)
         {
+            _logger?.LogWarning("Cannot render item {Name}: TileSet not assigned", itemDto.Name);
             return;
         }
 
@@ -149,21 +150,25 @@ public partial class ItemSpriteNode : Sprite2D
             return;
         }
 
-        // Set texture from atlas
-        Texture = atlasSource.Texture;
-
-        // Calculate region rect from atlas coordinates
+        // Create AtlasTexture for this specific tile region
         var tileCoords = new Vector2I(itemDto.AtlasX, itemDto.AtlasY);
-        RegionRect = atlasSource.GetTileTextureRegion(tileCoords);
+        var region = atlasSource.GetTileTextureRegion(tileCoords);
 
+        var atlasTexture = new AtlasTexture
+        {
+            Atlas = atlasSource.Texture,
+            Region = region
+        };
+
+        // Set the AtlasTexture directly
+        Texture = atlasTexture;
         Visible = true;
 
         _logger?.LogDebug(
-            "Rendered item sprite: {Name} (atlas: {X},{Y}, size: {Width}x{Height})",
+            "Rendered item sprite: {Name} (atlas: {X},{Y}, region: {Region})",
             itemDto.Name,
             itemDto.AtlasX,
             itemDto.AtlasY,
-            itemDto.Width,
-            itemDto.Height);
+            region);
     }
 }

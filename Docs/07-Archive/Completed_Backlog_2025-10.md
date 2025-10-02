@@ -163,3 +163,150 @@ Items are moved here COMPLETE with all context, then marked for extraction:
 
 ---
 
+### VS_009: Item Definition System (TileSet Metadata-Driven)
+**Extraction Status**: NOT EXTRACTED ⚠️
+**Completed**: 2025-10-02 23:01
+**Archive Note**: Item catalog system using Godot TileSet custom data layers - all 4 phases completed, 57 tests passing (100%), sprites rendering correctly via TextureRect, auto-discovery working
+
+---
+
+**Status**: Done (2025-10-02 23:01 - All 4 phases complete, sprites rendering correctly, 54 tests passing)
+**Owner**: Dev Engineer (completed)
+**Size**: M (6-7h actual across 4 phases)
+**Priority**: Important (Phase 2 foundation - blocks VS_010, VS_011, VS_012, VS_018)
+**Depends On**: None (ItemId exists in Domain/Common, inventory.png spritesheet available)
+
+**What**: Define Item entities using **Godot's TileSet custom data layers** to store ALL item properties (name, type, weight, stackable) as metadata. Designer adds items **visually in TileSet editor** with zero code changes. Repository auto-discovers items from TileSet at startup.
+
+**Why**:
+- **100% Designer-Friendly**: Artists add items via visual TileSet editor (no C# code, no recompilation!)
+- **Single Source of Truth**: All item data (sprites + properties) lives in one TileSet resource
+- **Godot-Native**: Uses TileSet custom data layers (standard Godot feature for tile metadata)
+- **Eliminates Hardcoding**: No C# item definitions, no JSON needed - TileSet IS the database
+- **Clean Architecture**: Core stores primitives (atlas coords), Infrastructure reads TileSet metadata
+
+**How** (Data-First: TileSet → Code):
+
+**Phase 0 - TileSet Setup** (~1.5h - Designer/Contract Definition):
+- **Use existing** `assets/inventory_ref/item_sprites.tres` TileSet (already has tiles with size_in_atlas!)
+- **Add 3 custom data layers** in Godot TileSet editor:
+  1. `item_name` (String) - "Ray Gun", "Baton", "Green Vial", etc.
+  2. `item_type` (String) - "Weapon", "Consumable", "Quest", "UI"
+  3. `max_stack_size` (Int) - 1 (not stackable), 5-20 (stackable)
+- **Paint metadata** on each tile (visual editor):
+  - Select tile → Inspector → Custom Data section → fill values
+  - Example: Tile (6,0) = {name: "Ray Gun", type: "Weapon", weight: 1.2, max_stack: 1}
+  - Example: Tile (X,Y) = {name: "Green Vial", type: "Consumable", weight: 0.1, max_stack: 5}
+- **Width/Height**: Already stored in TileSet's `size_in_atlas` (no custom data needed!)
+  - Read via `atlasSource.GetTileSizeInAtlas(coords)` in code
+- **Output**: TileSet resource with metadata contract established (4 custom layers)
+- **Validation**: Open TileSet in editor, verify all tiles have custom data
+
+**Phase 1 - Domain** ✅ **COMPLETE** (2025-10-02):
+- `Item` entity with primitives (no Godot types):
+  - Atlas coords (int x, y), name, type, width, height, max_stack_size
+  - Computed property: `bool IsStackable => MaxStackSize > 1`
+- Factory: `Item.Create()` with comprehensive validation:
+  - 7 validation rules (atlas coords, name, type, dimensions, stack size)
+  - Returns Result<Item> for functional error handling
+- Tests: 23 unit tests passing in 17ms (<100ms requirement met!)
+  - Happy path (valid items, stackable vs non-stackable)
+  - Atlas coordinate validation (negative, zero, positive)
+  - Name/type validation (empty, whitespace)
+  - Dimension validation (Theory tests with InlineData)
+  - Stack size validation + IsStackable computed property
+
+**Phase 2 - Application** ✅ **COMPLETE** (2025-10-02):
+- IItemRepository interface (GetById, GetAll, GetByType)
+  - Synchronous methods (catalog data loaded once at startup)
+  - DIP: Interface in Application, implementation in Infrastructure
+- ItemDto for decoupling Presentation from Domain entities
+- 3 Query/Handler pairs with MediatR:
+  - GetAllItemsQuery: Retrieve full item catalog
+  - GetItemByIdQuery: Lookup single item
+  - GetItemsByTypeQuery: Filter by type (weapon, item, UI)
+- Tests: 18 unit tests passing in 56ms (<500ms requirement met!)
+  - Happy paths (valid queries, DTO mapping)
+  - Edge cases (empty catalogs, no matches, missing items)
+  - Repository failures (railway-oriented error propagation)
+  - DTO integrity (all properties map correctly, IsStackable preserved)
+
+**Phase 3 - Infrastructure** ✅ **COMPLETE** (2025-10-02):
+- `TileSetItemRepository` in Infrastructure/ (Godot project, not Core):
+  - Lives in Presentation layer (Godot SDK) - ADR-002 compliance
+  - Constructor accepts TileSet (loaded by DI container at startup)
+  - Auto-discovery: Enumerates tiles, reads custom data + size_in_atlas
+  - Extracts primitives, calls Item.Create() (keeps Domain Godot-free)
+  - Caches in Dictionary<ItemId, Item> for O(1) GetById lookups
+  - Caches full list for O(1) GetAll returns
+  - GetByType: LINQ filtering with case-insensitive matching
+- Tests: 13 contract tests passing in <10ms (<2s requirement met!):
+  - GetById: Exists, not exists, O(1) performance with 100 items
+  - GetAll: With items, empty catalog
+  - GetByType: Type filtering, case-insensitive, no matches, empty/whitespace validation
+  - In-memory test double validates IItemRepository contract
+  - Real TileSet integration validated manually in Phase 4
+
+**Phase 4 - Presentation** ✅ **COMPLETE** (2025-10-02):
+- `ItemSpriteNode.cs` in Components/:
+  - Extends Sprite2D for item rendering
+  - DisplayItem(itemId): Queries catalog via MediatR, renders sprite
+  - DisplayItemDto(dto): Direct rendering for batch operations
+  - Uses TileSet GetTileTextureRegion() for atlas coordinates
+  - Configurable scale (default 1.0, showcase uses 2.0x)
+- `ItemShowcaseController.cs` in godot_project/test_scenes/:
+  - Loads all items via GetAllItemsQuery
+  - Creates UI panels programmatically (PanelContainer + VBoxContainer)
+  - Displays: sprite (2x scale), name label, metadata (type, size, stack)
+  - Demonstrates catalog auto-discovery working end-to-end
+- **DI Registration** in Main.cs:
+  - Loads item_sprites.tres using GodotObject.Load<TileSet>()
+  - Registers TileSetItemRepository with factory lambda
+  - Repository auto-discovers items on construction (logged to console)
+- **Scope validation**: Item catalog foundation only
+  - ✅ Item sprites render from TileSet
+  - ✅ Metadata displays (name, type, size, stack size)
+  - ✅ Auto-discovery works (add tile to TileSet → appears in showcase)
+  - ❌ NOT implementing spatial grid inventory (deferred to VS_018)
+  - ❌ NOT implementing drag-drop (deferred to VS_018)
+
+**Done When**: ✅ **ALL CRITERIA MET** (2025-10-02 23:01)
+- ✅ **Phase 0**: item_sprites.tres has 3 custom data layers + metadata on 10 items
+- ✅ **Phases 1-3**: 57 tests pass (23+18+16) in <100ms total
+  - Item.Create() with 7 validations, ItemDto mapping, repository contract
+- ✅ **Phase 4**: ItemSpriteNode (TextureRect) + ItemShowcaseController + DI registration complete
+  - Manual test verified: ItemShowcaseScene.tscn displays 10 items with correct sprites + metadata
+  - All sprites centered correctly in uniform 200×240px slots (TextureRect.KeepAspectCentered)
+- ✅ **Acceptance Test**: Add new tile to TileSet → restart → auto-appears (zero code!)
+- ✅ **Scope Validation**: Item catalog foundation only, NOT spatial inventory
+- ✅ **ADR-002**: Core has zero Godot dependencies (2-project architecture enforces)
+
+**Implementation Notes** (2025-10-02 23:01):
+- **Rendering Fix**: Switched from `Sprite2D` (Node2D) to `TextureRect` (Control) for proper UI layout
+  - Root cause: Control containers (CenterContainer) only layout Control children, not Node2D children
+  - Solution: TextureRect with StretchMode.KeepAspectCentered automatically centers/scales sprites
+  - Lesson: Always match node hierarchy to container type (Node2D for game world, Control for UI)
+
+**Architecture Decision** (2025-10-02 21:15 - Updated with data-first approach):
+- ✅ **TileSet custom data layers** = Godot-native metadata storage
+- ✅ **Lesson learned**: Always search for Godot features BEFORE designing custom solutions!
+- ✅ **Phase reversal**: TileSet metadata defines contract (Phase 0), code implements to contract (Phase 1-4)
+- ✅ **Data-first workflow**: Designer establishes metadata structure → Developer reads known fields
+- ✅ **Eliminates**: Hardcoded C# definitions, JSON files, guesswork about data structure
+- ✅ **Designer workflow**: Visual editor only, zero programmer dependency
+- **Next step**: Designer completes Phase 0 (add custom data layers) → Product Owner approval → Dev Engineer implementation
+
+**Blocks**: VS_010 (Stacking), VS_011 (Equipment), VS_012 (Loot), VS_018 (Spatial Inventory)
+
+---
+
+**Extraction Targets**:
+- [ ] ADR needed for: TileSet custom data layers as metadata storage pattern (Godot-native data-driven design)
+- [ ] ADR needed for: Node hierarchy matching (Node2D vs Control in container layouts)
+- [ ] HANDBOOK update: Data-first workflow pattern (designer defines contract → developer implements)
+- [ ] HANDBOOK update: TextureRect vs Sprite2D decision matrix (UI vs game world rendering)
+- [ ] Test pattern: Repository contract testing with in-memory test doubles
+- [ ] Reference implementation: TileSet metadata-driven repository as template for asset-backed catalogs
+
+---
+

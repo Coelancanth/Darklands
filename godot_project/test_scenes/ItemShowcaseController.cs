@@ -127,18 +127,23 @@ public partial class ItemShowcaseController : Control
 
     private void DisplayItem(ItemDto itemDto)
     {
-        // Create item display panel
+        // UNIFORM GRID LAYOUT - All slots same size, TextureRect auto-scales and centers
+        const int PanelWidth = 200;
+        const int PanelHeight = 240; // Fixed panel size for all items
+        const int LabelHeight = 40;
+
+        // Create item display panel (FIXED SIZE for all items)
         var itemPanel = new PanelContainer();
-        itemPanel.CustomMinimumSize = new Vector2(200, 120);
+        itemPanel.CustomMinimumSize = new Vector2(PanelWidth, PanelHeight);
 
         var vbox = new VBoxContainer();
         itemPanel.AddChild(vbox);
 
-        // Create sprite node
+        // Create TextureRect sprite node (auto-scales and centers)
         var sprite = new ItemSpriteNode
         {
             ItemTileSet = ItemTileSet,
-            ItemScale = 2.0f // 2x scale for better visibility
+            CustomMinimumSize = new Vector2(PanelWidth, PanelHeight - LabelHeight)
         };
 
         // Call _Ready manually (Godot won't call it for programmatically added nodes until next frame)
@@ -147,11 +152,8 @@ public partial class ItemShowcaseController : Control
         // Display item sprite
         sprite.DisplayItemDto(itemDto);
 
-        // Center sprite in container
-        var spriteContainer = new CenterContainer();
-        spriteContainer.CustomMinimumSize = new Vector2(200, 80);
-        spriteContainer.AddChild(sprite);
-        vbox.AddChild(spriteContainer);
+        // Add sprite directly to vbox (TextureRect handles centering via StretchMode)
+        vbox.AddChild(sprite);
 
         // Add item name label
         var nameLabel = new Label
@@ -176,6 +178,7 @@ public partial class ItemShowcaseController : Control
         // Add to container
         _itemContainer?.AddChild(itemPanel);
 
-        _logger.LogDebug("Displayed item: {Name} ({Type})", itemDto.Name, itemDto.Type);
+        _logger.LogDebug("Displayed item: {Name} (size: {Width}x{Height} cells)",
+            itemDto.Name, itemDto.Width, itemDto.Height);
     }
 }
