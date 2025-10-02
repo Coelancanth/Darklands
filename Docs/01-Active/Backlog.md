@@ -105,47 +105,86 @@
 - **Eliminates Hardcoding**: No C# item definitions, no JSON needed - TileSet IS the database
 - **Clean Architecture**: Core stores primitives (atlas coords), Infrastructure reads TileSet metadata
 
-**How** (4-Phase Implementation):
+**How** (Data-First: TileSet → Code):
 
-**Phase 1 - Domain** (~1.5h):
-- `Item` entity with primitives only (no Godot types):
-  - Atlas coords (int x, int y), name, type, width, height, weight, stackable, max_stack
-- Factory: `Item.CreateFromTileSet(atlasSource, x, y)` reads TileSet custom data
-- Validates metadata exists, returns Result<Item>
-- Tests: CreateFromTileSet loads metadata, handles missing data
+**Phase 0 - TileSet Setup** (~1.5h - Designer/Contract Definition):
+- **Use existing** `assets/inventory_ref/item_sprites.tres` TileSet (already has tiles with size_in_atlas!)
+- **Add 3 custom data layers** in Godot TileSet editor:
+  1. `item_name` (String) - "Ray Gun", "Baton", "Green Vial", etc.
+  2. `item_type` (String) - "Weapon", "Consumable", "Quest", "UI"
+  3. `max_stack_size` (Int) - 1 (not stackable), 5-20 (stackable)
+- **Paint metadata** on each tile (visual editor):
+  - Select tile → Inspector → Custom Data section → fill values
+  - Example: Tile (6,0) = {name: "Ray Gun", type: "Weapon", weight: 1.2, max_stack: 1}
+  - Example: Tile (X,Y) = {name: "Green Vial", type: "Consumable", weight: 0.1, max_stack: 5}
+- **Width/Height**: Already stored in TileSet's `size_in_atlas` (no custom data needed!)
+  - Read via `atlasSource.GetTileSizeInAtlas(coords)` in code
+- **Output**: TileSet resource with metadata contract established (4 custom layers)
+- **Validation**: Open TileSet in editor, verify all tiles have custom data
+
+**Phase 1 - Domain** (~1.5h - Implement to Contract):
+- `Item` entity with primitives (no Godot types):
+  - Atlas coords (int x, y), name, type, width, height, weight, max_stack_size
+  - Computed property: `bool IsStackable => MaxStackSize > 1`
+- Factory: `Item.CreateFromTileSet(atlasSource, x, y)` reads:
+  - 4 custom data fields (item_name, item_type, max_stack_size)
+  - Width/Height from `atlasSource.GetTileSizeInAtlas(coords)`
+- Validates metadata exists (return Failure if missing)
+- Tests: CreateFromTileSet loads metadata + size, IsStackable computed correctly
 
 **Phase 2 - Application** (~1.5h):
 - IItemRepository, queries (GetItem, GetAll, GetByType), DTOs
+- DTOs expose properties from Phase 0 contract
 - Tests: Query handlers return items with metadata
 
 **Phase 3 - Infrastructure** (~2h):
-- `TileSetItemRepository` auto-discovers items from TileSet:
-  - Loads ItemAtlas.tres resource
-  - Enumerates all tiles → calls Item.CreateFromTileSet()
+- `TileSetItemRepository` auto-discovers items:
+  - Loads `item_sprites.tres` resource
+  - Enumerates tiles → calls Item.CreateFromTileSet()
   - Caches in dictionary for O(1) queries
-- Tests: Repository loads items from TileSet, queries work
+- Tests: Repository loads actual TileSet, verifies metadata
 
-**Phase 4 - Presentation** (~3h):
-- **Designer Setup** (visual TileSet editor):
-  1. Create ItemAtlas.tres TileSet
-  2. Add custom data layers: item_name (String), item_type (String), weight (Float), is_stackable (Bool), max_stack_size (Int)
-  3. Configure 10 tiles with metadata + sizes (2×1 ray gun, 1×3 baton, etc.)
-- **Code**: ItemSpriteNode uses GetTileTextureRegion(coords) for rendering
-- Tests: Add item via TileSet → auto-appears in game
+**Phase 4 - Presentation** (~1h - Simple Sprite Display):
+- `ItemSpriteNode.cs`: Renders item sprite using TileSet
+  ```csharp
+  public void DisplayItem(Item item)
+  {
+      var atlasSource = (TileSetAtlasSource)ItemTileSet.GetSource(0);
+      Texture = atlasSource.Texture;
+      RegionEnabled = true;
+      RegionRect = atlasSource.GetTileTextureRegion(new Vector2I(item.AtlasX, item.AtlasY));
+      // Sprite shows at native size - no grid spanning logic needed
+  }
+  ```
+- **Demo scene**: Item showcase (NOT spatial inventory!)
+  - VBoxContainer or simple grid
+  - Load all items from repository → display sprites + names
+  - Verify items auto-discovered from TileSet
+- **Scope**: Just prove items load and render correctly
+  - ❌ NOT implementing spatial grid (that's VS_018)
+  - ❌ NOT implementing drag-drop (that's VS_018)
+  - ✅ Just: Item catalog works, sprites display
+- **Tests**: All items render, metadata displays correctly (name, weight, etc.)
 
 **Done When**:
-- ✅ 26 tests pass (<3s)
-- ✅ ItemAtlas.tres configured with 10 tiles + 5 custom data layers
-- ✅ Designer adds "Silver Dagger" via TileSet editor → appears in game (zero code!)
-- ✅ All sprites render correctly (non-uniform sizes)
+- ✅ **Phase 0**: item_sprites.tres has 4 custom data layers + metadata on all tiles
+- ✅ **Phase 1-3**: 24 tests pass (<3s total)
+  - Item.CreateFromTileSet reads 4 custom fields + size_in_atlas
+  - Item.IsStackable computed correctly (true when max_stack > 1)
+  - Repository auto-discovers all items from TileSet
+- ✅ **Phase 4**: Item showcase scene displays all items with sprites + metadata
+- ✅ **Acceptance Test**: Add "Silver Dagger" tile to TileSet with metadata → auto-appears in showcase (zero code!)
+- ✅ **Scope Validation**: VS_009 provides item catalog foundation, NOT spatial inventory UI
 - ✅ ADR-002: Core has zero Godot dependencies
 
-**Architecture Decision** (2025-10-02 20:59):
+**Architecture Decision** (2025-10-02 21:15 - Updated with data-first approach):
 - ✅ **TileSet custom data layers** = Godot-native metadata storage
 - ✅ **Lesson learned**: Always search for Godot features BEFORE designing custom solutions!
-- ✅ **Eliminates**: Hardcoded C# definitions, JSON files, separate datastores
+- ✅ **Phase reversal**: TileSet metadata defines contract (Phase 0), code implements to contract (Phase 1-4)
+- ✅ **Data-first workflow**: Designer establishes metadata structure → Developer reads known fields
+- ✅ **Eliminates**: Hardcoded C# definitions, JSON files, guesswork about data structure
 - ✅ **Designer workflow**: Visual editor only, zero programmer dependency
-- **Next step**: Product Owner approval → Dev Engineer implementation
+- **Next step**: Designer completes Phase 0 (add custom data layers) → Product Owner approval → Dev Engineer implementation
 
 **Blocks**: VS_010 (Stacking), VS_011 (Equipment), VS_012 (Loot), VS_018 (Spatial Inventory)
 

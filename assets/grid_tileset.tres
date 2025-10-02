@@ -162,6 +162,7 @@ use_texture_padding = false
 8:4/0 = 0
 9:4/0 = 0
 10:4/0 = 0
+0:0/next_alternative_id = 2
 0:0/0 = 0
 0:1/0 = 0
 0:2/0 = 0
