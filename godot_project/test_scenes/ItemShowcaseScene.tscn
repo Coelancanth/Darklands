@@ -1,0 +1,56 @@
+[gd_scene load_steps=3 format=3 uid="uid://cg8jxm2qkv7ps"]
+
+[ext_resource type="Script" path="res://godot_project/test_scenes/ItemShowcaseController.cs" id="1_controller"]
+[ext_resource type="TileSet" uid="uid://bmiw87gmm1wvp" path="res://assets/inventory_ref/item_sprites.tres" id="2_tileset"]
+
+[node name="ItemShowcaseScene" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_controller")
+ItemTileSet = ExtResource("2_tileset")
+ItemContainerPath = NodePath("MarginContainer/ScrollContainer/ItemContainer")
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 20
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer"]
+layout_mode = 2
+
+[node name="TitleLabel" type="Label" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 32
+text = "Item Catalog Showcase"
+horizontal_alignment = 1
+
+[node name="SubtitleLabel" type="Label" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+text = "VS_009: TileSet Metadata Auto-Discovery Demo"
+horizontal_alignment = 1
+
+[node name="HSeparator" type="HSeparator" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="ScrollContainer" type="ScrollContainer" parent="MarginContainer"]
+layout_mode = 2
+offset_top = 81.0
+offset_bottom = 1080.0
+
+[node name="ItemContainer" type="GridContainer" parent="MarginContainer/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/h_separation = 20
+theme_override_constants/v_separation = 20
+columns = 3
