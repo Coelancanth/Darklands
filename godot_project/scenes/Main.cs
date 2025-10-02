@@ -121,10 +121,34 @@ public partial class Main : Node
         // REMOVED: Duplicate UIEventForwarder registration (already registered by assembly scan above)
         // services.AddTransient(typeof(INotificationHandler<>), typeof(UIEventForwarder<>));
 
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // 4. ITEM SYSTEM (VS_009 Phase 4) - TileSet-based item catalog
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        // Load item TileSet resource
+        var itemTileSet = GD.Load<TileSet>("res://assets/inventory_ref/item_sprites.tres");
+
+        if (itemTileSet == null)
+        {
+            GD.PrintErr("❌ Failed to load item TileSet: res://assets/inventory_ref/item_sprites.tres");
+        }
+        else
+        {
+            // Register TileSetItemRepository with loaded TileSet
+            services.AddSingleton<Darklands.Core.Features.Item.Application.IItemRepository>(sp =>
+            {
+                var logger = sp.GetRequiredService<ILogger<Infrastructure.TileSetItemRepository>>();
+                return new Infrastructure.TileSetItemRepository(itemTileSet, logger);
+            });
+
+            GD.Print("   - IItemRepository → TileSetItemRepository (item_sprites.tres loaded)");
+        }
+
         GD.Print("📦 Services registered:");
         GD.Print("   - Logging (Serilog → Console + File)");
         GD.Print("   - LoggingService (category filtering for DebugConsole)");
         GD.Print("   - MediatR (command handlers + UIEventForwarder via assembly scan)");
         GD.Print("   - IGodotEventBus → GodotEventBus");
+        GD.Print("   - IItemRepository → TileSetItemRepository (auto-discovery from TileSet)");
     }
 }

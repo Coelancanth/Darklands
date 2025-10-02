@@ -1,19 +1,20 @@
 # Backlog Archive Index
 
-**Last Updated**: 2025-10-02 12:17
-**Current Active Archive**: Completed_Backlog_2025-10.md (Lines: 165/1000)
+**Last Updated**: 2025-10-02 23:12
+**Current Active Archive**: Completed_Backlog_2025-10.md (Lines: 265/1000)
 
 ## Archive Files (Newest First)
 
 ### Completed_Backlog_2025-10.md (✅ ACTIVE - October 2025 Part 2)
 - **Created**: 2025-10-02 12:17 (after rotation)
-- **Line Count**: 165/1000
-- **Date Range**: 2025-10-02 to Present
+- **Line Count**: 265/1000
+- **Date Range**: 2025-10-02 to 2025-10-02 23:01
 - **Status**: ✅ Active (accepting new items)
-- **Extraction Status**: 0/1 extracted (1 NOT EXTRACTED ⚠️)
+- **Extraction Status**: 0/2 extracted (2 NOT EXTRACTED ⚠️)
 
 **Items**:
 - **VS_008**: Slot-Based Inventory System (20 slots, ItemId pattern, 23 tests, PR #84 merged) [NOT EXTRACTED ⚠️]
+- **VS_009**: Item Definition System (TileSet metadata-driven, 57 tests, TextureRect rendering, auto-discovery) [NOT EXTRACTED ⚠️]
 
 ### Completed_Backlog_2025-10_Part1.md (🔒 SEALED - October 2025 Part 1)
 - **Created**: 2025-10-01 00:48
@@ -51,5 +52,5 @@
 2. Open that specific archive file (newest first: Completed_Backlog_2025-10.md)
 3. Use Ctrl+F to search for item ID
 
-**Current Active Capacity**: 165/1000 lines (835 lines remaining)
-**Total Archived Items**: 12 (9 in Oct 2025, 3 in Sept 2025)
+**Current Active Capacity**: 265/1000 lines (735 lines remaining)
+**Total Archived Items**: 13 (10 in Oct 2025, 3 in Sept 2025)

@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-02 10:48 (Tech Lead: Added VS_008 Inventory System with full specification)
+**Last Updated**: 2025-10-02 23:01 (Dev Engineer: VS_009 ✅ DONE - Item catalog system complete, sprites rendering correctly)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -11,7 +11,7 @@
 
 - **Next BR**: 004
 - **Next TD**: 003
-- **Next VS**: 009
+- **Next VS**: 010
 
 
 **Protocol**: Check your type's counter → Use that number → Increment the counter → Update timestamp
@@ -73,6 +73,7 @@
 ---
 
 *Recently completed and archived (2025-10-02):*
+- **VS_009**: Item Definition System - TileSet metadata-driven catalog, 57 tests, auto-discovery, TextureRect rendering ✅ (2025-10-02 23:01)
 - **VS_008**: Slot-Based Inventory System - 20-slot backpack, add/remove operations, 23 tests, PR #84 merged ✅ (2025-10-02 12:10)
 - **TD_002**: Debug Console Scene Refactor - Scene-based UI, pause isolation, ILogger integration ✅ (2025-10-01 20:37)
 - **VS_006**: Interactive Movement System - A* pathfinding, hover preview, fog of war, ILogger refactor ✅ (2025-10-01 17:54)
@@ -137,9 +138,11 @@
 - `MoveAlongPathCommand` already respects cancellation → just need external trigger
 - Event-driven: `FOVCalculatedEvent` → Check for new enemies → Call `InterruptMovementCommand`
 
-**Phase**: All 4 phases (Domain minimal, Application + Infrastructure core, Presentation UI prompts
+**Phase**: All 4 phases (Domain minimal, Application + Infrastructure core, Presentation UI prompts)
 
 ---
+
+
 
 ## 💡 Ideas (Future Work)
 *Future features, nice-to-haves, deferred work*

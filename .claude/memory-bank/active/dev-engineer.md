@@ -1,0 +1,139 @@
+# Dev Engineer Memory Bank
+
+**Purpose**: Reusable implementation patterns and technical reminders. NOT for current tasks or session logs.
+
+---
+
+## 🔄 Workflow Protocol
+
+**MANDATORY: Update Backlog BEFORE Committing Each Phase**
+
+1. Complete phase implementation + tests
+2. Update `Docs/01-Active/Backlog.md` with progress (5-7 lines)
+3. Stage files: `git add` (code + tests + backlog)
+4. Commit: `feat(feature): Description [Phase X/4]`
+
+---
+
+## 🎓 Core Patterns
+
+### TDD Discipline
+- Write failing test first (RED)
+- Minimal implementation (GREEN)
+- Refactor if needed
+- Use `[Trait("Category", "PhaseX")]` for phase-specific runs
+- Phase 1 tests must run <10ms (pure domain)
+
+### Railway-Oriented Programming
+```csharp
+// Functional composition eliminates manual error checking
+public Result<bool> IsPassable(Position pos) =>
+    GetTerrain(pos)                  // Result<TerrainType>
+        .Map(t => t.IsPassable());   // Transform to Result<bool>
+// Failure propagates automatically
+```
+
+---
+
+## 🎨 TileSet Custom Data Pattern
+
+**When to Use**: Entity catalogs with designer-modifiable properties (items, terrain, enemies).
+
+**Key Steps**:
+1. **Domain**: `CreateFromTileSet(atlasSource, x, y)` factory reads metadata
+2. **Infrastructure**: Auto-discover via `GetTilesCount()` + `GetTileId(i)` loop
+3. **Validate**: Check metadata exists, return `Result.Failure` if missing
+4. **Store primitives**: Atlas coords as ints (ADR-002)
+
+**Example**:
+```csharp
+var tileData = atlasSource.GetTileData(coords, 0);
+var name = (string)tileData.GetCustomData("item_name");
+if (string.IsNullOrEmpty(name))
+    return Result.Failure<Item>("Missing metadata");
+```
+
+---
+
+## 🔧 Godot C# Integration
+
+### Node References
+- ❌ Don't rely on `[Export] NodePath` auto-population
+- ✅ Use explicit `GetNode<T>()` in `_Ready()`
+
+### ServiceLocator Pattern
+- ✅ Acceptable at Godot boundary (Godot instantiates nodes)
+- ❌ Never use in Core layer
+- Pattern: `ServiceLocator.Get<T>()` ONLY in `_Ready()`
+
+### Logging (ADR-001)
+- ❌ Never use `GD.Print()` or `GD.PrintErr()`
+- ✅ Always use `ILogger<T>` from Microsoft.Extensions.Logging
+- Retrieve via ServiceLocator in `_Ready()`
+
+### Node2D vs Control Hierarchy (CRITICAL)
+**Rule**: Control containers (CenterContainer, VBoxContainer, etc.) ONLY layout Control children!
+
+**Common Mistake**:
+```csharp
+// ❌ WRONG - Sprite2D (Node2D) in Control container
+var sprite = new Sprite2D();
+var center = new CenterContainer();
+center.AddChild(sprite); // Centering won't work!
+```
+
+**Solution**:
+```csharp
+// ✅ CORRECT - TextureRect (Control) in Control container
+var texture = new TextureRect { StretchMode = KeepAspectCentered };
+var center = new CenterContainer();
+center.AddChild(texture); // Centering works perfectly!
+```
+
+**When to use each**:
+- `Sprite2D`: Game world objects (physics, 2D space positioning)
+- `TextureRect`: UI elements (HUD, menus, inventory grids)
+- Symptom of mixing: Sprites stuck at (0,0), layout properties ignored
+
+---
+
+## 🏗️ Architecture (ADRs)
+
+**ADR-002**: Core has zero Godot dependencies (primitives only)
+**ADR-003**: Use `Result<T>` for failable operations
+**ADR-004**: Feature-based organization (Domain/Application/Infrastructure per feature)
+
+---
+
+## 📝 Test Naming
+
+```
+MethodName_Scenario_ExpectedBehavior
+
+Examples:
+- Create_ValidValues_ShouldReturnSuccess
+- GetTerrain_OutOfBounds_ShouldReturnFailure
+```
+
+**When to Comment Tests**:
+- ✅ Business rules, bug regressions, edge cases, architecture constraints
+- ❌ Don't comment obvious behavior
+
+---
+
+## 🔗 Quick Commands
+
+```bash
+# Test execution
+dotnet test --filter "Category=Phase1"
+dotnet test tests/Darklands.Core.Tests/Darklands.Core.Tests.csproj
+
+# Git workflow
+git checkout -b feat/VS_XXX-description
+./scripts/git/branch-status-check.ps1
+git commit -m "feat(feature): Description [Phase X/4]"
+```
+
+---
+
+**Last Updated**: 2025-10-02

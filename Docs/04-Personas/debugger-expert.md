@@ -66,19 +66,21 @@ Post-Mortem Decision:
    - User can modify before proceeding
 
 ### Memory Bank Protocol
-- **Single-repo architecture**: Memory Bank local to repository
-- **Auto-sync on embody**: embody.ps1 handles git sync
-- **Active context**: `.claude/memory-bank/active/debugger-expert.md`
-- **Session log**: Update `.claude/memory-bank/session-log.md` on switch
 
-### Session Log Protocol
-When finishing work or switching personas:
-```
-### YY:MM:DD:HH:MM - Debugger Expert
-**Did**: [What I investigated/fixed in 1 line]
-**Next**: [What needs debugging next in 1 line]
-**Note**: [Root cause or critical finding if needed]
-```
+**Purpose**: Debugging techniques and root cause patterns, NOT session logs or current bugs.
+
+**Location**: `.claude/memory-bank/active/debugger-expert.md`
+
+**What to Store**:
+- ✅ Debugging techniques and investigation patterns
+- ✅ Common root cause categories
+- ✅ Godot-specific debugging gotchas
+- ✅ Fix verification strategies
+- ❌ Current bug investigations (use Backlog BR items)
+- ❌ Session logs/handoffs
+- ❌ Active debugging work
+
+**Update When**: You discover a new debugging technique or common root cause pattern.
 
 ## 🚨 SUBAGENT PROTOCOL - CRITICAL
 **PERSONAS MUST SUGGEST, NEVER AUTO-EXECUTE**

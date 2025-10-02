@@ -1,0 +1,53 @@
+[gd_resource type="TileSet" load_steps=3 format=3 uid="uid://bmiw87gmm1wvp"]
+
+[ext_resource type="Texture2D" uid="uid://brrhwmttp0h2m" path="res://assets/inventory_ref/inventory.png" id="1_c0ynw"]
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_c0ynw"]
+texture = ExtResource("1_c0ynw")
+6:0/size_in_atlas = Vector2i(2, 2)
+6:0/0 = 0
+6:0/0/custom_data_0 = "red_vial"
+6:0/0/custom_data_1 = "item"
+6:0/0/custom_data_2 = 2
+6:2/size_in_atlas = Vector2i(2, 2)
+6:2/0 = 0
+6:2/0/custom_data_0 = "cell_background"
+6:2/0/custom_data_1 = "UI"
+6:4/size_in_atlas = Vector2i(2, 4)
+6:4/0 = 0
+6:4/0/custom_data_0 = "gadget"
+6:4/0/custom_data_1 = "item"
+0:4/size_in_atlas = Vector2i(4, 2)
+0:4/0 = 0
+0:4/0/custom_data_0 = "dagger"
+0:4/0/custom_data_1 = "weapon"
+0:6/0 = 0
+0:6/0/custom_data_0 = "highlight_black"
+0:6/0/custom_data_1 = "UI"
+1:6/0 = 0
+1:6/0/custom_data_0 = "highlight_green"
+1:6/0/custom_data_1 = "UI"
+1:7/0 = 0
+1:7/0/custom_data_0 = "highlight_red"
+1:7/0/custom_data_1 = "UI"
+2:6/size_in_atlas = Vector2i(2, 2)
+2:6/0 = 0
+2:6/0/custom_data_0 = "green_vial"
+2:6/0/custom_data_1 = "item"
+0:0/size_in_atlas = Vector2i(4, 4)
+0:0/0 = 0
+0:0/0/custom_data_0 = "ray_gun"
+0:0/0/custom_data_1 = "weapon"
+4:0/size_in_atlas = Vector2i(2, 8)
+4:0/0 = 0
+4:0/0/custom_data_0 = "baton"
+4:0/0/custom_data_1 = "weapon"
+
+[resource]
+custom_data_layer_0/name = "item_name"
+custom_data_layer_0/type = 4
+custom_data_layer_1/name = "item_type"
+custom_data_layer_1/type = 4
+custom_data_layer_2/name = "max_stack_size"
+custom_data_layer_2/type = 2
+sources/0 = SubResource("TileSetAtlasSource_c0ynw")

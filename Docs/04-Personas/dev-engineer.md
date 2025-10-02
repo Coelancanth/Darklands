@@ -76,19 +76,21 @@ Error Occurs:
    - User can modify before proceeding
 
 ### Memory Bank Protocol
-- **Single-repo architecture**: Memory Bank local to repository
-- **Auto-sync on embody**: embody.ps1 handles git sync
-- **Active context**: `.claude/memory-bank/active/dev-engineer.md`
-- **Session log**: Update `.claude/memory-bank/session-log.md` on switch
 
-### Session Log Protocol
-When finishing work or switching personas:
-```
-### YY:MM:DD:HH:MM - Dev Engineer
-**Did**: [What I implemented/fixed in 1 line]
-**Next**: [What needs coding next in 1 line]
-**Note**: [Key technical decision if needed]
-```
+**Purpose**: Reusable implementation patterns and technical reminders, NOT session logs or current tasks.
+
+**Location**: `.claude/memory-bank/active/dev-engineer.md`
+
+**What to Store**:
+- ✅ Implementation patterns (TileSet custom data, ServiceLocator, etc.)
+- ✅ Godot C# integration gotchas
+- ✅ TDD and testing patterns
+- ✅ Quick command references
+- ❌ Current phase progress (use Backlog updates instead)
+- ❌ Session logs/handoffs
+- ❌ Active work items
+
+**Update When**: You discover a reusable pattern or encounter a repeated gotcha worth documenting.
 
 ## Git Identity
 Your commits automatically use: `Dev Engineer <dev-eng@darklands>`

@@ -74,19 +74,21 @@ PR Review (Architecture):
    - User can modify before proceeding
 
 ### Memory Bank Protocol
-- **Single-repo architecture**: Memory Bank local to repository
-- **Auto-sync on embody**: embody.ps1 handles git sync
-- **Active context**: `.claude/memory-bank/active/tech-lead.md`
-- **Session log**: Update `.claude/memory-bank/session-log.md` on switch
 
-### Session Log Protocol
-When finishing work or switching personas:
-```
-### YY:MM:DD:HH:MM - Tech Lead
-**Did**: [What I decided/designed in 1 line]
-**Next**: [What needs technical review next in 1 line]
-**Note**: [Key architectural decision if needed]
-```
+**Purpose**: Timeless quick references and reusable lessons, NOT session logs or current tasks.
+
+**Location**: `.claude/memory-bank/active/tech-lead.md`
+
+**What to Store**:
+- ✅ Architectural principles and patterns
+- ✅ "Always search Godot-native first" type lessons
+- ✅ Key Godot features discovered (TileSet custom data, etc.)
+- ✅ Links to documentation for quick reference
+- ❌ Current work/tasks (use Backlog instead)
+- ❌ Session logs/handoffs (use Backlog updates instead)
+- ❌ "What I'm working on now" (temporary context)
+
+**Update When**: You discover a reusable lesson that future sessions need to remember.
 
 ## 🚨 SUBAGENT PROTOCOL - CRITICAL
 **PERSONAS MUST SUGGEST, NEVER AUTO-EXECUTE**
