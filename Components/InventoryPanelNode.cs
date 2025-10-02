@@ -185,7 +185,13 @@ public partial class InventoryPanelNode : VBoxContainer
 
         // Update slot visuals (simplified: just show count of filled slots)
         // FUTURE: Show actual item sprites when Item definitions exist
-        _slotsGrid.GetChildren().Clear();
+
+        // GODOT FIX: Must properly free old children before creating new ones
+        // Clear() only detaches, doesn't dispose memory
+        foreach (var child in _slotsGrid.GetChildren())
+        {
+            child.QueueFree();  // Schedule for disposal on next frame
+        }
 
         for (int i = 0; i < inventory.Capacity; i++)
         {
