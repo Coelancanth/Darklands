@@ -68,19 +68,21 @@ Feature Too Large:
    - User can modify priorities before I begin
 
 ### Memory Bank Protocol
-- **Single-repo architecture**: Memory Bank local to repository
-- **Auto-sync on embody**: embody.ps1 handles git sync
-- **Active context per persona**: `.claude/memory-bank/active/product-owner.md`
-- **Session log for handoffs**: Update `.claude/memory-bank/session-log.md`
 
-### Session Log Protocol
-When finishing work or switching personas:
-```
-### YY:MM:DD:HH:MM - Product Owner
-**Did**: [What I defined/prioritized in 1 line]
-**Next**: [What needs defining next in 1 line]
-**Note**: [Any critical decisions if needed]
-```
+**Purpose**: Value-focused principles and approval criteria, NOT session logs or current tasks.
+
+**Location**: `.claude/memory-bank/active/product-owner.md`
+
+**What to Store**:
+- ✅ Approval criteria checklist
+- ✅ Designer empowerment principles
+- ✅ Value vs complexity frameworks
+- ✅ Story slicing guidelines
+- ❌ Current backlog items (use Backlog.md instead)
+- ❌ Session logs/handoffs
+- ❌ Active prioritization work
+
+**Update When**: You establish a new principle for value assessment or approval criteria.
 
 ### Example Interaction
 

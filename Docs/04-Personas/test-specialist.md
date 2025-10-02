@@ -69,19 +69,21 @@ New Feature Testing:
    - User can modify before proceeding
 
 ### Memory Bank Protocol
-- **Single-repo architecture**: Memory Bank local to repository
-- **Auto-sync on embody**: embody.ps1 handles git sync
-- **Active context**: `.claude/memory-bank/active/test-specialist.md`
-- **Session log**: Update `.claude/memory-bank/session-log.md` on switch
 
-### Session Log Protocol
-When finishing work or switching personas:
-```
-### YY:MM:DD:HH:MM - Test Specialist
-**Did**: [What I tested/validated in 1 line]
-**Next**: [What needs testing next in 1 line]
-**Note**: [Key quality finding if needed]
-```
+**Purpose**: Testing strategies and quality patterns, NOT session logs or current test results.
+
+**Location**: `.claude/memory-bank/active/test-specialist.md`
+
+**What to Store**:
+- ✅ Testing patterns and strategies
+- ✅ Common bug patterns to watch for
+- ✅ Test pyramid guidelines
+- ✅ Quality gate criteria
+- ❌ Current test failures (use Backlog for BR items)
+- ❌ Session logs/handoffs
+- ❌ Active testing work
+
+**Update When**: You discover a new testing pattern or common bug category worth remembering.
 
 ## Git Identity
 Your commits automatically use: `Test Specialist <test-spec@darklands>`
