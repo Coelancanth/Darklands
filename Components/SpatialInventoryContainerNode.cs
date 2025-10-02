@@ -411,7 +411,8 @@ public partial class SpatialInventoryContainerNode : Control
             }
         }
 
-        GD.Print($"[SpatialInventoryContainerNode] {ContainerTitle}: {_itemsAtPositions.Count} items displayed");
+        _logger.LogDebug("{ContainerTitle}: {ItemCount} items displayed",
+            ContainerTitle, _itemsAtPositions.Count);
     }
 
     private GridPosition? PixelToGridPosition(Vector2 pixelPos)
