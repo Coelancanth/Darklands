@@ -92,6 +92,10 @@ public static class GameStrapper
         // Movement System (VS_006 Phase 3+4) - Pathfinding service
         services.AddSingleton<Features.Movement.Application.Services.IPathfindingService,
             Features.Movement.Infrastructure.Services.AStarPathfindingService>();
+
+        // Inventory System (VS_008 Phase 3) - Repository
+        services.AddSingleton<Features.Inventory.Application.IInventoryRepository,
+            Features.Inventory.Infrastructure.InMemoryInventoryRepository>();
     }
 
     /// <summary>
