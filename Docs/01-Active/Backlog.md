@@ -164,7 +164,11 @@
   - Implemented: DI registration in GameStrapper (AddSingleton pattern)
   - Tests: 4 repository tests (auto-creation, persistence, deletion), 100% pass rate (3ms)
   - Key insight: Repository is reference-type, so second GetByActorIdAsync returns same instance (no SaveAsync needed for in-memory)
-  - **Next**: Phase 4 - Presentation layer (Godot UI with test buttons)
+- **✅ Phase 4 Complete** - Presentation layer implemented (2025-10-02 12:10)
+  - Implemented: InventoryPanelNode.cs with ServiceLocator pattern, InventoryTestScene.tscn
+  - UI: GridContainer (10×2 = 20 slots), Add/Remove test buttons, dynamic slot visuals (green filled, gray empty)
+  - Key insight: No events in MVP - UI queries GetInventoryQuery after commands, ServiceLocator only in _Ready()
+  - **Manual Testing Required**: Open Godot → Run InventoryTestScene.tscn → Click Add Item 20 times → Verify button disables at 20/20
 
 ---
 

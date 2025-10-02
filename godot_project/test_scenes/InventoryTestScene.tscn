@@ -1,0 +1,84 @@
+[gd_scene load_steps=2 format=3 uid="uid://c4g4j5dgmbvoj"]
+
+[ext_resource type="Script" uid="uid://dqqw2lvwc8pj8" path="res://Components/InventoryPanelNode.cs" id="1_inventory"]
+
+[node name="InventoryTestScene" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="InventoryPanelNode" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -300.0
+offset_top = -250.0
+offset_right = 300.0
+offset_bottom = 250.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 15
+script = ExtResource("1_inventory")
+
+[node name="Title" type="Label" parent="InventoryPanelNode"]
+layout_mode = 2
+text = "🎒 Inventory System Test (VS_008 Phase 4)"
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="HSeparator" type="HSeparator" parent="InventoryPanelNode"]
+layout_mode = 2
+
+[node name="CapacityLabel" type="Label" parent="InventoryPanelNode"]
+layout_mode = 2
+text = "📦 Inventory: 0/20"
+horizontal_alignment = 1
+
+[node name="SlotsGrid" type="GridContainer" parent="InventoryPanelNode"]
+custom_minimum_size = Vector2(0, 250)
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/h_separation = 5
+theme_override_constants/v_separation = 5
+columns = 10
+
+[node name="HSeparator2" type="HSeparator" parent="InventoryPanelNode"]
+layout_mode = 2
+
+[node name="ButtonContainer" type="HBoxContainer" parent="InventoryPanelNode"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="AddItemButton" type="Button" parent="InventoryPanelNode/ButtonContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "➕ Add Test Item"
+
+[node name="RemoveItemButton" type="Button" parent="InventoryPanelNode/ButtonContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "➖ Remove Last Item"
+
+[node name="HSeparator3" type="HSeparator" parent="InventoryPanelNode"]
+layout_mode = 2
+
+[node name="Instructions" type="Label" parent="InventoryPanelNode"]
+layout_mode = 2
+text = "📋 Instructions:
+• Click 'Add Test Item' to add items to inventory
+• Inventory capacity: 20 slots (default)
+• Green slots = filled, gray slots = empty
+• Button disables when inventory full
+• Click 'Remove Last Item' to remove items
+• Validates: Command → Handler → Repository → Query → UI"
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[connection signal="pressed" from="InventoryPanelNode/ButtonContainer/AddItemButton" to="InventoryPanelNode" method="OnAddItemButtonPressed"]
+[connection signal="pressed" from="InventoryPanelNode/ButtonContainer/RemoveItemButton" to="InventoryPanelNode" method="OnRemoveItemButtonPressed"]
