@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-03 02:17 (Dev Engineer: VS_018 Phase 1 COMPLETE ✅ - All acceptance criteria met!)
+**Last Updated**: 2025-10-03 02:29 (Dev Engineer: VS_018 Phase 1 - Critical bug fixed, weapon swap pending design decision)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -142,10 +142,10 @@
 
 
 
-### VS_018: Spatial Inventory System (Multi-Phase) ⭐ **PHASE 1 COMPLETE ✅**
+### VS_018: Spatial Inventory System (Multi-Phase) ⭐ **PHASE 1 - BUG FIXED, SWAP PENDING**
 
-**Status**: Phase 1 Complete - All acceptance criteria met, ready for Phase 2
-**Owner**: Product Owner (handoff for Phase 2 approval)
+**Status**: Phase 1 98% Complete - Critical bug fixed, weapon swap design decision needed
+**Owner**: Dev Engineer → Product Owner (for swap scope decision)
 **Size**: XL (12-16h across 4 phases, Phase 1 = 4-5h)
 **Priority**: Important (Phase 2 foundation - enhances VS_008 slot-based inventory)
 **Depends On**: VS_008 (Slot-Based Inventory ✅), VS_009 (Item Definitions ✅)
@@ -316,15 +316,49 @@
     - On signal: Calls `RefreshDisplay()` on ALL containers (broadcast sync)
   - **Architecture**: Decoupled (containers don't know about each other), extensible (add containers via subscription)
   - **Result**: Both source and target containers update correctly after cross-container drag-drop ✅
-- 🚫 **Remaining Issues** (Final 5%):
-  - **Issue 1**: Weapon slot (EquipmentSlotNode) drag-drop not working
-    - Mouse filter set to PASS/STOP but events still not reaching node
-    - Hypothesis: Different base class (EquipmentSlotNode vs SpatialInventoryContainerNode)
-    - **Next**: Replace EquipmentSlotNode with 1×1 SpatialInventoryContainerNode + WeaponOnly filter
+  - **Commits**: fd854c6 (fix), c9aff62 (weapon slot + logging cleanup)
+- ✅ **WEAPON SLOT DRAG-DROP FIX** (2025-10-03 02:16):
+  - **Problem**: EquipmentSlotNode not receiving drag-drop events despite identical code
+  - **Solution**: Replaced with 1×1 `SpatialInventoryContainerNode` (pattern reuse)
+  - **Result**: Weapon slot now functional with type filtering ✅
+  - **Commit**: c9aff62
+- 🐛 **CRITICAL BUG FIXED - Data Loss** (2025-10-03 02:23):
+  - **Severity**: DATA LOSS - Items disappeared when dragging non-weapon to weapon slot
+  - **Bug Sequence**:
+    1. User drags potion → weapon slot (type mismatch)
+    2. `_CanDropData` returns true (only checked position, not type)
+    3. `MoveItemBetweenContainersCommand` removes item from source
+    4. Type validation fails (WeaponOnly rejects potion)
+    5. Command returns failure, item never added to target
+    6. **Result**: Item removed from source, not in target = LOST 💥
+  - **Root Cause**: Type validation happened AFTER `RemoveItem()` call
+  - **Fix - Defense in Depth**:
+    - **Presentation Layer**: `_CanDropData` now validates type (cache + MediatR fallback)
+    - **Application Layer**: Type validation moved BEFORE `RemoveItem()`
+  - **Testing**:
+    - ✅ 261 Core tests passing (260 → 261 with new regression test)
+    - ✅ `Handle_FailedTypeValidation_ShouldNotRemoveItemFromSource` verifies data preservation
+  - **Commits**: b502561 (fix), dcfdb23 (regression test)
+- 🔄 **REMAINING WORK** (Final 2%):
+  - **Feature**: Weapon swap functionality
+  - **Current Behavior**: Drag weapon onto occupied weapon slot → Red highlight, drop fails
+  - **User Request**: Support swapping (drag weapon onto equipped weapon → swap positions)
+  - **Additional Request**: 4+ item types for visual distinction (more color coding)
+- ❓ **DESIGN DECISION NEEDED** (Next Session):
+  - **Question**: What should swap scope be?
+    - **Option A**: Weapon slot ↔ Weapon slot only (equipment-specific swap)
+    - **Option B**: Any occupied position → Any occupied position (universal swap)
+    - **Option C**: Equipment slots support swap, backpacks do not (hybrid)
+  - **Considerations**:
+    - **UX Precedent**: Diablo 2, Resident Evil support equipment swaps
+    - **Complexity**: Universal swap requires atomicity (what if 2nd placement fails?)
+    - **Phase Scope**: Is swap Phase 1 (core UX) or Phase 2 (enhancement)?
 - ⏭️ **Next Session Tasks**:
-  1. Replace EquipmentSlotNode with 1×1 SpatialInventoryContainerNode (reuse working pattern)
-  2. Run full Phase 1 manual test checklist (TC1-TC8)
-  3. Commit with message: "feat(inventory): Phase 1 drag-drop system [VS_018 Phase 1/4]"
+  1. **Manual test data loss fix** in Godot (verify items no longer disappear)
+  2. **Design decision**: Weapon swap scope (Options A/B/C above)
+  3. **Implement swap** (if approved for Phase 1)
+  4. **Add item type variety** (4+ types with color coding)
+  5. **Final Phase 1 validation** (all acceptance criteria met)
 
 ---
 
