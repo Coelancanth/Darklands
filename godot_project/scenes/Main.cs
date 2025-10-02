@@ -126,7 +126,7 @@ public partial class Main : Node
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
         // Load item TileSet resource
-        var itemTileSet = GodotObject.Load<TileSet>("res://assets/inventory_ref/item_sprites.tres");
+        var itemTileSet = GD.Load<TileSet>("res://assets/inventory_ref/item_sprites.tres");
 
         if (itemTileSet == null)
         {

@@ -1,6 +1,6 @@
-[gd_scene load_steps=3 format=3 uid="uid://cg8jxm2qkv7ps"]
+[gd_scene load_steps=3 format=3 uid="uid://d3l7xf4ycgfpc"]
 
-[ext_resource type="Script" path="res://godot_project/test_scenes/ItemShowcaseController.cs" id="1_controller"]
+[ext_resource type="Script" uid="uid://14817pro76gk" path="res://godot_project/test_scenes/ItemShowcaseController.cs" id="1_controller"]
 [ext_resource type="TileSet" uid="uid://bmiw87gmm1wvp" path="res://assets/inventory_ref/item_sprites.tres" id="2_tileset"]
 
 [node name="ItemShowcaseScene" type="Control"]
@@ -45,8 +45,6 @@ layout_mode = 2
 
 [node name="ScrollContainer" type="ScrollContainer" parent="MarginContainer"]
 layout_mode = 2
-offset_top = 81.0
-offset_bottom = 1080.0
 
 [node name="ItemContainer" type="GridContainer" parent="MarginContainer/ScrollContainer"]
 layout_mode = 2
