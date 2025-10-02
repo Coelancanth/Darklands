@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-02 12:37 (Tech Lead: Added VS_009 Item Definition System + VS_018 Spatial Grid Inventory)
+**Last Updated**: 2025-10-02 22:05 (Dev Engineer: VS_009 Phase 1 complete - Item entity + 23 tests passing)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -122,15 +122,19 @@
 - **Output**: TileSet resource with metadata contract established (4 custom layers)
 - **Validation**: Open TileSet in editor, verify all tiles have custom data
 
-**Phase 1 - Domain** (~1.5h - Implement to Contract):
+**Phase 1 - Domain** ✅ **COMPLETE** (2025-10-02):
 - `Item` entity with primitives (no Godot types):
-  - Atlas coords (int x, y), name, type, width, height, weight, max_stack_size
+  - Atlas coords (int x, y), name, type, width, height, max_stack_size
   - Computed property: `bool IsStackable => MaxStackSize > 1`
-- Factory: `Item.CreateFromTileSet(atlasSource, x, y)` reads:
-  - 4 custom data fields (item_name, item_type, max_stack_size)
-  - Width/Height from `atlasSource.GetTileSizeInAtlas(coords)`
-- Validates metadata exists (return Failure if missing)
-- Tests: CreateFromTileSet loads metadata + size, IsStackable computed correctly
+- Factory: `Item.Create()` with comprehensive validation:
+  - 7 validation rules (atlas coords, name, type, dimensions, stack size)
+  - Returns Result<Item> for functional error handling
+- Tests: 23 unit tests passing in 17ms (<100ms requirement met!)
+  - Happy path (valid items, stackable vs non-stackable)
+  - Atlas coordinate validation (negative, zero, positive)
+  - Name/type validation (empty, whitespace)
+  - Dimension validation (Theory tests with InlineData)
+  - Stack size validation + IsStackable computed property
 
 **Phase 2 - Application** (~1.5h):
 - IItemRepository, queries (GetItem, GetAll, GetByType), DTOs
