@@ -24,6 +24,50 @@
 - Use `[Trait("Category", "PhaseX")]` for phase-specific runs
 - Phase 1 tests must run <10ms (pure domain)
 
+### Regression Tests (CRITICAL)
+**ALWAYS create regression tests for bug fixes!**
+
+**When to Create Regression Test**:
+- ✅ Data loss bugs (items disappearing, state corruption)
+- ✅ Logic errors that passed existing tests (test coverage gap)
+- ✅ User-reported bugs (real-world scenarios missed by unit tests)
+- ✅ Race conditions or timing issues
+- ✅ Edge cases discovered during manual testing
+
+**Regression Test Pattern**:
+```csharp
+[Fact]
+public async Task Handle_BugScenario_ShouldNotCauseDataLoss()
+{
+    // REGRESSION TEST: Brief description of bug
+    // WHY: Explain what was broken and why it matters
+    // Bug scenario (pre-fix):
+    // 1. Step-by-step reproduction
+    // 2. What went wrong
+    // 3. Impact (data loss, crash, etc.)
+    // Fix: Brief description of solution
+
+    // Arrange: Set up exact bug scenario
+    // Act: Execute the operation that previously failed
+    // Assert: Verify BOTH success AND data integrity
+}
+```
+
+**Example** (VS_018 Data Loss Bug):
+- **Bug**: Items disappeared when type validation failed
+- **Test Name**: `Handle_FailedTypeValidation_ShouldNotRemoveItemFromSource`
+- **Key Assertions**:
+  - Command fails as expected
+  - Item **remains in source** (data preserved!)
+  - Item **not in target** (no side effects)
+
+**Pragmatic Approach**:
+1. Fix critical bug first (emergency response)
+2. Add regression test immediately after (prevents recurrence)
+3. Commit separately: `fix(...)` then `test(...): Add regression test`
+
+**Red Flag**: If existing tests pass but bug exists → test coverage gap → regression test needed!
+
 ### Railway-Oriented Programming
 ```csharp
 // Functional composition eliminates manual error checking
@@ -136,4 +180,4 @@ git commit -m "feat(feature): Description [Phase X/4]"
 
 ---
 
-**Last Updated**: 2025-10-02
+**Last Updated**: 2025-10-03
