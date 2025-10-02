@@ -2,8 +2,8 @@
 
 **Purpose**: Sequence the complete [Vision.md](Vision.md) into actionable vertical slices with clear dependencies and milestones.
 
-**Last Updated**: 2025-10-01 23:01
-**Status**: Phase 1 In Progress (VS_001 Health + VS_005 Grid/FOV complete ✅, VS_006 Interactive Movement approved, VS_007 Smart Interruption planned, VS_008 Inventory awaiting approval)
+**Last Updated**: 2025-10-02 12:37 (Tech Lead: Enhanced VS_009 with JSON + Godot Editor Plugin architecture)
+**Status**: Phase 1 In Progress (VS_001 Health + VS_005 Grid/FOV complete ✅, VS_006 Interactive Movement approved, VS_007 Smart Interruption planned, VS_008 Inventory complete ✅, VS_009 Item System planned)
 
 ---
 
@@ -540,13 +540,29 @@ Time to mastery ≈ 50-70 attacks (5-10 fights)
 
 ### Planned Vertical Slices (High-Level)
 
-**VS_009: Item Definition System (Data-Driven)**
-- JSON-based item definitions (data/items/*.json)
-- Item properties: name, type, sprite_path, weight, damage/defense values
-- Stack limits: stackable items (nStackLimit > 1) vs. unique items
-- ItemRepository loads from JSON (data-driven design)
-- Foundation for all item-based features
-- Reference: NeoScavenger itemtypes.xml (stack limits, item properties)
+**VS_009: Item Definition System (JSON + Editor Plugin)**
+- **Core Architecture**: JSON-based item definitions (data/items/*.json)
+  - Item properties: name, type, sprite_path, sprite_index, width, height, weight, is_stackable, max_stack_size
+  - JsonItemRepository loads JSON directly (zero Godot dependency in Core)
+  - Foundation for VS_010 (stacking), VS_011 (equipment), VS_018 (spatial grid shapes)
+- **Designer Experience**: Godot Editor Plugin (addons/item_editor/)
+  - Custom Inspector for .json files (Odin Inspector-style UX)
+  - Visual property editors: Enum dropdown (ItemType), Sprite picker grid, Int sliders (width/height)
+  - Conditional visibility: MaxStackSize field appears only when IsStackable = true
+  - Validation on save: Width 1-3, Weight > 0, Name non-empty (shows inline errors)
+  - Live preview: Renders item sprite at actual size (2×1 sword vs 1×1 potion)
+  - Plugin is **optional** - JSON still editable in VS Code with schema autocomplete
+- **Incremental Approach**:
+  - Phase 1: InMemoryItemRepository (8 hardcoded test items from inventory_ref spritesheet)
+  - Phase 2: JsonItemRepository (when >20 items, edit JSON in VS Code)
+  - Phase 3: Build Editor Plugin (when designers request visual editor, ~3-4h)
+- **Architecture Benefits**:
+  - ✅ Single source of truth (JSON files, no .tres conversion)
+  - ✅ ADR-002 compliant (Core has zero Godot dependencies)
+  - ✅ Version control friendly (text diffs, readable JSON changes)
+  - ✅ Modding support (players can add items via JSON)
+  - ✅ External tools compatible (Python scripts, web editors, spreadsheets)
+- **Reference**: NeoScavenger itemtypes.xml (stack limits), Unity Odin Inspector (custom drawers)
 
 **VS_010: Item Stacking System**
 - Stackable item support (e.g., "5× Branch", "20× Arrow")
