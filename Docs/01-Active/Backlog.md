@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-03 00:36 (Dev Engineer: VS_018 Phase 1 ✅ COMPLETE - Core + tests, 260/260 passing)
+**Last Updated**: 2025-10-03 00:52 (Dev Engineer: VS_018 Phase 1 ✅ COMPLETE - Core + Tests + Presentation, ready for manual testing)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -261,7 +261,7 @@
 - **Blocks**: VS_010 (Stacking - needs spatial positions), VS_013 (Containers - nested grids)
 - **Next steps**: Await Product Owner approval, then hand off Phase 1 to Dev Engineer
 
-**Dev Engineer Progress** (2025-10-03 00:36):
+**Dev Engineer Progress** (2025-10-03 00:36 - Core + Tests):
 - ✅ **Phase 1 Core Implementation Complete** (260/260 tests passing)
 - ✅ Domain Layer: GridPosition, ContainerType enum, spatial Inventory entity (Dictionary-based storage)
 - ✅ Application Layer: Commands (PlaceItemAt, MoveItemBetween), Queries (CanPlaceItemAt), enhanced InventoryDto
@@ -276,7 +276,28 @@
   - Single source of truth: Dictionary primary storage, Items property computed for backward compat
   - Cross-aggregate orchestration: Type filtering in Application handlers (Domain stays decoupled)
   - Repository enhancement: SaveAsync now handles entity replacement (no-op → update dictionary)
-- ⏭️ **Next**: Presentation layer (SpatialInventoryTestScene + drag-drop nodes) OR commit Phase 1 Core first
+
+**Dev Engineer Progress** (2025-10-03 00:52 - Presentation Layer):
+- ✅ **Phase 1 Presentation Complete** - Ready for manual testing in Godot editor
+- ✅ SpatialInventoryTestScene.tscn: Test scene with 3 container placeholders (Backpack A, Backpack B, Weapon Slot)
+- ✅ SpatialInventoryTestController: Initializes 3 inventories, provides IMediator/TileSet to child nodes
+- ✅ SpatialInventoryContainerNode: Grid rendering + drag-drop via Godot's `_GetDragData`/`_CanDropData`/`_DropData`
+- ✅ SPATIAL_INVENTORY_TEST_CHECKLIST.md: 8 manual test cases (TC1-TC8) with acceptance criteria
+- 🎨 **Presentation Architecture**:
+  - Controller instantiates container nodes programmatically (assigns ActorIds via code)
+  - Containers query inventory state via GetInventoryQuery (auto-triggers repository creation)
+  - Drag data uses Guid serialization (ItemId.Value.ToString()) for cross-node communication
+  - MoveItemBetweenContainersCommand sent on drop (handler validates type filtering)
+- 🎯 **Godot Integration (ADR-002)**:
+  - ServiceLocator used only in controller _Ready() (Godot boundary pattern)
+  - Child nodes receive dependencies from parent (avoids duplicate ServiceLocator calls)
+  - MediatR handlers auto-registered via assembly scan (Main.cs line 111)
+- ⚠️ **Known Phase 1 Limitations**:
+  - No visual feedback for valid/invalid drops (green/red highlight deferred)
+  - No item sprites rendered in grid cells (empty cells only)
+  - No item palette UI (must add items via code/console for testing)
+  - All items treated as 1×1 (multi-cell in Phase 2)
+- ⏭️ **Next**: Manual testing in Godot editor (F6 on SpatialInventoryTestScene.tscn), then Phase 2 planning
 
 ---
 
