@@ -160,7 +160,11 @@
   - Tests: 7 handler tests (3 add, 2 remove, 2 query), 100% pass rate (2ms)
   - Key insight: Repository interface in Application (Dependency Inversion Principle), implementation in Infrastructure
   - Railway-oriented: Handlers use `.Bind()`, `.Map()`, `.Tap()` for functional composition
-  - **Next**: Phase 3 - Infrastructure layer (DI registration) + Phase 4 - Presentation (UI)
+- **✅ Phase 3 Complete** - Infrastructure layer implemented (2025-10-02 12:01)
+  - Implemented: DI registration in GameStrapper (AddSingleton pattern)
+  - Tests: 4 repository tests (auto-creation, persistence, deletion), 100% pass rate (3ms)
+  - Key insight: Repository is reference-type, so second GetByActorIdAsync returns same instance (no SaveAsync needed for in-memory)
+  - **Next**: Phase 4 - Presentation layer (Godot UI with test buttons)
 
 ---
 
