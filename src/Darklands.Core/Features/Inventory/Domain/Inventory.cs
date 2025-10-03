@@ -213,22 +213,24 @@ public sealed class Inventory
     public Result PlaceItemAt(ItemId itemId, GridPosition position, int width, int height, Rotation rotation)
     {
         // BACKWARD COMPATIBILITY: Convert dimensions to rectangle shape
-        var shapeResult = ItemShape.CreateRectangle(width, height);
-        if (shapeResult.IsFailure)
-            return Result.Failure(shapeResult.Error);
+        var rectShapeResult = ItemShape.CreateRectangle(width, height);
+        if (rectShapeResult.IsFailure)
+            return Result.Failure(rectShapeResult.Error);
+
+        var baseShape = rectShapeResult.Value;
+        var rotatedShape = baseShape;
 
         // Apply rotation to shape
-        var shape = shapeResult.Value;
         for (int i = 0; i < ((int)rotation / 90); i++)
         {
-            var rotateResult = shape.RotateClockwise();
+            var rotateResult = rotatedShape.RotateClockwise();
             if (rotateResult.IsFailure)
                 return Result.Failure(rotateResult.Error);
-            shape = rotateResult.Value;
+            rotatedShape = rotateResult.Value;
         }
 
         // Delegate to shape-based placement
-        return PlaceItemWithShape(itemId, position, width, height, shape, rotation);
+        return PlaceItemWithShape(itemId, position, baseShape, rotatedShape, rotation);
     }
 
     /// <summary>
@@ -278,7 +280,7 @@ public sealed class Inventory
             return Result.Failure("Item already in inventory");
 
         // PHASE 4: Check bounds for ALL occupied cells (not just bounding box)
-        foreach (var offset in shape.OccupiedCells)
+        foreach (var offset in rotatedShape.OccupiedCells)
         {
             var targetPos = new GridPosition(position.X + offset.X, position.Y + offset.Y);
 
@@ -320,7 +322,7 @@ public sealed class Inventory
         }
 
         // Check if ANY of the new item's cells overlap with occupied cells
-        foreach (var offset in shape.OccupiedCells)
+        foreach (var offset in rotatedShape.OccupiedCells)
         {
             var targetPos = new GridPosition(position.X + offset.X, position.Y + offset.Y);
 
@@ -333,8 +335,7 @@ public sealed class Inventory
         // All validations passed - place item
         _itemPositions[itemId] = position;
 
-        // PHASE 4: Store BASE shape (unrotated) - reconstruct from baseWidth/baseHeight
-        var baseShape = ItemShape.CreateRectangle(baseWidth, baseHeight).Value; // Should never fail (validated earlier)
+        // PHASE 4: Store BASE shape (unrotated) for future collision checks
         _itemShapes[itemId] = baseShape;
 
         _itemRotations[itemId] = rotation;
@@ -400,38 +401,69 @@ public sealed class Inventory
         if (!_itemPositions.TryGetValue(itemId, out var position))
             return Result.Failure("Item not found in inventory");
 
-        var (baseWidth, baseHeight) = _itemDimensions.GetValueOrDefault(itemId, (1, 1));
+        // PHASE 4: Get base shape and apply new rotation
+        if (!_itemShapes.TryGetValue(itemId, out var baseShape))
+            return Result.Failure("Item shape not found");
 
-        // Calculate new effective dimensions after rotation
-        var (newEffectiveWidth, newEffectiveHeight) =
-            RotationHelper.GetRotatedDimensions(baseWidth, baseHeight, newRotation);
+        var rotatedShape = baseShape;
+        for (int i = 0; i < ((int)newRotation / 90); i++)
+        {
+            var rotResult = rotatedShape.RotateClockwise();
+            if (rotResult.IsFailure)
+                return Result.Failure(rotResult.Error);
+            rotatedShape = rotResult.Value;
+        }
 
-        // BUSINESS RULE: Rotated item must fit within grid bounds
-        if (position.X + newEffectiveWidth > GridWidth ||
-            position.Y + newEffectiveHeight > GridHeight)
-            return Result.Failure("Rotated item would exceed grid bounds");
+        // BUSINESS RULE: Rotated item must fit within grid bounds (check all occupied cells)
+        foreach (var offset in rotatedShape.OccupiedCells)
+        {
+            var targetPos = new GridPosition(position.X + offset.X, position.Y + offset.Y);
+            if (targetPos.X < 0 || targetPos.X >= GridWidth ||
+                targetPos.Y < 0 || targetPos.Y >= GridHeight)
+            {
+                return Result.Failure("Rotated item would exceed grid bounds");
+            }
+        }
 
-        // BUSINESS RULE: Rotated item must not overlap with other items
+        // BUSINESS RULE: Rotated item must not overlap with other items (cell-by-cell)
+        var occupiedCells = new HashSet<GridPosition>();
+
         foreach (var (existingItemId, existingOrigin) in _itemPositions)
         {
             // Skip self-collision check
             if (existingItemId == itemId)
                 continue;
 
-            var (existingBaseWidth, existingBaseHeight) = _itemDimensions.GetValueOrDefault(existingItemId, (1, 1));
+            // Get existing item's shape and apply its rotation
+            if (!_itemShapes.TryGetValue(existingItemId, out var existingBaseShape))
+                continue;
+
             var existingRotation = _itemRotations.GetValueOrDefault(existingItemId, Rotation.Degrees0);
+            var existingShape = existingBaseShape;
+            for (int i = 0; i < ((int)existingRotation / 90); i++)
+            {
+                var rotResult = existingShape.RotateClockwise();
+                if (rotResult.IsSuccess)
+                    existingShape = rotResult.Value;
+            }
 
-            var (existingEffectiveWidth, existingEffectiveHeight) =
-                RotationHelper.GetRotatedDimensions(existingBaseWidth, existingBaseHeight, existingRotation);
+            // Add all cells occupied by existing item
+            foreach (var offset in existingShape.OccupiedCells)
+            {
+                occupiedCells.Add(new GridPosition(
+                    existingOrigin.X + offset.X,
+                    existingOrigin.Y + offset.Y));
+            }
+        }
 
-            // Rectangle overlap test (AABB collision)
-            bool overlaps = !(position.X >= existingOrigin.X + existingEffectiveWidth ||
-                              position.X + newEffectiveWidth <= existingOrigin.X ||
-                              position.Y >= existingOrigin.Y + existingEffectiveHeight ||
-                              position.Y + newEffectiveHeight <= existingOrigin.Y);
-
-            if (overlaps)
-                return Result.Failure($"Rotated item would overlap with item at ({existingOrigin.X}, {existingOrigin.Y})");
+        // Check if rotated item's cells overlap
+        foreach (var offset in rotatedShape.OccupiedCells)
+        {
+            var targetPos = new GridPosition(position.X + offset.X, position.Y + offset.Y);
+            if (occupiedCells.Contains(targetPos))
+            {
+                return Result.Failure($"Rotated item would overlap with existing item at cell ({targetPos.X}, {targetPos.Y})");
+            }
         }
 
         // All validations passed - update rotation
@@ -483,7 +515,7 @@ public sealed class Inventory
                 {
                     // Use PlaceItemAt for consistency (assumes 1×1 for backward compat)
                     _itemPositions[itemId] = position;
-                    _itemDimensions[itemId] = (1, 1); // Phase 2: Default to 1×1
+                    _itemShapes[itemId] = ItemShape.CreateRectangle(1, 1).Value; // Phase 4: Default to 1×1 rectangle
                     _itemRotations[itemId] = Rotation.Degrees0; // Phase 3: Default rotation
                     return Result.Success();
                 }
@@ -504,8 +536,8 @@ public sealed class Inventory
             return Result.Failure("Item not found in inventory");
 
         _itemPositions.Remove(itemId);
-        _itemDimensions.Remove(itemId); // Phase 2: Clean up dimensions
-        _itemRotations.Remove(itemId);  // Phase 3: Clean up rotation
+        _itemShapes.Remove(itemId);    // Phase 4: Clean up shapes
+        _itemRotations.Remove(itemId); // Phase 3: Clean up rotation
         return Result.Success();
     }
 
@@ -520,7 +552,7 @@ public sealed class Inventory
     public void Clear()
     {
         _itemPositions.Clear();
-        _itemDimensions.Clear(); // Phase 2: Clear dimensions
-        _itemRotations.Clear();  // Phase 3: Clear rotations
+        _itemShapes.Clear();    // Phase 4: Clear shapes
+        _itemRotations.Clear(); // Phase 3: Clear rotations
     }
 }

@@ -131,7 +131,7 @@ public sealed class TileSetItemRepository : IItemRepository
 
         // PHASE 4: Read shape resource (complex shapes like L/T-shapes)
         var shapeVariant = tileData.GetCustomData("item_shape");
-        ItemShapeResource shapeResource = null;
+        ItemShapeResource? shapeResource = null;
         if (shapeVariant.VariantType == Variant.Type.Object)
         {
             shapeResource = shapeVariant.AsGodotObject() as ItemShapeResource;
