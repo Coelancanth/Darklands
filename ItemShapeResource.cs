@@ -71,21 +71,37 @@ public partial class ItemShapeResource : Resource
     // Convert to domain encoding string
     public string ToEncoding()
     {
+        // DEBUG: Log cell array
+        var cellsDebug = string.Join(", ", Cells ?? new int[0]);
+        GD.Print($"[DEBUG] ToEncoding: Width={Width}, Height={Height}, Cells=[{cellsDebug}]");
+
         // Check if it's a simple rectangle (all cells filled)
-        if (Cells.All(c => c == 1))
-            return $"rect:{Width}x{Height}";
+        if (Cells != null && Cells.All(c => c == 1))
+        {
+            var rectEncoding = $"rect:{Width}x{Height}";
+            GD.Print($"[DEBUG] Rectangle detected, encoding: {rectEncoding}");
+            return rectEncoding;
+        }
 
         // Complex shape: Export relative coordinates
         var coords = new System.Collections.Generic.List<string>();
-        for (int y = 0; y < Height; y++)
+        if (Cells != null)
         {
-            for (int x = 0; x < Width; x++)
+            for (int y = 0; y < Height; y++)
             {
-                int index = y * Width + x;
-                if (index < Cells.Length && Cells[index] == 1)
-                    coords.Add($"{x},{y}");
+                for (int x = 0; x < Width; x++)
+                {
+                    int index = y * Width + x;
+                    if (index < Cells.Length && Cells[index] == 1)
+                    {
+                        coords.Add($"{x},{y}");
+                        GD.Print($"[DEBUG] Added coord: ({x},{y}) from index {index}");
+                    }
+                }
             }
         }
-        return $"custom:{string.Join(";", coords)}";
+        var customEncoding = $"custom:{string.Join(";", coords)}";
+        GD.Print($"[DEBUG] Complex shape detected, encoding: {customEncoding}");
+        return customEncoding;
     }
 }

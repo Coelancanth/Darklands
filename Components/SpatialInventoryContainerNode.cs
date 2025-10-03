@@ -760,9 +760,6 @@ public partial class SpatialInventoryContainerNode : Control
             // Get rotation from Domain (Phase 3)
             var rotation = inventory.ItemRotations.TryGetValue(itemId, out var rot1) ? rot1 : default(Darklands.Core.Domain.Common.Rotation);
             _itemRotations[itemId] = rotation; // Cache for rendering
-
-            _logger.LogInformation("DEBUG: Item {ItemId} - Domain dimensions: {Width}×{Height}, rotation: {Rotation}",
-                itemId, width, height, rotation);
         }
 
         // STEP 2: Load item metadata (types, names) - needs item IDs from origins
@@ -774,21 +771,55 @@ public partial class SpatialInventoryContainerNode : Control
             var (baseWidth, baseHeight) = _itemDimensions[itemId]; // Base dimensions from Domain
             var rotation = _itemRotations[itemId]; // Rotation from Domain
 
-            // PHASE 3: Calculate effective dimensions after rotation
-            var (effectiveWidth, effectiveHeight) = RotationHelper.GetRotatedDimensions(baseWidth, baseHeight, rotation);
-
-            // Reserve ALL cells occupied by this item (using rotated dimensions)
-            for (int dy = 0; dy < effectiveHeight; dy++)
+            // PHASE 4: Use ItemShape.OccupiedCells for accurate L-shape collision
+            // CRITICAL: Don't iterate bounding box - that fills empty cells in L-shapes!
+            if (_itemShapes.TryGetValue(itemId, out var shape))
             {
-                for (int dx = 0; dx < effectiveWidth; dx++)
+                // L-shape support: Rotate shape, then iterate ONLY actual occupied cells
+                var rotatedShape = shape;
+                for (int i = 0; i < (int)rotation; i++)
                 {
-                    var occupiedCell = new GridPosition(origin.X + dx, origin.Y + dy);
+                    rotatedShape = rotatedShape.RotateClockwise().Value; // Safe: rotation always succeeds for valid shapes
+                }
+
+                foreach (var offset in rotatedShape.OccupiedCells)
+                {
+                    var occupiedCell = new GridPosition(origin.X + offset.X, origin.Y + offset.Y);
                     _itemsAtPositions[occupiedCell] = itemId;
                 }
-            }
 
-            _logger.LogInformation("Item {ItemId} at ({X},{Y}) occupies {Width}×{Height} cells (base: {BaseWidth}×{BaseHeight}, rotation: {Rotation})",
-                itemId, origin.X, origin.Y, effectiveWidth, effectiveHeight, baseWidth, baseHeight, rotation);
+                // Get item metadata for enhanced logging
+                var itemName = _itemNames.GetValueOrDefault(itemId, "Unknown");
+                var itemType = _itemTypes.GetValueOrDefault(itemId, "unknown");
+
+                // DEBUG: Inspect OccupiedCells contents
+                var cellsDebug = string.Join(", ", rotatedShape.OccupiedCells.Select(c => $"({c.X},{c.Y})"));
+                _logger.LogInformation("DEBUG: Item '{ItemName}' rotatedShape.OccupiedCells = [{Cells}]", itemName, cellsDebug);
+
+                _logger.LogInformation("Item '{ItemName}' ({ItemType}) [{ItemId}] at ({X},{Y}) occupies {OccupiedCount} cells (shape: {ShapeWidth}×{ShapeHeight}, rotation: {Rotation})",
+                    itemName, itemType, itemId, origin.X, origin.Y, rotatedShape.OccupiedCells.Count, rotatedShape.Width, rotatedShape.Height, rotation);
+            }
+            else
+            {
+                // Fallback for items without shape data (legacy rectangle mode)
+                var (effectiveWidth, effectiveHeight) = RotationHelper.GetRotatedDimensions(baseWidth, baseHeight, rotation);
+
+                for (int dy = 0; dy < effectiveHeight; dy++)
+                {
+                    for (int dx = 0; dx < effectiveWidth; dx++)
+                    {
+                        var occupiedCell = new GridPosition(origin.X + dx, origin.Y + dy);
+                        _itemsAtPositions[occupiedCell] = itemId;
+                    }
+                }
+
+                // Get item metadata for enhanced logging
+                var itemName = _itemNames.GetValueOrDefault(itemId, "Unknown");
+                var itemType = _itemTypes.GetValueOrDefault(itemId, "unknown");
+
+                _logger.LogInformation("Item '{ItemName}' ({ItemType}) [{ItemId}] at ({X},{Y}) occupies {Width}×{Height} cells (base: {BaseWidth}×{BaseHeight}, rotation: {Rotation})",
+                    itemName, itemType, itemId, origin.X, origin.Y, effectiveWidth, effectiveHeight, baseWidth, baseHeight, rotation);
+            }
         }
 
         RefreshGridDisplay();
