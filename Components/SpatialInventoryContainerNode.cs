@@ -203,28 +203,47 @@ public partial class SpatialInventoryContainerNode : Control
                     ? RotationHelper.RotateClockwise(_sharedDragRotation)
                     : RotationHelper.RotateCounterClockwise(_sharedDragRotation);
 
-                _logger.LogInformation("🔄 Rotating drag preview: {OldRotation} → {NewRotation} (scroll {Direction})",
+                _logger.LogInformation("🔄 ROTATION: {OldRotation} → {NewRotation} (scroll {Direction})",
                     _sharedDragRotation, newRotation,
                     mouseButton.ButtonIndex == MouseButton.WheelDown ? "DOWN" : "UP");
 
                 _sharedDragRotation = newRotation;
+
+                _logger.LogInformation("✅ ROTATION STATE: _sharedDragRotation = {SharedRotation}, _dragPreviewSprite exists: {PreviewExists}",
+                    _sharedDragRotation, _dragPreviewSprite != null);
 
                 // PHASE 3 FIX: Update sprite preview - ONLY rotation changes (single-layer approach)
                 // WHY: Container is base-sized, texture just rotates inside via PivotOffset
                 if (_dragPreviewSprite != null)
                 {
                     // Simply update rotation - size and position stay constant!
-                    _dragPreviewSprite.Rotation = RotationHelper.ToRadians(_sharedDragRotation);
+                    var radians = RotationHelper.ToRadians(_sharedDragRotation);
+                    _dragPreviewSprite.Rotation = radians;
+
+                    _logger.LogInformation("🎭 DRAG PREVIEW updated: rotation = {Rotation} ({Radians} rad)",
+                        _sharedDragRotation, radians);
 
                     // No need to update container size or texture position
                     // Container stays BASE size, texture rotates around its PivotOffset
                 }
+                else
+                {
+                    _logger.LogWarning("❌ DRAG PREVIEW is null - cannot update rotation!");
+                }
 
                 // PHASE 3 BUG FIX: Update highlights immediately after rotation
                 // WHY: _CanDropData only called on mouse move, not on scroll
-                // Get current mouse position and trigger highlight update manually
-                var currentMousePos = GetLocalMousePosition();
-                UpdateDragHighlightsAtPosition(currentMousePos);
+                // SOLUTION: Force Godot to re-evaluate drop validation by simulating a micro mouse movement
+                // This triggers _CanDropData on whichever container the mouse is ACTUALLY over
+                var viewport = GetViewport();
+                var currentMousePos = viewport.GetMousePosition();
+
+                // Simulate tiny mouse movement to trigger _CanDropData on the container under the cursor
+                // WHY: Moving by 0.1 pixels is imperceptible but forces Godot to re-check drop targets
+                Input.WarpMouse(currentMousePos + new Vector2(0.1f, 0));
+                Input.WarpMouse(currentMousePos); // Restore original position
+
+                _logger.LogInformation("🔄 Forced highlight refresh after rotation to {Rotation}", _sharedDragRotation);
 
                 // Consume the event to prevent scrolling the container
                 GetViewport().SetInputAsHandled();
@@ -989,12 +1008,12 @@ public partial class SpatialInventoryContainerNode : Control
             Region = region
         };
 
-        // PHASE 4: Get item shape and apply rotation
-        ItemShape rotatedShape;
-        if (_itemShapes.TryGetValue(itemId, out var baseShape))
+        // PHASE 4: Get item's BASE shape (unrotated) from cache or query
+        ItemShape baseShape;
+        if (_itemShapes.TryGetValue(itemId, out var cachedShape))
         {
-            // Shape in cache: Use it directly
-            rotatedShape = baseShape;
+            // Shape in cache: This is the BASE shape (as stored in TileSet)
+            baseShape = cachedShape;
         }
         else
         {
@@ -1005,17 +1024,20 @@ public partial class SpatialInventoryContainerNode : Control
             if (itemResult.IsSuccess)
             {
                 // PHASE 4: ItemDto now exposes Shape - use it for accurate L/T-shape highlighting!
-                rotatedShape = itemResult.Value.Shape;
+                baseShape = itemResult.Value.Shape;
+                _logger.LogInformation("🔄 Cross-container drag: Fetched shape {Width}×{Height} with {Cells} cells, applying rotation {Rotation}",
+                    baseShape.Width, baseShape.Height, baseShape.OccupiedCells.Count, rotation);
             }
             else
             {
                 // Ultimate fallback if query fails
-                rotatedShape = ItemShape.CreateRectangle(1, 1).Value;
+                baseShape = ItemShape.CreateRectangle(1, 1).Value;
                 _logger.LogWarning("Failed to fetch item {ItemId} for highlight rendering, using 1×1 fallback", itemId);
             }
         }
 
-        // Apply rotation to shape
+        // Apply rotation parameter to BASE shape (rotates correctly for both same-container and cross-container drags)
+        var rotatedShape = baseShape;
         for (int i = 0; i < ((int)rotation / 90); i++)
         {
             var rotResult = rotatedShape.RotateClockwise();
