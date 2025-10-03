@@ -1,20 +1,26 @@
 # Backlog Archive Index
 
-**Last Updated**: 2025-10-02 23:12
-**Current Active Archive**: Completed_Backlog_2025-10.md (Lines: 265/1000)
+**Last Updated**: 2025-10-04
+**Current Active Archive**: Completed_Backlog_2025-10.md (Lines: 802/1000)
 
 ## Archive Files (Newest First)
 
 ### Completed_Backlog_2025-10.md (✅ ACTIVE - October 2025 Part 2)
 - **Created**: 2025-10-02 12:17 (after rotation)
-- **Line Count**: 265/1000
-- **Date Range**: 2025-10-02 to 2025-10-02 23:01
+- **Line Count**: 802/1000
+- **Date Range**: 2025-10-02 to 2025-10-04
 - **Status**: ✅ Active (accepting new items)
-- **Extraction Status**: 0/2 extracted (2 NOT EXTRACTED ⚠️)
+- **Extraction Status**: 0/8 extracted (8 NOT EXTRACTED ⚠️)
 
 **Items**:
 - **VS_008**: Slot-Based Inventory System (20 slots, ItemId pattern, 23 tests, PR #84 merged) [NOT EXTRACTED ⚠️]
 - **VS_009**: Item Definition System (TileSet metadata-driven, 57 tests, TextureRect rendering, auto-discovery) [NOT EXTRACTED ⚠️]
+- **VS_018**: Spatial Inventory System - L-Shapes (4-phase implementation, 359 tests, ItemShape encoding, OccupiedCells collision) [NOT EXTRACTED ⚠️]
+- **BR_003**: L-Shape Collision Bug (shape conversion to rectangles) [NOT EXTRACTED ⚠️]
+- **BR_004**: Presentation Layer Validation Duplication (architectural violation, 200+ lines removed) [NOT EXTRACTED ⚠️]
+- **BR_005**: Cross-Container L-Shape Highlight Inaccuracy (ItemDto evolution to Phase 4) [NOT EXTRACTED ⚠️]
+- **BR_006**: Cross-Container Rotation Highlights (mouse warp hack for UI updates) [NOT EXTRACTED ⚠️]
+- **BR_007**: Equipment Slot Visual Issues (1×1 highlight override, sprite centering) [NOT EXTRACTED ⚠️]
 
 ### Completed_Backlog_2025-10_Part1.md (🔒 SEALED - October 2025 Part 1)
 - **Created**: 2025-10-01 00:48
@@ -52,5 +58,5 @@
 2. Open that specific archive file (newest first: Completed_Backlog_2025-10.md)
 3. Use Ctrl+F to search for item ID
 
-**Current Active Capacity**: 265/1000 lines (735 lines remaining)
-**Total Archived Items**: 13 (10 in Oct 2025, 3 in Sept 2025)
+**Current Active Capacity**: 802/1000 lines (198 lines remaining)
+**Total Archived Items**: 19 (16 in Oct 2025, 3 in Sept 2025)
