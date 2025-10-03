@@ -672,34 +672,40 @@ public partial class SpatialInventoryContainerNode : Control
         _gridContainer.AddThemeConstantOverride("v_separation", 2);
         gridWrapper.AddChild(_gridContainer);
 
-        // Overlay container for multi-cell item sprites (Phase 2)
-        // Highlight overlay container for drag preview (Phase 2.4)
-        // WHY: Shows green/red highlights for valid/invalid placement during drag
-        // PHASE 3: Render BELOW items (ZIndex=10) so sprites appear above glow
+        // PHASE 3 FIX: Use CanvasLayer for strict render order control
+        // WHY: Control node ZIndex is unreliable - CanvasLayer enforces global layer ordering
+
+        // Layer 0: Highlights (background glow)
+        var highlightLayer = new CanvasLayer
+        {
+            Layer = 0,  // Renders first (background)
+            FollowViewportEnabled = false
+        };
+        gridWrapper.AddChild(highlightLayer);
+
         _highlightOverlayContainer = new Control
         {
-            MouseFilter = MouseFilterEnum.Ignore,
-            // Use absolute Z so ordering is deterministic across the UI tree
-            ZAsRelative = false,
-            // Above grid (0), below items (200)
-            ZIndex = 100
+            MouseFilter = MouseFilterEnum.Ignore
         };
-        gridWrapper.AddChild(_highlightOverlayContainer);
-        _logger.LogInformation("🎨 Z-ORDER: Created HIGHLIGHT overlay container (ZAsRelative={Relative}, ZIndex={Z})",
-            _highlightOverlayContainer.ZAsRelative, _highlightOverlayContainer.ZIndex);
+        highlightLayer.AddChild(_highlightOverlayContainer);
+        _logger.LogInformation("🎨 Z-ORDER: Created HIGHLIGHT overlay on CanvasLayer {Layer}",
+            highlightLayer.Layer);
 
-        // WHY: Items rendered on separate layer so they can span multiple cells freely
-        // PHASE 3: Render ABOVE highlights (ZIndex=15) so sprites are visible
+        // Layer 1: Items (foreground sprites)
+        var itemLayer = new CanvasLayer
+        {
+            Layer = 1,  // Renders second (foreground)
+            FollowViewportEnabled = false
+        };
+        gridWrapper.AddChild(itemLayer);
+
         _itemOverlayContainer = new Control
         {
-            MouseFilter = MouseFilterEnum.Ignore,
-            // Absolute Z higher than highlights
-            ZAsRelative = false,
-            ZIndex = 200
+            MouseFilter = MouseFilterEnum.Ignore
         };
-        gridWrapper.AddChild(_itemOverlayContainer);
-        _logger.LogInformation("🎨 Z-ORDER: Created ITEM overlay container (ZAsRelative={Relative}, ZIndex={Z})",
-            _itemOverlayContainer.ZAsRelative, _itemOverlayContainer.ZIndex);
+        itemLayer.AddChild(_itemOverlayContainer);
+        _logger.LogInformation("🎨 Z-ORDER: Created ITEM overlay on CanvasLayer {Layer}",
+            itemLayer.Layer);
     }
 
     private async void LoadInventoryAsync()
