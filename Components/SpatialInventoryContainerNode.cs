@@ -79,6 +79,7 @@ public partial class SpatialInventoryContainerNode : Control
     private ContainerType _containerType = ContainerType.General;
     private Dictionary<GridPosition, ItemId> _itemsAtPositions = new();
     private Dictionary<ItemId, string> _itemTypes = new(); // Cache item types for color coding
+    private Dictionary<ItemId, string> _itemNames = new(); // Cache item names for tooltips
 
     // UI nodes
     private Label? _titleLabel;
@@ -410,7 +411,7 @@ public partial class SpatialInventoryContainerNode : Control
 
     private async Task LoadItemTypes()
     {
-        // Query item details to determine types (weapon, item, etc.)
+        // Query item details to determine types (weapon, item, etc.) and names (for tooltips)
         foreach (var itemId in _itemsAtPositions.Values.Distinct())
         {
             var query = new GetItemByIdQuery(itemId);
@@ -419,7 +420,8 @@ public partial class SpatialInventoryContainerNode : Control
             if (result.IsSuccess)
             {
                 _itemTypes[itemId] = result.Value.Type;
-                _logger.LogDebug("Item {ItemId} type: {Type}", itemId, result.Value.Type);
+                _itemNames[itemId] = result.Value.Name;
+                _logger.LogDebug("Item {ItemId}: {Name} ({Type})", itemId, result.Value.Name, result.Value.Type);
             }
         }
     }
@@ -452,7 +454,7 @@ public partial class SpatialInventoryContainerNode : Control
         if (_gridContainer == null)
             return;
 
-        // Update each grid cell's visual state
+        // Update each grid cell's visual state and tooltip
         for (int i = 0; i < _gridContainer.GetChildCount(); i++)
         {
             if (_gridContainer.GetChild(i) is Panel cell)
@@ -462,14 +464,28 @@ public partial class SpatialInventoryContainerNode : Control
                 int y = i / _gridWidth;
                 var gridPos = new GridPosition(x, y);
 
+                // Update tooltip based on cell contents
+                if (_itemsAtPositions.TryGetValue(gridPos, out var itemId))
+                {
+                    // Occupied cell: Show item name and type
+                    string itemName = _itemNames.GetValueOrDefault(itemId, "Unknown");
+                    string itemType = _itemTypes.GetValueOrDefault(itemId, "unknown");
+                    cell.TooltipText = $"{itemName} ({itemType})";
+                }
+                else
+                {
+                    // Empty cell: Show grid position
+                    cell.TooltipText = $"Empty ({gridPos.X}, {gridPos.Y})";
+                }
+
                 // Highlight occupied cells with different color based on item type
                 var style = cell.GetThemeStylebox("panel") as StyleBoxFlat;
                 if (style != null)
                 {
-                    if (_itemsAtPositions.TryGetValue(gridPos, out var itemId))
+                    if (_itemsAtPositions.TryGetValue(gridPos, out var itemIdForColor))
                     {
                         // Occupied cell: Color by item type (4 distinct color-coded types)
-                        if (_itemTypes.TryGetValue(itemId, out var itemType))
+                        if (_itemTypes.TryGetValue(itemIdForColor, out var itemType))
                         {
                             style.BgColor = itemType switch
                             {
