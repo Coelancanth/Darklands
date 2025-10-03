@@ -59,8 +59,66 @@ public sealed class CanPlaceItemAtQueryHandler
             return Result.Success(false); // Type mismatch
         }
 
-        // Check spatial placement (bounds + collision)
-        var canPlace = inventory.CanPlaceAt(query.Position);
+        // PHASE 4: Validate full item footprint with L-shape support
+        // Equipment slots override shape to 1×1 (industry standard - weapon slots ignore backpack dimensions)
+        bool isEquipmentSlot = inventory.ContainerType == ContainerType.WeaponOnly;
+
+        ItemShape placementShape;
+        Rotation placementRotation;
+
+        if (isEquipmentSlot)
+        {
+            // Override: Force 1×1 rectangle for equipment slots
+            placementShape = ItemShape.CreateRectangle(1, 1).Value;
+            placementRotation = Rotation.Degrees0;
+        }
+        else
+        {
+            // Use item's actual shape (preserves L/T-shapes)
+            placementShape = item.Shape;
+            placementRotation = query.Rotation;
+        }
+
+        // Simulate placement to check if it would succeed
+        // WHY: PlaceItemAt has all collision logic (bounds + OccupiedCells L-shape support)
+        // WORKAROUND: Remove item temporarily if it exists, test placement, restore if needed
+        bool itemWasInInventory = inventory.Contains(query.ItemId);
+        GridPosition? originalPosition = null;
+        Rotation? originalRotation = null;
+        ItemShape? originalShape = null;
+
+        if (itemWasInInventory)
+        {
+            // Capture original state for restoration
+            var posResult = inventory.GetItemPosition(query.ItemId);
+            var rotResult = inventory.GetItemRotation(query.ItemId);
+
+            if (posResult.IsSuccess)
+                originalPosition = posResult.Value;
+            if (rotResult.IsSuccess)
+                originalRotation = rotResult.Value;
+
+            // Get original shape from ItemShapes dictionary
+            if (inventory.ItemShapes.TryGetValue(query.ItemId, out var shape))
+                originalShape = shape;
+
+            // Temporarily remove for collision testing
+            inventory.RemoveItem(query.ItemId);
+        }
+
+        // Test if placement would succeed
+        var testResult = inventory.PlaceItemAt(query.ItemId, query.Position, placementShape, placementRotation);
+        bool canPlace = testResult.IsSuccess;
+
+        // Restore inventory to original state
+        inventory.RemoveItem(query.ItemId); // Remove test placement
+
+        if (itemWasInInventory && originalPosition.HasValue && originalRotation.HasValue && originalShape != null)
+        {
+            // Restore item to original position
+            inventory.PlaceItemAt(query.ItemId, originalPosition.Value, originalShape, originalRotation.Value);
+        }
+
         return Result.Success(canPlace);
     }
 }

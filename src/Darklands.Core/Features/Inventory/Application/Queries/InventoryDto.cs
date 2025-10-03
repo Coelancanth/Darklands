@@ -19,12 +19,14 @@ namespace Darklands.Core.Features.Inventory.Application.Queries;
 /// <param name="ContainerType">Container type restrictions (VS_018 spatial)</param>
 /// <param name="ItemPlacements">Dictionary of ItemId → GridPosition mappings (VS_018 spatial)</param>
 /// <param name="ItemDimensions">Dictionary of ItemId → (Width, Height) mappings (VS_018 Phase 2 multi-cell)</param>
+/// <param name="ItemShapes">Dictionary of ItemId → ItemShape mappings (VS_018 Phase 4 L-shapes)</param>
 /// <param name="ItemRotations">Dictionary of ItemId → Rotation mappings (VS_018 Phase 3 rotation)</param>
 /// <remarks>
 /// VS_018: Added spatial fields as required (not optional) to force compile-time updates.
 /// Old slot-based UI uses Items list, new spatial UI uses GridWidth/GridHeight/ItemPlacements.
 /// Phase 2: ItemDimensions added for multi-cell rendering and collision detection in presentation layer.
 /// Phase 3: ItemRotations added for sprite rendering rotation and effective dimension calculation.
+/// Phase 4: ItemShapes added for accurate L/T-shape highlight rendering (OccupiedCells-based).
 /// </remarks>
 public sealed record InventoryDto(
     InventoryId InventoryId,
@@ -38,4 +40,5 @@ public sealed record InventoryDto(
     ContainerType ContainerType,
     IReadOnlyDictionary<ItemId, GridPosition> ItemPlacements,
     IReadOnlyDictionary<ItemId, (int width, int height)> ItemDimensions,
+    IReadOnlyDictionary<ItemId, ItemShape> ItemShapes,
     IReadOnlyDictionary<ItemId, Rotation> ItemRotations);

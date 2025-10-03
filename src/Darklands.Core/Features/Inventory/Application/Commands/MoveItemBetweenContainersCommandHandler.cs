@@ -112,12 +112,11 @@ public sealed class MoveItemBetweenContainersCommandHandler
                 return removeResult;
             }
 
-            // PHASE 3: Apply rotation for intra-container moves (was missing - caused unrotated placement bug)
+            // PHASE 4: Use item.Shape for L/T-shape preservation
             var placeResult = sourceInventory.PlaceItemAt(
                 command.ItemId,
                 command.TargetPosition,
-                item.InventoryWidth,
-                item.InventoryHeight,
+                item.Shape,
                 command.Rotation); // PHASE 3: Apply rotation from command
 
             if (placeResult.IsFailure)
@@ -129,8 +128,7 @@ public sealed class MoveItemBetweenContainersCommandHandler
                 var rollbackResult = sourceInventory.PlaceItemAt(
                     command.ItemId,
                     originalPosition,
-                    item.InventoryWidth,
-                    item.InventoryHeight,
+                    item.Shape,
                     originalRotation); // Restore original rotation on rollback
 
                 if (rollbackResult.IsFailure)
@@ -156,22 +154,32 @@ public sealed class MoveItemBetweenContainersCommandHandler
             if (removeResult.IsFailure)
                 return removeResult;
 
-            // EQUIPMENT SLOT OVERRIDE: Weapon/armor slots ignore item dimensions (always 1×1 for placement)
+            // PHASE 4: Use Item.Shape for accurate L/T-shape collision
+            // EQUIPMENT SLOT OVERRIDE: Weapon/armor slots ignore item shape (always 1×1 rectangle for placement)
             // WHY: Industry standard - equipment slots accept any weapon regardless of backpack Tetris size
             bool isEquipmentSlot = targetInventory.ContainerType == ContainerType.WeaponOnly;
-            int placementWidth = isEquipmentSlot ? 1 : item.InventoryWidth;
-            int placementHeight = isEquipmentSlot ? 1 : item.InventoryHeight;
 
-            // PHASE 3: Equipment slots reset rotation to default (visual consistency)
-            // WHY: Equipment slots are 1×1, rotation doesn't affect placement, show in standard orientation
-            var placementRotation = isEquipmentSlot ? Rotation.Degrees0 : command.Rotation;
+            ItemShape placementShape;
+            Rotation placementRotation;
+
+            if (isEquipmentSlot)
+            {
+                // Override: Force 1×1 rectangle for equipment slots (ignores L-shapes)
+                placementShape = ItemShape.CreateRectangle(1, 1).Value;
+                placementRotation = Rotation.Degrees0; // Equipment slots show standard orientation
+            }
+            else
+            {
+                // Use item's actual shape (preserves L/T-shapes)
+                placementShape = item.Shape;
+                placementRotation = command.Rotation;
+            }
 
             var placeResult = targetInventory.PlaceItemAt(
                 command.ItemId,
                 command.TargetPosition,
-                placementWidth,
-                placementHeight,
-                placementRotation); // PHASE 3: Apply rotation (or reset for equipment slots)
+                placementShape,
+                placementRotation); // PHASE 4: Pass shape + rotation
 
             if (placeResult.IsFailure)
                 return placeResult;

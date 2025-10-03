@@ -42,4 +42,5 @@ public sealed record ItemDto(
     int InventoryWidth,
     int InventoryHeight,
     int MaxStackSize,
-    bool IsStackable);
+    bool IsStackable,
+    ItemShape Shape); // PHASE 4: Accurate shape data for L/T-shape highlighting

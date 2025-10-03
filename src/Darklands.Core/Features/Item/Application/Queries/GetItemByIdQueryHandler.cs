@@ -37,7 +37,8 @@ public class GetItemByIdQueryHandler : IRequestHandler<GetItemByIdQuery, Result<
                 item.InventoryWidth,
                 item.InventoryHeight,
                 item.MaxStackSize,
-                item.IsStackable));
+                item.IsStackable,
+                item.Shape)); // PHASE 4: Include shape for accurate L/T-shape rendering
 
         if (result.IsFailure)
         {

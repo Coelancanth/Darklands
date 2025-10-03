@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-03 19:11 (Dev Engineer: VS_018 Phase 3 COMPLETE - Rotation, cross-container persistence, equipment reset, extreme transparency solution)
+**Last Updated**: 2025-10-04 00:23 (Dev Engineer: Added TD_003-005 based on VS_018 lessons learned)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -9,8 +9,8 @@
 ## 🔢 Next Item Numbers by Type
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
-- **Next BR**: 004
-- **Next TD**: 003
+- **Next BR**: 008
+- **Next TD**: 006
 - **Next VS**: 019
 
 
@@ -70,18 +70,11 @@
 
 ---
 
-*Recently completed and archived (2025-10-02):*
-- **VS_009**: Item Definition System - TileSet metadata-driven catalog, 57 tests, auto-discovery, TextureRect rendering ✅ (2025-10-02 23:01)
-- **VS_008**: Slot-Based Inventory System - 20-slot backpack, add/remove operations, 23 tests, PR #84 merged ✅ (2025-10-02 12:10)
-- **TD_002**: Debug Console Scene Refactor - Scene-based UI, pause isolation, ILogger integration ✅ (2025-10-01 20:37)
-- **VS_006**: Interactive Movement System - A* pathfinding, hover preview, fog of war, ILogger refactor ✅ (2025-10-01 17:54)
-- **VS_005**: Grid, FOV & Terrain System - Custom shadowcasting, 189 tests, event-driven integration ✅ (2025-10-01 15:19)
-- **VS_001**: Health System Walking Skeleton - Architectural foundation validated ✅
-- **BR_001**: Race Condition - Fixed with WithComponentLock pattern ✅
-- **BR_002**: Fire-and-Forget Events - Fixed with async/await ✅
-- **BR_003**: Heal Button CQRS Bypass - Removed per YAGNI ✅
-- **TD_001**: Architecture Enforcement Tests - 10 tests enforcing all 4 ADRs ✅
-- *See: [Completed_Backlog_2025-10.md](../07-Archive/Completed_Backlog_2025-10.md)*
+*Recently completed and archived (2025-10-04):*
+- **BR_007**: Equipment Slot Visual Issues - Equipment slots showed L-shape highlights (3 cells) instead of 1×1. Fixed by overriding rotatedShape to ItemShape.CreateRectangle(1,1) for equipment slots. Also fixed sprite centering. ✅ (2025-10-04)
+- **BR_006**: Cross-Container Rotation Highlights - Highlights didn't rotate during cross-container drag. Fixed with mouse warp hack (0.1px movement triggers _CanDropData). ✅ (2025-10-04)
+- **BR_005**: Cross-Container L-Shape Highlight Inaccuracy - ItemDto evolved to Phase 4 (added ItemShape property). Pixel-perfect L-shape highlighting achieved. ✅ (2025-10-03)
+- *See: [Completed_Backlog_2025-10.md](../07-Archive/Completed_Backlog_2025-10.md) for full archive*
 
 ---
 ## 📈 Important (Do Next)
@@ -140,153 +133,123 @@
 
 ---
 
+### TD_003: Separate Equipment Slots from Spatial Inventory Container
 
+**Status**: Proposed (needs Tech Lead approval)
+**Owner**: Tech Lead → Dev Engineer (after approval)
+**Size**: M (6-8h)
+**Priority**: Important (Reduces complexity, fixes swap bugs)
+**Depends On**: None (can start immediately)
+**Markers**: [ARCHITECTURE] [SEPARATION-OF-CONCERNS]
 
-### VS_018: Spatial Inventory System (Multi-Phase) ✅ **PHASE 3 COMPLETE**
-
-**Status**: Phase 1 ✅ + Phase 2 ✅ + Phase 3 ✅ (Ready for Phase 4)
-**Owner**: Product Owner (decide on Phase 4 timing)
-**Size**: XL (12-16h across 4 phases) | **Actual**: Phase 1 (6h), Phase 2 (5h), Phase 3 (6h)
-**Priority**: Important (Core gameplay mechanic)
-**Depends On**: VS_008 (Slot-Based Inventory ✅), VS_009 (Item Definitions ✅)
-**Markers**: [ARCHITECTURE] [UX-CRITICAL] [BACKWARD-COMPATIBLE]
-
-**What**: Tetris-style spatial inventory with drag-drop, multi-cell items, rotation, and type filtering
+**What**: Refactor `SpatialInventoryContainerNode` into two separate components: `InventoryContainerNode` (Tetris grid) and `EquipmentSlotNode` (single-item swap)
 
 **Why**:
-- **UX**: Drag-drop more intuitive than buttons (Diablo 2, Resident Evil, Tarkov standard)
-- **Multi-Container**: Backpack + weapon slots with different validation rules
-- **Type Safety**: Equipment slots only accept matching item types
-- **Incremental**: 4 phases ensures each step is testable and shippable
+- **Bug Source**: Current unified approach causes equipment slot swap failures (BR_008 - items overlapping)
+- **Complexity**: Equipment slot special cases scattered throughout 1372-line file (centering, 1×1 override, collision skip)
+- **SSOT Violation**: Two different UX patterns (Tetris vs Diablo 2 swap) in one component
+- **Maintainability**: Each component simpler, easier to test independently
 
-**How** (4-Phase Incremental Design):
+**How**:
+- **InventoryContainerNode** (Tetris grid, ~800 lines):
+  - Multi-cell placement with L-shape collision
+  - Rotation support via scroll wheel
+  - Cross-container drag-drop
+  - Highlight rendering (full shape)
+- **EquipmentSlotNode** (Single-item swap, ~400 lines):
+  - Always 1×1 logical placement
+  - Swap-only UX (no collision check, always valid if type matches)
+  - Centered sprite rendering
+  - Single-cell highlight (always)
+- **Shared**: Reuse drag preview creation, atlas texture loading
 
-**Phase 1: Interaction Mechanics** (4-5h) **← START HERE**
-- **Goal**: Validate drag-drop UX feels good before adding spatial complexity
-- **Domain**:
-  - `GridPosition` value object (X, Y coordinates)
-  - Enhance `Inventory` entity: Add `_itemPositions: Dictionary<ItemId, GridPosition>`, `_gridWidth`, `_gridHeight`, `ContainerType` enum
-  - Keep existing `AddItem()` for backward compatibility (auto-places at first free position)
-  - New methods: `PlaceItemAt()`, `CanPlaceAt()`, `GetItemPosition()`, `IsPositionFree()`
-  - Type filtering: `ContainerType.WeaponOnly` rejects non-weapon items
-- **Application**:
-  - Commands: `PlaceItemAtPositionCommand`, `MoveItemBetweenContainersCommand`, `RemoveItemAtPositionCommand`
-  - Queries: `CanPlaceItemAtQuery`, `GetItemAtPositionQuery`
-  - Enhanced `InventoryDto`: Add GridWidth, GridHeight, ContainerType, ItemPlacements dictionary
-- **Infrastructure**: No changes (InMemoryInventoryRepository already stores Inventory entities)
-- **Presentation** (Focus):
-  - `SpatialInventoryTestScene.tscn`: 2 backpacks (different sizes) + 1 weapon slot + item spawn palette
-  - `SpatialInventoryContainerNode.cs`: Renders grid, handles drag-drop via Godot's `_GetDragData`/`_CanDropData`/`_DropData`
-  - `DraggableItemNode.cs`: Visual drag preview, source inventory tracking
-  - `ItemTooltipNode.cs`: Shows item name on hover (simple Label overlay)
-  - **All items treated as 1×1** (multi-cell in Phase 2)
-- **Tests**: 25-30 tests
-  - Domain: GridPosition validation, PlaceItemAt collision (1×1), type filtering
-  - Application: Command handlers (placement, movement, removal), query validation
-  - Manual: Drag item from Backpack A → Backpack B, drag weapon → weapon slot (success), drag potion → weapon slot (rejected)
+**Done When**:
+- ✅ Equipment slot swap works (dagger ↔ ray_gun with no overlap)
+- ✅ Each component <500 lines (separation achieved)
+- ✅ All 359 tests still GREEN (backward compatibility)
+- ✅ No equipment slot special cases in InventoryContainerNode (grep for "isEquipmentSlot" returns 0)
 
-**Phase 2: Multi-Cell Rectangles** (3-4h)
-- **Goal**: Items occupy Width×Height cells (2×1 sword takes 2 adjacent slots)
-- **Domain**: Enhance collision detection to check all occupied cells
-- **Application**: Update `CanPlaceItemAtQuery` to validate rectangle fits
-- **Presentation**: Render items spanning multiple cells, snap to grid
-- **NO rotation yet** (sword is always 2×1, cannot become 1×2)
-- **Tests**: 15-20 additional tests (multi-cell collision, boundary checks)
+**Tech Lead Decision** (date): [Pending]
 
-**Phase 3: Rotation Support** (2-3h) ✅ **COMPLETE** (2025-10-03 19:11)
-- **Goal**: Rotate items 90° (2×1 sword → 1×2 sword)
-- **Domain**: ✅ `Rotation` enum, `RotationHelper`, dimension swapping, collision validation
-- **Application**: ✅ `RotateItemCommand`, `MoveItemBetweenContainersCommand` with rotation
-- **Presentation**: ✅ Mouse scroll during drag, sprite rotation, highlight updates, extreme transparency solution
-- **Tests**: ✅ 13 new rotation tests (348/348 passing)
-- **ALL FEATURES WORKING** ✅:
-  1. ✅ **Rotation Persistence** (2025-10-03 19:11): Static `_sharedDragRotation` variable preserves rotation across container moves
-  2. ✅ **Equipment Slot Reset** (2025-10-03 19:11): Equipment slots reset rotation to Degrees0 for visual consistency
-  3. ✅ **Z-Order Rendering** (2025-10-03 19:11): Extreme transparency (25% opacity) makes highlights visible but non-obscuring
-  4. ✅ **Double Rotation**: One scroll = one 90° rotation (`Pressed` check added)
-  5. ✅ **Ghost Highlights**: `Free()` instead of `QueueFree()` for immediate cleanup
-  6. ✅ **Drag-Drop Visual Artifact**: Direct node references via `Dictionary<ItemId, Node>`
-  7. ✅ **Drag Preview Centering**: Offset container centers cursor at sprite center
+---
 
-**✨ Phase 3 Final Solution Summary**:
-- **Core**: Static shared rotation state for cross-container drag-drop
-- **UI**: Mouse scroll rotation, sprite PivotOffset rotation, extreme transparency highlights (25%)
-- **Tests**: 13 new rotation tests, all passing (348/348 total)
-- **Key Lessons**:
-  - Godot's drag-drop state is container-local → use static variables for cross-container communication
-  - Control node z-ordering unreliable → pragmatic transparency workaround (25% opacity)
-  - Direct node references beat string matching (O(1) lookup, no async issues)
-  - Equipment slots reset rotation to Degrees0 for standard orientation display
+### TD_004: Move Highlight Logic to Core (SSOT)
 
-**Phase 4: Complex Shapes** (3-4h)
-- **Goal**: L-shapes, T-shapes via bool[] masks (Tetris-style)
-- **Domain**: `ItemShape` value object (bool[,] grid), per-cell collision
-- **Infrastructure**: Shape metadata storage (JSON file: `data/item_shapes/*.json` OR TileSet custom data string encoding)
-- **Presentation**: Render complex shapes, rotation affects shape orientation
-- **Tests**: 20-25 tests (shape parsing, complex collision, L-shape rotation)
+**Status**: Proposed (needs Tech Lead discussion)
+**Owner**: Tech Lead → Dev Engineer (after approval)
+**Size**: M (4-6h)
+**Priority**: Important (Architectural compliance)
+**Depends On**: None
+**Markers**: [ARCHITECTURE] [ADR-002]
 
-**Backward Compatibility (CRITICAL)**:
-- ✅ VS_008 tests MUST still pass (existing `AddItem()` API preserved)
-- ✅ `Inventory.Create(id, capacity)` → maps to `Inventory.Create(id, gridWidth: capacity/4, gridHeight: 4)`
-- ✅ Existing slot-based scenes (InventoryPanelNode) continue working
-- ✅ New overload: `Inventory.Create(id, gridWidth, gridHeight, type)` for spatial containers
+**What**: Move highlight shape calculation from Presentation to Core, create `CalculateHighlightShapeQuery`
 
-**Scope** (Phase 1 ONLY):
-- ✅ Drag-drop between 2 backpacks (different grid sizes: 10×6 and 8×8)
-- ✅ Weapon slot (1×4 grid) with type filter (rejects non-weapon items)
-- ✅ Hover tooltip displays item name
-- ✅ Visual feedback: Valid drop (green highlight), invalid drop (red highlight)
-- ✅ Item spawn palette (test UI to create items for dragging)
-- ✅ All items treated as 1×1 (multi-cell deferred to Phase 2)
-- ❌ Multi-cell placement (Phase 2)
-- ❌ Item rotation (Phase 3)
-- ❌ Complex shapes (Phase 4)
-- ❌ Container nesting/bags (future VS_013)
-- ❌ Weight-based capacity limits (future feature)
+**Why**:
+- **Business Logic Leak**: RenderDragHighlight (lines 1009-1104) duplicates shape rotation math from Core
+- **SSOT Violation**: Equipment slot 1×1 override exists in BOTH Presentation AND Core
+- **ADR-002**: Presentation should only render, not calculate (thin display layer)
+- **Future Risk**: Highlight logic can diverge from placement logic
 
-**Done When** (Phase 1):
-- ✅ Domain tests: 15 tests passing (<100ms)
-  - GridPosition validation (negative coords fail)
-  - PlaceItemAt with 1×1 collision detection
-  - Type filtering (weapon slot rejects "item" type)
-  - Backward compat: AddItem() auto-places at first free position
-- ✅ Application tests: 12 tests passing (<500ms)
-  - PlaceItemAtPositionCommandHandler (success, collision, out-of-bounds)
-  - MoveItemBetweenContainersCommandHandler (inter-container movement)
-  - CanPlaceItemAtQuery (returns true/false for validation)
-- ✅ Manual UI test (SpatialInventoryTestScene.tscn):
-  - Drag item from palette → Backpack A → Item appears at grid position
-  - Drag item from Backpack A → Backpack B → Item moves successfully
-  - Drag weapon from palette → Weapon slot → Success (green highlight)
-  - Drag potion from palette → Weapon slot → Rejected (red highlight + error message)
-  - Hover over item → Tooltip shows item name
-  - Drag item to occupied cell → Red highlight, drop fails
-- ✅ VS_008 regression tests: All 23 existing tests still pass (backward compatibility verified)
-- ✅ Architecture tests: Zero Godot dependencies in Darklands.Core (ADR-002 compliance)
+**How** (Discussion Needed):
+- **Option A**: Query returns `List<GridPosition>` of cells to highlight
+  - Core: `CalculateHighlightCellsQuery(itemId, position, rotation, containerType)` → cells
+  - Presentation: Render TextureRect at each returned cell (dumb rendering)
+  - Pro: Zero business logic in Presentation
+  - Con: Extra round-trip for every mouse move
+- **Option B**: Keep highlight rendering in Presentation (pragmatic)
+  - Accept thin violation: Highlight is UI concern (visual feedback only)
+  - Ensure: Use same rotation math as Core (shared RotationHelper)
+  - Pro: No performance cost
+  - Con: Duplication risk
 
-**Key Architecture Decisions** (Tech Lead, 2025-10-02):
-- **Phased approach**: UX first (Phase 1) → Complexity incrementally (Phases 2-4)
-- **Backward compatibility**: VS_008 API preserved, spatial additive (zero breaking changes)
-- **Drag-drop**: Godot built-in system (`_GetDragData`/`_CanDropData`/`_DropData`)
-- **GridPosition**: Shared value object in Domain/Common (reusable across features)
-- **Type filtering**: Enum-based (extensible for future equipment slot types)
+**Done When** (if Option A approved):
+- ✅ `CalculateHighlightCellsQuery` in Core returns cell positions
+- ✅ Presentation removes rotation math (uses query result only)
+- ✅ Equipment slot logic ONLY in Core (Presentation agnostic)
+- ✅ All 359 tests GREEN
 
-**✅ Phase 1 Complete** (2025-10-03, 6h actual):
-- **Core**: GridPosition, ContainerType, spatial Inventory, Commands/Queries (261 tests passing)
-- **UI**: Drag-drop working, tooltips, 4-color item types, equipment swap, type filtering
-- **Lessons**:
-  - Mouse filter hierarchy critical for Godot drag events (`Pass` vs `Stop` vs `Ignore`)
-  - Defense-in-depth for data loss: Validate type in BOTH `_CanDropData` AND handler
-  - Safe swap algorithm: Remove→Remove→Place→Place with full rollback at each step
+**Tech Lead Decision** (date): [Pending - requires architectural discussion]
 
-**✅ Phase 2 Complete** (2025-10-03, 5h actual):
-- **Core**: Multi-cell AABB collision, dimension override for equipment slots, intra-container rollback
-- **UI**: Multi-cell TextureRect rendering (overlay architecture), green/red drag highlights
-- **Lessons**:
-  - **Sprite ≠ Inventory dimensions**: 4×4 sprite can occupy 2×2 grid (dual metadata critical)
-  - **Equipment slot UX**: Override dimensions to 1×1 in handlers (Diablo 2 pattern)
-  - **Self-collision**: Check `occupyingItemId != draggedItemId` to allow same-position drops
-  - **Signal-based sync**: Broadcast `InventoryChanged` to all containers for cross-container moves
+---
+
+### TD_005: Persona & Protocol Updates
+
+**Status**: Proposed (needs Product Owner approval)
+**Owner**: Product Owner
+**Size**: S (2-3h)
+**Priority**: Important (Process improvement)
+**Depends On**: None
+**Markers**: [PROCESS] [PERSONA]
+
+**What**: Update persona system and protocols based on BR_006/007 lessons
+
+**Why**:
+- **Root Cause Gap**: Recent bugs (rotation highlights, equipment visuals) were workarounds/patches, not root cause fixes
+- **UX Blind Spot**: No persona owns user experience validation (UI/UX designer missing)
+- **Requirement Clarity**: Need protocol: "Repeat user requirement back" before implementation
+
+**How**:
+1. **Create UI/UX Designer Persona** (optional):
+   - Responsibilities: Validate UX patterns, suggest simplifications, challenge complexity
+   - When invoked: Before implementing UI features (VS_018 would have benefited)
+   - Example: "Equipment slots + Tetris grid = different UX, should separate" (earlier detection)
+
+2. **Update Dev Engineer Protocol**:
+   - **Before coding**: Repeat requirement back to user in own words
+   - **During investigation**: Always ask "What's the root cause?" (not just "What's the quick fix?")
+   - **Pattern**: Workaround → Document as TD → Schedule proper fix
+
+3. **Update Memory Bank** (`dev-engineer.md`):
+   - Add: "Root Cause First" principle (BR_006 mouse warp = workaround, separation = fix)
+   - Add: "UX Pattern Recognition" (detect when combining incompatible patterns)
+
+**Done When**:
+- ✅ UI/UX Designer persona created (if approved) OR protocol updated to include UX validation
+- ✅ Dev Engineer protocol includes "repeat requirement" step
+- ✅ Memory Bank updated with "Root Cause First" principle
+- ✅ Test run: Next UI bug → persona asks "root cause?" before patch
+
+**Product Owner Decision** (date): [Pending]
 
 ---
 

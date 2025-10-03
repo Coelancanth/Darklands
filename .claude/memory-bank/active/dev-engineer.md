@@ -170,9 +170,23 @@ if (string.IsNullOrEmpty(name))
 - Pattern: `ServiceLocator.Get<T>()` ONLY in `_Ready()`
 
 ### Logging (ADR-001)
-- ❌ Never use `GD.Print()` or `GD.PrintErr()`
-- ✅ Always use `ILogger<T>` from Microsoft.Extensions.Logging
-- Retrieve via ServiceLocator in `_Ready()`
+- ❌ **NEVER use `GD.Print()` or `GD.PrintErr()`** - Not structured, no filtering, hard to maintain
+- ❌ **NEVER use `System.Console.WriteLine()`** in Core - Bypasses logging infrastructure
+- ✅ **ALWAYS use `ILogger<T>` from Microsoft.Extensions.Logging** - Structured, filterable, professional
+- Retrieve via ServiceLocator in `_Ready()` (Presentation layer)
+- Use constructor injection (Core layer)
+
+**Why ILogger > GD.Print**:
+- ✅ Structured logging (capture parameters separately for querying)
+- ✅ Log levels (Debug/Info/Warning/Error filtering)
+- ✅ Multiple outputs (console + file + external systems)
+- ✅ Production-ready (can adjust verbosity without code changes)
+- ✅ Testable (can verify logging in unit tests)
+
+**Temp Debug Logging Protocol** (from User Testing section above):
+- Use `LogInformation` during active development/debugging
+- Downgrade to `LogDebug` after feature confirmed working
+- NEVER use `GD.Print` or `Console.WriteLine` - use ILogger always
 
 ### Node2D vs Control Hierarchy (CRITICAL)
 **Rule**: Control containers (CenterContainer, VBoxContainer, etc.) ONLY layout Control children!
@@ -205,6 +219,83 @@ center.AddChild(texture); // Centering works perfectly!
 **ADR-002**: Core has zero Godot dependencies (primitives only)
 **ADR-003**: Use `Result<T>` for failable operations
 **ADR-004**: Feature-based organization (Domain/Application/Infrastructure per feature)
+
+### Presentation Layer Responsibilities (CRITICAL)
+
+`✶ Architectural Principle ─────────────────────`
+**Presentation layer should NEVER duplicate business logic!**
+
+**Golden Rule**: If it requires logic or validation, **delegate to Core via Query/Command**.
+
+**What Presentation SHOULD Do**:
+- ✅ Capture user input (mouse clicks, keyboard)
+- ✅ Call Core queries/commands via MediatR
+- ✅ Display results (render sprites, update UI)
+- ✅ Convert between Godot types and Core types (Vector2 → GridPosition)
+- ✅ Handle Godot-specific events (_Ready, _Process, _Input)
+
+**What Presentation SHOULD NOT Do**:
+- ❌ Validate placement collision (use CanPlaceItemAtQuery)
+- ❌ Calculate occupied cells (use ItemShape from Core)
+- ❌ Check business rules (type compatibility, bounds checking)
+- ❌ Iterate shapes to determine collision (Core owns this logic)
+- ❌ Duplicate Domain/Application logic
+
+**Red Flags in Presentation Code**:
+```csharp
+// ❌ BAD - Duplicating collision logic
+for (int dy = 0; dy < height; dy++)
+{
+    for (int dx = 0; dx < width; dx++)
+    {
+        if (_itemsAtPositions.Contains(...)) // Business logic!
+    }
+}
+
+// ✅ GOOD - Delegating to Core
+var query = new CanPlaceItemAtQuery(actorId, itemId, position, rotation);
+var result = await _mediator.Send(query);
+bool canPlace = result.Value; // Simple boolean, no logic
+```
+
+**Why This Matters**:
+1. **Single Source of Truth**: Logic lives in ONE place (Core)
+2. **Testability**: Business logic tested in Core tests (fast, isolated)
+3. **Maintainability**: Changes to rules don't require updating UI code
+4. **Bug Prevention**: Can't have "works in Core but fails in UI" scenarios
+
+**Example - BR_004 L-Shape Collision Bug**:
+- **Problem**: Presentation iterated bounding box (4 cells) instead of OccupiedCells (3 cells)
+- **Root Cause**: Duplicated collision logic that already existed in Domain
+- **Fix**: Use CanPlaceItemAtQuery - Core owns validation, Presentation just displays result
+- **Lesson**: Never duplicate logic "for performance" - measure first, optimize if needed
+
+**Pattern for Validation in Presentation**:
+```csharp
+public override bool _CanDropData(Vector2 atPosition, Variant data)
+{
+    // Convert Godot types → Core types
+    var targetPos = PixelToGridPosition(atPosition);
+    var itemId = ExtractItemIdFromDragData(data);
+
+    // Delegate validation to Core
+    var query = new CanPlaceItemAtQuery(
+        OwnerActorId!.Value,
+        itemId,
+        targetPos.Value,
+        _sharedDragRotation);
+
+    var result = _mediator.Send(query).Result; // Blocking OK for UI validation
+
+    // Display result (green/red highlights)
+    UpdateHighlights(result.Value);
+
+    return result.Value; // Core tells us, we just listen
+}
+```
+
+**Decision Rule**: "Does this require understanding game rules?" → If yes, delegate to Core!
+`─────────────────────────────────────────────────`
 
 ---
 
@@ -239,4 +330,4 @@ git commit -m "feat(feature): Description [Phase X/4]"
 
 ---
 
-**Last Updated**: 2025-10-03
+**Last Updated**: 2025-10-03 22:40 (Added: Presentation Layer Responsibilities - Never duplicate business logic!)

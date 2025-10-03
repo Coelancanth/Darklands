@@ -2,8 +2,8 @@
 
 **Purpose**: Sequence the complete [Vision.md](Vision.md) into actionable vertical slices with clear dependencies and milestones.
 
-**Last Updated**: 2025-10-02 23:15 (Updated to reflect completed implementations)
-**Status**: Phase 1 In Progress (VS_001 Health ✅, VS_005 Grid/FOV ✅, VS_006 Movement ✅, VS_008 Inventory ✅, VS_009 Items ✅ complete)
+**Last Updated**: 2025-10-04 00:10 (VS_018 L-Shapes Complete)
+**Status**: Phase 1 In Progress (VS_001 Health ✅, VS_005 Grid/FOV ✅, VS_006 Movement ✅, VS_008 Inventory ✅, VS_009 Items ✅, VS_018 L-Shapes ✅ complete)
 
 ---
 
@@ -510,12 +510,18 @@ Time to mastery ≈ 50-70 attacks (5-10 fights)
 - Angband-style itemization (situational value)
 - Constrained randomization (minor stat variance)
 
-**VS_018: Tetris Inventory Upgrade (Optional)**
-- Spatial grid inventory (item shapes matter)
-- Upgrade from VS_008 slot-based system IF playtesting shows demand
-- Item rotation support (2×1 sword can be stored as 1×2)
-- Reference: Diablo 2, Resident Evil spatial puzzles
-- Decision point: Only implement if players request spatial challenge
+**VS_018: Spatial Inventory L-Shapes ✅ COMPLETE**
+
+**Status**: Complete (2025-10-04) | **Size**: XL (17h across 4 phases + bug fixes) | **Tests**: 359 passing
+**Owner**: Dev Engineer
+
+**Delivered**: Tetris-style spatial inventory with drag-drop, multi-cell items with L/T-shape support, 90° rotation, type filtering (equipment slots), TileSet-driven ItemShape encoding, OccupiedCells collision detection
+
+**Key Achievement**: Replaced AABB rectangle collision with cell-by-cell iteration - supports complex shapes (L-shapes occupy 3 cells in 2×2 bounding box, leaving 1 cell free for other items)
+
+**Architecture**: ItemShape value object with coordinate-based masks ("custom:0,0;1,0;1,1"), visual editor plugin (checkbox grid), backward-compatible with VS_008 slot-based inventory
+
+**Archive**: [Completed_Backlog_2025-10.md](../../07-Archive/Completed_Backlog_2025-10.md#vs_018-spatial-inventory-l-shapes) (comprehensive 4-phase documentation preserved)
 
 **VS_019: Crafting System (NeoScavenger-Style)**
 - Grid-based crafting interface (drag items to recipe slots)
