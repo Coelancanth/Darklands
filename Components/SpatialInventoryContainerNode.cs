@@ -82,6 +82,17 @@ public partial class SpatialInventoryContainerNode : Control
     private Dictionary<ItemId, string> _itemTypes = new(); // Cache item types for color coding
     private Dictionary<ItemId, string> _itemNames = new(); // Cache item names for tooltips
     private Dictionary<ItemId, (int Width, int Height)> _itemDimensions = new(); // Cache item dimensions (Phase 2)
+    private Dictionary<ItemId, Rotation> _itemRotations = new(); // Cache item rotations (Phase 3)
+    private Dictionary<ItemId, Node> _itemSpriteNodes = new(); // PHASE 3: Direct references to sprite nodes for hiding during drag
+
+    // PHASE 3: Drag-time rotation state (SHARED across all container instances for cross-container drag support)
+    // WHY: Godot's drag data is immutable after _GetDragData, but scroll wheel rotates AFTER drag starts
+    // Solution: Static variable allows target container to read latest rotation from source container
+    private static Rotation _sharedDragRotation = default(Darklands.Core.Domain.Common.Rotation);
+    private bool _isDragging = false; // Track if drag is active
+    private ItemId? _draggingItemId = null; // Track which item is being dragged
+    private Control? _dragPreviewNode = null; // Custom drag preview that we can update
+    private TextureRect? _dragPreviewSprite = null; // Sprite inside preview for rotation updates
 
     // TileSet atlas coordinates for drag highlight sprites
     private static readonly Vector2I HIGHLIGHT_GREEN_COORDS = new(1, 6);
@@ -164,6 +175,58 @@ public partial class SpatialInventoryContainerNode : Control
             {
                 // Left mouse button released - drag ended (successful or rejected)
                 ClearDragHighlights();
+
+                // PHASE 3: If drag was active but cancelled (not dropped), restore hidden sprite
+                // WHY: HideItemSprite() removed the node, need full refresh to recreate it
+                bool wasDragging = _isDragging && _draggingItemId != null;
+
+                _isDragging = false; // Reset drag state
+                _draggingItemId = null;
+
+                // If drag was cancelled (not dropped), refresh to restore sprite
+                if (wasDragging)
+                {
+                    _logger.LogInformation("🔄 Drag cancelled, refreshing to restore hidden sprite");
+                    LoadInventoryAsync(); // Full reload to recreate sprite nodes
+                }
+            }
+
+            // PHASE 3: Mouse scroll during drag to rotate item
+            // WHY: Rotate while dragging (Tetris/Diablo UX pattern)
+            // CRITICAL: Only handle when Pressed == true to avoid double-firing
+            if (_isDragging && mouseButton.Pressed &&
+                (mouseButton.ButtonIndex == MouseButton.WheelDown || mouseButton.ButtonIndex == MouseButton.WheelUp))
+            {
+                // Calculate new rotation (scroll DOWN = clockwise, scroll UP = counter-clockwise)
+                var newRotation = mouseButton.ButtonIndex == MouseButton.WheelDown
+                    ? RotationHelper.RotateClockwise(_sharedDragRotation)
+                    : RotationHelper.RotateCounterClockwise(_sharedDragRotation);
+
+                _logger.LogInformation("🔄 Rotating drag preview: {OldRotation} → {NewRotation} (scroll {Direction})",
+                    _sharedDragRotation, newRotation,
+                    mouseButton.ButtonIndex == MouseButton.WheelDown ? "DOWN" : "UP");
+
+                _sharedDragRotation = newRotation;
+
+                // PHASE 3 FIX: Update sprite preview - ONLY rotation changes (single-layer approach)
+                // WHY: Container is base-sized, texture just rotates inside via PivotOffset
+                if (_dragPreviewSprite != null)
+                {
+                    // Simply update rotation - size and position stay constant!
+                    _dragPreviewSprite.Rotation = RotationHelper.ToRadians(_sharedDragRotation);
+
+                    // No need to update container size or texture position
+                    // Container stays BASE size, texture rotates around its PivotOffset
+                }
+
+                // PHASE 3 BUG FIX: Update highlights immediately after rotation
+                // WHY: _CanDropData only called on mouse move, not on scroll
+                // Get current mouse position and trigger highlight update manually
+                var currentMousePos = GetLocalMousePosition();
+                UpdateDragHighlightsAtPosition(currentMousePos);
+
+                // Consume the event to prevent scrolling the container
+                GetViewport().SetInputAsHandled();
             }
         }
     }
@@ -193,38 +256,33 @@ public partial class SpatialInventoryContainerNode : Control
         // Get item origin position (top-left) for drag data
         // WHY: Commands operate on origin positions, not clicked cell positions
         var origin = _itemOrigins[itemId];
-        _logger.LogInformation("Starting drag: Item {ItemId} from {Container} at origin ({X}, {Y}) (clicked cell: {ClickX}, {ClickY})",
-            itemId, ContainerTitle, origin.X, origin.Y, gridPos.Value.X, gridPos.Value.Y);
 
-        // Create drag preview with item name (visual feedback)
-        string itemName = _itemNames.GetValueOrDefault(itemId, "Item");
-        string itemType = _itemTypes.GetValueOrDefault(itemId, "?");
+        // PHASE 3: Initialize SHARED drag rotation from item's current rotation
+        // WHY: Static variable allows target container to read rotation during cross-container drag
+        _sharedDragRotation = _itemRotations.TryGetValue(itemId, out var currentRot)
+            ? currentRot
+            : default(Darklands.Core.Domain.Common.Rotation);
+        _isDragging = true;
+        _draggingItemId = itemId;
 
-        var preview = new Label
+        _logger.LogInformation("🎯 Starting drag: Item {ItemId} from {Container} at origin ({X}, {Y}) with rotation {Rotation}",
+            itemId, ContainerTitle, origin.X, origin.Y, _sharedDragRotation);
+
+        // PHASE 3: Immediately hide source sprite (remove from overlay)
+        // WHY: Uses direct node reference - no string matching needed!
+        HideItemSprite(itemId);
+
+        // PHASE 3: Create sprite-based drag preview (updates with rotation) and set immediately
+        CreateDragPreview(itemId);
+        if (_dragPreviewNode != null)
         {
-            Text = $"📦 {itemName}",
-            Modulate = new Color(1, 1, 1, 0.8f)
-        };
-        preview.AddThemeFontSizeOverride("font_size", 16);
-
-        // Add background to preview for better visibility
-        var previewBg = new Panel();
-        var previewStyle = new StyleBoxFlat
-        {
-            BgColor = new Color(0.1f, 0.1f, 0.1f, 0.9f),
-            CornerRadiusTopLeft = 4,
-            CornerRadiusTopRight = 4,
-            CornerRadiusBottomLeft = 4,
-            CornerRadiusBottomRight = 4
-        };
-        previewStyle.SetContentMarginAll(8);
-        previewBg.AddThemeStyleboxOverride("panel", previewStyle);
-        previewBg.AddChild(preview);
-
-        SetDragPreview(previewBg);
+            SetDragPreview(_dragPreviewNode);
+        }
 
         // Return drag data using Guids (simpler than value objects)
         // WHY: Use origin position for commands (not clicked cell)
+        // NOTE: Rotation is stored in static _sharedDragRotation and read by target container
+        // (drag data is immutable, but rotation can change via scroll wheel after drag starts)
         var dragData = new Godot.Collections.Dictionary
         {
             ["itemIdGuid"] = itemId.Value.ToString(),
@@ -275,11 +333,11 @@ public partial class SpatialInventoryContainerNode : Control
 
         var itemId = new ItemId(itemIdGuid);
 
-        // Get dimensions - check cache first, query if not found (cross-container drag)
-        int itemWidth, itemHeight;
+        // Get BASE dimensions - check cache first, query if not found (cross-container drag)
+        int baseItemWidth, baseItemHeight;
         if (_itemDimensions.TryGetValue(itemId, out var cachedDimensions))
         {
-            (itemWidth, itemHeight) = cachedDimensions;
+            (baseItemWidth, baseItemHeight) = cachedDimensions;
         }
         else
         {
@@ -290,15 +348,26 @@ public partial class SpatialInventoryContainerNode : Control
 
             if (itemResult.IsSuccess)
             {
-                itemWidth = itemResult.Value.InventoryWidth;
-                itemHeight = itemResult.Value.InventoryHeight;
+                baseItemWidth = itemResult.Value.InventoryWidth;
+                baseItemHeight = itemResult.Value.InventoryHeight;
             }
             else
             {
                 // Fallback if query fails
-                (itemWidth, itemHeight) = (1, 1);
+                (baseItemWidth, baseItemHeight) = (1, 1);
             }
         }
+
+        // PHASE 3: Read rotation from SHARED static variable (cross-container safe)
+        // WHY: Drag data is immutable, but rotation changes via scroll wheel AFTER drag starts
+        // Static variable allows target container to read latest rotation from source container
+        var dragRotation = _sharedDragRotation;
+
+        // PHASE 3: Calculate effective dimensions after rotation
+        var (itemWidth, itemHeight) = RotationHelper.GetRotatedDimensions(baseItemWidth, baseItemHeight, dragRotation);
+
+        _logger.LogDebug("🔄 Item dimensions: base {BaseW}×{BaseH}, rotated ({Rotation}°) = {W}×{H}",
+            baseItemWidth, baseItemHeight, (int)dragRotation, itemWidth, itemHeight);
 
         // Override dimensions for equipment slots (matches placement handler logic)
         bool isEquipmentSlot = _containerType == ContainerType.WeaponOnly;
@@ -390,14 +459,131 @@ public partial class SpatialInventoryContainerNode : Control
         return isValid;
     }
 
+    /// <summary>
+    /// Updates drag highlights at the given mouse position.
+    /// WHY: Called manually after rotation to refresh highlights (Godot doesn't call _CanDropData on scroll).
+    /// </summary>
+    private void UpdateDragHighlightsAtPosition(Vector2 mousePosition)
+    {
+        if (!_isDragging || _draggingItemId == null)
+        {
+            ClearDragHighlights();
+            return;
+        }
+
+        // Find target grid position
+        var targetPos = PixelToGridPosition(mousePosition);
+        if (targetPos == null)
+        {
+            ClearDragHighlights();
+            return;
+        }
+
+        var itemId = _draggingItemId.Value;
+
+        // Get BASE dimensions
+        int baseItemWidth, baseItemHeight;
+        if (_itemDimensions.TryGetValue(itemId, out var cachedDimensions))
+        {
+            (baseItemWidth, baseItemHeight) = cachedDimensions;
+        }
+        else
+        {
+            // Cross-container drag: Query dimensions
+            var itemQuery = new GetItemByIdQuery(itemId);
+            var itemResult = _mediator.Send(itemQuery).Result;
+
+            if (itemResult.IsSuccess)
+            {
+                baseItemWidth = itemResult.Value.InventoryWidth;
+                baseItemHeight = itemResult.Value.InventoryHeight;
+            }
+            else
+            {
+                (baseItemWidth, baseItemHeight) = (1, 1);
+            }
+        }
+
+        // PHASE 3: Calculate effective dimensions after rotation (use shared rotation for cross-container support)
+        var (itemWidth, itemHeight) = RotationHelper.GetRotatedDimensions(baseItemWidth, baseItemHeight, _sharedDragRotation);
+
+        // Override dimensions for equipment slots
+        bool isEquipmentSlot = _containerType == ContainerType.WeaponOnly;
+        if (isEquipmentSlot)
+        {
+            itemWidth = 1;
+            itemHeight = 1;
+        }
+
+        // Validation
+        bool isValid = true;
+
+        // Check bounds
+        if (targetPos.Value.X + itemWidth > _gridWidth || targetPos.Value.Y + itemHeight > _gridHeight)
+        {
+            isValid = false;
+        }
+
+        // Check occupation
+        if (isValid)
+        {
+            for (int dy = 0; dy < itemHeight; dy++)
+            {
+                for (int dx = 0; dx < itemWidth; dx++)
+                {
+                    var checkPos = new GridPosition(targetPos.Value.X + dx, targetPos.Value.Y + dy);
+                    if (_itemsAtPositions.TryGetValue(checkPos, out var occupyingItemId))
+                    {
+                        if (occupyingItemId != itemId)
+                        {
+                            if (!isEquipmentSlot)
+                            {
+                                isValid = false;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (!isValid) break;
+            }
+        }
+
+        // Type validation
+        if (isValid && OwnerActorId != null)
+        {
+            if (_itemTypes.TryGetValue(itemId, out var itemType))
+            {
+                if (!CanAcceptItemType(itemType))
+                {
+                    isValid = false;
+                }
+            }
+        }
+
+        // Render highlight with rotated dimensions
+        RenderDragHighlight(targetPos.Value, itemWidth, itemHeight, isValid);
+    }
+
     public override void _DropData(Vector2 atPosition, Variant data)
     {
-        _logger.LogInformation("_DropData called at position ({X}, {Y})", atPosition.X, atPosition.Y);
+        // PHASE 3: Read rotation from SHARED static variable (cross-container safe)
+        // WHY: Drag data is immutable, but rotation changes via scroll wheel AFTER drag starts
+        var dropRotation = _sharedDragRotation;
+
+        _logger.LogInformation("_DropData called at position ({X}, {Y}) with rotation {Rotation}",
+            atPosition.X, atPosition.Y, dropRotation);
+
+        var dragData = data.AsGodotDictionary();
 
         // Phase 2.4: Clear highlights after drop (will be refreshed after move completes)
         ClearDragHighlights();
 
-        var dragData = data.AsGodotDictionary();
+        // Reset drag state
+        _isDragging = false;
+        _draggingItemId = null;
+        _dragPreviewNode = null;
+        _dragPreviewSprite = null;
+
         var itemIdGuidStr = dragData["itemIdGuid"].AsString();
         var sourceActorIdGuidStr = dragData["sourceActorIdGuid"].AsString();
 
@@ -433,18 +619,18 @@ public partial class SpatialInventoryContainerNode : Control
             var sourceY = dragData["sourceY"].AsInt32();
             var sourcePos = new GridPosition(sourceX, sourceY);
 
-            _logger.LogInformation("Initiating safe swap: {ItemA} ↔ {ItemB}",
-                itemId, targetItemId);
+            _logger.LogInformation("Initiating safe swap: {ItemA} ↔ {ItemB} with rotation {Rotation}",
+                itemId, targetItemId, dropRotation);
 
-            SwapItemsSafeAsync(sourceActorId, itemId, sourcePos, OwnerActorId!.Value, targetItemId, targetPos.Value);
+            SwapItemsSafeAsync(sourceActorId, itemId, sourcePos, OwnerActorId!.Value, targetItemId, targetPos.Value, dropRotation);
         }
         else
         {
             // REGULAR MOVE: Position is free
-            _logger.LogInformation("Drop confirmed: Moving item {ItemId} to ({X}, {Y})",
-                itemId, targetPos.Value.X, targetPos.Value.Y);
+            _logger.LogInformation("Drop confirmed: Moving item {ItemId} to ({X}, {Y}) with rotation {Rotation}",
+                itemId, targetPos.Value.X, targetPos.Value.Y, dropRotation);
 
-            MoveItemAsync(sourceActorId, itemId, targetPos.Value);
+            MoveItemAsync(sourceActorId, itemId, targetPos.Value, dropRotation);
         }
     }
 
@@ -486,23 +672,21 @@ public partial class SpatialInventoryContainerNode : Control
         _gridContainer.AddThemeConstantOverride("v_separation", 2);
         gridWrapper.AddChild(_gridContainer);
 
-        // Overlay container for multi-cell item sprites (Phase 2)
-        // WHY: Items rendered on separate layer so they can span multiple cells freely
-        _itemOverlayContainer = new Control
-        {
-            MouseFilter = MouseFilterEnum.Ignore, // Let grid cells handle input
-            ZIndex = 10 // Render above grid cells
-        };
-        gridWrapper.AddChild(_itemOverlayContainer);
+        // PHASE 3: Overlay containers (z-order solution: extreme transparency)
+        // WHY: Godot Control z-ordering is unreliable, CanvasLayer breaks positioning
+        // Pragmatic solution: Make highlights SO transparent they don't obscure items
 
-        // Highlight overlay container for drag preview (Phase 2.4)
-        // WHY: Shows green/red highlights for valid/invalid placement during drag
         _highlightOverlayContainer = new Control
         {
-            MouseFilter = MouseFilterEnum.Ignore, // Let grid cells handle input
-            ZIndex = 15 // Render above items
+            MouseFilter = MouseFilterEnum.Ignore
         };
         gridWrapper.AddChild(_highlightOverlayContainer);
+
+        _itemOverlayContainer = new Control
+        {
+            MouseFilter = MouseFilterEnum.Ignore
+        };
+        gridWrapper.AddChild(_itemOverlayContainer);
     }
 
     private async void LoadInventoryAsync()
@@ -548,14 +732,15 @@ public partial class SpatialInventoryContainerNode : Control
                 _gridContainer.GetChildCount(), _gridWidth, _gridHeight);
         }
 
-        // Populate items (Phase 2: Use dimensions from Domain)
+        // Populate items (Phase 2: Use dimensions from Domain; Phase 3: Use rotations from Domain)
         _itemsAtPositions.Clear();
         _itemOrigins.Clear();
         _itemTypes.Clear();
         _itemNames.Clear();
         _itemDimensions.Clear();
+        _itemRotations.Clear(); // Phase 3
 
-        // STEP 1: Store origins and dimensions from Domain
+        // STEP 1: Store origins, dimensions, and rotations from Domain
         foreach (var (itemId, origin) in inventory.ItemPlacements)
         {
             _itemOrigins[itemId] = origin;
@@ -564,8 +749,12 @@ public partial class SpatialInventoryContainerNode : Control
             var (width, height) = inventory.ItemDimensions.GetValueOrDefault(itemId, (1, 1));
             _itemDimensions[itemId] = (width, height); // Cache for rendering
 
-            _logger.LogInformation("DEBUG: Item {ItemId} - Domain dimensions: {Width}×{Height}",
-                itemId, width, height);
+            // Get rotation from Domain (Phase 3)
+            var rotation = inventory.ItemRotations.TryGetValue(itemId, out var rot1) ? rot1 : default(Darklands.Core.Domain.Common.Rotation);
+            _itemRotations[itemId] = rotation; // Cache for rendering
+
+            _logger.LogInformation("DEBUG: Item {ItemId} - Domain dimensions: {Width}×{Height}, rotation: {Rotation}",
+                itemId, width, height, rotation);
         }
 
         // STEP 2: Load item metadata (types, names) - needs item IDs from origins
@@ -574,20 +763,24 @@ public partial class SpatialInventoryContainerNode : Control
         // STEP 3: Build reverse lookup: ALL occupied cells → ItemId (multi-cell support)
         foreach (var (itemId, origin) in _itemOrigins)
         {
-            var (width, height) = _itemDimensions[itemId]; // Already cached from Domain
+            var (baseWidth, baseHeight) = _itemDimensions[itemId]; // Base dimensions from Domain
+            var rotation = _itemRotations[itemId]; // Rotation from Domain
 
-            // Reserve ALL cells occupied by this item
-            for (int dy = 0; dy < height; dy++)
+            // PHASE 3: Calculate effective dimensions after rotation
+            var (effectiveWidth, effectiveHeight) = RotationHelper.GetRotatedDimensions(baseWidth, baseHeight, rotation);
+
+            // Reserve ALL cells occupied by this item (using rotated dimensions)
+            for (int dy = 0; dy < effectiveHeight; dy++)
             {
-                for (int dx = 0; dx < width; dx++)
+                for (int dx = 0; dx < effectiveWidth; dx++)
                 {
                     var occupiedCell = new GridPosition(origin.X + dx, origin.Y + dy);
                     _itemsAtPositions[occupiedCell] = itemId;
                 }
             }
 
-            _logger.LogInformation("Item {ItemId} at ({X},{Y}) occupies {Width}×{Height} cells",
-                itemId, origin.X, origin.Y, width, height);
+            _logger.LogInformation("Item {ItemId} at ({X},{Y}) occupies {Width}×{Height} cells (base: {BaseWidth}×{BaseHeight}, rotation: {Rotation})",
+                itemId, origin.X, origin.Y, effectiveWidth, effectiveHeight, baseWidth, baseHeight, rotation);
         }
 
         RefreshGridDisplay();
@@ -692,6 +885,29 @@ public partial class SpatialInventoryContainerNode : Control
         {
             child.QueueFree();
         }
+
+        // PHASE 3: Clear sprite node references
+        _itemSpriteNodes.Clear();
+    }
+
+    /// <summary>
+    /// Hides a specific item sprite immediately (used during drag start).
+    /// WHY: Sprite already rendered, need immediate removal (not wait for refresh).
+    /// PHASE 3: Uses direct node reference - no string matching, no async issues!
+    /// </summary>
+    private void HideItemSprite(ItemId itemId)
+    {
+        // Direct dictionary lookup using ItemId (no string name matching!)
+        if (_itemSpriteNodes.TryGetValue(itemId, out var spriteNode))
+        {
+            _logger.LogInformation("✅ Hiding sprite for item {ItemId} (direct reference)", itemId);
+            spriteNode.Free(); // Immediate removal from scene tree
+            _itemSpriteNodes.Remove(itemId); // Clear reference
+        }
+        else
+        {
+            _logger.LogWarning("❌ Item {ItemId} sprite node not found in cache", itemId);
+        }
     }
 
     /// <summary>
@@ -717,7 +933,11 @@ public partial class SpatialInventoryContainerNode : Control
 
         // Get INVENTORY dimensions for positioning/sizing (logical occupation)
         // WHY: Item occupies InventoryWidth×InventoryHeight grid cells
-        var (invWidth, invHeight) = _itemDimensions.GetValueOrDefault(itemId, (1, 1));
+        var (baseInvWidth, baseInvHeight) = _itemDimensions.GetValueOrDefault(itemId, (1, 1));
+
+        // PHASE 3: Get rotation for sprite transform
+        var rotation = _itemRotations.TryGetValue(itemId, out var rot2) ? rot2 : default(Darklands.Core.Domain.Common.Rotation);
+        var (effectiveInvWidth, effectiveInvHeight) = RotationHelper.GetRotatedDimensions(baseInvWidth, baseInvHeight, rotation);
 
         // PHASE 2: Render TextureRect sprite if TileSet available
         if (_itemTileSet != null)
@@ -725,14 +945,19 @@ public partial class SpatialInventoryContainerNode : Control
             var atlasSource = _itemTileSet.GetSource(0) as TileSetAtlasSource;
             if (atlasSource != null)
             {
-                // Calculate pixel position and size based on INVENTORY dimensions
-                // WHY: Sprite renders within the inventory cells it occupies
+                // Calculate pixel position from origin (Domain already accounts for rotation!)
                 int separationX = 2;
                 int separationY = 2;
                 float pixelX = origin.X * (CellSize + separationX);
                 float pixelY = origin.Y * (CellSize + separationY);
-                float pixelWidth = invWidth * CellSize + (invWidth - 1) * separationX;
-                float pixelHeight = invHeight * CellSize + (invHeight - 1) * separationY;
+
+                // PHASE 3 FIX: Calculate sizes for BOTH base and effective dimensions
+                // WHY: Container size = effective dimensions (what cells it occupies)
+                //      Texture size = base dimensions (preserves aspect ratio before rotation)
+                float baseSpriteWidth = baseInvWidth * CellSize + (baseInvWidth - 1) * separationX;
+                float baseSpriteHeight = baseInvHeight * CellSize + (baseInvHeight - 1) * separationY;
+                float effectiveSpriteWidth = effectiveInvWidth * CellSize + (effectiveInvWidth - 1) * separationX;
+                float effectiveSpriteHeight = effectiveInvHeight * CellSize + (effectiveInvHeight - 1) * separationY;
 
                 // Create AtlasTexture for this specific tile (VS_009 pattern)
                 // WHY: Extracts sprite region from atlas (sprite dimensions are SpriteWidth×SpriteHeight)
@@ -745,39 +970,70 @@ public partial class SpatialInventoryContainerNode : Control
                     Region = region
                 };
 
+                // PHASE 3 FIX: Create WRAPPER container at effective size, texture inside at base size
+                // WHY: Container occupies rotated cells, texture preserves aspect ratio and rotates
+                var textureContainer = new Control
+                {
+                    Name = $"ItemContainer_{itemId.Value}",
+                    CustomMinimumSize = new Vector2(effectiveSpriteWidth, effectiveSpriteHeight),
+                    Size = new Vector2(effectiveSpriteWidth, effectiveSpriteHeight),
+                    Position = new Vector2(pixelX, pixelY),
+                    MouseFilter = MouseFilterEnum.Ignore,
+                    // Ensure item layer is absolute above highlight layer
+                    ZAsRelative = false,
+                    ZIndex = 200
+                };
+
                 var textureRect = new TextureRect
                 {
                     Name = $"Item_{itemId.Value}",
-                    Texture = atlasTexture, // Use AtlasTexture wrapper
-                    TextureFilter = CanvasItem.TextureFilterEnum.Nearest, // Pixel-perfect rendering
+                    Texture = atlasTexture,
+                    TextureFilter = CanvasItem.TextureFilterEnum.Nearest,
                     StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
                     ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
-                    CustomMinimumSize = new Vector2(pixelWidth, pixelHeight),
-                    Position = new Vector2(pixelX, pixelY),
-                    MouseFilter = MouseFilterEnum.Ignore // Grid cells handle input
+                    // Texture size is ALWAYS base dimensions (aspect ratio preserved)
+                    CustomMinimumSize = new Vector2(baseSpriteWidth, baseSpriteHeight),
+                    Size = new Vector2(baseSpriteWidth, baseSpriteHeight),
+                    // Position inside container (rotate around center of BASE dimensions)
+                    Position = new Vector2(
+                        (effectiveSpriteWidth - baseSpriteWidth) / 2f,
+                        (effectiveSpriteHeight - baseSpriteHeight) / 2f
+                    ),
+                    MouseFilter = MouseFilterEnum.Ignore,
+                    // Rotate texture around its own center
+                    Rotation = RotationHelper.ToRadians(rotation),
+                    PivotOffset = new Vector2(baseSpriteWidth / 2f, baseSpriteHeight / 2f),
+                    // Ensure sprites render above highlights
+                    ZIndex = 100
                 };
 
-                _itemOverlayContainer?.AddChild(textureRect);
+                textureContainer.AddChild(textureRect);
+                _itemOverlayContainer?.AddChild(textureContainer);
 
-                _logger.LogDebug("Rendered {ItemName} at ({X},{Y}): Sprite {SpriteW}×{SpriteH}, Inventory {InvW}×{InvH}",
-                    item.Name, origin.X, origin.Y,
-                    item.SpriteWidth, item.SpriteHeight,
-                    invWidth, invHeight);
+                // PHASE 3: Store CONTAINER reference for direct hiding during drag
+                _itemSpriteNodes[itemId] = textureContainer;
             }
         }
         else
         {
             // FALLBACK: Phase 1 ColorRect rendering (no TileSet assigned)
+            // Note: ColorRect doesn't support rotation, so fallback doesn't show rotation visually
             var colorRect = new ColorRect
             {
                 Name = $"Item_{itemId.Value}_Fallback",
                 Color = GetItemColorFallback(item.Name),
-                CustomMinimumSize = new Vector2(invWidth * CellSize * 0.9f, invHeight * CellSize * 0.9f),
+                CustomMinimumSize = new Vector2(baseInvWidth * CellSize * 0.9f, baseInvHeight * CellSize * 0.9f),
                 Position = new Vector2(origin.X * CellSize + CellSize * 0.05f, origin.Y * CellSize + CellSize * 0.05f),
-                MouseFilter = MouseFilterEnum.Ignore
+                MouseFilter = MouseFilterEnum.Ignore,
+                Rotation = RotationHelper.ToRadians(rotation),
+                PivotOffset = new Vector2(baseInvWidth * CellSize * 0.45f, baseInvHeight * CellSize * 0.45f),
+                ZIndex = 100
             };
 
             _itemOverlayContainer?.AddChild(colorRect);
+
+            // PHASE 3: Store node reference for direct hiding during drag
+            _itemSpriteNodes[itemId] = colorRect;
         }
     }
 
@@ -874,7 +1130,10 @@ public partial class SpatialInventoryContainerNode : Control
                     CustomMinimumSize = new Vector2(CellSize, CellSize),
                     Position = new Vector2(pixelX, pixelY),
                     MouseFilter = MouseFilterEnum.Ignore,
-                    Modulate = new Color(1, 1, 1, 0.7f) // Semi-transparent
+                    // PHASE 3 FIX: Extreme transparency (0.25 = 25% opacity) - pragmatic solution
+                    // WHY: Can't fix z-order reliably, so make highlights barely visible
+                    // Trade-off: Faint glow, but items always clearly visible
+                    Modulate = new Color(1, 1, 1, 0.25f)
                 };
 
                 _highlightOverlayContainer.AddChild(highlight);
@@ -890,9 +1149,11 @@ public partial class SpatialInventoryContainerNode : Control
         if (_highlightOverlayContainer == null)
             return;
 
+        // PHASE 3: Use Free() instead of QueueFree() for immediate removal
+        // WHY: QueueFree() delays removal until end of frame, causing ghost highlights
         foreach (Node child in _highlightOverlayContainer.GetChildren())
         {
-            child.QueueFree();
+            child.Free(); // Immediate removal, not queued
         }
     }
 
@@ -906,11 +1167,12 @@ public partial class SpatialInventoryContainerNode : Control
         GridPosition sourcePos,
         ActorId targetActorId,
         ItemId targetItemId,
-        GridPosition targetPos)
+        GridPosition targetPos,
+        Rotation rotation) // PHASE 3: Rotation for dragged item
     {
-        _logger.LogInformation("SAFE SWAP: {SourceItem} @ ({SourceX},{SourceY}) ↔ {TargetItem} @ ({TargetX},{TargetY})",
+        _logger.LogInformation("SAFE SWAP: {SourceItem} @ ({SourceX},{SourceY}) ↔ {TargetItem} @ ({TargetX},{TargetY}) with rotation {Rotation}",
             sourceItemId, sourcePos.X, sourcePos.Y,
-            targetItemId, targetPos.X, targetPos.Y);
+            targetItemId, targetPos.X, targetPos.Y, rotation);
 
         // STEP 1: Remove both items (hold in memory for rollback)
         var removeSourceCmd = new RemoveItemCommand(sourceActorId, sourceItemId);
@@ -963,7 +1225,7 @@ public partial class SpatialInventoryContainerNode : Control
         EmitSignal(SignalName.InventoryChanged);
     }
 
-    private async void MoveItemAsync(ActorId sourceActorId, ItemId itemId, GridPosition targetPos)
+    private async void MoveItemAsync(ActorId sourceActorId, ItemId itemId, GridPosition targetPos, Rotation rotation)
     {
         if (OwnerActorId == null)
             return;
@@ -972,7 +1234,8 @@ public partial class SpatialInventoryContainerNode : Control
             sourceActorId,
             OwnerActorId.Value,
             itemId,
-            targetPos);
+            targetPos,
+            rotation); // PHASE 3: Pass rotation from drag-drop
 
         var result = await _mediator.Send(command);
 
@@ -1030,5 +1293,103 @@ public partial class SpatialInventoryContainerNode : Control
             return Result.Failure<string>(result.Error);
 
         return Result.Success(result.Value.Type);
+    }
+
+    /// <summary>
+    /// Creates a sprite-based drag preview that can be updated with rotation (Phase 3).
+    /// </summary>
+    private void CreateDragPreview(ItemId itemId)
+    {
+        // Query item data for sprite rendering (synchronously for immediate preview)
+        var itemQuery = new GetItemByIdQuery(itemId);
+        var itemResult = _mediator.Send(itemQuery).Result;
+
+        if (itemResult.IsFailure || _itemTileSet == null)
+        {
+            // Fallback: Create simple label preview
+            _dragPreviewNode = new Label { Text = $"📦 {_itemNames.GetValueOrDefault(itemId, "Item")}" };
+            return;
+        }
+
+        var item = itemResult.Value;
+        var atlasSource = _itemTileSet.GetSource(0) as TileSetAtlasSource;
+        if (atlasSource == null)
+        {
+            _dragPreviewNode = new Label { Text = $"📦 {item.Name}" };
+            return;
+        }
+
+        // Get base dimensions (UNROTATED)
+        var (baseWidth, baseHeight) = _itemDimensions.GetValueOrDefault(itemId, (1, 1));
+
+        // PHASE 3 FIX: For drag preview, use BASE-sized container (simpler than two-layer)
+        // WHY: Drag preview doesn't need to occupy cells - just needs to rotate naturally
+        float baseSpriteWidth = baseWidth * CellSize;
+        float baseSpriteHeight = baseHeight * CellSize;
+
+        // Extract sprite from atlas
+        var tileCoords = new Vector2I(item.AtlasX, item.AtlasY);
+        var region = atlasSource.GetTileTextureRegion(tileCoords);
+        var atlasTexture = new AtlasTexture
+        {
+            Atlas = atlasSource.Texture,
+            Region = region
+        };
+
+        // Create sprite preview (single-layer: texture fills container, rotates around center)
+        _dragPreviewSprite = new TextureRect
+        {
+            Texture = atlasTexture,
+            TextureFilter = CanvasItem.TextureFilterEnum.Nearest,
+            StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
+            ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+            CustomMinimumSize = new Vector2(baseSpriteWidth, baseSpriteHeight),
+            Size = new Vector2(baseSpriteWidth, baseSpriteHeight),
+            Position = Vector2.Zero,
+            Rotation = RotationHelper.ToRadians(_sharedDragRotation),
+            PivotOffset = new Vector2(baseSpriteWidth / 2f, baseSpriteHeight / 2f),
+            Modulate = new Color(1, 1, 1, 0.8f)
+        };
+
+        // Root for preview (engine positions this at the mouse)
+        var previewRoot = new Control
+        {
+            MouseFilter = MouseFilterEnum.Ignore
+        };
+
+        // Child offset container so the cursor sits at the sprite's CENTER
+        var offsetContainer = new Control
+        {
+            Position = new Vector2(-baseSpriteWidth / 2f, -baseSpriteHeight / 2f),
+            CustomMinimumSize = new Vector2(baseSpriteWidth, baseSpriteHeight),
+            Size = new Vector2(baseSpriteWidth, baseSpriteHeight)
+        };
+        offsetContainer.AddChild(_dragPreviewSprite);
+        previewRoot.AddChild(offsetContainer);
+        _dragPreviewNode = previewRoot;
+    }
+
+    /// <summary>
+    /// Rotates an item in inventory (Phase 3).
+    /// Sends RotateItemCommand and refreshes display on success.
+    /// </summary>
+    private async void RotateItemAsync(ItemId itemId, Rotation newRotation)
+    {
+        if (OwnerActorId == null)
+            return;
+
+        var command = new RotateItemCommand(OwnerActorId.Value, itemId, newRotation);
+        var result = await _mediator.Send(command);
+
+        if (result.IsFailure)
+        {
+            _logger.LogWarning("Failed to rotate item {ItemId}: {Error}", itemId, result.Error);
+            return;
+        }
+
+        _logger.LogInformation("Successfully rotated item {ItemId} to {Rotation}", itemId, newRotation);
+
+        // Refresh display to show rotated sprite
+        RefreshDisplay();
     }
 }

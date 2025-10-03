@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-03 14:00 (Dev Engineer: VS_018 Phase 2 - Sprite/Inventory separation complete, rendering verified)
+**Last Updated**: 2025-10-03 19:11 (Dev Engineer: VS_018 Phase 3 COMPLETE - Rotation, cross-container persistence, equipment reset, extreme transparency solution)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -142,23 +142,22 @@
 
 
 
-### VS_018: Spatial Inventory System (Multi-Phase) ✅ **PHASE 2 COMPLETE**
+### VS_018: Spatial Inventory System (Multi-Phase) ✅ **PHASE 3 COMPLETE**
 
-**Status**: Phase 1 ✅ + Phase 2 ✅ Complete (including Phase 2.4 drag highlights) - Ready for PR
-**Owner**: Dev Engineer (Phase 2 done, self-collision polish optional, Phase 3 ready)
-**Size**: XL (12-16h across 4 phases, Phase 1 = 4-5h)
-**Priority**: Important (Phase 2 foundation - enhances VS_008 slot-based inventory)
+**Status**: Phase 1 ✅ + Phase 2 ✅ + Phase 3 ✅ (Ready for Phase 4)
+**Owner**: Product Owner (decide on Phase 4 timing)
+**Size**: XL (12-16h across 4 phases) | **Actual**: Phase 1 (6h), Phase 2 (5h), Phase 3 (6h)
+**Priority**: Important (Core gameplay mechanic)
 **Depends On**: VS_008 (Slot-Based Inventory ✅), VS_009 (Item Definitions ✅)
 **Markers**: [ARCHITECTURE] [UX-CRITICAL] [BACKWARD-COMPATIBLE]
 
-**What**: Upgrade slot-based inventory (VS_008) to spatial grid system with drag-drop, multi-container support, type filtering, and progressive complexity (Phase 1: interactions → Phase 4: complex shapes)
+**What**: Tetris-style spatial inventory with drag-drop, multi-cell items, rotation, and type filtering
 
 **Why**:
-- **User Experience**: Drag-drop is more intuitive than "Add/Remove" buttons (matches Diablo 2, Resident Evil, Tarkov UX expectations)
-- **Multi-Container**: Backpack + weapon slot + equipment slots (each with different rules)
-- **Type Safety**: Weapon slots only accept weapons (prevents invalid placements)
-- **Foundation**: Spatial grid enables item weight distribution, container nesting (future VS_013)
-- **Incremental**: 4 phases from simple (1×1 items) → complex (L-shapes + rotation)
+- **UX**: Drag-drop more intuitive than buttons (Diablo 2, Resident Evil, Tarkov standard)
+- **Multi-Container**: Backpack + weapon slots with different validation rules
+- **Type Safety**: Equipment slots only accept matching item types
+- **Incremental**: 4 phases ensures each step is testable and shippable
 
 **How** (4-Phase Incremental Design):
 
@@ -194,12 +193,30 @@
 - **NO rotation yet** (sword is always 2×1, cannot become 1×2)
 - **Tests**: 15-20 additional tests (multi-cell collision, boundary checks)
 
-**Phase 3: Rotation Support** (2-3h)
+**Phase 3: Rotation Support** (2-3h) ✅ **COMPLETE** (2025-10-03 19:11)
 - **Goal**: Rotate items 90° (2×1 sword → 1×2 sword)
-- **Domain**: Add `Rotation` enum (Degrees0, Degrees90, Degrees180, Degrees270), swap Width↔Height logic
-- **Application**: `RotateItemCommand`, rotation state persistence
-- **Presentation**: Right-click or R key to rotate, visual rotation animation
-- **Tests**: 10-15 tests (rotation state, dimension swapping, collision after rotation)
+- **Domain**: ✅ `Rotation` enum, `RotationHelper`, dimension swapping, collision validation
+- **Application**: ✅ `RotateItemCommand`, `MoveItemBetweenContainersCommand` with rotation
+- **Presentation**: ✅ Mouse scroll during drag, sprite rotation, highlight updates, extreme transparency solution
+- **Tests**: ✅ 13 new rotation tests (348/348 passing)
+- **ALL FEATURES WORKING** ✅:
+  1. ✅ **Rotation Persistence** (2025-10-03 19:11): Static `_sharedDragRotation` variable preserves rotation across container moves
+  2. ✅ **Equipment Slot Reset** (2025-10-03 19:11): Equipment slots reset rotation to Degrees0 for visual consistency
+  3. ✅ **Z-Order Rendering** (2025-10-03 19:11): Extreme transparency (25% opacity) makes highlights visible but non-obscuring
+  4. ✅ **Double Rotation**: One scroll = one 90° rotation (`Pressed` check added)
+  5. ✅ **Ghost Highlights**: `Free()` instead of `QueueFree()` for immediate cleanup
+  6. ✅ **Drag-Drop Visual Artifact**: Direct node references via `Dictionary<ItemId, Node>`
+  7. ✅ **Drag Preview Centering**: Offset container centers cursor at sprite center
+
+**✨ Phase 3 Final Solution Summary**:
+- **Core**: Static shared rotation state for cross-container drag-drop
+- **UI**: Mouse scroll rotation, sprite PivotOffset rotation, extreme transparency highlights (25%)
+- **Tests**: 13 new rotation tests, all passing (348/348 total)
+- **Key Lessons**:
+  - Godot's drag-drop state is container-local → use static variables for cross-container communication
+  - Control node z-ordering unreliable → pragmatic transparency workaround (25% opacity)
+  - Direct node references beat string matching (O(1) lookup, no async issues)
+  - Equipment slots reset rotation to Degrees0 for standard orientation display
 
 **Phase 4: Complex Shapes** (3-4h)
 - **Goal**: L-shapes, T-shapes via bool[] masks (Tetris-style)
@@ -247,351 +264,29 @@
 - ✅ VS_008 regression tests: All 23 existing tests still pass (backward compatibility verified)
 - ✅ Architecture tests: Zero Godot dependencies in Darklands.Core (ADR-002 compliance)
 
-**Tech Lead Decision** (2025-10-02 23:37):
-- **Phased approach validated**: Interaction mechanics (Phase 1) → Multi-cell (Phase 2) → Rotation (Phase 3) → Shapes (Phase 4)
-- **Backward compatibility**: VS_008 slot-based API preserved, spatial is additive evolution
-- **Container type filtering**: Enum-based system (General/WeaponOnly/ConsumableOnly) extensible for future slots
-- **Drag-drop architecture**: Godot's built-in `_GetDragData`/`_CanDropData`/`_DropData` (simpler than custom mouse tracking)
-- **GridPosition as value object**: Shared primitive in Domain/Common (reusable for map positions, crafting grids)
-- **Shape metadata strategy**: Defer to Phase 4, choose JSON vs TileSet string encoding based on designer feedback
-- **Migration risk**: LOW - backward compat overloads + existing tests ensure no VS_008 regressions
-- **Phase 1 focus**: UX validation (does drag-drop feel better than buttons?) before multi-cell complexity
-- **Blocks**: VS_010 (Stacking - needs spatial positions), VS_013 (Containers - nested grids)
-- **Next steps**: Await Product Owner approval, then hand off Phase 1 to Dev Engineer
+**Key Architecture Decisions** (Tech Lead, 2025-10-02):
+- **Phased approach**: UX first (Phase 1) → Complexity incrementally (Phases 2-4)
+- **Backward compatibility**: VS_008 API preserved, spatial additive (zero breaking changes)
+- **Drag-drop**: Godot built-in system (`_GetDragData`/`_CanDropData`/`_DropData`)
+- **GridPosition**: Shared value object in Domain/Common (reusable across features)
+- **Type filtering**: Enum-based (extensible for future equipment slot types)
 
-**Dev Engineer Progress** (2025-10-03 00:36 - Core + Tests):
-- ✅ **Phase 1 Core Implementation Complete** (260/260 tests passing)
-- ✅ Domain Layer: GridPosition, ContainerType enum, spatial Inventory entity (Dictionary-based storage)
-- ✅ Application Layer: Commands (PlaceItemAt, MoveItemBetween), Queries (CanPlaceItemAt), enhanced InventoryDto
-- ✅ Backward Compatibility: All 23 VS_008 tests pass, Create(capacity) → square root grid mapping (20→5×4, 100→10×10)
-- ✅ Type Filtering: WeaponOnly containers reject non-weapon items (validated in handlers)
-- ✅ Build: Both Core + Godot projects compile successfully
-- 📊 **Test Coverage**:
-  - Domain: 154 tests (<100ms) including 13 new spatial tests
-  - Application: 106 tests (<500ms) including 9 new command/query tests
-  - Total: 260 Phase 1+2 tests passing, 313/314 full suite (1 pre-existing flaky test)
-- 🎯 **Architecture Wins**:
-  - Single source of truth: Dictionary primary storage, Items property computed for backward compat
-  - Cross-aggregate orchestration: Type filtering in Application handlers (Domain stays decoupled)
-  - Repository enhancement: SaveAsync now handles entity replacement (no-op → update dictionary)
+**✅ Phase 1 Complete** (2025-10-03, 6h actual):
+- **Core**: GridPosition, ContainerType, spatial Inventory, Commands/Queries (261 tests passing)
+- **UI**: Drag-drop working, tooltips, 4-color item types, equipment swap, type filtering
+- **Lessons**:
+  - Mouse filter hierarchy critical for Godot drag events (`Pass` vs `Stop` vs `Ignore`)
+  - Defense-in-depth for data loss: Validate type in BOTH `_CanDropData` AND handler
+  - Safe swap algorithm: Remove→Remove→Place→Place with full rollback at each step
 
-**Dev Engineer Progress** (2025-10-03 01:55 - Drag-Drop Partially Working):
-- ✅ **Phase 1 Core Complete** (260/260 tests passing)
-  - Domain: GridPosition, ContainerType, spatial Inventory entity
-  - Application: Commands (PlaceItemAt, MoveItemBetween), Queries (CanPlaceItemAt)
-  - Infrastructure: InMemoryInventoryRepository with RegisterInventoryForActor
-- ✅ **Phase 1 Presentation Built**:
-  - SpatialInventoryTestScene.tscn: 3 containers (2 backpacks + weapon slot)
-  - SpatialInventoryContainerNode: Grid rendering, drag-drop implementation
-  - EquipmentSlotNode: Single-slot design for weapon (not grid-based)
-  - Item population: 4 test items pre-loaded (2 weapons in Backpack A, 2 items in Backpack B)
-- 🎨 **Visual Enhancements Added**:
-  - Color coding: Weapons = blue (0.2, 0.4, 0.8), Items = green (0.2, 0.8, 0.4)
-  - Cell highlighting: Occupied cells visually distinct from empty cells
-  - Mouse filter enabled: MouseFilter.Stop on all grid cells
-- 📊 **Comprehensive Logging Added**:
-  - _GetDragData: Logs click position, grid position, item lookup
-  - _CanDropData: Logs drop validation checks
-  - _DropData: Logs GUID parsing, command dispatch
-  - Item type queries: Logs type resolution for color coding
-- ✅ **DRAG-DROP BREAKTHROUGH** (BR_004 Resolution):
-  - **Root Cause Found**: Mouse filter hierarchy blocking events at multiple levels
-  - **Fix 1**: Scene placeholders (.tscn) - Removed `mouse_filter = 2` (IGNORE) from BackpackA/BackpackB nodes
-  - **Fix 2**: Container internals - Changed VBoxContainer/GridContainer from IGNORE → PASS
-  - **Fix 3**: Grid cells - Set `MouseFilter = Stop` on Panel cells to receive clicks
-  - **Fix 4**: Grid rebuild bug - Only create cells once (check `GetChildCount() == 0`)
-- 🎉 **Working Features**:
-  - ✅ Backpack A ↔ Backpack B drag-drop functional
-  - ✅ Color coding working (weapons=blue, items=green)
-  - ✅ 4 test items pre-loaded and visible
-  - ✅ Capacity counts updating correctly (e.g., "Backpack B (3/64)")
-  - ✅ Container expansion bug fixed (cells no longer duplicate on reload)
-  - ✅ Comprehensive logging showing drag events flowing correctly
-- ✅ **CROSS-CONTAINER SYNC FIX** (2025-10-03 02:11):
-  - **Bug**: Ghost items persisted in source container after drag-drop to another container
-  - **Root Cause**: Only target container refreshed display, source container unaware of change
-  - **Solution**: Signal-based broadcast refresh system
-    - `SpatialInventoryContainerNode` emits `InventoryChanged` signal after successful move
-    - `SpatialInventoryTestController` subscribes to all container signals
-    - On signal: Calls `RefreshDisplay()` on ALL containers (broadcast sync)
-  - **Architecture**: Decoupled (containers don't know about each other), extensible (add containers via subscription)
-  - **Result**: Both source and target containers update correctly after cross-container drag-drop ✅
-  - **Commits**: fd854c6 (fix), c9aff62 (weapon slot + logging cleanup)
-- ✅ **WEAPON SLOT DRAG-DROP FIX** (2025-10-03 02:16):
-  - **Problem**: EquipmentSlotNode not receiving drag-drop events despite identical code
-  - **Solution**: Replaced with 1×1 `SpatialInventoryContainerNode` (pattern reuse)
-  - **Result**: Weapon slot now functional with type filtering ✅
-  - **Commit**: c9aff62
-- 🐛 **CRITICAL BUG FIXED - Data Loss** (2025-10-03 02:23):
-  - **Severity**: DATA LOSS - Items disappeared when dragging non-weapon to weapon slot
-  - **Bug Sequence**:
-    1. User drags potion → weapon slot (type mismatch)
-    2. `_CanDropData` returns true (only checked position, not type)
-    3. `MoveItemBetweenContainersCommand` removes item from source
-    4. Type validation fails (WeaponOnly rejects potion)
-    5. Command returns failure, item never added to target
-    6. **Result**: Item removed from source, not in target = LOST 💥
-  - **Root Cause**: Type validation happened AFTER `RemoveItem()` call
-  - **Fix - Defense in Depth**:
-    - **Presentation Layer**: `_CanDropData` now validates type (cache + MediatR fallback)
-    - **Application Layer**: Type validation moved BEFORE `RemoveItem()`
-  - **Testing**:
-    - ✅ 261 Core tests passing (260 → 261 with new regression test)
-    - ✅ `Handle_FailedTypeValidation_ShouldNotRemoveItemFromSource` verifies data preservation
-  - **Commits**: b502561 (fix), dcfdb23 (regression test)
-- 🔄 **REMAINING WORK** (Final 2%):
-  - **Feature**: Weapon swap functionality
-  - **Current Behavior**: Drag weapon onto occupied weapon slot → Red highlight, drop fails
-  - **User Request**: Support swapping (drag weapon onto equipped weapon → swap positions)
-  - **Additional Request**: 4+ item types for visual distinction (more color coding)
-- ❓ **DESIGN DECISION NEEDED** (Next Session):
-  - **Question**: What should swap scope be?
-    - **Option A**: Weapon slot ↔ Weapon slot only (equipment-specific swap)
-    - **Option B**: Any occupied position → Any occupied position (universal swap)
-    - **Option C**: Equipment slots support swap, backpacks do not (hybrid)
-  - **Considerations**:
-    - **UX Precedent**: Diablo 2, Resident Evil support equipment swaps
-    - **Complexity**: Universal swap requires atomicity (what if 2nd placement fails?)
-    - **Phase Scope**: Is swap Phase 1 (core UX) or Phase 2 (enhancement)?
-- ⏭️ **Next Session Tasks**:
-  1. **Manual test data loss fix** in Godot (verify items no longer disappear)
-  2. **Design decision**: Weapon swap scope (Options A/B/C above)
-  3. **Implement swap** (if approved for Phase 1)
-  4. **Add item type variety** (4+ types with color coding)
-  5. **Final Phase 1 validation** (all acceptance criteria met)
-
-**Dev Engineer Session** (2025-10-03 Complete - Phase 1 DONE):
-- ✅ **4-Color Item Types Implemented** (per-item visual distinction):
-  - TileSet updated: `weapon`, `consumable` (red_vial), `tool` (gadget), `armor` (green_vial)
-  - Per-item colors: dagger=light blue, ray_gun=purple, red_vial=red, green_vial=bright green, gadget=yellow
-  - ColorRect icons rendered inside cells (70% size, centered, MouseFilter.Ignore)
-  - Commit: fc1d3c7
-- ✅ **Equipment Swap (Option C) Implemented**:
-  - Initial broken implementation caused data loss (MoveItemBetweenContainers collision issue)
-  - **Root Cause**: Step 1 tried to move item to occupied position → placement failed → item lost
-  - **Safe Swap Algorithm** (4-step with full rollback):
-    1. Remove source item (if fails → abort)
-    2. Remove target item (if fails → restore source)
-    3. Place source at target (if fails → restore both)
-    4. Place target at source (if fails → remove misplaced source, restore both)
-  - Uses `RemoveItemCommand` + `PlaceItemAtPositionCommand` (not `MoveItemBetweenContainers`)
-  - Weapon slots support swap, backpacks reject occupied drops (Option C hybrid)
-  - Commits: ed479c0 (disable broken swap), 69567b1 (safe swap implementation)
-- ✅ **Hover Tooltips Working**:
-  - Tooltips display "{ItemName} ({ItemType})" on hover (e.g., "dagger (weapon)")
-  - Empty cells show "Empty (X, Y)"
-  - MouseFilter.Pass on cells allows tooltips + drag-drop event bubbling
-  - Commits: 22966be (tooltips), ca9c1ca (MouseFilter.Pass fix)
-- ✅ **Enhanced Drag Preview**:
-  - Shows item name: "📦 red_vial" instead of generic "📦 Item"
-  - Dark panel background with rounded corners for visibility
-  - Commit: 82c79d6
-- 🐛 **CRITICAL Data Loss Bug Fixed** (Swap-Related):
-  - **Bug**: Items disappeared when attempting swap on occupied weapon slot
-  - **Cause**: Broken two-step swap tried to place at occupied position → collision → item lost
-  - **Fix**: Disabled broken swap, then reimplemented with safe Remove→Place pattern
-  - **Verification**: User tested, no more item loss, swap working correctly ✅
-- 📚 **Memory Bank Updated**:
-  - Added User Testing Protocol: Use `_logger.LogInformation` during testing, downgrade to `LogDebug` after
-  - Benefits: Structured logging (Serilog), rich formatting, no code deletion needed
-  - Commits: ecc00c9 (initial protocol), c9c347d (correction to use ILogger not GD.Print)
-- 📊 **Final Status**:
-  - ✅ All Phase 1 features working (drag-drop, swap, tooltips, colors, type filtering)
-  - ✅ No data loss bugs (safe swap with rollback)
-  - ✅ User-tested and confirmed working
-  - ✅ 261 Core tests passing (1 regression test added for type validation data loss)
-  - ✅ Backward compatibility maintained (VS_008 tests still pass)
-- 🎯 **Phase 1 Complete** - Ready for PR to main
-
-**Dev Engineer Session** (2025-10-03 13:25 - Phase 2 Multi-Cell Rendering):
-- ✅ **Phase 2.3: Multi-Cell TextureRect Rendering** (rendering-first approach):
-  - **Architecture**: Overlay layer for multi-cell sprites on top of grid cells
-    - Grid cells (Panel): Hit-testing and structure (unchanged from Phase 1)
-    - Overlay container (Control): Z-index 10, renders TextureRect sprites spanning multiple cells
-    - Item dimensions cached: Dictionary<ItemId, (Width, Height)> from ItemDto
-  - **VS_009 Pattern Reuse**: AtlasTexture wrapper for sprite region extraction
-    - `atlasSource.GetTileTextureRegion(tileCoords)` auto-calculates region
-    - TextureRect with ExpandMode.IgnoreSize + StretchMode.KeepAspectCentered
-    - Pixel-perfect rendering: TextureFilter.Nearest for crisp sprites
-  - **Multi-Cell Calculation**: Account for 2px grid separation
-    - pixelWidth = width × CellSize + (width - 1) × separationX
-    - Items positioned at origin.X × (CellSize + separationX)
-  - **TileSet Scene Assignment**: Fixed missing ItemTileSet in SpatialInventoryTestScene.tscn
-    - Added external resource: `uid://bmiw87gmm1wvp` (correct UID)
-    - Property injection: Controller → Container nodes via `ItemTileSet = ItemTileSet`
-  - **Rendering Results** (user-confirmed):
-    - ✅ ray_gun (4×4) renders spanning 4×4 grid cells with sprite
-    - ✅ dagger (4×2) renders horizontally across 2 rows
-    - ✅ gadget (2×4) renders vertically across 4 rows
-    - ✅ red_vial, green_vial (2×2) render as 2×2 sprites
-    - ✅ Pixel-perfect, centered, grid cells visible underneath
-  - **Fallback Support**: ColorRect rendering when TileSet not assigned (backward compat)
-  - **Files Modified**:
-    - SpatialInventoryContainerNode.cs: Overlay architecture, RenderMultiCellItemSprite()
-    - SpatialInventoryTestScene.tscn: TileSet resource assignment
-- 🎯 **Phase 2.3 Complete** - Rendering verified working
-- ⏭️ **Next**: Phase 2.4 (green/red drag highlight), then Domain/Application collision
-
-**Dev Engineer Session** (2025-10-03 13:50 - Phase 2 Sprite/Inventory Dimension Separation):
-- ✅ **Critical Insight**: User caught conceptual error - sprite size ≠ inventory occupation
-  - **Problem**: Phase 2.3 used `size_in_atlas` for BOTH visual rendering AND logical collision
-  - **Example**: ray_gun sprite is 4×4 atlas tiles but should occupy 2×2 inventory cells
-  - **Root Cause**: Single Width/Height property mixed visual and logical concerns
-- ✅ **Solution: Dual Metadata System** (TileSet custom_data_3/4):
-  - `size_in_atlas` → `SpriteWidth/Height` (visual rendering size in atlas tiles)
-  - `custom_data_3/4` → `InventoryWidth/Height` (logical occupation in grid cells)
-  - **Metadata verified**: ray_gun (4×4 sprite → 2×2 inventory), dagger (4×2 → 2×1), etc.
-- ✅ **Domain Entity Updated**: `Item.cs`
-  - Renamed: `Width/Height` → `SpriteWidth/SpriteHeight` (breaking change)
-  - Added: `InventoryWidth/InventoryHeight` properties
-  - Validation: Both dimensions must be positive (4 new business rules)
-- ✅ **Application Layer Updated**:
-  - `ItemDto`: Added `SpriteWidth/Height` + `InventoryWidth/Height` fields
-  - Query handlers: Map new properties (GetItemById, GetAll, GetByType)
-- ✅ **Infrastructure Updated**: `TileSetItemRepository.cs`
-  - Reads `custom_data_3` (inventory_width) with fallback to sprite width
-  - Reads `custom_data_4` (inventory_height) with fallback to sprite height
-  - Logging: Shows both dimensions for debugging
-- ✅ **Presentation Updated**: `SpatialInventoryContainerNode.cs`
-  - Rendering uses `InventoryWidth/Height` for pixel size (how many cells sprite spans)
-  - AtlasTexture extracts sprite region using atlas coordinates (sprite dimensions)
-  - Result: 4×4 sprite renders within 2×2 inventory cell space (scaled to fit)
-- ⏳ **Tests WIP** (15 compilation errors remaining):
-  - Batch fixed: ~40 test files updated with `spriteWidth/spriteHeight` parameters
-  - Remaining: Inventory test helpers need `inventoryWidth/inventoryHeight` added
-  - Status: Domain/Application/Infrastructure compile ✅, Tests compile ❌
-- 📋 **Next Session Tasks**:
-  1. Fix remaining 15 test errors (add inventory dimensions to test helpers)
-
-**Dev Engineer Session** (2025-10-03 14:35 - Phase 2 Multi-Cell Occupation COMPLETE):
-- ✅ **Phase 2 Core Implementation - Multi-Cell Occupation**:
-  - **Problem Diagnosed**: Items only occupied single cell despite rendering correctly at multi-cell size
-  - **Root Cause**: Presentation layer's dimension caching order bug
-    - `LoadItemTypes()` called BEFORE `_itemsAtPositions` populated
-    - Iterated over empty dictionary → `_itemDimensions` never filled
-    - Rendering used `GetValueOrDefault(itemId, (1,1))` → always got 1×1 fallback
-- ✅ **Domain Layer - Rectangle Collision**:
-  - Added `_itemDimensions` dictionary caching width×height per item
-  - New `PlaceItemAt(itemId, position, width, height)` overload with AABB collision
-  - Rectangle overlap detection: `!(pos.X >= existing.X + width || ...)` logic
-  - Bounds validation: Ensures `position.X + width <= GridWidth`
-  - Backward compat: 1-param `PlaceItemAt()` calls 2-param with (1,1) dimensions
-  - Cleanup: `RemoveItem()` and `Clear()` now remove from both dictionaries
-- ✅ **Application Layer - Cross-Aggregate Orchestration**:
-  - `PlaceItemAtPositionCommandHandler`: Queries `item.InventoryWidth/Height`, passes to Domain
-  - `MoveItemBetweenContainersCommandHandler`: Fixed to preserve dimensions on cross-container moves
-  - `InventoryDto`: Added `ItemDimensions` property exposing Domain's dimension cache
-  - `GetInventoryQueryHandler`: Maps `inventory.ItemDimensions` to DTO
-- ✅ **Presentation Layer - Proper Dimension Caching**:
-  - Fixed caching order: Domain dimensions → `_itemDimensions` → LoadItemTypes() → Build cell map
-  - Added `_itemOrigins` dictionary (ItemId → GridPosition from Domain)
-  - Multi-cell occupation: Builds reverse lookup mapping ALL occupied cells → ItemId
-  - Drag detection: Works from ANY occupied cell, returns item origin for commands
-  - Rendering: Uses `_itemOrigins` to render each item once at its origin position
-- ✅ **Intra-Container Move Bug Fixed** (Data Loss Prevention):
-  - **Bug**: Items disappeared when moving within same container (collision with self)
-  - **Root Cause**: Handler removed item, placement failed (self-collision), rollback missing
-  - **Solution**: Capture original position before remove, full rollback on placement failure
-  - **Pattern**: `GetItemPosition() → RemoveItem() → PlaceItemAt() (if fail → restore at original)`
-  - User tested: Invalid moves now preserve item at original position ✅
-- ✅ **Equipment Slot Dimension Override** (Industry Standard Pattern):
-  - **Problem**: Weapon slot (1×1 grid) rejected multi-cell weapons (2×1 dagger, 2×2 ray_gun)
-  - **Option A Tried**: Enlarged weapon slot to 4×4 grid → Worked but wrong UX
-  - **Option B Implemented**: Application handlers override dimensions to 1×1 for equipment slots
-  - **Logic**: `if (containerType == WeaponOnly) { width = 1; height = 1; }`
-  - **Result**: Any weapon fits in 1×1 weapon slot, backpack Tetris still uses real dimensions
-  - **Industry Precedent**: Matches Diablo 2, Path of Exile, Resident Evil equipment behavior
-  - Reverted weapon slot back to 1×1 grid (proper single-slot appearance)
-- 📊 **Testing Results**:
-  - ✅ User verified: Intra-container repositioning works (dagger moves within backpack)
-  - ✅ User verified: Cross-container moves work (items maintain size backpack A → B)
-  - ✅ User verified: Equipment slot accepts all weapons (2×1, 2×2, any size)
-  - ✅ User verified: Equipment swap working (weapon ↔ weapon in slot)
-  - ✅ User verified: Collision detection prevents overlapping multi-cell items
-  - ✅ User verified: No data loss on invalid moves (rollback successful)
-- 🎯 **Phase 2 Core Features Complete**:
-  - ✅ Multi-cell rendering (items span Width×Height cells visually)
-  - ✅ Multi-cell occupation (Domain stores all occupied cells, prevents overlaps)
-  - ✅ Rectangle collision (AABB overlap detection for complex item shapes)
-  - ✅ Equipment slot dimension override (1×1 weapon slot accepts any weapon)
-  - ✅ Drag from any cell (can grab multi-cell item from any occupied cell)
-  - ✅ Intra-container repositioning with rollback (no data loss)
-  - ✅ Cross-container moves preserve dimensions
-- ✅ **Phase 2.4 Implemented** (UX Polish - Drag Highlight):
-  - ✅ Green/red highlight sprites showing multi-cell item footprint during drag
-  - ✅ Highlight overlay container (Z-index 15, renders above items)
-  - ✅ Real-time validation feedback (bounds, collision, type checking)
-  - ✅ Cross-container dimension query (lazy loading when not in cache)
-  - ✅ Highlight cleanup on mouse exit, drag end, and successful drop
-  - ✅ Equipment slot dimension override (1×1 highlights for weapon slots)
-  - ✅ Self-collision fix: Dropping at same position now shows green (ignores self)
-- 🎉 **PHASE 2 COMPLETE** (All features working, ready for PR)
-
-**Dev Engineer Session** (2025-10-03 15:15 - Phase 2.4 Drag Highlight Complete):
-- ✅ **Highlight Overlay System**:
-  - Added `_highlightOverlayContainer` (Z-index 15, above items at Z-index 10)
-  - `RenderDragHighlight()`: Renders green (`highlight_green` 1,6) or red (`highlight_red` 1,7) sprites
-  - Multi-cell support: Renders highlight for EVERY cell in item footprint
-  - 70% opacity for semi-transparent overlay effect
-- ✅ **Dynamic Validation in `_CanDropData`**:
-  - Full validation: Bounds check, multi-cell collision, type filtering
-  - Dimension query: Cache lookup first, falls back to MediatR query for cross-container drags
-  - Equipment slot override: Forces 1×1 dimensions for weapon slots (matches placement logic)
-  - Visual feedback: `isValid` flag determines green vs red highlight
-- ✅ **Highlight Lifecycle Management**:
-  - `_Notification(NOTIFICATION_MOUSE_EXIT)`: Clear when mouse leaves container
-  - `_Input(InputEventMouseButton)`: Clear when left mouse released (handles rejected drops)
-  - `_DropData()`: Clear on successful drop
-- ✅ **Cross-Container Bug Fixes**:
-  - Bug: Highlights appeared on source container instead of target
-  - Fix: Mouse exit clears source highlights when dragging to different container
-  - Bug: Wrong highlight size (1×1 instead of 2×2) for cross-container drags
-  - Fix: Query item dimensions from repository when not in local cache
-  - Bug: Lingering red highlights after failed drop
-  - Fix: Detect mouse release via `_Input` to clear highlights on drag end
-- 📊 **User Testing Results**:
-  - ✅ Green highlights for valid placements (multi-cell footprint accurate)
-  - ✅ Red highlights for collisions, bounds errors, type mismatches
-  - ✅ Cross-container drag shows correct 2×2 highlights
-  - ✅ Equipment slot shows 1×1 highlights (dimension override working)
-  - ✅ Highlights clear instantly on drop (successful or failed)
-  - ✅ Self-collision fix: Changed collision check from `ContainsKey` to `TryGetValue` with itemId comparison
-- 🎯 **Phase 2.4 Complete** - Full visual feedback system working
-
-**Dev Engineer Session** (2025-10-03 15:45 - Self-Collision Fix):
-- ✅ **Self-Collision Detection Fixed**:
-  - Problem: Dragging item and dropping at same position showed red (collision with self)
-  - Root cause: `_itemsAtPositions.ContainsKey()` detected ALL occupied cells, including dragged item
-  - Solution: Changed to `TryGetValue(checkPos, out var occupyingItemId)` and compare `occupyingItemId != itemId`
-  - Logic: If cell is occupied by the SAME item being dragged → Ignore collision (not different item)
-  - Result: Dropping at same position now shows green highlights ✅
-- 📊 **User Verification**:
-  - ✅ Drag ray_gun (2×2), drop at same position → Green highlights (self-collision ignored)
-  - ✅ Drag dagger, overlap with OTHER item → Red highlights (real collision detected)
-  - ✅ Works for all item sizes (1×1, 2×1, 2×2, etc.)
-- 🎉 **Phase 2 FULLY COMPLETE** - All features working, zero known issues
-
----
-
-**Dev Engineer Session** (2025-10-03 14:00 - Build Errors Fixed):
-- ✅ **All Compilation Errors Resolved** (15 → 0):
-  - Fixed inventory test helpers: Added `inventoryWidth/inventoryHeight` to `Item.Create()` calls
-  - Pattern: Old signature (id, x, y, name, type, width, maxStack) → New (id, x, y, name, type, spriteW, spriteH, invW, invH, maxStack)
-  - Files fixed: CanPlaceItemAtQueryHandlerTests, PlaceItemAtPositionCommandHandlerTests, MoveItemBetweenContainersCommandHandlerTests
-  - Batch sed commands: Fixed "Sword", "Axe", "Potion", "Health Potion" patterns
-- ✅ **Presentation Layer Fixed**: ItemShowcaseController
-  - Updated metadata display: Now shows both sprite AND inventory dimensions
-  - Old: `Size: {Width}x{Height}`
-  - New: `Sprite: {SpriteWidth}x{SpriteHeight} | Inventory: {InventoryWidth}x{InventoryHeight}`
-- ✅ **Build Status**: All layers compile successfully
-  - Core ✅, Tests ✅, Godot Presentation ✅
-  - Zero warnings, zero errors
-- ✅ **User Verification**: "Size matches now"
-  - Rendering tested in Godot with actual TileSet metadata
-  - ray_gun: 4×4 sprite renders within 2×2 inventory cell space (scaled to fit)
-  - Visual confirmation that sprite/inventory separation is working correctly
-- 🎯 **Phase 2 Sprite/Inventory Separation COMPLETE**
-- ⏭️ **Next**: Phase 2.4 (green/red drag highlight) + Phase 2.1-2.2 (multi-cell collision)
+**✅ Phase 2 Complete** (2025-10-03, 5h actual):
+- **Core**: Multi-cell AABB collision, dimension override for equipment slots, intra-container rollback
+- **UI**: Multi-cell TextureRect rendering (overlay architecture), green/red drag highlights
+- **Lessons**:
+  - **Sprite ≠ Inventory dimensions**: 4×4 sprite can occupy 2×2 grid (dual metadata critical)
+  - **Equipment slot UX**: Override dimensions to 1×1 in handlers (Diablo 2 pattern)
+  - **Self-collision**: Check `occupyingItemId != draggedItemId` to allow same-position drops
+  - **Signal-based sync**: Broadcast `InventoryChanged` to all containers for cross-container moves
 
 ---
 

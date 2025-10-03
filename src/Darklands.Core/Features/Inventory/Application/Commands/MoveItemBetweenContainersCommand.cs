@@ -12,9 +12,11 @@ namespace Darklands.Core.Features.Inventory.Application.Commands;
 /// <param name="TargetActorId">Actor whose inventory will receive the item</param>
 /// <param name="ItemId">Item to move</param>
 /// <param name="TargetPosition">Grid position in target inventory</param>
+/// <param name="Rotation">Rotation state for the item at target position (Phase 3, optional, defaults to 0°)</param>
 public sealed record MoveItemBetweenContainersCommand(
     ActorId SourceActorId,
     ActorId TargetActorId,
     ItemId ItemId,
-    GridPosition TargetPosition
+    GridPosition TargetPosition,
+    Rotation Rotation = default
 ) : IRequest<Result>;

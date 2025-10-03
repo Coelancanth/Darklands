@@ -26,6 +26,7 @@ public sealed class Inventory
 {
     private readonly Dictionary<ItemId, GridPosition> _itemPositions;
     private readonly Dictionary<ItemId, (int width, int height)> _itemDimensions; // Phase 2: Cache dimensions for collision
+    private readonly Dictionary<ItemId, Rotation> _itemRotations; // Phase 3: Rotation state per placement
 
     /// <summary>
     /// Unique identifier for this inventory.
@@ -82,6 +83,12 @@ public sealed class Inventory
     /// </summary>
     public IReadOnlyDictionary<ItemId, (int width, int height)> ItemDimensions => _itemDimensions;
 
+    /// <summary>
+    /// Read-only view of item rotations (ItemId → Rotation mapping).
+    /// Phase 3: Needed for rendering rotated sprites and calculating effective dimensions.
+    /// </summary>
+    public IReadOnlyDictionary<ItemId, Rotation> ItemRotations => _itemRotations;
+
     private Inventory(
         InventoryId id,
         int gridWidth,
@@ -95,6 +102,7 @@ public sealed class Inventory
         ContainerType = containerType;
         _itemPositions = new Dictionary<ItemId, GridPosition>(Capacity);
         _itemDimensions = new Dictionary<ItemId, (int, int)>(Capacity); // Phase 2
+        _itemRotations = new Dictionary<ItemId, Rotation>(Capacity); // Phase 3
     }
 
     /// <summary>
@@ -159,12 +167,13 @@ public sealed class Inventory
     /// <param name="position">Grid position to place at</param>
     /// <returns>Success if placed, Failure with reason if not</returns>
     /// <remarks>
-    /// BACKWARD COMPATIBILITY: This overload assumes 1×1 dimensions for Phase 1 items.
+    /// BACKWARD COMPATIBILITY: This overload assumes 1×1 dimensions and 0° rotation.
     /// Phase 2 code should use PlaceItemAt(itemId, position, width, height).
+    /// Phase 3 code should use PlaceItemAt(itemId, position, width, height, rotation).
     /// </remarks>
     public Result PlaceItemAt(ItemId itemId, GridPosition position)
     {
-        return PlaceItemAt(itemId, position, width: 1, height: 1);
+        return PlaceItemAt(itemId, position, width: 1, height: 1, rotation: Rotation.Degrees0);
     }
 
     /// <summary>
@@ -172,19 +181,40 @@ public sealed class Inventory
     /// </summary>
     /// <param name="itemId">ID of item to place</param>
     /// <param name="position">Top-left grid position (origin)</param>
-    /// <param name="width">Item width in cells</param>
-    /// <param name="height">Item height in cells</param>
+    /// <param name="width">Item width in cells (base, unrotated)</param>
+    /// <param name="height">Item height in cells (base, unrotated)</param>
     /// <returns>Success if placed, Failure with reason if not</returns>
+    /// <remarks>
+    /// BACKWARD COMPATIBILITY: Phase 2 overload assumes 0° rotation.
+    /// Phase 3 code should use PlaceItemAt(itemId, position, width, height, rotation).
+    /// </remarks>
     public Result PlaceItemAt(ItemId itemId, GridPosition position, int width, int height)
+    {
+        return PlaceItemAt(itemId, position, width, height, rotation: Rotation.Degrees0);
+    }
+
+    /// <summary>
+    /// Places an item at a specific grid position with dimensions and rotation (Phase 3: rotatable items).
+    /// </summary>
+    /// <param name="itemId">ID of item to place</param>
+    /// <param name="position">Top-left grid position (origin)</param>
+    /// <param name="width">Item width in cells (base, unrotated)</param>
+    /// <param name="height">Item height in cells (base, unrotated)</param>
+    /// <param name="rotation">Rotation state (affects effective dimensions)</param>
+    /// <returns>Success if placed, Failure with reason if not</returns>
+    public Result PlaceItemAt(ItemId itemId, GridPosition position, int width, int height, Rotation rotation)
     {
         // BUSINESS RULE: Dimensions must be positive
         if (width <= 0 || height <= 0)
             return Result.Failure("Item dimensions must be positive");
 
+        // PHASE 3: Calculate effective dimensions after rotation
+        var (effectiveWidth, effectiveHeight) = RotationHelper.GetRotatedDimensions(width, height, rotation);
+
         // BUSINESS RULE: Item footprint must fit within grid bounds
         if (position.X < 0 || position.Y < 0 ||
-            position.X + width > GridWidth ||
-            position.Y + height > GridHeight)
+            position.X + effectiveWidth > GridWidth ||
+            position.Y + effectiveHeight > GridHeight)
             return Result.Failure("Item footprint exceeds grid bounds");
 
         // BUSINESS RULE: Cannot add duplicate items
@@ -194,21 +224,27 @@ public sealed class Inventory
         // BUSINESS RULE: Item footprint must not overlap with existing items (rectangle collision)
         foreach (var (existingItemId, existingOrigin) in _itemPositions)
         {
-            var (existingWidth, existingHeight) = _itemDimensions.GetValueOrDefault(existingItemId, (1, 1));
+            var (existingBaseWidth, existingBaseHeight) = _itemDimensions.GetValueOrDefault(existingItemId, (1, 1));
+            var existingRotation = _itemRotations.GetValueOrDefault(existingItemId, Rotation.Degrees0);
+
+            // PHASE 3: Calculate effective dimensions of existing item after rotation
+            var (existingEffectiveWidth, existingEffectiveHeight) =
+                RotationHelper.GetRotatedDimensions(existingBaseWidth, existingBaseHeight, existingRotation);
 
             // Rectangle overlap test (AABB collision)
-            bool overlaps = !(position.X >= existingOrigin.X + existingWidth ||   // newItem is to the right
-                              position.X + width <= existingOrigin.X ||            // newItem is to the left
-                              position.Y >= existingOrigin.Y + existingHeight ||   // newItem is below
-                              position.Y + height <= existingOrigin.Y);            // newItem is above
+            bool overlaps = !(position.X >= existingOrigin.X + existingEffectiveWidth ||   // newItem is to the right
+                              position.X + effectiveWidth <= existingOrigin.X ||            // newItem is to the left
+                              position.Y >= existingOrigin.Y + existingEffectiveHeight ||   // newItem is below
+                              position.Y + effectiveHeight <= existingOrigin.Y);            // newItem is above
 
             if (overlaps)
                 return Result.Failure($"Item footprint overlaps with existing item at ({existingOrigin.X}, {existingOrigin.Y})");
         }
 
-        // All validations passed - place item
+        // All validations passed - place item and store rotation
         _itemPositions[itemId] = position;
-        _itemDimensions[itemId] = (width, height);
+        _itemDimensions[itemId] = (width, height); // Store BASE dimensions
+        _itemRotations[itemId] = rotation;         // PHASE 3: Store rotation state
         return Result.Success();
     }
 
@@ -235,6 +271,79 @@ public sealed class Inventory
             return Result.Failure<GridPosition>("Item not found in inventory");
 
         return Result.Success(position);
+    }
+
+    /// <summary>
+    /// Gets the rotation state of an item.
+    /// </summary>
+    /// <param name="itemId">ID of item to query</param>
+    /// <returns>Success with rotation state, or Failure if item not in inventory</returns>
+    /// <remarks>
+    /// PHASE 3: Returns Degrees0 for items placed before Phase 3 (backward compatibility).
+    /// </remarks>
+    public Result<Rotation> GetItemRotation(ItemId itemId)
+    {
+        if (!_itemPositions.ContainsKey(itemId))
+            return Result.Failure<Rotation>("Item not found in inventory");
+
+        // Return stored rotation, or Degrees0 if not set (backward compat)
+        var rotation = _itemRotations.GetValueOrDefault(itemId, Rotation.Degrees0);
+        return Result.Success(rotation);
+    }
+
+    /// <summary>
+    /// Rotates an item in place (Phase 3).
+    /// </summary>
+    /// <param name="itemId">ID of item to rotate</param>
+    /// <param name="newRotation">New rotation state</param>
+    /// <returns>Success if rotated, Failure if new orientation doesn't fit</returns>
+    /// <remarks>
+    /// VALIDATION: Ensures rotated item still fits within grid bounds and doesn't collide.
+    /// EXAMPLE: 2×1 sword at edge rotating to 1×2 may exceed bounds → Failure.
+    /// </remarks>
+    public Result RotateItem(ItemId itemId, Rotation newRotation)
+    {
+        // BUSINESS RULE: Item must exist in inventory
+        if (!_itemPositions.TryGetValue(itemId, out var position))
+            return Result.Failure("Item not found in inventory");
+
+        var (baseWidth, baseHeight) = _itemDimensions.GetValueOrDefault(itemId, (1, 1));
+
+        // Calculate new effective dimensions after rotation
+        var (newEffectiveWidth, newEffectiveHeight) =
+            RotationHelper.GetRotatedDimensions(baseWidth, baseHeight, newRotation);
+
+        // BUSINESS RULE: Rotated item must fit within grid bounds
+        if (position.X + newEffectiveWidth > GridWidth ||
+            position.Y + newEffectiveHeight > GridHeight)
+            return Result.Failure("Rotated item would exceed grid bounds");
+
+        // BUSINESS RULE: Rotated item must not overlap with other items
+        foreach (var (existingItemId, existingOrigin) in _itemPositions)
+        {
+            // Skip self-collision check
+            if (existingItemId == itemId)
+                continue;
+
+            var (existingBaseWidth, existingBaseHeight) = _itemDimensions.GetValueOrDefault(existingItemId, (1, 1));
+            var existingRotation = _itemRotations.GetValueOrDefault(existingItemId, Rotation.Degrees0);
+
+            var (existingEffectiveWidth, existingEffectiveHeight) =
+                RotationHelper.GetRotatedDimensions(existingBaseWidth, existingBaseHeight, existingRotation);
+
+            // Rectangle overlap test (AABB collision)
+            bool overlaps = !(position.X >= existingOrigin.X + existingEffectiveWidth ||
+                              position.X + newEffectiveWidth <= existingOrigin.X ||
+                              position.Y >= existingOrigin.Y + existingEffectiveHeight ||
+                              position.Y + newEffectiveHeight <= existingOrigin.Y);
+
+            if (overlaps)
+                return Result.Failure($"Rotated item would overlap with item at ({existingOrigin.X}, {existingOrigin.Y})");
+        }
+
+        // All validations passed - update rotation
+        _itemRotations[itemId] = newRotation;
+        return Result.Success();
     }
 
     /// <summary>
@@ -282,6 +391,7 @@ public sealed class Inventory
                     // Use PlaceItemAt for consistency (assumes 1×1 for backward compat)
                     _itemPositions[itemId] = position;
                     _itemDimensions[itemId] = (1, 1); // Phase 2: Default to 1×1
+                    _itemRotations[itemId] = Rotation.Degrees0; // Phase 3: Default rotation
                     return Result.Success();
                 }
             }
@@ -302,6 +412,7 @@ public sealed class Inventory
 
         _itemPositions.Remove(itemId);
         _itemDimensions.Remove(itemId); // Phase 2: Clean up dimensions
+        _itemRotations.Remove(itemId);  // Phase 3: Clean up rotation
         return Result.Success();
     }
 
@@ -317,5 +428,6 @@ public sealed class Inventory
     {
         _itemPositions.Clear();
         _itemDimensions.Clear(); // Phase 2: Clear dimensions
+        _itemRotations.Clear();  // Phase 3: Clear rotations
     }
 }
