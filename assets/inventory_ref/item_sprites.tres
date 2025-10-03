@@ -1,6 +1,14 @@
-[gd_resource type="TileSet" load_steps=3 format=3 uid="uid://bmiw87gmm1wvp"]
+[gd_resource type="TileSet" load_steps=5 format=3 uid="uid://bmiw87gmm1wvp"]
 
 [ext_resource type="Texture2D" uid="uid://brrhwmttp0h2m" path="res://assets/inventory_ref/inventory.png" id="1_c0ynw"]
+[ext_resource type="Script" uid="uid://css7v2ercfcu0" path="res://ItemShapeResource.cs" id="1_sdtds"]
+
+[sub_resource type="Resource" id="Resource_sdtds"]
+script = ExtResource("1_sdtds")
+Width = 2
+Height = 2
+Cells = PackedInt32Array(1, 1, 1, 1)
+metadata/_custom_type_script = "uid://css7v2ercfcu0"
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_c0ynw"]
 texture = ExtResource("1_c0ynw")
@@ -48,6 +56,7 @@ texture = ExtResource("1_c0ynw")
 0:0/0/custom_data_1 = "weapon"
 0:0/0/custom_data_3 = 2
 0:0/0/custom_data_4 = 2
+0:0/0/custom_data_5 = SubResource("Resource_sdtds")
 4:0/size_in_atlas = Vector2i(2, 8)
 4:0/0 = 0
 4:0/0/custom_data_0 = "baton"
@@ -66,4 +75,6 @@ custom_data_layer_3/name = "inventory_width"
 custom_data_layer_3/type = 2
 custom_data_layer_4/name = "inventory_height"
 custom_data_layer_4/type = 2
+custom_data_layer_5/name = ""
+custom_data_layer_5/type = 24
 sources/0 = SubResource("TileSetAtlasSource_c0ynw")

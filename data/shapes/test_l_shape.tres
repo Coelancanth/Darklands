@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="ItemShapeResource" load_steps=2 format=3 uid="uid://cg84s6id21isb"]
+
+[ext_resource type="Script" uid="uid://css7v2ercfcu0" path="res://ItemShapeResource.cs" id="1_abcde"]
+
+[resource]
+script = ExtResource("1_abcde")
+Width = 2
+Height = 2
+Cells = PackedInt32Array(1, 1, 1, 0)

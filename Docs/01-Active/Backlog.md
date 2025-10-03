@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-03 19:11 (Dev Engineer: VS_018 Phase 3 COMPLETE - Rotation, cross-container persistence, equipment reset, extreme transparency solution)
+**Last Updated**: 2025-10-03 20:32 (Dev Engineer: VS_018 Phase 4 IN PROGRESS - Shape editor foundation complete, checkbox grid working, next: refactor Width/Height → ItemShape)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -218,10 +218,46 @@
   - Direct node references beat string matching (O(1) lookup, no async issues)
   - Equipment slots reset rotation to Degrees0 for standard orientation display
 
-**Phase 4: Complex Shapes** (3-4h)
-- **Goal**: L-shapes, T-shapes via bool[] masks (Tetris-style)
-- **Domain**: `ItemShape` value object (bool[,] grid), per-cell collision
-- **Infrastructure**: Shape metadata storage (JSON file: `data/item_shapes/*.json` OR TileSet custom data string encoding)
+**Phase 4: Complex Shapes** (5-6h) **← IN PROGRESS** (2025-10-03 20:30)
+- **Goal**: L-shapes, T-shapes via coordinate-based masks (Tetris-style)
+
+**✅ Shape Editor Foundation COMPLETE** (2025-10-03 20:30):
+- **Infrastructure**:
+  - ✅ `ItemShapeResource.cs`: Godot Resource with Width/Height + int[] Cells (0=empty, 1=filled)
+  - ✅ Dynamic array resize: Changing Width/Height auto-generates Cells array
+  - ✅ Default behavior: All cells start checked (filled rectangle)
+  - ✅ `ToEncoding()`: Converts to "rect:WxH" (optimized) or "custom:x,y;..." (coordinates)
+- **Editor Plugin**:
+  - ✅ `ItemShapeEditorPlugin.cs`: Custom EditorInspectorPlugin intercepts "Cells" property
+  - ✅ Visual checkbox grid: Replaces flat int[] array with GridContainer of CheckBoxes
+  - ✅ Click to toggle cells (1=filled, 0=empty)
+  - ✅ Dynamic grid resize: Width×Height changes instantly update checkbox count
+  - ✅ Designer workflow: TileSet Custom Data Layer (Type: Object) → Assign ItemShapeResource
+- **File**: `addons/item_shape_editor/ItemShapeEditorPlugin.cs` (133 lines)
+
+**🔄 NEXT: Refactor Architecture** (Estimated 3-4h remaining):
+- **Domain**:
+  - `ItemShape` value object (replaces Width/Height properties)
+    - `IReadOnlyList<GridPosition> OccupiedCells` (coordinate-based, not 2D array)
+    - `CreateRectangle(width, height)` factory (optimized for 90% of items)
+    - `CreateCustom(string encoding)` factory (parses "custom:x,y;x,y;...")
+    - `RotateClockwise()` transformation (transforms all coordinates)
+  - **BREAKING CHANGE**: `ItemDefinition.Width` + `ItemDefinition.Height` → `ItemDefinition.Shape`
+  - **BREAKING CHANGE**: `Inventory` collision detection must iterate `Shape.OccupiedCells`
+- **Infrastructure**:
+  - `ItemCatalogService.ParseShapeFromTile()`: Load ItemShapeResource → call `.ToEncoding()` → parse to ItemShape
+  - Fallback: Missing shape metadata → default to `ItemShape.CreateRectangle(inventory_w, inventory_h)`
+- **Application**:
+  - Update ALL command handlers: Replace Width/Height references with Shape.OccupiedCells iteration
+  - `CanPlaceItemAtQuery`: Check collision for ALL occupied cells (not just top-left anchor)
+  - `MoveItemBetweenContainersCommand`: Use Shape for validation
+- **Presentation**:
+  - Update rendering: `foreach (var offset in item.Shape.OccupiedCells) { RenderCell(anchor + offset); }`
+  - Existing rotation/drag-drop code compatible (just uses Shape instead of dimensions)
+- **Tests**: 20-25 new tests
+  - Domain: ItemShape creation, rotation, coordinate normalization
+  - Infrastructure: Encoding parsing, TileSet integration
+  - Application: Complex shape collision, placement, movement
 - **Presentation**: Render complex shapes, rotation affects shape orientation
 - **Tests**: 20-25 tests (shape parsing, complex collision, L-shape rotation)
 
