@@ -316,6 +316,7 @@ public partial class SpatialInventoryContainerNode : Control
         }
 
         // Check occupation (Phase 2: Check all cells in footprint)
+        // Phase 2.4 Fix: Exclude self-collision (item colliding with its current position)
         bool hasCollision = false;
         if (isValid)
         {
@@ -324,9 +325,14 @@ public partial class SpatialInventoryContainerNode : Control
                 for (int dx = 0; dx < itemWidth && !hasCollision; dx++)
                 {
                     var checkPos = new GridPosition(targetPos.Value.X + dx, targetPos.Value.Y + dy);
-                    if (_itemsAtPositions.ContainsKey(checkPos))
+                    if (_itemsAtPositions.TryGetValue(checkPos, out var occupyingItemId))
                     {
-                        hasCollision = true;
+                        // Phase 2.4: Ignore collision if cell is occupied by the dragged item itself
+                        // WHY: Dropping item at same position should be allowed (green highlight, not red)
+                        if (occupyingItemId != itemId)
+                        {
+                            hasCollision = true;
+                        }
                     }
                 }
             }

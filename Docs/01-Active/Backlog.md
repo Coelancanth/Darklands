@@ -524,8 +524,8 @@
   - ✅ Cross-container dimension query (lazy loading when not in cache)
   - ✅ Highlight cleanup on mouse exit, drag end, and successful drop
   - ✅ Equipment slot dimension override (1×1 highlights for weapon slots)
-  - ⚠️ **Known Issue**: Self-collision when dropping at same position (shows red instead of green)
-- 🎉 **PHASE 2 COMPLETE** (Core features working, minor self-collision polish pending)
+  - ✅ Self-collision fix: Dropping at same position now shows green (ignores self)
+- 🎉 **PHASE 2 COMPLETE** (All features working, ready for PR)
 
 **Dev Engineer Session** (2025-10-03 15:15 - Phase 2.4 Drag Highlight Complete):
 - ✅ **Highlight Overlay System**:
@@ -555,9 +555,21 @@
   - ✅ Cross-container drag shows correct 2×2 highlights
   - ✅ Equipment slot shows 1×1 highlights (dimension override working)
   - ✅ Highlights clear instantly on drop (successful or failed)
-  - ⚠️ Self-collision issue: Dropping item at same position shows red (should be green)
+  - ✅ Self-collision fix: Changed collision check from `ContainsKey` to `TryGetValue` with itemId comparison
 - 🎯 **Phase 2.4 Complete** - Full visual feedback system working
-- ⏭️ **Minor Polish**: Fix self-collision detection (allow dropping at current position)
+
+**Dev Engineer Session** (2025-10-03 15:45 - Self-Collision Fix):
+- ✅ **Self-Collision Detection Fixed**:
+  - Problem: Dragging item and dropping at same position showed red (collision with self)
+  - Root cause: `_itemsAtPositions.ContainsKey()` detected ALL occupied cells, including dragged item
+  - Solution: Changed to `TryGetValue(checkPos, out var occupyingItemId)` and compare `occupyingItemId != itemId`
+  - Logic: If cell is occupied by the SAME item being dragged → Ignore collision (not different item)
+  - Result: Dropping at same position now shows green highlights ✅
+- 📊 **User Verification**:
+  - ✅ Drag ray_gun (2×2), drop at same position → Green highlights (self-collision ignored)
+  - ✅ Drag dagger, overlap with OTHER item → Red highlights (real collision detected)
+  - ✅ Works for all item sizes (1×1, 2×1, 2×2, etc.)
+- 🎉 **Phase 2 FULLY COMPLETE** - All features working, zero known issues
 
 ---
 
