@@ -21,7 +21,7 @@ public class CanPlaceItemAtQueryHandlerTests
         var itemId = ItemId.NewId();
         var position = new GridPosition(2, 2);
 
-        var item = Darklands.Core.Features.Item.Domain.Item.Create(itemId, 0, 0, "Sword", "weapon", 1, 1, 1).Value;
+        var item = Darklands.Core.Features.Item.Domain.Item.Create(itemId, 0, 0, "Sword", "weapon", 1, 1, 1, 1, 1).Value;
         var itemRepo = new StubItemRepository(item);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
@@ -49,8 +49,8 @@ public class CanPlaceItemAtQueryHandlerTests
         var itemId2 = ItemId.NewId();
         var position = new GridPosition(2, 2);
 
-        var item1 = Darklands.Core.Features.Item.Domain.Item.Create(itemId1, 0, 0, "Sword", "weapon", 1, 1, 1).Value;
-        var item2 = Darklands.Core.Features.Item.Domain.Item.Create(itemId2, 1, 0, "Axe", "weapon", 1, 1, 1).Value;
+        var item1 = Darklands.Core.Features.Item.Domain.Item.Create(itemId1, 0, 0, "Sword", "weapon", 1, 1, 1, 1, 1).Value;
+        var item2 = Darklands.Core.Features.Item.Domain.Item.Create(itemId2, 1, 0, "Axe", "weapon", 1, 1, 1, 1, 1).Value;
         var itemRepo = new StubItemRepository(item1, item2);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
@@ -84,7 +84,7 @@ public class CanPlaceItemAtQueryHandlerTests
         var itemId = ItemId.NewId();
         var position = new GridPosition(0, 0);
 
-        var weapon = Darklands.Core.Features.Item.Domain.Item.Create(itemId, 0, 0, "Sword", "weapon", 1, 1, 1).Value;
+        var weapon = Darklands.Core.Features.Item.Domain.Item.Create(itemId, 0, 0, "Sword", "weapon", 1, 1, 1, 1, 1).Value;
         var itemRepo = new StubItemRepository(weapon);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
@@ -122,7 +122,7 @@ public class CanPlaceItemAtQueryHandlerTests
         var itemId = ItemId.NewId();
         var position = new GridPosition(0, 0);
 
-        var potion = Darklands.Core.Features.Item.Domain.Item.Create(itemId, 1, 0, "Potion", "item", 1, 1, 10).Value;
+        var potion = Darklands.Core.Features.Item.Domain.Item.Create(itemId, 1, 0, "Potion", "item", 1, 1, 1, 1, 10).Value;
         var itemRepo = new StubItemRepository(potion);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 

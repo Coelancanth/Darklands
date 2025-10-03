@@ -33,8 +33,10 @@ public class GetItemsByTypeQueryHandler : IRequestHandler<GetItemsByTypeQuery, R
                     item.AtlasY,
                     item.Name,
                     item.Type,
-                    item.Width,
-                    item.Height,
+                    item.SpriteWidth,
+                    item.SpriteHeight,
+                    item.InventoryWidth,
+                    item.InventoryHeight,
                     item.MaxStackSize,
                     item.IsStackable))
                 .ToList());

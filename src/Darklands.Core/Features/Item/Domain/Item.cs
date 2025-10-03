@@ -42,14 +42,28 @@ public sealed class Item
     public string Type { get; private init; }
 
     /// <summary>
-    /// Width in grid cells from TileSet size_in_atlas.x.
+    /// Sprite width in atlas tiles (for rendering).
+    /// From TileSet size_in_atlas.x.
     /// </summary>
-    public int Width { get; private init; }
+    public int SpriteWidth { get; private init; }
 
     /// <summary>
-    /// Height in grid cells from TileSet size_in_atlas.y.
+    /// Sprite height in atlas tiles (for rendering).
+    /// From TileSet size_in_atlas.y.
     /// </summary>
-    public int Height { get; private init; }
+    public int SpriteHeight { get; private init; }
+
+    /// <summary>
+    /// Inventory width in grid cells (for logical occupation/collision).
+    /// From TileSet custom_data_3 (inventory_width).
+    /// </summary>
+    public int InventoryWidth { get; private init; }
+
+    /// <summary>
+    /// Inventory height in grid cells (for logical occupation/collision).
+    /// From TileSet custom_data_4 (inventory_height).
+    /// </summary>
+    public int InventoryHeight { get; private init; }
 
     /// <summary>
     /// Maximum stack size from TileSet custom_data_2 (max_stack_size).
@@ -68,8 +82,10 @@ public sealed class Item
         int atlasY,
         string name,
         string type,
-        int width,
-        int height,
+        int spriteWidth,
+        int spriteHeight,
+        int inventoryWidth,
+        int inventoryHeight,
         int maxStackSize)
     {
         Id = id;
@@ -77,8 +93,10 @@ public sealed class Item
         AtlasY = atlasY;
         Name = name;
         Type = type;
-        Width = width;
-        Height = height;
+        SpriteWidth = spriteWidth;
+        SpriteHeight = spriteHeight;
+        InventoryWidth = inventoryWidth;
+        InventoryHeight = inventoryHeight;
         MaxStackSize = maxStackSize;
     }
 
@@ -90,8 +108,10 @@ public sealed class Item
     /// <param name="atlasY">Atlas Y coordinate (non-negative)</param>
     /// <param name="name">Item name (non-empty)</param>
     /// <param name="type">Item type (non-empty)</param>
-    /// <param name="width">Width in grid cells (positive)</param>
-    /// <param name="height">Height in grid cells (positive)</param>
+    /// <param name="spriteWidth">Sprite width in atlas tiles (positive)</param>
+    /// <param name="spriteHeight">Sprite height in atlas tiles (positive)</param>
+    /// <param name="inventoryWidth">Inventory width in grid cells (positive)</param>
+    /// <param name="inventoryHeight">Inventory height in grid cells (positive)</param>
     /// <param name="maxStackSize">Maximum stack size (non-negative)</param>
     /// <returns>Result containing Item or validation error</returns>
     public static Result<Item> Create(
@@ -100,8 +120,10 @@ public sealed class Item
         int atlasY,
         string name,
         string type,
-        int width,
-        int height,
+        int spriteWidth,
+        int spriteHeight,
+        int inventoryWidth,
+        int inventoryHeight,
         int maxStackSize)
     {
         // BUSINESS RULE: Atlas coordinates must be non-negative
@@ -119,12 +141,19 @@ public sealed class Item
         if (string.IsNullOrWhiteSpace(type))
             return Result.Failure<Item>("Item type cannot be empty");
 
-        // BUSINESS RULE: Width and height must be positive (items occupy space)
-        if (width <= 0)
-            return Result.Failure<Item>("Width must be positive");
+        // BUSINESS RULE: Sprite dimensions must be positive (visual rendering)
+        if (spriteWidth <= 0)
+            return Result.Failure<Item>("Sprite width must be positive");
 
-        if (height <= 0)
-            return Result.Failure<Item>("Height must be positive");
+        if (spriteHeight <= 0)
+            return Result.Failure<Item>("Sprite height must be positive");
+
+        // BUSINESS RULE: Inventory dimensions must be positive (logical occupation)
+        if (inventoryWidth <= 0)
+            return Result.Failure<Item>("Inventory width must be positive");
+
+        if (inventoryHeight <= 0)
+            return Result.Failure<Item>("Inventory height must be positive");
 
         // BUSINESS RULE: Max stack size must be non-negative
         if (maxStackSize < 0)
@@ -136,8 +165,10 @@ public sealed class Item
             atlasY,
             name,
             type,
-            width,
-            height,
+            spriteWidth,
+            spriteHeight,
+            inventoryWidth,
+            inventoryHeight,
             maxStackSize));
     }
 }

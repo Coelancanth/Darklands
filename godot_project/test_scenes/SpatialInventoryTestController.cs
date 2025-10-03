@@ -139,8 +139,10 @@ public partial class SpatialInventoryTestController : Control
             gridHeight: 8,
             ContainerType.General).Value;
 
-        // Weapon Slot: 1×1 grid (1 capacity, weapon-only)
-        // WHY: Single-slot design matches reference image (Resident Evil style)
+        // Weapon Slot: 1×1 grid (equipment slot - dimensions ignored)
+        // WHY: Equipment slots use 1×1 placement regardless of item size (industry standard)
+        // Application layer overrides dimensions to 1×1 for WeaponOnly containers
+        // Visual: Single large slot (96px cell) displays weapon sprite at full size
         var weaponSlot = Darklands.Core.Features.Inventory.Domain.Inventory.Create(
             InventoryId.NewId(),
             gridWidth: 1,

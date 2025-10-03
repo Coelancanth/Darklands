@@ -67,8 +67,20 @@ public sealed class PlaceItemAtPositionCommandHandler
             return Result.Failure("Container only accepts weapons");
         }
 
-        // Delegate to domain entity for spatial placement
-        var placeResult = inventory.PlaceItemAt(command.ItemId, command.Position);
+        // EQUIPMENT SLOT OVERRIDE: Weapon/armor slots ignore item dimensions (always 1×1 for placement)
+        // WHY: Industry standard - equipment slots accept any weapon regardless of backpack Tetris size
+        bool isEquipmentSlot = inventory.ContainerType == ContainerType.WeaponOnly;
+        int placementWidth = isEquipmentSlot ? 1 : item.InventoryWidth;
+        int placementHeight = isEquipmentSlot ? 1 : item.InventoryHeight;
+
+        // Delegate to domain entity for spatial placement (Phase 2: Pass dimensions)
+        // WHY: Domain needs dimensions for rectangle collision detection
+        var placeResult = inventory.PlaceItemAt(
+            command.ItemId,
+            command.Position,
+            placementWidth,
+            placementHeight);
+
         if (placeResult.IsFailure)
             return placeResult;
 

@@ -245,8 +245,10 @@ public class ItemRepositoryContractTests
             atlasY: 0,
             name: name,
             type: type,
-            width: 2,
-            height: 2,
+            spriteWidth: 2,
+            spriteHeight: 2,
+            inventoryWidth: 1,
+            inventoryHeight: 1,
             maxStackSize: 1).Value;
     }
 

@@ -32,8 +32,10 @@ public class GetItemByIdQueryHandler : IRequestHandler<GetItemByIdQuery, Result<
                 item.AtlasY,
                 item.Name,
                 item.Type,
-                item.Width,
-                item.Height,
+                item.SpriteWidth,
+                item.SpriteHeight,
+                item.InventoryWidth,
+                item.InventoryHeight,
                 item.MaxStackSize,
                 item.IsStackable));
 

@@ -269,7 +269,7 @@ public class InventoryTests
 
         // Assert
         result.IsFailure.Should().BeTrue();
-        result.Error.Should().Contain("out of bounds");
+        result.Error.Should().Contain("exceeds grid bounds");
     }
 
     [Fact]
@@ -291,7 +291,7 @@ public class InventoryTests
 
         // Assert
         result.IsFailure.Should().BeTrue();
-        result.Error.Should().Contain("occupied");
+        result.Error.Should().Contain("overlaps with existing item");
     }
 
     [Fact]

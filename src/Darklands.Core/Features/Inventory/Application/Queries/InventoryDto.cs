@@ -18,9 +18,11 @@ namespace Darklands.Core.Features.Inventory.Application.Queries;
 /// <param name="GridHeight">Grid height in cells (VS_018 spatial)</param>
 /// <param name="ContainerType">Container type restrictions (VS_018 spatial)</param>
 /// <param name="ItemPlacements">Dictionary of ItemId → GridPosition mappings (VS_018 spatial)</param>
+/// <param name="ItemDimensions">Dictionary of ItemId → (Width, Height) mappings (VS_018 Phase 2 multi-cell)</param>
 /// <remarks>
 /// VS_018: Added spatial fields as required (not optional) to force compile-time updates.
 /// Old slot-based UI uses Items list, new spatial UI uses GridWidth/GridHeight/ItemPlacements.
+/// Phase 2: ItemDimensions added for multi-cell rendering and collision detection in presentation layer.
 /// </remarks>
 public sealed record InventoryDto(
     InventoryId InventoryId,
@@ -32,4 +34,5 @@ public sealed record InventoryDto(
     int GridWidth,
     int GridHeight,
     ContainerType ContainerType,
-    IReadOnlyDictionary<ItemId, GridPosition> ItemPlacements);
+    IReadOnlyDictionary<ItemId, GridPosition> ItemPlacements,
+    IReadOnlyDictionary<ItemId, (int width, int height)> ItemDimensions);

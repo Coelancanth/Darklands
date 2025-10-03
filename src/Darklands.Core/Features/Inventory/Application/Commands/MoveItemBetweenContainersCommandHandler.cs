@@ -81,18 +81,84 @@ public sealed class MoveItemBetweenContainersCommandHandler
             return Result.Failure("Target container only accepts weapons");
         }
 
-        // Remove from source inventory (after validation passes)
-        var removeResult = sourceInventory.RemoveItem(command.ItemId);
-        if (removeResult.IsFailure)
-            return removeResult;
+        // Check if this is intra-container repositioning (same inventory)
+        bool isSameContainer = command.SourceActorId == command.TargetActorId;
 
-        var placeResult = targetInventory.PlaceItemAt(command.ItemId, command.TargetPosition);
-        if (placeResult.IsFailure)
-            return placeResult;
+        if (isSameContainer)
+        {
+            // INTRA-CONTAINER MOVE: Must preserve original position for rollback
+            // WHY: If new placement fails, we need to restore item at original position
 
-        // Persist both inventories
-        await _inventories.SaveAsync(sourceInventory, cancellationToken);
-        await _inventories.SaveAsync(targetInventory, cancellationToken);
+            // Get original position before removing
+            var originalPosition = sourceInventory.GetItemPosition(command.ItemId);
+
+            var removeResult = sourceInventory.RemoveItem(command.ItemId);
+            if (removeResult.IsFailure)
+            {
+                _logger.LogError("Failed to remove item for repositioning: {Error}", removeResult.Error);
+                return removeResult;
+            }
+
+            var placeResult = sourceInventory.PlaceItemAt(
+                command.ItemId,
+                command.TargetPosition,
+                item.InventoryWidth,
+                item.InventoryHeight);
+
+            if (placeResult.IsFailure)
+            {
+                // ROLLBACK: Restore item at original position
+                _logger.LogWarning("Failed to place item at new position: {Error}, rolling back to original position ({X},{Y})",
+                    placeResult.Error, originalPosition.X, originalPosition.Y);
+
+                var rollbackResult = sourceInventory.PlaceItemAt(
+                    command.ItemId,
+                    originalPosition,
+                    item.InventoryWidth,
+                    item.InventoryHeight);
+
+                if (rollbackResult.IsFailure)
+                {
+                    _logger.LogError("CRITICAL: Rollback failed! Item {ItemId} is lost: {Error}",
+                        command.ItemId, rollbackResult.Error);
+                }
+                else
+                {
+                    // Rollback succeeded - save and return original error
+                    await _inventories.SaveAsync(sourceInventory, cancellationToken);
+                }
+
+                return placeResult; // Return original placement error
+            }
+
+            await _inventories.SaveAsync(sourceInventory, cancellationToken);
+        }
+        else
+        {
+            // CROSS-CONTAINER MOVE: Remove from source, place in target
+            var removeResult = sourceInventory.RemoveItem(command.ItemId);
+            if (removeResult.IsFailure)
+                return removeResult;
+
+            // EQUIPMENT SLOT OVERRIDE: Weapon/armor slots ignore item dimensions (always 1×1 for placement)
+            // WHY: Industry standard - equipment slots accept any weapon regardless of backpack Tetris size
+            bool isEquipmentSlot = targetInventory.ContainerType == ContainerType.WeaponOnly;
+            int placementWidth = isEquipmentSlot ? 1 : item.InventoryWidth;
+            int placementHeight = isEquipmentSlot ? 1 : item.InventoryHeight;
+
+            var placeResult = targetInventory.PlaceItemAt(
+                command.ItemId,
+                command.TargetPosition,
+                placementWidth,
+                placementHeight);
+
+            if (placeResult.IsFailure)
+                return placeResult;
+
+            // Persist both inventories
+            await _inventories.SaveAsync(sourceInventory, cancellationToken);
+            await _inventories.SaveAsync(targetInventory, cancellationToken);
+        }
 
         _logger.LogInformation(
             "Item {ItemId} moved from actor {SourceActorId} to actor {TargetActorId} at position {TargetPosition}",

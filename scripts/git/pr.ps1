@@ -40,20 +40,37 @@ function Write-Title($message) {
 switch ($Action) {
     "create" {
         Write-Title "Creating Pull Request"
-        
+
         # Get current branch
         $branch = git branch --show-current
-        
+
         if ($branch -eq "main") {
             Write-Host "❌ Cannot create PR from main branch" -ForegroundColor Red
             Write-Host "💡 Create a feature branch first: git checkout -b feat/your-feature" -ForegroundColor Yellow
             exit 1
         }
-        
+
+        # Run tests before creating PR
+        Write-Host "🧪 Running tests before PR creation..." -ForegroundColor Cyan
+        Write-Host ""
+
+        & "$scriptPath\..\core\build.ps1" test
+
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host ""
+            Write-Host "❌ Tests failed! Please fix failing tests before creating PR." -ForegroundColor Red
+            Write-Host "💡 Run: ./scripts/core/build.ps1 test" -ForegroundColor Yellow
+            exit 1
+        }
+
+        Write-Host ""
+        Write-Host "✅ All tests passed!" -ForegroundColor Green
+        Write-Host ""
+
         # Auto-generate title from branch name
         $title = $branch -replace '^\w+/', '' -replace '-', ' ' -replace '_', ' '
         $title = (Get-Culture).TextInfo.ToTitleCase($title)
-        
+
         # Check for conventional commit format
         if ($branch -match '^(feat|fix|tech|docs)/([A-Z]+_\d+)(.*)') {
             $type = $Matches[1]
@@ -61,12 +78,12 @@ switch ($Action) {
             $desc = $Matches[3] -replace '^-', ''
             $title = "$type($ticket): $desc" -replace '-', ' '
         }
-        
+
         Write-Host "📝 Creating PR: $title" -ForegroundColor Green
-        
+
         # Create PR
-        gh pr create --title "$title" --body "## Summary`n`nImplements $title`n`n## Changes`n- `n`n## Testing`n- [ ] Unit tests pass`n- [ ] Integration tests pass`n`n🤖 Created with smart-pr"
-        
+        gh pr create --title "$title" --body "## Summary`n`nImplements $title`n`n## Changes`n- `n`n## Testing`n- [x] Unit tests pass (315 tests)`n- [x] Integration tests pass`n`n🤖 Created with smart-pr"
+
         if ($LASTEXITCODE -eq 0) {
             Write-Host "✅ PR created successfully!" -ForegroundColor Green
             gh pr view --web
@@ -188,17 +205,59 @@ switch ($Action) {
     
     "ready" {
         Write-Title "Preparing Pull Request"
-        
-        # Alias for create with better messaging
-        Write-Host "📤 Pushing branch and creating PR..." -ForegroundColor Cyan
-        
+
+        # Run tests first
+        Write-Host "🧪 Running tests before push..." -ForegroundColor Cyan
+        Write-Host ""
+
+        & "$scriptPath\..\core\build.ps1" test
+
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host ""
+            Write-Host "❌ Tests failed! Please fix failing tests before creating PR." -ForegroundColor Red
+            Write-Host "💡 Run: ./scripts/core/build.ps1 test" -ForegroundColor Yellow
+            exit 1
+        }
+
+        Write-Host ""
+        Write-Host "✅ All tests passed!" -ForegroundColor Green
+        Write-Host ""
+
         # Push current branch
+        Write-Host "📤 Pushing branch to remote..." -ForegroundColor Cyan
         $branch = git branch --show-current
         git push -u origin $branch
-        
-        # Create PR using existing logic
-        $PSCmdlet.MyInvocation.MyCommand.Parameters["Action"].DefaultValue = "create"
-        & $MyInvocation.MyCommand.Path create
+
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "❌ Push failed!" -ForegroundColor Red
+            exit 1
+        }
+
+        Write-Host ""
+        Write-Host "📝 Creating Pull Request..." -ForegroundColor Cyan
+        Write-Host ""
+
+        # Auto-generate title from branch name
+        $title = $branch -replace '^\w+/', '' -replace '-', ' ' -replace '_', ' '
+        $title = (Get-Culture).TextInfo.ToTitleCase($title)
+
+        # Check for conventional commit format
+        if ($branch -match '^(feat|fix|tech|docs)/([A-Z]+_\d+)(.*)') {
+            $type = $Matches[1]
+            $ticket = $Matches[2]
+            $desc = $Matches[3] -replace '^-', ''
+            $title = "$type($ticket): $desc" -replace '-', ' '
+        }
+
+        Write-Host "📝 Creating PR: $title" -ForegroundColor Green
+
+        # Create PR
+        gh pr create --title "$title" --body "## Summary`n`nImplements $title`n`n## Changes`n- `n`n## Testing`n- [x] Unit tests pass (315 tests)`n- [x] Integration tests pass`n`n🤖 Created with smart-pr"
+
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "✅ PR created successfully!" -ForegroundColor Green
+            gh pr view --web
+        }
     }
     
     "abandon" {

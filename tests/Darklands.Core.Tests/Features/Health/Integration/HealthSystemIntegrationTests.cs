@@ -19,9 +19,11 @@ namespace Darklands.Core.Tests.Features.Health.Integration;
 /// <summary>
 /// Integration tests for the complete health system.
 /// Tests the REAL pipeline: Command → Handler → Registry → Event (no mocks).
+/// Collection: GameStrapperCollection prevents parallel execution (shared static state)
 /// </summary>
 [Trait("Category", "Phase3")]
 [Trait("Category", "Integration")]
+[Collection("GameStrapperCollection")]
 public class HealthSystemIntegrationTests : IDisposable
 {
     private readonly IServiceProvider _serviceProvider;

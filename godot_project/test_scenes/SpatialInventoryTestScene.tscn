@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3 uid="uid://cs4vn1k2m8r3p"]
+[gd_scene load_steps=3 format=3 uid="uid://cs4vn1k2m8r3p"]
 
 [ext_resource type="Script" uid="uid://deksfecih5ks6" path="res://godot_project/test_scenes/SpatialInventoryTestController.cs" id="1_controller"]
+[ext_resource type="TileSet" uid="uid://bmiw87gmm1wvp" path="res://assets/inventory_ref/item_sprites.tres" id="2_item_tileset"]
 
 [node name="SpatialInventoryTestScene" type="Control"]
 layout_mode = 3
@@ -10,6 +11,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_controller")
+ItemTileSet = ExtResource("2_item_tileset")
 
 [node name="VBoxContainer" type="VBoxContainer" parent="."]
 layout_mode = 1

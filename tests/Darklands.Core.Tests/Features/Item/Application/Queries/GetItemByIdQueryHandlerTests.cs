@@ -38,8 +38,10 @@ public class GetItemByIdQueryHandlerTests
             atlasY: 0,
             name: "baton",
             type: "weapon",
-            width: 2,
-            height: 8,
+            spriteWidth: 2,
+            spriteHeight: 8,
+            inventoryWidth: 1,
+            inventoryHeight: 1,
             maxStackSize: 1).Value;
 
         _mockRepository.GetById(itemId).Returns(Result.Success(item));
@@ -58,8 +60,8 @@ public class GetItemByIdQueryHandlerTests
         dto.AtlasY.Should().Be(0);
         dto.Name.Should().Be("baton");
         dto.Type.Should().Be("weapon");
-        dto.Width.Should().Be(2);
-        dto.Height.Should().Be(8);
+        dto.SpriteWidth.Should().Be(2);
+        dto.SpriteHeight.Should().Be(8);
         dto.MaxStackSize.Should().Be(1);
         dto.IsStackable.Should().BeFalse();
     }
@@ -106,8 +108,10 @@ public class GetItemByIdQueryHandlerTests
             atlasY: 2,
             name: "cell_background",
             type: "UI",
-            width: 2,
-            height: 2,
+            spriteWidth: 2,
+            spriteHeight: 2,
+            inventoryWidth: 1,
+            inventoryHeight: 1,
             maxStackSize: 20).Value;
 
         _mockRepository.GetById(itemId).Returns(Result.Success(item));

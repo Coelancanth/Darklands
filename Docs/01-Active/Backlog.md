@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-03 02:29 (Dev Engineer: VS_018 Phase 1 - Critical bug fixed, weapon swap pending design decision)
+**Last Updated**: 2025-10-03 14:00 (Dev Engineer: VS_018 Phase 2 - Sprite/Inventory separation complete, rendering verified)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -142,10 +142,10 @@
 
 
 
-### VS_018: Spatial Inventory System (Multi-Phase) ✅ **PHASE 1 COMPLETE**
+### VS_018: Spatial Inventory System (Multi-Phase) ✅ **PHASE 2 COMPLETE**
 
-**Status**: Phase 1 100% Complete - All features working, ready for PR
-**Owner**: Dev Engineer (Phase 2 ready to start)
+**Status**: Phase 1 ✅ + Phase 2 ✅ Complete (including Phase 2.4 drag highlights) - Ready for PR
+**Owner**: Dev Engineer (Phase 2 done, self-collision polish optional, Phase 3 ready)
 **Size**: XL (12-16h across 4 phases, Phase 1 = 4-5h)
 **Priority**: Important (Phase 2 foundation - enhances VS_008 slot-based inventory)
 **Depends On**: VS_008 (Slot-Based Inventory ✅), VS_009 (Item Definitions ✅)
@@ -402,6 +402,196 @@
   - ✅ 261 Core tests passing (1 regression test added for type validation data loss)
   - ✅ Backward compatibility maintained (VS_008 tests still pass)
 - 🎯 **Phase 1 Complete** - Ready for PR to main
+
+**Dev Engineer Session** (2025-10-03 13:25 - Phase 2 Multi-Cell Rendering):
+- ✅ **Phase 2.3: Multi-Cell TextureRect Rendering** (rendering-first approach):
+  - **Architecture**: Overlay layer for multi-cell sprites on top of grid cells
+    - Grid cells (Panel): Hit-testing and structure (unchanged from Phase 1)
+    - Overlay container (Control): Z-index 10, renders TextureRect sprites spanning multiple cells
+    - Item dimensions cached: Dictionary<ItemId, (Width, Height)> from ItemDto
+  - **VS_009 Pattern Reuse**: AtlasTexture wrapper for sprite region extraction
+    - `atlasSource.GetTileTextureRegion(tileCoords)` auto-calculates region
+    - TextureRect with ExpandMode.IgnoreSize + StretchMode.KeepAspectCentered
+    - Pixel-perfect rendering: TextureFilter.Nearest for crisp sprites
+  - **Multi-Cell Calculation**: Account for 2px grid separation
+    - pixelWidth = width × CellSize + (width - 1) × separationX
+    - Items positioned at origin.X × (CellSize + separationX)
+  - **TileSet Scene Assignment**: Fixed missing ItemTileSet in SpatialInventoryTestScene.tscn
+    - Added external resource: `uid://bmiw87gmm1wvp` (correct UID)
+    - Property injection: Controller → Container nodes via `ItemTileSet = ItemTileSet`
+  - **Rendering Results** (user-confirmed):
+    - ✅ ray_gun (4×4) renders spanning 4×4 grid cells with sprite
+    - ✅ dagger (4×2) renders horizontally across 2 rows
+    - ✅ gadget (2×4) renders vertically across 4 rows
+    - ✅ red_vial, green_vial (2×2) render as 2×2 sprites
+    - ✅ Pixel-perfect, centered, grid cells visible underneath
+  - **Fallback Support**: ColorRect rendering when TileSet not assigned (backward compat)
+  - **Files Modified**:
+    - SpatialInventoryContainerNode.cs: Overlay architecture, RenderMultiCellItemSprite()
+    - SpatialInventoryTestScene.tscn: TileSet resource assignment
+- 🎯 **Phase 2.3 Complete** - Rendering verified working
+- ⏭️ **Next**: Phase 2.4 (green/red drag highlight), then Domain/Application collision
+
+**Dev Engineer Session** (2025-10-03 13:50 - Phase 2 Sprite/Inventory Dimension Separation):
+- ✅ **Critical Insight**: User caught conceptual error - sprite size ≠ inventory occupation
+  - **Problem**: Phase 2.3 used `size_in_atlas` for BOTH visual rendering AND logical collision
+  - **Example**: ray_gun sprite is 4×4 atlas tiles but should occupy 2×2 inventory cells
+  - **Root Cause**: Single Width/Height property mixed visual and logical concerns
+- ✅ **Solution: Dual Metadata System** (TileSet custom_data_3/4):
+  - `size_in_atlas` → `SpriteWidth/Height` (visual rendering size in atlas tiles)
+  - `custom_data_3/4` → `InventoryWidth/Height` (logical occupation in grid cells)
+  - **Metadata verified**: ray_gun (4×4 sprite → 2×2 inventory), dagger (4×2 → 2×1), etc.
+- ✅ **Domain Entity Updated**: `Item.cs`
+  - Renamed: `Width/Height` → `SpriteWidth/SpriteHeight` (breaking change)
+  - Added: `InventoryWidth/InventoryHeight` properties
+  - Validation: Both dimensions must be positive (4 new business rules)
+- ✅ **Application Layer Updated**:
+  - `ItemDto`: Added `SpriteWidth/Height` + `InventoryWidth/Height` fields
+  - Query handlers: Map new properties (GetItemById, GetAll, GetByType)
+- ✅ **Infrastructure Updated**: `TileSetItemRepository.cs`
+  - Reads `custom_data_3` (inventory_width) with fallback to sprite width
+  - Reads `custom_data_4` (inventory_height) with fallback to sprite height
+  - Logging: Shows both dimensions for debugging
+- ✅ **Presentation Updated**: `SpatialInventoryContainerNode.cs`
+  - Rendering uses `InventoryWidth/Height` for pixel size (how many cells sprite spans)
+  - AtlasTexture extracts sprite region using atlas coordinates (sprite dimensions)
+  - Result: 4×4 sprite renders within 2×2 inventory cell space (scaled to fit)
+- ⏳ **Tests WIP** (15 compilation errors remaining):
+  - Batch fixed: ~40 test files updated with `spriteWidth/spriteHeight` parameters
+  - Remaining: Inventory test helpers need `inventoryWidth/inventoryHeight` added
+  - Status: Domain/Application/Infrastructure compile ✅, Tests compile ❌
+- 📋 **Next Session Tasks**:
+  1. Fix remaining 15 test errors (add inventory dimensions to test helpers)
+
+**Dev Engineer Session** (2025-10-03 14:35 - Phase 2 Multi-Cell Occupation COMPLETE):
+- ✅ **Phase 2 Core Implementation - Multi-Cell Occupation**:
+  - **Problem Diagnosed**: Items only occupied single cell despite rendering correctly at multi-cell size
+  - **Root Cause**: Presentation layer's dimension caching order bug
+    - `LoadItemTypes()` called BEFORE `_itemsAtPositions` populated
+    - Iterated over empty dictionary → `_itemDimensions` never filled
+    - Rendering used `GetValueOrDefault(itemId, (1,1))` → always got 1×1 fallback
+- ✅ **Domain Layer - Rectangle Collision**:
+  - Added `_itemDimensions` dictionary caching width×height per item
+  - New `PlaceItemAt(itemId, position, width, height)` overload with AABB collision
+  - Rectangle overlap detection: `!(pos.X >= existing.X + width || ...)` logic
+  - Bounds validation: Ensures `position.X + width <= GridWidth`
+  - Backward compat: 1-param `PlaceItemAt()` calls 2-param with (1,1) dimensions
+  - Cleanup: `RemoveItem()` and `Clear()` now remove from both dictionaries
+- ✅ **Application Layer - Cross-Aggregate Orchestration**:
+  - `PlaceItemAtPositionCommandHandler`: Queries `item.InventoryWidth/Height`, passes to Domain
+  - `MoveItemBetweenContainersCommandHandler`: Fixed to preserve dimensions on cross-container moves
+  - `InventoryDto`: Added `ItemDimensions` property exposing Domain's dimension cache
+  - `GetInventoryQueryHandler`: Maps `inventory.ItemDimensions` to DTO
+- ✅ **Presentation Layer - Proper Dimension Caching**:
+  - Fixed caching order: Domain dimensions → `_itemDimensions` → LoadItemTypes() → Build cell map
+  - Added `_itemOrigins` dictionary (ItemId → GridPosition from Domain)
+  - Multi-cell occupation: Builds reverse lookup mapping ALL occupied cells → ItemId
+  - Drag detection: Works from ANY occupied cell, returns item origin for commands
+  - Rendering: Uses `_itemOrigins` to render each item once at its origin position
+- ✅ **Intra-Container Move Bug Fixed** (Data Loss Prevention):
+  - **Bug**: Items disappeared when moving within same container (collision with self)
+  - **Root Cause**: Handler removed item, placement failed (self-collision), rollback missing
+  - **Solution**: Capture original position before remove, full rollback on placement failure
+  - **Pattern**: `GetItemPosition() → RemoveItem() → PlaceItemAt() (if fail → restore at original)`
+  - User tested: Invalid moves now preserve item at original position ✅
+- ✅ **Equipment Slot Dimension Override** (Industry Standard Pattern):
+  - **Problem**: Weapon slot (1×1 grid) rejected multi-cell weapons (2×1 dagger, 2×2 ray_gun)
+  - **Option A Tried**: Enlarged weapon slot to 4×4 grid → Worked but wrong UX
+  - **Option B Implemented**: Application handlers override dimensions to 1×1 for equipment slots
+  - **Logic**: `if (containerType == WeaponOnly) { width = 1; height = 1; }`
+  - **Result**: Any weapon fits in 1×1 weapon slot, backpack Tetris still uses real dimensions
+  - **Industry Precedent**: Matches Diablo 2, Path of Exile, Resident Evil equipment behavior
+  - Reverted weapon slot back to 1×1 grid (proper single-slot appearance)
+- 📊 **Testing Results**:
+  - ✅ User verified: Intra-container repositioning works (dagger moves within backpack)
+  - ✅ User verified: Cross-container moves work (items maintain size backpack A → B)
+  - ✅ User verified: Equipment slot accepts all weapons (2×1, 2×2, any size)
+  - ✅ User verified: Equipment swap working (weapon ↔ weapon in slot)
+  - ✅ User verified: Collision detection prevents overlapping multi-cell items
+  - ✅ User verified: No data loss on invalid moves (rollback successful)
+- 🎯 **Phase 2 Core Features Complete**:
+  - ✅ Multi-cell rendering (items span Width×Height cells visually)
+  - ✅ Multi-cell occupation (Domain stores all occupied cells, prevents overlaps)
+  - ✅ Rectangle collision (AABB overlap detection for complex item shapes)
+  - ✅ Equipment slot dimension override (1×1 weapon slot accepts any weapon)
+  - ✅ Drag from any cell (can grab multi-cell item from any occupied cell)
+  - ✅ Intra-container repositioning with rollback (no data loss)
+  - ✅ Cross-container moves preserve dimensions
+- ✅ **Phase 2.4 Implemented** (UX Polish - Drag Highlight):
+  - ✅ Green/red highlight sprites showing multi-cell item footprint during drag
+  - ✅ Highlight overlay container (Z-index 15, renders above items)
+  - ✅ Real-time validation feedback (bounds, collision, type checking)
+  - ✅ Cross-container dimension query (lazy loading when not in cache)
+  - ✅ Highlight cleanup on mouse exit, drag end, and successful drop
+  - ✅ Equipment slot dimension override (1×1 highlights for weapon slots)
+  - ✅ Self-collision fix: Dropping at same position now shows green (ignores self)
+- 🎉 **PHASE 2 COMPLETE** (All features working, ready for PR)
+
+**Dev Engineer Session** (2025-10-03 15:15 - Phase 2.4 Drag Highlight Complete):
+- ✅ **Highlight Overlay System**:
+  - Added `_highlightOverlayContainer` (Z-index 15, above items at Z-index 10)
+  - `RenderDragHighlight()`: Renders green (`highlight_green` 1,6) or red (`highlight_red` 1,7) sprites
+  - Multi-cell support: Renders highlight for EVERY cell in item footprint
+  - 70% opacity for semi-transparent overlay effect
+- ✅ **Dynamic Validation in `_CanDropData`**:
+  - Full validation: Bounds check, multi-cell collision, type filtering
+  - Dimension query: Cache lookup first, falls back to MediatR query for cross-container drags
+  - Equipment slot override: Forces 1×1 dimensions for weapon slots (matches placement logic)
+  - Visual feedback: `isValid` flag determines green vs red highlight
+- ✅ **Highlight Lifecycle Management**:
+  - `_Notification(NOTIFICATION_MOUSE_EXIT)`: Clear when mouse leaves container
+  - `_Input(InputEventMouseButton)`: Clear when left mouse released (handles rejected drops)
+  - `_DropData()`: Clear on successful drop
+- ✅ **Cross-Container Bug Fixes**:
+  - Bug: Highlights appeared on source container instead of target
+  - Fix: Mouse exit clears source highlights when dragging to different container
+  - Bug: Wrong highlight size (1×1 instead of 2×2) for cross-container drags
+  - Fix: Query item dimensions from repository when not in local cache
+  - Bug: Lingering red highlights after failed drop
+  - Fix: Detect mouse release via `_Input` to clear highlights on drag end
+- 📊 **User Testing Results**:
+  - ✅ Green highlights for valid placements (multi-cell footprint accurate)
+  - ✅ Red highlights for collisions, bounds errors, type mismatches
+  - ✅ Cross-container drag shows correct 2×2 highlights
+  - ✅ Equipment slot shows 1×1 highlights (dimension override working)
+  - ✅ Highlights clear instantly on drop (successful or failed)
+  - ✅ Self-collision fix: Changed collision check from `ContainsKey` to `TryGetValue` with itemId comparison
+- 🎯 **Phase 2.4 Complete** - Full visual feedback system working
+
+**Dev Engineer Session** (2025-10-03 15:45 - Self-Collision Fix):
+- ✅ **Self-Collision Detection Fixed**:
+  - Problem: Dragging item and dropping at same position showed red (collision with self)
+  - Root cause: `_itemsAtPositions.ContainsKey()` detected ALL occupied cells, including dragged item
+  - Solution: Changed to `TryGetValue(checkPos, out var occupyingItemId)` and compare `occupyingItemId != itemId`
+  - Logic: If cell is occupied by the SAME item being dragged → Ignore collision (not different item)
+  - Result: Dropping at same position now shows green highlights ✅
+- 📊 **User Verification**:
+  - ✅ Drag ray_gun (2×2), drop at same position → Green highlights (self-collision ignored)
+  - ✅ Drag dagger, overlap with OTHER item → Red highlights (real collision detected)
+  - ✅ Works for all item sizes (1×1, 2×1, 2×2, etc.)
+- 🎉 **Phase 2 FULLY COMPLETE** - All features working, zero known issues
+
+---
+
+**Dev Engineer Session** (2025-10-03 14:00 - Build Errors Fixed):
+- ✅ **All Compilation Errors Resolved** (15 → 0):
+  - Fixed inventory test helpers: Added `inventoryWidth/inventoryHeight` to `Item.Create()` calls
+  - Pattern: Old signature (id, x, y, name, type, width, maxStack) → New (id, x, y, name, type, spriteW, spriteH, invW, invH, maxStack)
+  - Files fixed: CanPlaceItemAtQueryHandlerTests, PlaceItemAtPositionCommandHandlerTests, MoveItemBetweenContainersCommandHandlerTests
+  - Batch sed commands: Fixed "Sword", "Axe", "Potion", "Health Potion" patterns
+- ✅ **Presentation Layer Fixed**: ItemShowcaseController
+  - Updated metadata display: Now shows both sprite AND inventory dimensions
+  - Old: `Size: {Width}x{Height}`
+  - New: `Sprite: {SpriteWidth}x{SpriteHeight} | Inventory: {InventoryWidth}x{InventoryHeight}`
+- ✅ **Build Status**: All layers compile successfully
+  - Core ✅, Tests ✅, Godot Presentation ✅
+  - Zero warnings, zero errors
+- ✅ **User Verification**: "Size matches now"
+  - Rendering tested in Godot with actual TileSet metadata
+  - ray_gun: 4×4 sprite renders within 2×2 inventory cell space (scaled to fit)
+  - Visual confirmation that sprite/inventory separation is working correctly
+- 🎯 **Phase 2 Sprite/Inventory Separation COMPLETE**
+- ⏭️ **Next**: Phase 2.4 (green/red drag highlight) + Phase 2.1-2.2 (multi-cell collision)
 
 ---
 

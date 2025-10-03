@@ -25,8 +25,10 @@ namespace Darklands.Core.Features.Item.Application.Queries;
 /// <param name="AtlasY">Atlas Y coordinate for sprite lookup</param>
 /// <param name="Name">Item name from TileSet custom_data_0</param>
 /// <param name="Type">Item type from TileSet custom_data_1 (weapon, item, UI)</param>
-/// <param name="Width">Width in grid cells from size_in_atlas.x</param>
-/// <param name="Height">Height in grid cells from size_in_atlas.y</param>
+/// <param name="SpriteWidth">Sprite width in atlas tiles from size_in_atlas.x (for rendering)</param>
+/// <param name="SpriteHeight">Sprite height in atlas tiles from size_in_atlas.y (for rendering)</param>
+/// <param name="InventoryWidth">Inventory width in grid cells from custom_data_3 (for collision)</param>
+/// <param name="InventoryHeight">Inventory height in grid cells from custom_data_4 (for collision)</param>
 /// <param name="MaxStackSize">Max stack size from custom_data_2 (0/1 = non-stackable, >1 = stackable)</param>
 /// <param name="IsStackable">Computed: true if MaxStackSize > 1</param>
 public sealed record ItemDto(
@@ -35,7 +37,9 @@ public sealed record ItemDto(
     int AtlasY,
     string Name,
     string Type,
-    int Width,
-    int Height,
+    int SpriteWidth,
+    int SpriteHeight,
+    int InventoryWidth,
+    int InventoryHeight,
     int MaxStackSize,
     bool IsStackable);

@@ -21,7 +21,7 @@ public class PlaceItemAtPositionCommandHandlerTests
         var itemId = ItemId.NewId();
         var position = new GridPosition(2, 3);
 
-        var item = Darklands.Core.Features.Item.Domain.Item.Create(itemId, 0, 0, "Sword", "weapon", 1, 1, 1).Value;
+        var item = Darklands.Core.Features.Item.Domain.Item.Create(itemId, 0, 0, "Sword", "weapon", 1, 1, 1, 1, 1).Value;
         var itemRepo = new StubItemRepository(item);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
@@ -53,7 +53,7 @@ public class PlaceItemAtPositionCommandHandlerTests
         var itemId = ItemId.NewId();
         var position = new GridPosition(0, 0);
 
-        var weapon = Darklands.Core.Features.Item.Domain.Item.Create(itemId, 0, 0, "Sword", "weapon", 1, 1, 1).Value;
+        var weapon = Darklands.Core.Features.Item.Domain.Item.Create(itemId, 0, 0, "Sword", "weapon", 1, 1, 1, 1, 1).Value;
         var itemRepo = new StubItemRepository(weapon);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
@@ -90,7 +90,7 @@ public class PlaceItemAtPositionCommandHandlerTests
         var itemId = ItemId.NewId();
         var position = new GridPosition(0, 0);
 
-        var potion = Darklands.Core.Features.Item.Domain.Item.Create(itemId, 1, 0, "Potion", "item", 1, 1, 10).Value;
+        var potion = Darklands.Core.Features.Item.Domain.Item.Create(itemId, 1, 0, "Potion", "item", 1, 1, 1, 1, 10).Value;
         var itemRepo = new StubItemRepository(potion);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
@@ -126,7 +126,7 @@ public class PlaceItemAtPositionCommandHandlerTests
         var itemId = ItemId.NewId();
         var position = new GridPosition(100, 100);
 
-        var item = Darklands.Core.Features.Item.Domain.Item.Create(itemId, 0, 0, "Sword", "weapon", 1, 1, 1).Value;
+        var item = Darklands.Core.Features.Item.Domain.Item.Create(itemId, 0, 0, "Sword", "weapon", 1, 1, 1, 1, 1).Value;
         var itemRepo = new StubItemRepository(item);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
@@ -142,6 +142,6 @@ public class PlaceItemAtPositionCommandHandlerTests
 
         // Assert
         result.IsFailure.Should().BeTrue();
-        result.Error.Should().Contain("out of bounds");
+        result.Error.Should().Contain("exceeds grid bounds");
     }
 }
