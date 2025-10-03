@@ -527,22 +527,24 @@ public partial class SpatialInventoryContainerNode : Control
         gridWrapper.AddChild(_gridContainer);
 
         // Overlay container for multi-cell item sprites (Phase 2)
-        // WHY: Items rendered on separate layer so they can span multiple cells freely
-        _itemOverlayContainer = new Control
-        {
-            MouseFilter = MouseFilterEnum.Ignore, // Let grid cells handle input
-            ZIndex = 10 // Render above grid cells
-        };
-        gridWrapper.AddChild(_itemOverlayContainer);
-
         // Highlight overlay container for drag preview (Phase 2.4)
         // WHY: Shows green/red highlights for valid/invalid placement during drag
+        // PHASE 3: Render BELOW items (ZIndex=10) so sprites appear above glow
         _highlightOverlayContainer = new Control
         {
             MouseFilter = MouseFilterEnum.Ignore, // Let grid cells handle input
-            ZIndex = 15 // Render above items
+            ZIndex = 10 // Render as background glow (below items)
         };
         gridWrapper.AddChild(_highlightOverlayContainer);
+
+        // WHY: Items rendered on separate layer so they can span multiple cells freely
+        // PHASE 3: Render ABOVE highlights (ZIndex=15) so sprites are visible
+        _itemOverlayContainer = new Control
+        {
+            MouseFilter = MouseFilterEnum.Ignore, // Let grid cells handle input
+            ZIndex = 15 // Render above highlights (items on top!)
+        };
+        gridWrapper.AddChild(_itemOverlayContainer);
     }
 
     private async void LoadInventoryAsync()
