@@ -334,122 +334,28 @@ public partial class SpatialInventoryContainerNode : Control
 
         var itemId = new ItemId(itemIdGuid);
 
-        // Get BASE dimensions - check cache first, query if not found (cross-container drag)
-        int baseItemWidth, baseItemHeight;
-        if (_itemDimensions.TryGetValue(itemId, out var cachedDimensions))
+        // PHASE 4: Delegate ALL validation to Core (no business logic in Presentation!)
+        // WHY: Single source of truth - Core owns collision detection with L-shape support
+        if (OwnerActorId == null)
         {
-            (baseItemWidth, baseItemHeight) = cachedDimensions;
-        }
-        else
-        {
-            // Cross-container drag: Item not in this container's cache yet
-            // Query dimensions from Item repository
-            var itemQuery = new GetItemByIdQuery(itemId);
-            var itemResult = _mediator.Send(itemQuery).Result; // Blocking, but necessary for validation
-
-            if (itemResult.IsSuccess)
-            {
-                baseItemWidth = itemResult.Value.InventoryWidth;
-                baseItemHeight = itemResult.Value.InventoryHeight;
-            }
-            else
-            {
-                // Fallback if query fails
-                (baseItemWidth, baseItemHeight) = (1, 1);
-            }
+            ClearDragHighlights();
+            return false;
         }
 
-        // PHASE 3: Read rotation from SHARED static variable (cross-container safe)
-        // WHY: Drag data is immutable, but rotation changes via scroll wheel AFTER drag starts
-        // Static variable allows target container to read latest rotation from source container
+        // Read rotation from SHARED static variable (cross-container safe)
         var dragRotation = _sharedDragRotation;
 
-        // PHASE 3: Calculate effective dimensions after rotation
-        var (itemWidth, itemHeight) = RotationHelper.GetRotatedDimensions(baseItemWidth, baseItemHeight, dragRotation);
+        // Delegate to Core: Validates bounds, collision (with L-shapes!), type compatibility
+        var canPlaceQuery = new CanPlaceItemAtQuery(
+            OwnerActorId.Value,
+            itemId,
+            targetPos.Value,
+            dragRotation);
 
-        _logger.LogDebug("🔄 Item dimensions: base {BaseW}×{BaseH}, rotated ({Rotation}°) = {W}×{H}",
-            baseItemWidth, baseItemHeight, (int)dragRotation, itemWidth, itemHeight);
+        var validationResult = _mediator.Send(canPlaceQuery).Result; // Blocking OK for UI validation
 
-        // Override dimensions for equipment slots (matches placement handler logic)
-        bool isEquipmentSlot = _containerType == ContainerType.WeaponOnly;
-        if (isEquipmentSlot)
-        {
-            itemWidth = 1;
-            itemHeight = 1;
-        }
-
-        // Validation flags
-        bool isValid = true;
-        string validationError = "";
-
-        // Check bounds
-        if (targetPos.Value.X + itemWidth > _gridWidth || targetPos.Value.Y + itemHeight > _gridHeight)
-        {
-            isValid = false;
-            validationError = "exceeds bounds";
-        }
-
-        // Check occupation (Phase 2: Check all cells in footprint)
-        // Phase 2.4 Fix: Exclude self-collision (item colliding with its current position)
-        bool hasCollision = false;
-        if (isValid)
-        {
-            for (int dy = 0; dy < itemHeight && !hasCollision; dy++)
-            {
-                for (int dx = 0; dx < itemWidth && !hasCollision; dx++)
-                {
-                    var checkPos = new GridPosition(targetPos.Value.X + dx, targetPos.Value.Y + dy);
-                    if (_itemsAtPositions.TryGetValue(checkPos, out var occupyingItemId))
-                    {
-                        // Phase 2.4: Ignore collision if cell is occupied by the dragged item itself
-                        // WHY: Dropping item at same position should be allowed (green highlight, not red)
-                        if (occupyingItemId != itemId)
-                        {
-                            hasCollision = true;
-                        }
-                    }
-                }
-            }
-
-            if (hasCollision)
-            {
-                // Equipment slots allow swap, backpacks don't
-                if (!isEquipmentSlot)
-                {
-                    isValid = false;
-                    validationError = "occupied";
-                }
-                // If equipment slot, allow (swap will happen in _DropData)
-            }
-        }
-
-        // Type validation for specialized containers (prevent data loss bug)
-        if (isValid && OwnerActorId != null)
-        {
-            // Query item type (synchronous lookup from cache)
-            if (_itemTypes.TryGetValue(itemId, out var itemType))
-            {
-                // Check type compatibility with this container
-                if (!CanAcceptItemType(itemType))
-                {
-                    isValid = false;
-                    validationError = "wrong type";
-                }
-            }
-            else
-            {
-                // Item type not in cache - query via MediatR (blocks, but necessary)
-                var itemTypeResult = GetItemTypeAsync(itemId).Result;
-                if (itemTypeResult.IsSuccess)
-                {
-                    if (!CanAcceptItemType(itemTypeResult.Value))
-                    {
-                        isValid = false;
-                        validationError = "wrong type";
-                    }
-                }
-            }
-        }
+        bool isValid = validationResult.IsSuccess && validationResult.Value;
+        string validationError = isValid ? "" : "validation failed";
 
         // Phase 4: Render green/red highlight showing item footprint (L-shape accurate!)
         RenderDragHighlight(targetPos.Value, itemId, dragRotation, isValid);
@@ -482,84 +388,23 @@ public partial class SpatialInventoryContainerNode : Control
 
         var itemId = _draggingItemId.Value;
 
-        // Get BASE dimensions
-        int baseItemWidth, baseItemHeight;
-        if (_itemDimensions.TryGetValue(itemId, out var cachedDimensions))
+        // PHASE 4: Delegate ALL validation to Core (no business logic in Presentation!)
+        if (OwnerActorId == null)
         {
-            (baseItemWidth, baseItemHeight) = cachedDimensions;
-        }
-        else
-        {
-            // Cross-container drag: Query dimensions
-            var itemQuery = new GetItemByIdQuery(itemId);
-            var itemResult = _mediator.Send(itemQuery).Result;
-
-            if (itemResult.IsSuccess)
-            {
-                baseItemWidth = itemResult.Value.InventoryWidth;
-                baseItemHeight = itemResult.Value.InventoryHeight;
-            }
-            else
-            {
-                (baseItemWidth, baseItemHeight) = (1, 1);
-            }
+            ClearDragHighlights();
+            return;
         }
 
-        // PHASE 3: Calculate effective dimensions after rotation (use shared rotation for cross-container support)
-        var (itemWidth, itemHeight) = RotationHelper.GetRotatedDimensions(baseItemWidth, baseItemHeight, _sharedDragRotation);
+        // Delegate to Core: Validates bounds, collision (with L-shapes!), type compatibility
+        var canPlaceQuery = new CanPlaceItemAtQuery(
+            OwnerActorId.Value,
+            itemId,
+            targetPos.Value,
+            _sharedDragRotation);
 
-        // Override dimensions for equipment slots
-        bool isEquipmentSlot = _containerType == ContainerType.WeaponOnly;
-        if (isEquipmentSlot)
-        {
-            itemWidth = 1;
-            itemHeight = 1;
-        }
+        var validationResult = _mediator.Send(canPlaceQuery).Result; // Blocking OK for manual highlight update
 
-        // Validation
-        bool isValid = true;
-
-        // Check bounds
-        if (targetPos.Value.X + itemWidth > _gridWidth || targetPos.Value.Y + itemHeight > _gridHeight)
-        {
-            isValid = false;
-        }
-
-        // Check occupation
-        if (isValid)
-        {
-            for (int dy = 0; dy < itemHeight; dy++)
-            {
-                for (int dx = 0; dx < itemWidth; dx++)
-                {
-                    var checkPos = new GridPosition(targetPos.Value.X + dx, targetPos.Value.Y + dy);
-                    if (_itemsAtPositions.TryGetValue(checkPos, out var occupyingItemId))
-                    {
-                        if (occupyingItemId != itemId)
-                        {
-                            if (!isEquipmentSlot)
-                            {
-                                isValid = false;
-                                break;
-                            }
-                        }
-                    }
-                }
-                if (!isValid) break;
-            }
-        }
-
-        // Type validation
-        if (isValid && OwnerActorId != null)
-        {
-            if (_itemTypes.TryGetValue(itemId, out var itemType))
-            {
-                if (!CanAcceptItemType(itemType))
-                {
-                    isValid = false;
-                }
-            }
-        }
+        bool isValid = validationResult.IsSuccess && validationResult.Value;
 
         // Phase 4: Render highlight with actual shape (L-shape accurate!)
         RenderDragHighlight(targetPos.Value, itemId, _sharedDragRotation, isValid);
@@ -792,11 +637,7 @@ public partial class SpatialInventoryContainerNode : Control
                 var itemName = _itemNames.GetValueOrDefault(itemId, "Unknown");
                 var itemType = _itemTypes.GetValueOrDefault(itemId, "unknown");
 
-                // DEBUG: Inspect OccupiedCells contents
-                var cellsDebug = string.Join(", ", rotatedShape.OccupiedCells.Select(c => $"({c.X},{c.Y})"));
-                _logger.LogInformation("DEBUG: Item '{ItemName}' rotatedShape.OccupiedCells = [{Cells}]", itemName, cellsDebug);
-
-                _logger.LogInformation("Item '{ItemName}' ({ItemType}) [{ItemId}] at ({X},{Y}) occupies {OccupiedCount} cells (shape: {ShapeWidth}×{ShapeHeight}, rotation: {Rotation})",
+                _logger.LogDebug("Item '{ItemName}' ({ItemType}) [{ItemId}] at ({X},{Y}) occupies {OccupiedCount} cells (shape: {ShapeWidth}×{ShapeHeight}, rotation: {Rotation})",
                     itemName, itemType, itemId, origin.X, origin.Y, rotatedShape.OccupiedCells.Count, rotatedShape.Width, rotatedShape.Height, rotation);
             }
             else

@@ -173,7 +173,6 @@ public sealed class TileSetItemRepository : IItemRepository
         }
 
         // ARCHITECTURE: Parse shape encoding to Domain ItemShape
-        GD.Print($"[DEBUG TileSet] Item '{name}': Calling CreateFromEncoding with encoding='{shapeEncoding}', width={inventoryWidth}, height={inventoryHeight}");
         var shapeResult = Core.Domain.Common.ItemShape.CreateFromEncoding(
             shapeEncoding, inventoryWidth, inventoryHeight);
 
@@ -182,11 +181,6 @@ public sealed class TileSetItemRepository : IItemRepository
             return Result.Failure<ItemEntity>(
                 $"Failed to parse item shape: {shapeResult.Error}");
         }
-
-        // DEBUG: Inspect parsed shape
-        var parsedShape = shapeResult.Value;
-        var cellsDebug = string.Join(", ", parsedShape.OccupiedCells.Select(c => $"({c.X},{c.Y})"));
-        GD.Print($"[DEBUG TileSet] Item '{name}': Parsed shape has {parsedShape.OccupiedCells.Count} cells: [{cellsDebug}]");
 
         // PHASE 4: Use CreateWithShape (explicit ItemShape parameter)
         return ItemEntity.CreateWithShape(

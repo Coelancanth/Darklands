@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-03 22:33 (Dev Engineer: BR_003 - L-Shape Bug Fixed - Application layer handlers updated to use Phase 4 API)
+**Last Updated**: 2025-10-03 22:48 (Dev Engineer: BR_004 Complete - Presentation layer architectural fix + VS_018 fully validated)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -9,7 +9,7 @@
 ## 🔢 Next Item Numbers by Type
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
-- **Next BR**: 005
+- **Next BR**: 006
 - **Next TD**: 003
 - **Next VS**: 019
 
@@ -71,7 +71,9 @@
 ---
 
 *Recently completed and archived (2025-10-03):*
+- **BR_004**: Presentation Layer Validation Duplication - Presentation layer (_CanDropData, UpdateDragHighlightsAtPosition) duplicated collision logic, iterating bounding box instead of OccupiedCells. Result: UI blocked dagger placement in L-shape empty corner. Fixed by delegating ALL validation to CanPlaceItemAtQuery (Core). Removed 200+ lines of duplicated business logic from Presentation. Architectural compliance: Presentation now thin display layer, Core owns all validation. Memory Bank updated with "Presentation Layer Responsibilities" guidelines. All 359 tests GREEN. ✅ (2025-10-03 22:48)
 - **BR_003**: L-Shape Collision Bug - PlaceItemAtPositionCommandHandler & MoveItemBetweenContainersCommandHandler converted width×height to rectangles, destroying L-shapes. Fixed by using `item.Shape` (Phase 4 API) in all placement paths. Root cause: Application layer handlers called backward-compatible Phase 2 signature. Impact: L-shapes now preserve 3-cell structure through placement, movement, and rollback. All 359 tests GREEN. ✅ (2025-10-03 22:33)
+- **VS_018**: Spatial Inventory L-Shapes - 4-phase implementation (Domain → Application → Infrastructure → Presentation). TileSet-driven ItemShape with custom encoding (custom:x,y;x,y), rotation support, collision detection via OccupiedCells iteration. Comprehensive testing (359 total, 45 L-shape specific). Found and fixed BR_003 & BR_004 during validation. Feature fully operational - ray_gun (L-shape) + dagger placement working correctly. ✅ (2025-10-03 22:48)
 - **VS_009**: Item Definition System - TileSet metadata-driven catalog, 57 tests, auto-discovery, TextureRect rendering ✅ (2025-10-02 23:01)
 - **VS_008**: Slot-Based Inventory System - 20-slot backpack, add/remove operations, 23 tests, PR #84 merged ✅ (2025-10-02 12:10)
 - **TD_002**: Debug Console Scene Refactor - Scene-based UI, pause isolation, ILogger integration ✅ (2025-10-01 20:37)

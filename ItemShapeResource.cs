@@ -71,16 +71,10 @@ public partial class ItemShapeResource : Resource
     // Convert to domain encoding string
     public string ToEncoding()
     {
-        // DEBUG: Log cell array
-        var cellsDebug = string.Join(", ", Cells ?? new int[0]);
-        GD.Print($"[DEBUG] ToEncoding: Width={Width}, Height={Height}, Cells=[{cellsDebug}]");
-
         // Check if it's a simple rectangle (all cells filled)
         if (Cells != null && Cells.All(c => c == 1))
         {
-            var rectEncoding = $"rect:{Width}x{Height}";
-            GD.Print($"[DEBUG] Rectangle detected, encoding: {rectEncoding}");
-            return rectEncoding;
+            return $"rect:{Width}x{Height}";
         }
 
         // Complex shape: Export relative coordinates
@@ -95,13 +89,10 @@ public partial class ItemShapeResource : Resource
                     if (index < Cells.Length && Cells[index] == 1)
                     {
                         coords.Add($"{x},{y}");
-                        GD.Print($"[DEBUG] Added coord: ({x},{y}) from index {index}");
                     }
                 }
             }
         }
-        var customEncoding = $"custom:{string.Join(";", coords)}";
-        GD.Print($"[DEBUG] Complex shape detected, encoding: {customEncoding}");
-        return customEncoding;
+        return $"custom:{string.Join(";", coords)}";
     }
 }

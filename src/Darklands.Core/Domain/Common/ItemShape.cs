@@ -148,16 +148,10 @@ public sealed class ItemShape
         // Format: "custom:x1,y1;x2,y2;..."
         var coordsString = encoding.Substring(7); // Skip "custom:"
 
-        // DEBUG: Log input
-        System.Console.WriteLine($"[DEBUG ParseCustomEncoding] Input: encoding='{encoding}', width={width}, height={height}");
-        System.Console.WriteLine($"[DEBUG ParseCustomEncoding] coordsString='{coordsString}'");
-
         if (string.IsNullOrWhiteSpace(coordsString))
             return Result.Failure<ItemShape>("Custom encoding requires at least one coordinate");
 
         var coordinates = coordsString.Split(';', StringSplitOptions.RemoveEmptyEntries);
-
-        System.Console.WriteLine($"[DEBUG ParseCustomEncoding] coordinates.Length={coordinates.Length}");
 
         if (coordinates.Length == 0)
             return Result.Failure<ItemShape>("Custom encoding requires at least one coordinate");
@@ -178,11 +172,8 @@ public sealed class ItemShape
             if (x < 0 || x >= width || y < 0 || y >= height)
                 return Result.Failure<ItemShape>($"Cell ({x},{y}) is outside bounding box ({width}×{height})");
 
-            System.Console.WriteLine($"[DEBUG ParseCustomEncoding] Adding cell: ({x},{y})");
             cells.Add(new GridPosition(x, y));
         }
-
-        System.Console.WriteLine($"[DEBUG ParseCustomEncoding] Final cells.Count={cells.Count}");
 
         // BUSINESS RULE: Must have at least one occupied cell
         if (cells.Count == 0)
