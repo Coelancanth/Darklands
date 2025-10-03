@@ -129,26 +129,61 @@ public sealed class TileSetItemRepository : IItemRepository
         int spriteWidth = sizeInAtlas.X;
         int spriteHeight = sizeInAtlas.Y;
 
-        // Read inventory dimensions from custom_data (for logical occupation/collision)
-        // WHY: Sprite size ≠ Inventory footprint (4×4 sprite might occupy 2×2 inventory cells)
+        // PHASE 4: Read shape resource (complex shapes like L/T-shapes)
+        var shapeVariant = tileData.GetCustomData("item_shape");
+        ItemShapeResource shapeResource = null;
+        if (shapeVariant.VariantType == Variant.Type.Object)
+        {
+            shapeResource = shapeVariant.AsGodotObject() as ItemShapeResource;
+        }
+
+        // Fallback: Read legacy inventory dimensions (backward compatibility)
         var invWidthVariant = tileData.GetCustomData("inventory_width");
         var invHeightVariant = tileData.GetCustomData("inventory_height");
 
-        // Fallback: If inventory dimensions not specified, default to sprite size
-        int inventoryWidth = invWidthVariant.VariantType == Variant.Type.Int
-            ? invWidthVariant.AsInt32()
-            : spriteWidth;
+        int inventoryWidth;
+        int inventoryHeight;
+        string shapeEncoding;
 
-        int inventoryHeight = invHeightVariant.VariantType == Variant.Type.Int
-            ? invHeightVariant.AsInt32()
-            : spriteHeight;
+        if (shapeResource != null)
+        {
+            // PHASE 4: Use shape resource (complex shapes)
+            inventoryWidth = shapeResource.Width;
+            inventoryHeight = shapeResource.Height;
+            shapeEncoding = shapeResource.ToEncoding();
+            _logger.LogDebug(
+                "Item {Name}: Using shape resource {Width}×{Height} (encoding: {Encoding})",
+                name, inventoryWidth, inventoryHeight, shapeEncoding);
+        }
+        else
+        {
+            // BACKWARD COMPATIBILITY: Legacy inventory dimensions (rectangles only)
+            inventoryWidth = invWidthVariant.VariantType == Variant.Type.Int
+                ? invWidthVariant.AsInt32()
+                : spriteWidth;
 
-        _logger.LogDebug(
-            "Item {Name}: Sprite {SpriteW}×{SpriteH} atlas tiles, Inventory {InvW}×{InvH} grid cells",
-            name, spriteWidth, spriteHeight, inventoryWidth, inventoryHeight);
+            inventoryHeight = invHeightVariant.VariantType == Variant.Type.Int
+                ? invHeightVariant.AsInt32()
+                : spriteHeight;
 
-        // ARCHITECTURE: Extract primitives from Godot types, pass to Domain
-        return ItemEntity.Create(
+            shapeEncoding = $"rect:{inventoryWidth}x{inventoryHeight}";
+            _logger.LogDebug(
+                "Item {Name}: Using legacy dimensions {Width}×{Height} (fallback rectangle)",
+                name, inventoryWidth, inventoryHeight);
+        }
+
+        // ARCHITECTURE: Parse shape encoding to Domain ItemShape
+        var shapeResult = Core.Domain.Common.ItemShape.CreateFromEncoding(
+            shapeEncoding, inventoryWidth, inventoryHeight);
+
+        if (shapeResult.IsFailure)
+        {
+            return Result.Failure<ItemEntity>(
+                $"Failed to parse item shape: {shapeResult.Error}");
+        }
+
+        // PHASE 4: Use CreateWithShape (explicit ItemShape parameter)
+        return ItemEntity.CreateWithShape(
             ItemId.NewId(),
             atlasX: tileCoords.X,
             atlasY: tileCoords.Y,
@@ -156,8 +191,7 @@ public sealed class TileSetItemRepository : IItemRepository
             type: type,
             spriteWidth: spriteWidth,
             spriteHeight: spriteHeight,
-            inventoryWidth: inventoryWidth,
-            inventoryHeight: inventoryHeight,
+            shape: shapeResult.Value,
             maxStackSize: maxStackSize);
     }
 

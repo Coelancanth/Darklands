@@ -195,6 +195,7 @@ public sealed class Inventory
 
     /// <summary>
     /// Places an item at a specific grid position with dimensions and rotation (Phase 3: rotatable items).
+    /// BACKWARD COMPATIBILITY: Converts width×height to rectangle shape internally.
     /// </summary>
     /// <param name="itemId">ID of item to place</param>
     /// <param name="position">Top-left grid position (origin)</param>
@@ -204,47 +205,108 @@ public sealed class Inventory
     /// <returns>Success if placed, Failure with reason if not</returns>
     public Result PlaceItemAt(ItemId itemId, GridPosition position, int width, int height, Rotation rotation)
     {
-        // BUSINESS RULE: Dimensions must be positive
-        if (width <= 0 || height <= 0)
-            return Result.Failure("Item dimensions must be positive");
+        // BACKWARD COMPATIBILITY: Convert dimensions to rectangle shape
+        var shapeResult = ItemShape.CreateRectangle(width, height);
+        if (shapeResult.IsFailure)
+            return Result.Failure(shapeResult.Error);
 
-        // PHASE 3: Calculate effective dimensions after rotation
-        var (effectiveWidth, effectiveHeight) = RotationHelper.GetRotatedDimensions(width, height, rotation);
+        // Apply rotation to shape
+        var shape = shapeResult.Value;
+        for (int i = 0; i < ((int)rotation / 90); i++)
+        {
+            var rotateResult = shape.RotateClockwise();
+            if (rotateResult.IsFailure)
+                return Result.Failure(rotateResult.Error);
+            shape = rotateResult.Value;
+        }
 
-        // BUSINESS RULE: Item footprint must fit within grid bounds
-        if (position.X < 0 || position.Y < 0 ||
-            position.X + effectiveWidth > GridWidth ||
-            position.Y + effectiveHeight > GridHeight)
-            return Result.Failure("Item footprint exceeds grid bounds");
+        // Delegate to shape-based placement
+        return PlaceItemWithShape(itemId, position, width, height, shape, rotation);
+    }
 
+    /// <summary>
+    /// Places an item using explicit ItemShape (Phase 4: complex shapes support).
+    /// CORE COLLISION LOGIC: Uses OccupiedCells iteration for L/T-shape compatibility.
+    /// </summary>
+    /// <param name="itemId">ID of item to place</param>
+    /// <param name="position">Top-left grid position (anchor)</param>
+    /// <param name="baseWidth">Base width for backward compat storage</param>
+    /// <param name="baseHeight">Base height for backward compat storage</param>
+    /// <param name="shape">ItemShape with OccupiedCells (after rotation applied)</param>
+    /// <param name="rotation">Rotation state for storage</param>
+    /// <returns>Success if placed, Failure with reason if not</returns>
+    private Result PlaceItemWithShape(
+        ItemId itemId,
+        GridPosition position,
+        int baseWidth,
+        int baseHeight,
+        ItemShape shape,
+        Rotation rotation)
+    {
         // BUSINESS RULE: Cannot add duplicate items
         if (_itemPositions.ContainsKey(itemId))
             return Result.Failure("Item already in inventory");
 
-        // BUSINESS RULE: Item footprint must not overlap with existing items (rectangle collision)
+        // PHASE 4: Check bounds for ALL occupied cells (not just bounding box)
+        foreach (var offset in shape.OccupiedCells)
+        {
+            var targetPos = new GridPosition(position.X + offset.X, position.Y + offset.Y);
+
+            if (targetPos.X < 0 || targetPos.X >= GridWidth ||
+                targetPos.Y < 0 || targetPos.Y >= GridHeight)
+            {
+                return Result.Failure("Item footprint exceeds grid bounds");
+            }
+        }
+
+        // PHASE 4: Check collision with existing items (cell-by-cell, NOT AABB)
+        // For each occupied cell of the new item, check if ANY existing item occupies that cell
+        var occupiedCells = new HashSet<GridPosition>();
+
         foreach (var (existingItemId, existingOrigin) in _itemPositions)
         {
             var (existingBaseWidth, existingBaseHeight) = _itemDimensions.GetValueOrDefault(existingItemId, (1, 1));
             var existingRotation = _itemRotations.GetValueOrDefault(existingItemId, Rotation.Degrees0);
 
-            // PHASE 3: Calculate effective dimensions of existing item after rotation
-            var (existingEffectiveWidth, existingEffectiveHeight) =
-                RotationHelper.GetRotatedDimensions(existingBaseWidth, existingBaseHeight, existingRotation);
+            // Reconstruct existing item's shape
+            var existingShapeResult = ItemShape.CreateRectangle(existingBaseWidth, existingBaseHeight);
+            if (existingShapeResult.IsFailure)
+                continue; // Skip malformed items (shouldn't happen)
 
-            // Rectangle overlap test (AABB collision)
-            bool overlaps = !(position.X >= existingOrigin.X + existingEffectiveWidth ||   // newItem is to the right
-                              position.X + effectiveWidth <= existingOrigin.X ||            // newItem is to the left
-                              position.Y >= existingOrigin.Y + existingEffectiveHeight ||   // newItem is below
-                              position.Y + effectiveHeight <= existingOrigin.Y);            // newItem is above
+            var existingShape = existingShapeResult.Value;
 
-            if (overlaps)
-                return Result.Failure($"Item footprint overlaps with existing item at ({existingOrigin.X}, {existingOrigin.Y})");
+            // Apply existing item's rotation
+            for (int i = 0; i < ((int)existingRotation / 90); i++)
+            {
+                var rotResult = existingShape.RotateClockwise();
+                if (rotResult.IsSuccess)
+                    existingShape = rotResult.Value;
+            }
+
+            // Add all cells occupied by this existing item
+            foreach (var offset in existingShape.OccupiedCells)
+            {
+                occupiedCells.Add(new GridPosition(
+                    existingOrigin.X + offset.X,
+                    existingOrigin.Y + offset.Y));
+            }
         }
 
-        // All validations passed - place item and store rotation
+        // Check if ANY of the new item's cells overlap with occupied cells
+        foreach (var offset in shape.OccupiedCells)
+        {
+            var targetPos = new GridPosition(position.X + offset.X, position.Y + offset.Y);
+
+            if (occupiedCells.Contains(targetPos))
+            {
+                return Result.Failure($"Item footprint overlaps with existing item at cell ({targetPos.X}, {targetPos.Y})");
+            }
+        }
+
+        // All validations passed - place item
         _itemPositions[itemId] = position;
-        _itemDimensions[itemId] = (width, height); // Store BASE dimensions
-        _itemRotations[itemId] = rotation;         // PHASE 3: Store rotation state
+        _itemDimensions[itemId] = (baseWidth, baseHeight); // Store BASE dimensions (backward compat)
+        _itemRotations[itemId] = rotation;
         return Result.Success();
     }
 

@@ -54,16 +54,27 @@ public sealed class Item
     public int SpriteHeight { get; private init; }
 
     /// <summary>
-    /// Inventory width in grid cells (for logical occupation/collision).
-    /// From TileSet custom_data_3 (inventory_width).
+    /// Spatial shape defining which cells this item occupies in inventory grid.
+    /// SINGLE SOURCE OF TRUTH for collision detection (VS_018 Phase 4).
     /// </summary>
-    public int InventoryWidth { get; private init; }
+    /// <remarks>
+    /// PHASE 4: Replaces InventoryWidth/Height with coordinate-based shape.
+    /// - Rectangle (2×3): All 6 cells occupied
+    /// - L-shape (2×2 bounding box): Only 3 cells occupied
+    /// </remarks>
+    public ItemShape Shape { get; private init; }
 
     /// <summary>
-    /// Inventory height in grid cells (for logical occupation/collision).
-    /// From TileSet custom_data_4 (inventory_height).
+    /// Inventory width in grid cells (convenience property, delegates to Shape.Width).
+    /// BACKWARD COMPATIBILITY: Existing code can still access width directly.
     /// </summary>
-    public int InventoryHeight { get; private init; }
+    public int InventoryWidth => Shape.Width;
+
+    /// <summary>
+    /// Inventory height in grid cells (convenience property, delegates to Shape.Height).
+    /// BACKWARD COMPATIBILITY: Existing code can still access height directly.
+    /// </summary>
+    public int InventoryHeight => Shape.Height;
 
     /// <summary>
     /// Maximum stack size from TileSet custom_data_2 (max_stack_size).
@@ -84,8 +95,7 @@ public sealed class Item
         string type,
         int spriteWidth,
         int spriteHeight,
-        int inventoryWidth,
-        int inventoryHeight,
+        ItemShape shape,
         int maxStackSize)
     {
         Id = id;
@@ -95,13 +105,13 @@ public sealed class Item
         Type = type;
         SpriteWidth = spriteWidth;
         SpriteHeight = spriteHeight;
-        InventoryWidth = inventoryWidth;
-        InventoryHeight = inventoryHeight;
+        Shape = shape;
         MaxStackSize = maxStackSize;
     }
 
     /// <summary>
     /// Creates a new Item from primitive values (TileSet metadata).
+    /// BACKWARD COMPATIBILITY: Creates rectangle shape from width×height.
     /// </summary>
     /// <param name="id">Unique item instance identifier</param>
     /// <param name="atlasX">Atlas X coordinate (non-negative)</param>
@@ -126,6 +136,48 @@ public sealed class Item
         int inventoryHeight,
         int maxStackSize)
     {
+        // BACKWARD COMPATIBILITY: Create rectangle shape from dimensions
+        var shapeResult = ItemShape.CreateRectangle(inventoryWidth, inventoryHeight);
+        if (shapeResult.IsFailure)
+            return Result.Failure<Item>(shapeResult.Error);
+
+        return CreateWithShape(
+            id,
+            atlasX,
+            atlasY,
+            name,
+            type,
+            spriteWidth,
+            spriteHeight,
+            shapeResult.Value,
+            maxStackSize);
+    }
+
+    /// <summary>
+    /// Creates a new Item with explicit shape (VS_018 Phase 4).
+    /// Supports complex shapes (L-shapes, T-shapes) via shape encoding.
+    /// </summary>
+    /// <param name="id">Unique item instance identifier</param>
+    /// <param name="atlasX">Atlas X coordinate (non-negative)</param>
+    /// <param name="atlasY">Atlas Y coordinate (non-negative)</param>
+    /// <param name="name">Item name (non-empty)</param>
+    /// <param name="type">Item type (non-empty)</param>
+    /// <param name="spriteWidth">Sprite width in atlas tiles (positive)</param>
+    /// <param name="spriteHeight">Sprite height in atlas tiles (positive)</param>
+    /// <param name="shape">Spatial shape (OccupiedCells defines collision)</param>
+    /// <param name="maxStackSize">Maximum stack size (non-negative)</param>
+    /// <returns>Result containing Item or validation error</returns>
+    public static Result<Item> CreateWithShape(
+        ItemId id,
+        int atlasX,
+        int atlasY,
+        string name,
+        string type,
+        int spriteWidth,
+        int spriteHeight,
+        ItemShape shape,
+        int maxStackSize)
+    {
         // BUSINESS RULE: Atlas coordinates must be non-negative
         if (atlasX < 0)
             return Result.Failure<Item>("Atlas X coordinate must be non-negative");
@@ -148,13 +200,6 @@ public sealed class Item
         if (spriteHeight <= 0)
             return Result.Failure<Item>("Sprite height must be positive");
 
-        // BUSINESS RULE: Inventory dimensions must be positive (logical occupation)
-        if (inventoryWidth <= 0)
-            return Result.Failure<Item>("Inventory width must be positive");
-
-        if (inventoryHeight <= 0)
-            return Result.Failure<Item>("Inventory height must be positive");
-
         // BUSINESS RULE: Max stack size must be non-negative
         if (maxStackSize < 0)
             return Result.Failure<Item>("Max stack size must be non-negative");
@@ -167,8 +212,7 @@ public sealed class Item
             type,
             spriteWidth,
             spriteHeight,
-            inventoryWidth,
-            inventoryHeight,
+            shape,
             maxStackSize));
     }
 }
