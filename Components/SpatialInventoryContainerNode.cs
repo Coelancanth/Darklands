@@ -85,8 +85,10 @@ public partial class SpatialInventoryContainerNode : Control
     private Dictionary<ItemId, Rotation> _itemRotations = new(); // Cache item rotations (Phase 3)
     private Dictionary<ItemId, Node> _itemSpriteNodes = new(); // PHASE 3: Direct references to sprite nodes for hiding during drag
 
-    // PHASE 3: Drag-time rotation state
-    private Rotation _currentDragRotation = default(Darklands.Core.Domain.Common.Rotation); // Rotation during active drag
+    // PHASE 3: Drag-time rotation state (SHARED across all container instances for cross-container drag support)
+    // WHY: Godot's drag data is immutable after _GetDragData, but scroll wheel rotates AFTER drag starts
+    // Solution: Static variable allows target container to read latest rotation from source container
+    private static Rotation _sharedDragRotation = default(Darklands.Core.Domain.Common.Rotation);
     private bool _isDragging = false; // Track if drag is active
     private ItemId? _draggingItemId = null; // Track which item is being dragged
     private Control? _dragPreviewNode = null; // Custom drag preview that we can update
@@ -197,21 +199,21 @@ public partial class SpatialInventoryContainerNode : Control
             {
                 // Calculate new rotation (scroll DOWN = clockwise, scroll UP = counter-clockwise)
                 var newRotation = mouseButton.ButtonIndex == MouseButton.WheelDown
-                    ? RotationHelper.RotateClockwise(_currentDragRotation)
-                    : RotationHelper.RotateCounterClockwise(_currentDragRotation);
+                    ? RotationHelper.RotateClockwise(_sharedDragRotation)
+                    : RotationHelper.RotateCounterClockwise(_sharedDragRotation);
 
                 _logger.LogInformation("🔄 Rotating drag preview: {OldRotation} → {NewRotation} (scroll {Direction})",
-                    _currentDragRotation, newRotation,
+                    _sharedDragRotation, newRotation,
                     mouseButton.ButtonIndex == MouseButton.WheelDown ? "DOWN" : "UP");
 
-                _currentDragRotation = newRotation;
+                _sharedDragRotation = newRotation;
 
                 // PHASE 3 FIX: Update sprite preview - ONLY rotation changes (single-layer approach)
                 // WHY: Container is base-sized, texture just rotates inside via PivotOffset
                 if (_dragPreviewSprite != null)
                 {
                     // Simply update rotation - size and position stay constant!
-                    _dragPreviewSprite.Rotation = RotationHelper.ToRadians(_currentDragRotation);
+                    _dragPreviewSprite.Rotation = RotationHelper.ToRadians(_sharedDragRotation);
 
                     // No need to update container size or texture position
                     // Container stays BASE size, texture rotates around its PivotOffset
@@ -255,15 +257,16 @@ public partial class SpatialInventoryContainerNode : Control
         // WHY: Commands operate on origin positions, not clicked cell positions
         var origin = _itemOrigins[itemId];
 
-        // PHASE 3: Initialize drag rotation from item's current rotation
-        _currentDragRotation = _itemRotations.TryGetValue(itemId, out var currentRot)
+        // PHASE 3: Initialize SHARED drag rotation from item's current rotation
+        // WHY: Static variable allows target container to read rotation during cross-container drag
+        _sharedDragRotation = _itemRotations.TryGetValue(itemId, out var currentRot)
             ? currentRot
             : default(Darklands.Core.Domain.Common.Rotation);
         _isDragging = true;
         _draggingItemId = itemId;
 
         _logger.LogInformation("🎯 Starting drag: Item {ItemId} from {Container} at origin ({X}, {Y}) with rotation {Rotation}",
-            itemId, ContainerTitle, origin.X, origin.Y, _currentDragRotation);
+            itemId, ContainerTitle, origin.X, origin.Y, _sharedDragRotation);
 
         // PHASE 3: Immediately hide source sprite (remove from overlay)
         // WHY: Uses direct node reference - no string matching needed!
@@ -278,6 +281,8 @@ public partial class SpatialInventoryContainerNode : Control
 
         // Return drag data using Guids (simpler than value objects)
         // WHY: Use origin position for commands (not clicked cell)
+        // NOTE: Rotation is stored in static _sharedDragRotation and read by target container
+        // (drag data is immutable, but rotation can change via scroll wheel after drag starts)
         var dragData = new Godot.Collections.Dictionary
         {
             ["itemIdGuid"] = itemId.Value.ToString(),
@@ -353,11 +358,16 @@ public partial class SpatialInventoryContainerNode : Control
             }
         }
 
+        // PHASE 3: Read rotation from SHARED static variable (cross-container safe)
+        // WHY: Drag data is immutable, but rotation changes via scroll wheel AFTER drag starts
+        // Static variable allows target container to read latest rotation from source container
+        var dragRotation = _sharedDragRotation;
+
         // PHASE 3: Calculate effective dimensions after rotation
-        var (itemWidth, itemHeight) = RotationHelper.GetRotatedDimensions(baseItemWidth, baseItemHeight, _currentDragRotation);
+        var (itemWidth, itemHeight) = RotationHelper.GetRotatedDimensions(baseItemWidth, baseItemHeight, dragRotation);
 
         _logger.LogDebug("🔄 Item dimensions: base {BaseW}×{BaseH}, rotated ({Rotation}°) = {W}×{H}",
-            baseItemWidth, baseItemHeight, (int)_currentDragRotation, itemWidth, itemHeight);
+            baseItemWidth, baseItemHeight, (int)dragRotation, itemWidth, itemHeight);
 
         // Override dimensions for equipment slots (matches placement handler logic)
         bool isEquipmentSlot = _containerType == ContainerType.WeaponOnly;
@@ -494,8 +504,8 @@ public partial class SpatialInventoryContainerNode : Control
             }
         }
 
-        // PHASE 3: Calculate effective dimensions after rotation
-        var (itemWidth, itemHeight) = RotationHelper.GetRotatedDimensions(baseItemWidth, baseItemHeight, _currentDragRotation);
+        // PHASE 3: Calculate effective dimensions after rotation (use shared rotation for cross-container support)
+        var (itemWidth, itemHeight) = RotationHelper.GetRotatedDimensions(baseItemWidth, baseItemHeight, _sharedDragRotation);
 
         // Override dimensions for equipment slots
         bool isEquipmentSlot = _containerType == ContainerType.WeaponOnly;
@@ -556,14 +566,17 @@ public partial class SpatialInventoryContainerNode : Control
 
     public override void _DropData(Vector2 atPosition, Variant data)
     {
+        // PHASE 3: Read rotation from SHARED static variable (cross-container safe)
+        // WHY: Drag data is immutable, but rotation changes via scroll wheel AFTER drag starts
+        var dropRotation = _sharedDragRotation;
+
         _logger.LogInformation("_DropData called at position ({X}, {Y}) with rotation {Rotation}",
-            atPosition.X, atPosition.Y, _currentDragRotation);
+            atPosition.X, atPosition.Y, dropRotation);
+
+        var dragData = data.AsGodotDictionary();
 
         // Phase 2.4: Clear highlights after drop (will be refreshed after move completes)
         ClearDragHighlights();
-
-        // PHASE 3: Capture rotation before resetting drag state
-        var dropRotation = _currentDragRotation;
 
         // Reset drag state
         _isDragging = false;
@@ -571,7 +584,6 @@ public partial class SpatialInventoryContainerNode : Control
         _dragPreviewNode = null;
         _dragPreviewSprite = null;
 
-        var dragData = data.AsGodotDictionary();
         var itemIdGuidStr = dragData["itemIdGuid"].AsString();
         var sourceActorIdGuidStr = dragData["sourceActorIdGuid"].AsString();
 
@@ -1349,7 +1361,7 @@ public partial class SpatialInventoryContainerNode : Control
             CustomMinimumSize = new Vector2(baseSpriteWidth, baseSpriteHeight),
             Size = new Vector2(baseSpriteWidth, baseSpriteHeight),
             Position = Vector2.Zero,
-            Rotation = RotationHelper.ToRadians(_currentDragRotation),
+            Rotation = RotationHelper.ToRadians(_sharedDragRotation),
             PivotOffset = new Vector2(baseSpriteWidth / 2f, baseSpriteHeight / 2f),
             Modulate = new Color(1, 1, 1, 0.8f)
         };
