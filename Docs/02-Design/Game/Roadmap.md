@@ -2,8 +2,8 @@
 
 **Purpose**: Sequence the complete [Vision.md](Vision.md) into actionable vertical slices with clear dependencies and milestones.
 
-**Last Updated**: 2025-10-02 12:37 (Tech Lead: Enhanced VS_009 with JSON + Godot Editor Plugin architecture)
-**Status**: Phase 1 In Progress (VS_001 Health + VS_005 Grid/FOV complete ✅, VS_006 Interactive Movement approved, VS_007 Smart Interruption planned, VS_008 Inventory complete ✅, VS_009 Item System planned)
+**Last Updated**: 2025-10-02 23:15 (Updated to reflect completed implementations)
+**Status**: Phase 1 In Progress (VS_001 Health ✅, VS_005 Grid/FOV ✅, VS_006 Movement ✅, VS_008 Inventory ✅, VS_009 Items ✅ complete)
 
 ---
 
@@ -66,89 +66,27 @@ Phase 4: Emergent Narrative (3-4 months)
 
 ### VS_005: Grid, FOV & Terrain System ✅ **COMPLETE**
 
-**Status**: Complete (2025-10-01)
-**Owner**: Dev Engineer (completed)
-**Size**: M (completed in 1 day - all 4 phases)
-**Priority**: Critical (tactical foundation for all combat)
-**Depends On**: VS_001 (Health System - ✅ Complete)
+**Status**: Complete (2025-10-01) | **Size**: M (1 day, all 4 phases) | **Tests**: 189 passing
+**Owner**: Dev Engineer
 
-**What**: Grid-based movement with custom shadowcasting FOV implementation (no external dependencies), terrain variety (wall/floor/smoke), event-driven Godot integration
+**Delivered**: 30×30 grid with custom shadowcasting FOV (no external dependencies), terrain types (wall/floor/smoke), fog of war system, event-driven architecture with `ActorMovedEvent` + `FOVCalculatedEvent`, ColorRect rendering
 
-**Why**:
-- Positioning creates tactical depth (cover, line-of-sight, ambush mechanics)
-- FOV is table-stakes for roguelike feel
-- Terrain variety enables strategic choices (hide in smoke, wall cover)
-- Dummy enemy validates mechanics before AI complexity
-- Foundation for all future combat features
+**Architecture**: Zero Godot dependencies in Core, pure functional domain logic, ServiceLocator only in `_Ready()`
 
-**Original Plan vs. Actual Implementation**:
-
-*See [Completed_Backlog_2025-10.md](../../07-Archive/Completed_Backlog_2025-10.md#vs_005-grid-fov--terrain-system) for detailed comparison of planned vs. actual approach.*
-
-**Key Implementation Differences**:
-- ✅ **Custom shadowcasting** (not GoRogue NuGet) - Full ownership, no external dependencies
-- ✅ **ColorRect grid** (not TileMap/Kenney tileset) - Simpler, self-contained, perfect alignment
-- ✅ **Pure event-driven architecture** - Zero polling, `ActorMovedEvent` + `FOVCalculatedEvent` drive all updates
-- ✅ **Complete event pattern** - Events contain both old and new positions (eliminates state duplication in Presentation)
-
-**What Was Delivered** (All 4 Phases Complete):
-
-**Phase 1 - Domain** (41 tests):
-- `Position`, `TerrainType` enum (Wall/Floor/Smoke), `GridMap` (30×30)
-- Railway-oriented design: `IsPassable()` / `IsOpaque()` use functional composition
-
-**Phase 2 - Application** (28 tests):
-- Commands: `MoveActorCommand`, `RegisterActorCommand`, `SetTerrainCommand`
-- Queries: `CalculateFOVQuery`, `GetVisibleActorsQuery`, `GetActorPositionQuery`
-- Services: `IFOVService`, `IActorPositionService` abstractions
-
-**Phase 3 - Infrastructure** (9 tests):
-- `ShadowcastingFOVService` (~220 LOC) - Custom 8-octant recursive shadowcasting
-- Referenced libtcod C + GoRogue C# implementations (no NuGet dependency)
-- Performance: <10ms for 30×30 grid with obstacles
-
-**Phase 4 - Presentation** (Manual testing):
-- `GridTestSceneController.cs` (370 LOC) - Pure reactive, event-driven
-- 900 ColorRect nodes (30×30 × 2 layers: terrain + FOV overlay)
-- Fog of war: 3-state system (unexplored/explored/visible)
-- Controls: Arrow keys (player), WASD (dummy), Tab (switch FOV view)
-
-**Test Coverage**: 189 tests passing, 54ms execution time
-
-**Architecture Highlights**:
-- Zero Godot dependencies in Core (ADR-002 compliant)
-- Events contain complete facts: `ActorMovedEvent(ActorId, OldPosition, NewPosition)`
-- ServiceLocator used ONLY in `_Ready()` (Godot → DI bridge)
-- Clean Architecture: Presentation queries Core, no state duplication
-
-**Full Details**: [Completed_Backlog_2025-10.md](../../07-Archive/Completed_Backlog_2025-10.md#vs_005-grid-fov--terrain-system) (lines 541-739)
+**Archive**: [Completed_Backlog_2025-10_Part1.md](../../07-Archive/Completed_Backlog_2025-10_Part1.md#vs_005-grid-fov--terrain-system) (lines 541-739)
 
 ---
 
-### VS_006: Interactive Movement System ⭐ **APPROVED**
+### VS_006: Interactive Movement System ✅ **COMPLETE**
 
-**Status**: Approved (Tech Lead breakdown complete)
-**Owner**: Tech Lead → Dev Engineer (for implementation)
-**Size**: L (1.5-2 days, 12.5h)
-**Priority**: Critical (core gameplay mechanic)
-**Depends On**: VS_005 (Grid + FOV - ✅ Complete)
+**Status**: Complete (2025-10-01) | **Size**: L (1.5 days, all 4 phases) | **Tests**: 215 passing
+**Owner**: Dev Engineer
 
-**What**: Point-and-click movement with A* pathfinding (8-directional), visual path preview, tile-to-tile animation, and right-click cancellation
+**Delivered**: A* pathfinding (8-directional, Chebyshev heuristic), hover-based path preview, click-to-move with Tween animation, right-click cancellation (CancellationToken pattern), fog of war integration, ILogger refactoring from LoggingService
 
-**Why**:
-- Natural interaction model (click where you want to go vs. mashing arrow keys)
-- Tactical clarity (see path before committing)
-- User control (right-click to cancel long paths)
-- Foundation for all future targeting/interaction features
+**Architecture**: Pathfinding service in Infrastructure, command handlers use async/await, ServiceLocator only in `_Ready()`
 
-**Key Features**:
-- ✅ 8-directional pathfinding (matches roguelike standard: NetHack, DCSS, Cogmind, Caves of Qud)
-- ✅ A* algorithm with Chebyshev heuristic (diagonal cost = 1.0 per Caves of Qud)
-- ✅ Click → preview path → click to confirm → animated movement
-- ✅ **Manual cancellation via right-click** (CancellationToken pattern)
-- ❌ Auto-interruption (enemy spotted, trap discovered) - deferred to VS_007
-
-**Scope**: See detailed specification in [Backlog.md](../../01-Active/Backlog.md#vs_006)
+**Archive**: [Completed_Backlog_2025-10_Part1.md](../../07-Archive/Completed_Backlog_2025-10_Part1.md#vs_006-interactive-movement-system) (lines 740+)
 
 ---
 
@@ -207,58 +145,18 @@ Phase 4: Emergent Narrative (3-4 months)
 
 ---
 
-### VS_008: Slot-Based Inventory System (MVP) ⭐ **PLANNED**
+### VS_008: Slot-Based Inventory System (MVP) ✅ **COMPLETE**
 
-**Status**: Tech Lead Review Complete (Awaiting Product Owner Approval)
-**Owner**: Tech Lead → Dev Engineer (after approval)
-**Size**: M (5-6.5 hours across 4 phases)
-**Priority**: Important (Core mechanic, parallel with movement)
-**Depends On**: None (ActorId already exists in Domain/Common)
+**Status**: Complete (2025-10-02) | **Size**: M (5-6.5h, all 4 phases) | **Tests**: 23 passing
+**Owner**: Dev Engineer
 
-**What**: Slot-based inventory (20-slot backpack) for player-controlled actors with add/remove operations, capacity enforcement, and basic UI panel
+**Delivered**: Slot-based inventory (20 slots), `ItemId` primitive in Domain/Common, add/remove operations with capacity enforcement, UI panel with GridContainer (10×2 slots), query-based refresh (no events in MVP)
 
-**Why**:
-- Core mechanic for loot management (foundational for roguelikes)
-- Zero conflicts with VS_006/007 (parallel development approved)
-- MVP philosophy: Slot-based first, spatial grid deferred until proven needed
-- Player-only system: NPCs/enemies use equipment slots (separate future VS)
+**Key Decision**: Inventory stores `ItemId` (not Item objects) - enables clean separation between container logic and item definitions (VS_009)
 
-**How** (4-Phase Implementation):
-- **Phase 1 (Domain)**: `Inventory` entity (stores `List<ItemId>`), `ItemId` primitive added to Domain/Common
-- **Phase 2 (Application)**: `CreateInventoryCommand`, `AddItemCommand`, `RemoveItemCommand`, `GetInventoryQuery` with DTOs
-- **Phase 3 (Infrastructure)**: `InMemoryInventoryRepository` (explicit creation via CreateInventoryCommand)
-- **Phase 4 (Presentation)**: `InventoryPanelNode` (Godot UI with 20 slot visuals, test buttons)
+**Architecture**: Explicit creation pattern (`CreateInventoryCommand`), player-controlled actors only, InMemoryInventoryRepository with auto-creation, ServiceLocator only in `_Ready()`
 
-**Key Architectural Decisions**:
-1. **Inventory stores ItemIds** (not Item objects)
-   - Enables clean separation: Inventory = container logic, Item = content definition (future VS_009)
-   - Parallel development: Item feature can evolve independently
-   - Testability: No mocks needed, just `ItemId.NewId()`
-
-2. **Player-controlled actors only** (explicit creation pattern)
-   - Player and party members get inventories via `CreateInventoryCommand`
-   - NPCs/enemies use equipment slots only (wielded weapon, worn armor) - separate system
-   - Loot drops are ground items (ItemId at Position) - separate system
-   - Prevents memory waste (no backpacks for 100 enemies)
-
-**Scope**:
-- ✅ Explicit inventory creation for player-controlled actors
-- ✅ Add/remove items with capacity constraint (20 slots default)
-- ✅ Query inventory contents (returns list of ItemIds)
-- ✅ UI panel displays slots, capacity label, add/remove test buttons
-- ❌ Item definitions (name, sprite, properties) - Deferred to VS_009
-- ❌ Spatial grid (tetris placement) - Deferred to VS_017 (if playtesting shows need)
-- ❌ Equipment slots system (NPC gear, player worn items) - Separate future VS
-- ❌ Ground loot system (items at Position) - Separate future VS
-- ❌ Save/load persistence - Deferred to separate Save System VS
-
-**Done When**:
-- ✅ Unit tests: 20 tests passing (10 domain, 6 application, 4 infrastructure) <100ms
-- ✅ Architecture tests pass (zero Godot dependencies in Darklands.Core)
-- ✅ Manual UI test: Add 20 items → All slots filled → Button disables → Error on 21st item
-- ✅ Result<T> error handling with descriptive messages ("Inventory is full")
-
-**Full Specification**: See [VS_008_Inventory_Spec.md](../../01-Active/VS_008_Inventory_Spec.md) for detailed implementation guide
+**Archive**: [Completed_Backlog_2025-10.md](../../07-Archive/Completed_Backlog_2025-10.md#vs_008-slot-based-inventory-system) (lines 47-163)
 
 ---
 
@@ -538,31 +436,22 @@ Time to mastery ≈ 50-70 attacks (5-10 fights)
 
 **Estimated Duration**: 3-4 months
 
-### Planned Vertical Slices (High-Level)
+### Completed & Planned Vertical Slices
 
-**VS_009: Item Definition System (JSON + Editor Plugin)**
-- **Core Architecture**: JSON-based item definitions (data/items/*.json)
-  - Item properties: name, type, sprite_path, sprite_index, width, height, weight, is_stackable, max_stack_size
-  - JsonItemRepository loads JSON directly (zero Godot dependency in Core)
-  - Foundation for VS_010 (stacking), VS_011 (equipment), VS_018 (spatial grid shapes)
-- **Designer Experience**: Godot Editor Plugin (addons/item_editor/)
-  - Custom Inspector for .json files (Odin Inspector-style UX)
-  - Visual property editors: Enum dropdown (ItemType), Sprite picker grid, Int sliders (width/height)
-  - Conditional visibility: MaxStackSize field appears only when IsStackable = true
-  - Validation on save: Width 1-3, Weight > 0, Name non-empty (shows inline errors)
-  - Live preview: Renders item sprite at actual size (2×1 sword vs 1×1 potion)
-  - Plugin is **optional** - JSON still editable in VS Code with schema autocomplete
-- **Incremental Approach**:
-  - Phase 1: InMemoryItemRepository (8 hardcoded test items from inventory_ref spritesheet)
-  - Phase 2: JsonItemRepository (when >20 items, edit JSON in VS Code)
-  - Phase 3: Build Editor Plugin (when designers request visual editor, ~3-4h)
-- **Architecture Benefits**:
-  - ✅ Single source of truth (JSON files, no .tres conversion)
-  - ✅ ADR-002 compliant (Core has zero Godot dependencies)
-  - ✅ Version control friendly (text diffs, readable JSON changes)
-  - ✅ Modding support (players can add items via JSON)
-  - ✅ External tools compatible (Python scripts, web editors, spreadsheets)
-- **Reference**: NeoScavenger itemtypes.xml (stack limits), Unity Odin Inspector (custom drawers)
+**VS_009: Item Definition System (TileSet Metadata-Driven) ✅ COMPLETE**
+
+**Status**: Complete (2025-10-02) | **Size**: M (6-7h, all 4 phases) | **Tests**: 57 passing
+**Owner**: Dev Engineer
+
+**Delivered**: Item catalog using Godot TileSet custom data layers (item_name, item_type, max_stack_size), `TileSetItemRepository` auto-discovers items at startup, `ItemSpriteNode` (TextureRect) renders sprites with KeepAspectCentered, showcase scene displays 10 items with metadata
+
+**Key Decision**: TileSet metadata (not JSON/C# definitions) - designers add items visually in Godot editor with zero code changes, single source of truth for sprites + properties
+
+**Architecture**: Domain stores primitives (atlas coords), Infrastructure reads TileSet custom data layers, Core has zero Godot dependencies (ADR-002)
+
+**Archive**: [Completed_Backlog_2025-10.md](../../07-Archive/Completed_Backlog_2025-10.md#vs_009-item-definition-system) (lines 166-312)
+
+---
 
 **VS_010: Item Stacking System**
 - Stackable item support (e.g., "5× Branch", "20× Arrow")

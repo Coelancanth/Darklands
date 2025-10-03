@@ -24,6 +24,109 @@
 - Use `[Trait("Category", "PhaseX")]` for phase-specific runs
 - Phase 1 tests must run <10ms (pure domain)
 
+### User Testing Protocol (CRITICAL)
+**ALWAYS add temporary verbose logging during user testing, reduce when confirmed!**
+
+**Why This Matters**:
+- Need confirmation that operations actually executed (especially silent multi-step operations)
+- Helps identify WHEN bugs occur (before/after which step)
+- Rich formatting (Serilog) provides structured data for debugging
+
+**Pattern - Temporary LogInformation (Upgrade to LogDebug After Testing)**:
+```csharp
+// TEMPORARY: User testing - upgrade to LogInformation for visibility
+_logger.LogInformation("🔄 SWAP: Starting swap operation for {SourceItem} ↔ {TargetItem}",
+    sourceItemId, targetItemId);
+
+// ... operation code ...
+
+_logger.LogInformation("✅ SWAP: Completed successfully");
+
+// After testing confirms feature works → Downgrade to LogDebug
+_logger.LogDebug("Swap operation for {SourceItem} ↔ {TargetItem}", sourceItemId, targetItemId);
+```
+
+**When to Add Verbose Logging (LogInformation)**:
+- ✅ Complex operations (swap, multi-step transactions)
+- ✅ Silent operations (no visual feedback yet)
+- ✅ Critical data operations (prevent data loss)
+- ✅ During bug investigation (trace execution flow)
+- ✅ New feature validation (confirm it actually runs)
+
+**When to Reduce Verbosity (LogInformation → LogDebug)**:
+- ✅ After user confirms feature works correctly
+- ✅ Before PR/merge (reduce log noise in production)
+- ✅ Keep statements, just change log level
+
+**Example - VS_018 Swap Testing**:
+```csharp
+// TEMPORARY: User testing confirmation (LogInformation for visibility)
+_logger.LogInformation("🔄 Removing {SourceItem} from source container", sourceItemId);
+var removeSourceResult = await _mediator.Send(removeSourceCmd);
+
+if (removeSourceResult.IsSuccess)
+    _logger.LogInformation("✅ Source item removed successfully");
+else
+    _logger.LogError("❌ FAILED to remove source: {Error}", removeSourceResult.Error);
+
+// After testing confirms swap works:
+// Change LogInformation → LogDebug for production cleanliness
+_logger.LogDebug("Removed {SourceItem} from source", sourceItemId);
+```
+
+**Benefits of Logger over GD.Print**:
+- ✅ Structured logging (parameters captured separately)
+- ✅ Rich formatting (colors, emojis, structured data)
+- ✅ Persistent (logged to files, not just console)
+- ✅ Filterable (log levels, categories)
+- ✅ Professional (no need to delete, just adjust level)
+
+**Red Flag**: User says "I tried but nothing happened" → Upgrade relevant logs to LogInformation
+
+### Regression Tests (CRITICAL)
+**ALWAYS create regression tests for bug fixes!**
+
+**When to Create Regression Test**:
+- ✅ Data loss bugs (items disappearing, state corruption)
+- ✅ Logic errors that passed existing tests (test coverage gap)
+- ✅ User-reported bugs (real-world scenarios missed by unit tests)
+- ✅ Race conditions or timing issues
+- ✅ Edge cases discovered during manual testing
+
+**Regression Test Pattern**:
+```csharp
+[Fact]
+public async Task Handle_BugScenario_ShouldNotCauseDataLoss()
+{
+    // REGRESSION TEST: Brief description of bug
+    // WHY: Explain what was broken and why it matters
+    // Bug scenario (pre-fix):
+    // 1. Step-by-step reproduction
+    // 2. What went wrong
+    // 3. Impact (data loss, crash, etc.)
+    // Fix: Brief description of solution
+
+    // Arrange: Set up exact bug scenario
+    // Act: Execute the operation that previously failed
+    // Assert: Verify BOTH success AND data integrity
+}
+```
+
+**Example** (VS_018 Data Loss Bug):
+- **Bug**: Items disappeared when type validation failed
+- **Test Name**: `Handle_FailedTypeValidation_ShouldNotRemoveItemFromSource`
+- **Key Assertions**:
+  - Command fails as expected
+  - Item **remains in source** (data preserved!)
+  - Item **not in target** (no side effects)
+
+**Pragmatic Approach**:
+1. Fix critical bug first (emergency response)
+2. Add regression test immediately after (prevents recurrence)
+3. Commit separately: `fix(...)` then `test(...): Add regression test`
+
+**Red Flag**: If existing tests pass but bug exists → test coverage gap → regression test needed!
+
 ### Railway-Oriented Programming
 ```csharp
 // Functional composition eliminates manual error checking
@@ -136,4 +239,4 @@ git commit -m "feat(feature): Description [Phase X/4]"
 
 ---
 
-**Last Updated**: 2025-10-02
+**Last Updated**: 2025-10-03

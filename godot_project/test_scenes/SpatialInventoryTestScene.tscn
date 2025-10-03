@@ -1,0 +1,79 @@
+[gd_scene load_steps=2 format=3 uid="uid://cs4vn1k2m8r3p"]
+
+[ext_resource type="Script" uid="uid://deksfecih5ks6" path="res://godot_project/test_scenes/SpatialInventoryTestController.cs" id="1_controller"]
+
+[node name="SpatialInventoryTestScene" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_controller")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -90.0
+offset_bottom = 90.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Title" type="Label" parent="VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "🎮 Spatial Inventory System Test (VS_018 Phase 1)"
+horizontal_alignment = 1
+
+[node name="HSeparator" type="HSeparator" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="Instructions" type="Label" parent="VBoxContainer"]
+layout_mode = 2
+text = "📋 Testing drag-drop inventory with 3 containers:
+• Backpack A (10×6 grid) - General container (accepts all items)
+• Backpack B (8×8 grid) - General container (accepts all items)
+• Weapon Slot (1×4 grid) - WeaponOnly (rejects non-weapon items)
+
+🎯 Manual Tests:
+1. Items should appear in containers (auto-loaded from repository)
+2. Drag item within same container (repositioning)
+3. Drag item between backpack A ↔ backpack B (cross-container movement)
+4. Try dragging non-weapon to weapon slot (should reject)
+5. Drag weapon to weapon slot (should accept)
+
+📦 Phase 1 Scope: All items treated as 1×1 (multi-cell in Phase 2)"
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="HSeparator2" type="HSeparator" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="ContainersRow" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+theme_override_constants/separation = 20
+alignment = 1
+
+[node name="BackpackA" type="Control" parent="VBoxContainer/ContainersRow"]
+custom_minimum_size = Vector2(500, 300)
+layout_mode = 2
+
+[node name="BackpackB" type="Control" parent="VBoxContainer/ContainersRow"]
+custom_minimum_size = Vector2(400, 400)
+layout_mode = 2
+
+[node name="WeaponSlot" type="Control" parent="VBoxContainer/ContainersRow"]
+custom_minimum_size = Vector2(150, 200)
+layout_mode = 2
+
+[node name="HSeparator3" type="HSeparator" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="StatusLabel" type="Label" parent="VBoxContainer"]
+layout_mode = 2
+text = "Status: Ready for testing"
+horizontal_alignment = 1
