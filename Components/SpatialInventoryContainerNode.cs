@@ -225,23 +225,13 @@ public partial class SpatialInventoryContainerNode : Control
         // Check if position is occupied
         bool isOccupied = _itemsAtPositions.ContainsKey(targetPos.Value);
 
-        // SWAP SUPPORT (Option C): Equipment slots allow swapping, backpacks don't
+        // SWAP DISABLED (causes data loss bug - needs proper implementation)
+        // TODO: Implement atomic swap command or use temporary storage position
         if (isOccupied)
         {
-            bool isEquipmentSlot = _containerType == ContainerType.WeaponOnly;
-
-            if (isEquipmentSlot)
-            {
-                _logger.LogDebug("Position ({X}, {Y}) occupied - swap allowed (equipment slot)",
-                    targetPos.Value.X, targetPos.Value.Y);
-                // Continue to type validation (swap will be processed in _DropData)
-            }
-            else
-            {
-                _logger.LogDebug("Position ({X}, {Y}) occupied - swap NOT allowed (backpack)",
-                    targetPos.Value.X, targetPos.Value.Y);
-                return false;
-            }
+            _logger.LogDebug("Position ({X}, {Y}) occupied - drops to occupied slots not allowed (swap disabled due to data loss bug)",
+                targetPos.Value.X, targetPos.Value.Y);
+            return false;
         }
 
         // Type validation for specialized containers (prevent data loss bug)
@@ -312,32 +302,12 @@ public partial class SpatialInventoryContainerNode : Control
         var itemId = new ItemId(itemIdGuid);
         var sourceActorId = new ActorId(sourceActorIdGuid);
 
-        // Check if this is a SWAP operation (equipment slot with occupied position)
-        bool isOccupied = _itemsAtPositions.ContainsKey(targetPos.Value);
-        bool isEquipmentSlot = _containerType == ContainerType.WeaponOnly;
+        // REGULAR MOVE: Position must be free (swap disabled due to data loss bug)
+        _logger.LogInformation("Drop confirmed: Moving item {ItemId} to ({X}, {Y})",
+            itemId, targetPos.Value.X, targetPos.Value.Y);
 
-        if (isOccupied && isEquipmentSlot)
-        {
-            // SWAP OPERATION: Exchange items between source and target positions
-            var targetItemId = _itemsAtPositions[targetPos.Value];
-            var sourceX = dragData["sourceX"].AsInt32();
-            var sourceY = dragData["sourceY"].AsInt32();
-            var sourcePos = new GridPosition(sourceX, sourceY);
-
-            _logger.LogInformation("Swap operation: {ItemA} ↔ {ItemB} at ({X}, {Y})",
-                itemId, targetItemId, targetPos.Value.X, targetPos.Value.Y);
-
-            SwapItemsAsync(sourceActorId, itemId, sourcePos, OwnerActorId!.Value, targetItemId, targetPos.Value);
-        }
-        else
-        {
-            // REGULAR MOVE: Position is free, just move the item
-            _logger.LogInformation("Drop confirmed: Moving item {ItemId} to ({X}, {Y})",
-                itemId, targetPos.Value.X, targetPos.Value.Y);
-
-            // Send MoveItemBetweenContainersCommand
-            MoveItemAsync(sourceActorId, itemId, targetPos.Value);
-        }
+        // Send MoveItemBetweenContainersCommand
+        MoveItemAsync(sourceActorId, itemId, targetPos.Value);
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
