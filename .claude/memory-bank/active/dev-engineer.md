@@ -25,54 +25,63 @@
 - Phase 1 tests must run <10ms (pure domain)
 
 ### User Testing Protocol (CRITICAL)
-**ALWAYS add temporary info messages during user testing, remove when confirmed!**
+**ALWAYS add temporary verbose logging during user testing, reduce when confirmed!**
 
 **Why This Matters**:
-- User can't see internal logs during Godot testing
-- Need confirmation that operations actually executed
-- Silent success feels like silent failure to users
+- Need confirmation that operations actually executed (especially silent multi-step operations)
 - Helps identify WHEN bugs occur (before/after which step)
+- Rich formatting (Serilog) provides structured data for debugging
 
-**Pattern - Temporary GD.Print Messages**:
+**Pattern - Temporary LogInformation (Upgrade to LogDebug After Testing)**:
 ```csharp
-// Add during user testing phase
-_logger.LogInformation("Swap initiated...");
-GD.Print("🔄 SWAP: Starting swap operation");  // ← USER SEES THIS
+// TEMPORARY: User testing - upgrade to LogInformation for visibility
+_logger.LogInformation("🔄 SWAP: Starting swap operation for {SourceItem} ↔ {TargetItem}",
+    sourceItemId, targetItemId);
 
 // ... operation code ...
 
-GD.Print("✅ SWAP: Completed successfully");  // ← CONFIRMATION
-_logger.LogInformation("Swap completed");
+_logger.LogInformation("✅ SWAP: Completed successfully");
 
-// Remove after testing confirms feature works
+// After testing confirms feature works → Downgrade to LogDebug
+_logger.LogDebug("Swap operation for {SourceItem} ↔ {TargetItem}", sourceItemId, targetItemId);
 ```
 
-**When to Add Info Messages**:
+**When to Add Verbose Logging (LogInformation)**:
 - ✅ Complex operations (swap, multi-step transactions)
 - ✅ Silent operations (no visual feedback yet)
 - ✅ Critical data operations (prevent data loss)
 - ✅ During bug investigation (trace execution flow)
 - ✅ New feature validation (confirm it actually runs)
 
-**When to Remove Info Messages**:
+**When to Reduce Verbosity (LogInformation → LogDebug)**:
 - ✅ After user confirms feature works correctly
-- ✅ Before PR/merge (keep codebase clean)
-- ✅ Keep logger statements (for debugging), remove GD.Print
+- ✅ Before PR/merge (reduce log noise in production)
+- ✅ Keep statements, just change log level
 
 **Example - VS_018 Swap Testing**:
 ```csharp
-// TEMPORARY: User testing confirmation messages
-GD.Print($"🔄 Removing {sourceItemId} from source...");
+// TEMPORARY: User testing confirmation (LogInformation for visibility)
+_logger.LogInformation("🔄 Removing {SourceItem} from source container", sourceItemId);
 var removeSourceResult = await _mediator.Send(removeSourceCmd);
-if (removeSourceResult.IsSuccess)
-    GD.Print($"✅ Source item removed");
-else
-    GD.Print($"❌ FAILED to remove source: {removeSourceResult.Error}");
 
-// After testing confirms swap works → Delete GD.Print lines, keep _logger
+if (removeSourceResult.IsSuccess)
+    _logger.LogInformation("✅ Source item removed successfully");
+else
+    _logger.LogError("❌ FAILED to remove source: {Error}", removeSourceResult.Error);
+
+// After testing confirms swap works:
+// Change LogInformation → LogDebug for production cleanliness
+_logger.LogDebug("Removed {SourceItem} from source", sourceItemId);
 ```
 
-**Red Flag**: User says "I tried it but nothing happened" → Add info messages to show execution
+**Benefits of Logger over GD.Print**:
+- ✅ Structured logging (parameters captured separately)
+- ✅ Rich formatting (colors, emojis, structured data)
+- ✅ Persistent (logged to files, not just console)
+- ✅ Filterable (log levels, categories)
+- ✅ Professional (no need to delete, just adjust level)
+
+**Red Flag**: User says "I tried but nothing happened" → Upgrade relevant logs to LogInformation
 
 ### Regression Tests (CRITICAL)
 **ALWAYS create regression tests for bug fixes!**
