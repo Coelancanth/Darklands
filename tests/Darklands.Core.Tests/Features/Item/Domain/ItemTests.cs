@@ -239,7 +239,7 @@ public class ItemTests
 
         // Assert
         result.IsFailure.Should().BeTrue();
-        result.Error.Should().Contain("Width").And.Contain("positive");
+        result.Error.Should().Contain("Sprite width").And.Contain("positive");
     }
 
     [Theory]
@@ -265,7 +265,7 @@ public class ItemTests
 
         // Assert
         result.IsFailure.Should().BeTrue();
-        result.Error.Should().Contain("Height").And.Contain("positive");
+        result.Error.Should().Contain("Sprite height").And.Contain("positive");
     }
 
     [Fact]

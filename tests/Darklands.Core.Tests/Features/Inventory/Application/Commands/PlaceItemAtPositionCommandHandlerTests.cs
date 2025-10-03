@@ -142,6 +142,6 @@ public class PlaceItemAtPositionCommandHandlerTests
 
         // Assert
         result.IsFailure.Should().BeTrue();
-        result.Error.Should().Contain("out of bounds");
+        result.Error.Should().Contain("exceeds grid bounds");
     }
 }
