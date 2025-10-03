@@ -850,6 +850,26 @@ public partial class SpatialInventoryContainerNode : Control
                 float pixelX = origin.X * (CellSize + separationX);
                 float pixelY = origin.Y * (CellSize + separationY);
 
+                // EQUIPMENT SLOT FIX: Center items in 1×1 equipment slots (Diablo 2 pattern)
+                // WHY: Equipment slots show items centered regardless of size
+                bool isEquipmentSlot = _containerType == ContainerType.WeaponOnly && _gridWidth == 1 && _gridHeight == 1;
+                if (isEquipmentSlot)
+                {
+                    // Center item within the single cell (96px)
+                    // Available space: CellSize × CellSize
+                    // Item sprite: effectiveSpriteWidth × effectiveSpriteHeight (after rotation)
+                    var (effectiveWidth, effectiveHeight) = RotationHelper.GetRotatedDimensions(baseInvWidth, baseInvHeight, rotation);
+                    float effectiveW = effectiveWidth * CellSize;
+                    float effectiveH = effectiveHeight * CellSize;
+
+                    // Center horizontally and vertically
+                    pixelX = (CellSize - effectiveW) / 2f;
+                    pixelY = (CellSize - effectiveH) / 2f;
+
+                    _logger.LogDebug("Equipment slot centering: item {ItemId} centered at ({X},{Y}), size {W}×{H}",
+                        itemId, pixelX, pixelY, effectiveW, effectiveH);
+                }
+
                 // PHASE 3 FIX: Calculate sizes for BOTH base and effective dimensions
                 // WHY: Container size = effective dimensions (what cells it occupies)
                 //      Texture size = base dimensions (preserves aspect ratio before rotation)
@@ -1025,8 +1045,6 @@ public partial class SpatialInventoryContainerNode : Control
             {
                 // PHASE 4: ItemDto now exposes Shape - use it for accurate L/T-shape highlighting!
                 baseShape = itemResult.Value.Shape;
-                _logger.LogInformation("🔄 Cross-container drag: Fetched shape {Width}×{Height} with {Cells} cells, applying rotation {Rotation}",
-                    baseShape.Width, baseShape.Height, baseShape.OccupiedCells.Count, rotation);
             }
             else
             {
@@ -1043,6 +1061,17 @@ public partial class SpatialInventoryContainerNode : Control
             var rotResult = rotatedShape.RotateClockwise();
             if (rotResult.IsSuccess)
                 rotatedShape = rotResult.Value;
+        }
+
+        // EQUIPMENT SLOT FIX: Override shape to 1×1 for equipment slots (Diablo 2 pattern)
+        // WHY: Equipment slots display items as 1×1 regardless of actual shape
+        // Visual feedback: Single cell highlight, not the item's multi-cell L-shape
+        bool isEquipmentSlot = _containerType == ContainerType.WeaponOnly && _gridWidth == 1 && _gridHeight == 1;
+        if (isEquipmentSlot)
+        {
+            // Force 1×1 highlight for equipment slots (ignore item's actual shape)
+            rotatedShape = ItemShape.CreateRectangle(1, 1).Value;
+            _logger.LogDebug("Equipment slot: Overriding highlight to 1×1 (item shape ignored)");
         }
 
         // Render highlight sprite for ONLY occupied cells (not bounding box!)
