@@ -82,6 +82,7 @@ public partial class SpatialInventoryContainerNode : Control
     private Dictionary<ItemId, string> _itemTypes = new(); // Cache item types for color coding
     private Dictionary<ItemId, string> _itemNames = new(); // Cache item names for tooltips
     private Dictionary<ItemId, (int Width, int Height)> _itemDimensions = new(); // Cache item dimensions (Phase 2)
+    private Dictionary<ItemId, Rotation> _itemRotations = new(); // Cache item rotations (Phase 3)
 
     // TileSet atlas coordinates for drag highlight sprites
     private static readonly Vector2I HIGHLIGHT_GREEN_COORDS = new(1, 6);
@@ -164,6 +165,35 @@ public partial class SpatialInventoryContainerNode : Control
             {
                 // Left mouse button released - drag ended (successful or rejected)
                 ClearDragHighlights();
+            }
+
+            // PHASE 3: Mouse scroll to rotate items
+            // WHY: Scroll up = clockwise, scroll down = counter-clockwise
+            if (mouseButton.ButtonIndex == MouseButton.WheelUp || mouseButton.ButtonIndex == MouseButton.WheelDown)
+            {
+                // Get mouse position relative to this container
+                var localMousePos = GetLocalMousePosition();
+                var gridPos = PixelToGridPosition(localMousePos);
+
+                if (gridPos != null && _itemsAtPositions.TryGetValue(gridPos.Value, out var itemId))
+                {
+                    // Get current rotation
+                    var currentRotation = _itemRotations.TryGetValue(itemId, out var rot) ? rot : default(Darklands.Core.Domain.Common.Rotation);
+
+                    // Calculate new rotation (scroll up = clockwise, scroll down = counter-clockwise)
+                    var newRotation = mouseButton.ButtonIndex == MouseButton.WheelUp
+                        ? RotationHelper.RotateClockwise(currentRotation)
+                        : RotationHelper.RotateCounterClockwise(currentRotation);
+
+                    _logger.LogInformation("Rotating item {ItemId} from {OldRotation} to {NewRotation}",
+                        itemId, currentRotation, newRotation);
+
+                    // Send rotation command
+                    RotateItemAsync(itemId, newRotation);
+
+                    // Consume the event to prevent scrolling the container
+                    GetViewport().SetInputAsHandled();
+                }
             }
         }
     }
@@ -548,14 +578,15 @@ public partial class SpatialInventoryContainerNode : Control
                 _gridContainer.GetChildCount(), _gridWidth, _gridHeight);
         }
 
-        // Populate items (Phase 2: Use dimensions from Domain)
+        // Populate items (Phase 2: Use dimensions from Domain; Phase 3: Use rotations from Domain)
         _itemsAtPositions.Clear();
         _itemOrigins.Clear();
         _itemTypes.Clear();
         _itemNames.Clear();
         _itemDimensions.Clear();
+        _itemRotations.Clear(); // Phase 3
 
-        // STEP 1: Store origins and dimensions from Domain
+        // STEP 1: Store origins, dimensions, and rotations from Domain
         foreach (var (itemId, origin) in inventory.ItemPlacements)
         {
             _itemOrigins[itemId] = origin;
@@ -564,8 +595,12 @@ public partial class SpatialInventoryContainerNode : Control
             var (width, height) = inventory.ItemDimensions.GetValueOrDefault(itemId, (1, 1));
             _itemDimensions[itemId] = (width, height); // Cache for rendering
 
-            _logger.LogInformation("DEBUG: Item {ItemId} - Domain dimensions: {Width}×{Height}",
-                itemId, width, height);
+            // Get rotation from Domain (Phase 3)
+            var rotation = inventory.ItemRotations.TryGetValue(itemId, out var rot1) ? rot1 : default(Darklands.Core.Domain.Common.Rotation);
+            _itemRotations[itemId] = rotation; // Cache for rendering
+
+            _logger.LogInformation("DEBUG: Item {ItemId} - Domain dimensions: {Width}×{Height}, rotation: {Rotation}",
+                itemId, width, height, rotation);
         }
 
         // STEP 2: Load item metadata (types, names) - needs item IDs from origins
@@ -574,20 +609,24 @@ public partial class SpatialInventoryContainerNode : Control
         // STEP 3: Build reverse lookup: ALL occupied cells → ItemId (multi-cell support)
         foreach (var (itemId, origin) in _itemOrigins)
         {
-            var (width, height) = _itemDimensions[itemId]; // Already cached from Domain
+            var (baseWidth, baseHeight) = _itemDimensions[itemId]; // Base dimensions from Domain
+            var rotation = _itemRotations[itemId]; // Rotation from Domain
 
-            // Reserve ALL cells occupied by this item
-            for (int dy = 0; dy < height; dy++)
+            // PHASE 3: Calculate effective dimensions after rotation
+            var (effectiveWidth, effectiveHeight) = RotationHelper.GetRotatedDimensions(baseWidth, baseHeight, rotation);
+
+            // Reserve ALL cells occupied by this item (using rotated dimensions)
+            for (int dy = 0; dy < effectiveHeight; dy++)
             {
-                for (int dx = 0; dx < width; dx++)
+                for (int dx = 0; dx < effectiveWidth; dx++)
                 {
                     var occupiedCell = new GridPosition(origin.X + dx, origin.Y + dy);
                     _itemsAtPositions[occupiedCell] = itemId;
                 }
             }
 
-            _logger.LogInformation("Item {ItemId} at ({X},{Y}) occupies {Width}×{Height} cells",
-                itemId, origin.X, origin.Y, width, height);
+            _logger.LogInformation("Item {ItemId} at ({X},{Y}) occupies {Width}×{Height} cells (base: {BaseWidth}×{BaseHeight}, rotation: {Rotation})",
+                itemId, origin.X, origin.Y, effectiveWidth, effectiveHeight, baseWidth, baseHeight, rotation);
         }
 
         RefreshGridDisplay();
@@ -717,7 +756,11 @@ public partial class SpatialInventoryContainerNode : Control
 
         // Get INVENTORY dimensions for positioning/sizing (logical occupation)
         // WHY: Item occupies InventoryWidth×InventoryHeight grid cells
-        var (invWidth, invHeight) = _itemDimensions.GetValueOrDefault(itemId, (1, 1));
+        var (baseInvWidth, baseInvHeight) = _itemDimensions.GetValueOrDefault(itemId, (1, 1));
+
+        // PHASE 3: Get rotation for sprite transform
+        var rotation = _itemRotations.TryGetValue(itemId, out var rot2) ? rot2 : default(Darklands.Core.Domain.Common.Rotation);
+        var (effectiveInvWidth, effectiveInvHeight) = RotationHelper.GetRotatedDimensions(baseInvWidth, baseInvHeight, rotation);
 
         // PHASE 2: Render TextureRect sprite if TileSet available
         if (_itemTileSet != null)
@@ -725,14 +768,14 @@ public partial class SpatialInventoryContainerNode : Control
             var atlasSource = _itemTileSet.GetSource(0) as TileSetAtlasSource;
             if (atlasSource != null)
             {
-                // Calculate pixel position and size based on INVENTORY dimensions
-                // WHY: Sprite renders within the inventory cells it occupies
+                // Calculate pixel position and size based on EFFECTIVE (rotated) INVENTORY dimensions
+                // WHY: Sprite renders within the inventory cells it occupies (after rotation)
                 int separationX = 2;
                 int separationY = 2;
                 float pixelX = origin.X * (CellSize + separationX);
                 float pixelY = origin.Y * (CellSize + separationY);
-                float pixelWidth = invWidth * CellSize + (invWidth - 1) * separationX;
-                float pixelHeight = invHeight * CellSize + (invHeight - 1) * separationY;
+                float pixelWidth = effectiveInvWidth * CellSize + (effectiveInvWidth - 1) * separationX;
+                float pixelHeight = effectiveInvHeight * CellSize + (effectiveInvHeight - 1) * separationY;
 
                 // Create AtlasTexture for this specific tile (VS_009 pattern)
                 // WHY: Extracts sprite region from atlas (sprite dimensions are SpriteWidth×SpriteHeight)
@@ -754,15 +797,19 @@ public partial class SpatialInventoryContainerNode : Control
                     ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
                     CustomMinimumSize = new Vector2(pixelWidth, pixelHeight),
                     Position = new Vector2(pixelX, pixelY),
-                    MouseFilter = MouseFilterEnum.Ignore // Grid cells handle input
+                    MouseFilter = MouseFilterEnum.Ignore, // Grid cells handle input
+                    // PHASE 3: Apply rotation transform
+                    Rotation = RotationHelper.ToRadians(rotation),
+                    PivotOffset = new Vector2(pixelWidth / 2f, pixelHeight / 2f) // Rotate around center
                 };
 
                 _itemOverlayContainer?.AddChild(textureRect);
 
-                _logger.LogDebug("Rendered {ItemName} at ({X},{Y}): Sprite {SpriteW}×{SpriteH}, Inventory {InvW}×{InvH}",
+                _logger.LogDebug("Rendered {ItemName} at ({X},{Y}): Sprite {SpriteW}×{SpriteH}, Inventory {InvW}×{InvH}, Rotation {Rotation}°",
                     item.Name, origin.X, origin.Y,
                     item.SpriteWidth, item.SpriteHeight,
-                    invWidth, invHeight);
+                    effectiveInvWidth, effectiveInvHeight,
+                    (int)rotation);
             }
         }
         else
@@ -772,7 +819,7 @@ public partial class SpatialInventoryContainerNode : Control
             {
                 Name = $"Item_{itemId.Value}_Fallback",
                 Color = GetItemColorFallback(item.Name),
-                CustomMinimumSize = new Vector2(invWidth * CellSize * 0.9f, invHeight * CellSize * 0.9f),
+                CustomMinimumSize = new Vector2(effectiveInvWidth * CellSize * 0.9f, effectiveInvHeight * CellSize * 0.9f),
                 Position = new Vector2(origin.X * CellSize + CellSize * 0.05f, origin.Y * CellSize + CellSize * 0.05f),
                 MouseFilter = MouseFilterEnum.Ignore
             };
@@ -1030,5 +1077,29 @@ public partial class SpatialInventoryContainerNode : Control
             return Result.Failure<string>(result.Error);
 
         return Result.Success(result.Value.Type);
+    }
+
+    /// <summary>
+    /// Rotates an item in inventory (Phase 3).
+    /// Sends RotateItemCommand and refreshes display on success.
+    /// </summary>
+    private async void RotateItemAsync(ItemId itemId, Rotation newRotation)
+    {
+        if (OwnerActorId == null)
+            return;
+
+        var command = new RotateItemCommand(OwnerActorId.Value, itemId, newRotation);
+        var result = await _mediator.Send(command);
+
+        if (result.IsFailure)
+        {
+            _logger.LogWarning("Failed to rotate item {ItemId}: {Error}", itemId, result.Error);
+            return;
+        }
+
+        _logger.LogInformation("Successfully rotated item {ItemId} to {Rotation}", itemId, newRotation);
+
+        // Refresh display to show rotated sprite
+        RefreshDisplay();
     }
 }

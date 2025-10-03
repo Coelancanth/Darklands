@@ -43,6 +43,7 @@ public sealed class GetInventoryQueryHandler
                 inventory.GridHeight,
                 inventory.ContainerType,
                 inventory.ItemPlacements,
-                inventory.ItemDimensions)); // Phase 2: Map dimensions
+                inventory.ItemDimensions,  // Phase 2: Map dimensions
+                inventory.ItemRotations)); // Phase 3: Map rotations
     }
 }

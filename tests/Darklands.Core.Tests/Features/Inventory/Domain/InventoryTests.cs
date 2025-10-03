@@ -417,4 +417,285 @@ public class InventoryTests
     }
 
     #endregion
+
+    #region RotateItem Tests (Phase 3)
+
+    [Fact]
+    public void RotateItem_FromDegrees0ToDegrees90_ShouldSucceedWhenSpaceAvailable()
+    {
+        // WHY: Rotating 2×1 sword to 1×2 requires vertical space
+
+        // Arrange
+        var inventory = InventoryEntity.Create(
+            InventoryId.NewId(),
+            gridWidth: 5,
+            gridHeight: 5,
+            ContainerType.General).Value;
+        var itemId = ItemId.NewId();
+        var position = new GridPosition(0, 0);
+        inventory.PlaceItemAt(itemId, position, width: 2, height: 1, rotation: Rotation.Degrees0);
+
+        // Act - Rotate 90° (2×1 becomes 1×2)
+        var result = inventory.RotateItem(itemId, Rotation.Degrees90);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        inventory.GetItemRotation(itemId).Value.Should().Be(Rotation.Degrees90);
+    }
+
+    [Fact]
+    public void RotateItem_WhenWouldExceedBounds_ShouldFail()
+    {
+        // WHY: 2×1 item at right edge cannot rotate to 1×2 (would exceed grid width)
+
+        // Arrange
+        var inventory = InventoryEntity.Create(
+            InventoryId.NewId(),
+            gridWidth: 3,
+            gridHeight: 5,
+            ContainerType.General).Value;
+        var itemId = ItemId.NewId();
+        var position = new GridPosition(2, 0); // Right edge (X=2, width=3)
+        inventory.PlaceItemAt(itemId, position, width: 1, height: 2, rotation: Rotation.Degrees0);
+
+        // Act - Rotating 90° would make it 2×1, exceeding X=2+2=4 > gridWidth=3
+        var result = inventory.RotateItem(itemId, Rotation.Degrees90);
+
+        // Assert
+        result.IsFailure.Should().BeTrue();
+        result.Error.Should().Contain("exceed grid bounds");
+        inventory.GetItemRotation(itemId).Value.Should().Be(Rotation.Degrees0); // Unchanged
+    }
+
+    [Fact]
+    public void RotateItem_WhenWouldCollideWithOtherItem_ShouldFail()
+    {
+        // WHY: Cannot rotate if new orientation overlaps with existing item
+
+        // Arrange
+        var inventory = InventoryEntity.Create(
+            InventoryId.NewId(),
+            gridWidth: 5,
+            gridHeight: 5,
+            ContainerType.General).Value;
+        var sword = ItemId.NewId();
+        var potion = ItemId.NewId();
+
+        // Place sword (2×1) at (0,0)
+        inventory.PlaceItemAt(sword, new GridPosition(0, 0), width: 2, height: 1);
+
+        // Place potion (1×1) at (0,1) - directly below sword
+        inventory.PlaceItemAt(potion, new GridPosition(0, 1), width: 1, height: 1);
+
+        // Act - Rotating sword 90° would make it 1×2, colliding with potion at (0,1)
+        var result = inventory.RotateItem(sword, Rotation.Degrees90);
+
+        // Assert
+        result.IsFailure.Should().BeTrue();
+        result.Error.Should().Contain("overlap");
+    }
+
+    [Fact]
+    public void RotateItem_FullCircle_ShouldReturnToOriginalOrientation()
+    {
+        // WHY: Rotating 0→90→180→270→0 should work seamlessly
+
+        // Arrange
+        var inventory = InventoryEntity.Create(
+            InventoryId.NewId(),
+            gridWidth: 5,
+            gridHeight: 5,
+            ContainerType.General).Value;
+        var itemId = ItemId.NewId();
+        inventory.PlaceItemAt(itemId, new GridPosition(1, 1), width: 2, height: 2); // Square item
+
+        // Act & Assert - Rotate through all orientations
+        inventory.RotateItem(itemId, Rotation.Degrees90).IsSuccess.Should().BeTrue();
+        inventory.GetItemRotation(itemId).Value.Should().Be(Rotation.Degrees90);
+
+        inventory.RotateItem(itemId, Rotation.Degrees180).IsSuccess.Should().BeTrue();
+        inventory.GetItemRotation(itemId).Value.Should().Be(Rotation.Degrees180);
+
+        inventory.RotateItem(itemId, Rotation.Degrees270).IsSuccess.Should().BeTrue();
+        inventory.GetItemRotation(itemId).Value.Should().Be(Rotation.Degrees270);
+
+        inventory.RotateItem(itemId, Rotation.Degrees0).IsSuccess.Should().BeTrue();
+        inventory.GetItemRotation(itemId).Value.Should().Be(Rotation.Degrees0);
+    }
+
+    [Fact]
+    public void RotateItem_NonExistentItem_ShouldFail()
+    {
+        // Arrange
+        var inventory = InventoryEntity.Create(
+            InventoryId.NewId(),
+            gridWidth: 5,
+            gridHeight: 5,
+            ContainerType.General).Value;
+        var nonExistentItem = ItemId.NewId();
+
+        // Act
+        var result = inventory.RotateItem(nonExistentItem, Rotation.Degrees90);
+
+        // Assert
+        result.IsFailure.Should().BeTrue();
+        result.Error.Should().Contain("not found");
+    }
+
+    [Fact]
+    public void GetItemRotation_DefaultsToDegrees0_ForItemPlacedWithoutRotation()
+    {
+        // WHY: Backward compatibility - items placed before Phase 3 should default to 0°
+
+        // Arrange
+        var inventory = InventoryEntity.Create(
+            InventoryId.NewId(),
+            gridWidth: 5,
+            gridHeight: 5,
+            ContainerType.General).Value;
+        var itemId = ItemId.NewId();
+        inventory.PlaceItemAt(itemId, new GridPosition(0, 0), width: 2, height: 1); // No rotation param
+
+        // Act
+        var rotationResult = inventory.GetItemRotation(itemId);
+
+        // Assert
+        rotationResult.IsSuccess.Should().BeTrue();
+        rotationResult.Value.Should().Be(Rotation.Degrees0); // Default
+    }
+
+    [Fact]
+    public void PlaceItemAt_WithRotation_StoresRotationState()
+    {
+        // Arrange
+        var inventory = InventoryEntity.Create(
+            InventoryId.NewId(),
+            gridWidth: 5,
+            gridHeight: 5,
+            ContainerType.General).Value;
+        var itemId = ItemId.NewId();
+
+        // Act - Place item with 90° rotation
+        var placeResult = inventory.PlaceItemAt(
+            itemId,
+            new GridPosition(0, 0),
+            width: 2,
+            height: 1,
+            rotation: Rotation.Degrees90);
+
+        // Assert
+        placeResult.IsSuccess.Should().BeTrue();
+        inventory.GetItemRotation(itemId).Value.Should().Be(Rotation.Degrees90);
+    }
+
+    [Fact]
+    public void PlaceItemAt_WithRotation_UsesRotatedDimensionsForCollision()
+    {
+        // WHY: Placing 2×1 item rotated 90° should occupy 1×2 space
+
+        // Arrange
+        var inventory = InventoryEntity.Create(
+            InventoryId.NewId(),
+            gridWidth: 5,
+            gridHeight: 5,
+            ContainerType.General).Value;
+        var sword = ItemId.NewId();
+        var potion = ItemId.NewId();
+
+        // Place sword (2×1 rotated 90° = 1×2 effective) at (0,0)
+        inventory.PlaceItemAt(sword, new GridPosition(0, 0), width: 2, height: 1, rotation: Rotation.Degrees90);
+
+        // Act - Try to place potion at (0,1) - should collide with rotated sword
+        var result = inventory.PlaceItemAt(potion, new GridPosition(0, 1), width: 1, height: 1);
+
+        // Assert
+        result.IsFailure.Should().BeTrue();
+        result.Error.Should().Contain("overlap");
+    }
+
+    [Fact]
+    public void RotateItem_Degrees180_ShouldNotChangeDimensions()
+    {
+        // WHY: 180° rotation keeps same effective dimensions (2×1 stays 2×1)
+
+        // Arrange
+        var inventory = InventoryEntity.Create(
+            InventoryId.NewId(),
+            gridWidth: 3,
+            gridHeight: 2,
+            ContainerType.General).Value;
+        var itemId = ItemId.NewId();
+        inventory.PlaceItemAt(itemId, new GridPosition(0, 0), width: 2, height: 1);
+
+        // Act - Rotate 180° (dimensions unchanged, no collision)
+        var result = inventory.RotateItem(itemId, Rotation.Degrees180);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        inventory.GetItemRotation(itemId).Value.Should().Be(Rotation.Degrees180);
+    }
+
+    #endregion
+
+    #region RotationHelper Tests (Phase 3)
+
+    [Theory]
+    [InlineData(2, 1, Rotation.Degrees0, 2, 1)]   // No rotation
+    [InlineData(2, 1, Rotation.Degrees90, 1, 2)]  // Swapped
+    [InlineData(2, 1, Rotation.Degrees180, 2, 1)] // No swap
+    [InlineData(2, 1, Rotation.Degrees270, 1, 2)] // Swapped
+    public void RotationHelper_GetRotatedDimensions_ReturnsCorrectEffectiveDimensions(
+        int baseWidth,
+        int baseHeight,
+        Rotation rotation,
+        int expectedWidth,
+        int expectedHeight)
+    {
+        // WHY: Dimension swapping is core to rotation logic
+
+        // Act
+        var (actualWidth, actualHeight) = RotationHelper.GetRotatedDimensions(baseWidth, baseHeight, rotation);
+
+        // Assert
+        actualWidth.Should().Be(expectedWidth);
+        actualHeight.Should().Be(expectedHeight);
+    }
+
+    [Fact]
+    public void RotationHelper_RotateClockwise_CyclesThroughAllOrientations()
+    {
+        // Act & Assert
+        RotationHelper.RotateClockwise(Rotation.Degrees0).Should().Be(Rotation.Degrees90);
+        RotationHelper.RotateClockwise(Rotation.Degrees90).Should().Be(Rotation.Degrees180);
+        RotationHelper.RotateClockwise(Rotation.Degrees180).Should().Be(Rotation.Degrees270);
+        RotationHelper.RotateClockwise(Rotation.Degrees270).Should().Be(Rotation.Degrees0); // Full circle
+    }
+
+    [Fact]
+    public void RotationHelper_RotateCounterClockwise_CyclesThroughAllOrientations()
+    {
+        // Act & Assert
+        RotationHelper.RotateCounterClockwise(Rotation.Degrees0).Should().Be(Rotation.Degrees270);
+        RotationHelper.RotateCounterClockwise(Rotation.Degrees270).Should().Be(Rotation.Degrees180);
+        RotationHelper.RotateCounterClockwise(Rotation.Degrees180).Should().Be(Rotation.Degrees90);
+        RotationHelper.RotateCounterClockwise(Rotation.Degrees90).Should().Be(Rotation.Degrees0); // Full circle
+    }
+
+    [Theory]
+    [InlineData(Rotation.Degrees0, 0f)]
+    [InlineData(Rotation.Degrees90, 1.5707964f)] // π/2
+    [InlineData(Rotation.Degrees180, 3.1415927f)] // π
+    [InlineData(Rotation.Degrees270, 4.712389f)] // 3π/2
+    public void RotationHelper_ToRadians_ConvertsCorrectly(Rotation rotation, float expectedRadians)
+    {
+        // WHY: Godot uses radians for rotation transforms
+
+        // Act
+        var radians = RotationHelper.ToRadians(rotation);
+
+        // Assert
+        radians.Should().BeApproximately(expectedRadians, precision: 0.0001f);
+    }
+
+    #endregion
 }
