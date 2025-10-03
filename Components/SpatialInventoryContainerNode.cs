@@ -157,13 +157,32 @@ public partial class SpatialInventoryContainerNode : Control
         _logger.LogInformation("Starting drag: Item {ItemId} from {Container} at ({X}, {Y})",
             itemId, ContainerTitle, gridPos.Value.X, gridPos.Value.Y);
 
-        // Create drag preview (visual feedback)
+        // Create drag preview with item name (visual feedback)
+        string itemName = _itemNames.GetValueOrDefault(itemId, "Item");
+        string itemType = _itemTypes.GetValueOrDefault(itemId, "?");
+
         var preview = new Label
         {
-            Text = "📦 Item",
-            Modulate = new Color(1, 1, 1, 0.7f)
+            Text = $"📦 {itemName}",
+            Modulate = new Color(1, 1, 1, 0.8f)
         };
-        SetDragPreview(preview);
+        preview.AddThemeFontSizeOverride("font_size", 16);
+
+        // Add background to preview for better visibility
+        var previewBg = new Panel();
+        var previewStyle = new StyleBoxFlat
+        {
+            BgColor = new Color(0.1f, 0.1f, 0.1f, 0.9f),
+            CornerRadiusTopLeft = 4,
+            CornerRadiusTopRight = 4,
+            CornerRadiusBottomLeft = 4,
+            CornerRadiusBottomRight = 4
+        };
+        previewStyle.SetContentMarginAll(8);
+        previewBg.AddThemeStyleboxOverride("panel", previewStyle);
+        previewBg.AddChild(preview);
+
+        SetDragPreview(previewBg);
 
         // Return drag data using Guids (simpler than value objects)
         var dragData = new Godot.Collections.Dictionary
