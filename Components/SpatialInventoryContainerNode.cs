@@ -82,6 +82,7 @@ public partial class SpatialInventoryContainerNode : Control
     private Dictionary<ItemId, string> _itemTypes = new(); // Cache item types for color coding
     private Dictionary<ItemId, string> _itemNames = new(); // Cache item names for tooltips
     private Dictionary<ItemId, (int Width, int Height)> _itemDimensions = new(); // Cache item dimensions (Phase 2)
+    private Dictionary<ItemId, ItemShape> _itemShapes = new(); // Phase 4: Cache item shapes for L-shape rendering
     private Dictionary<ItemId, Rotation> _itemRotations = new(); // Cache item rotations (Phase 3)
     private Dictionary<ItemId, Node> _itemSpriteNodes = new(); // PHASE 3: Direct references to sprite nodes for hiding during drag
 
@@ -450,8 +451,8 @@ public partial class SpatialInventoryContainerNode : Control
             }
         }
 
-        // Phase 2.4: Render green/red highlight showing item footprint
-        RenderDragHighlight(targetPos.Value, itemWidth, itemHeight, isValid);
+        // Phase 4: Render green/red highlight showing item footprint (L-shape accurate!)
+        RenderDragHighlight(targetPos.Value, itemId, dragRotation, isValid);
 
         _logger.LogDebug("Can drop at ({X}, {Y}): {IsValid} ({Reason})",
             targetPos.Value.X, targetPos.Value.Y, isValid, isValid ? "valid" : validationError);
@@ -560,8 +561,8 @@ public partial class SpatialInventoryContainerNode : Control
             }
         }
 
-        // Render highlight with rotated dimensions
-        RenderDragHighlight(targetPos.Value, itemWidth, itemHeight, isValid);
+        // Phase 4: Render highlight with actual shape (L-shape accurate!)
+        RenderDragHighlight(targetPos.Value, itemId, _sharedDragRotation, isValid);
     }
 
     public override void _DropData(Vector2 atPosition, Variant data)
@@ -738,6 +739,7 @@ public partial class SpatialInventoryContainerNode : Control
         _itemTypes.Clear();
         _itemNames.Clear();
         _itemDimensions.Clear();
+        _itemShapes.Clear(); // Phase 4: Clear shape cache
         _itemRotations.Clear(); // Phase 3
 
         // STEP 1: Store origins, dimensions, and rotations from Domain
@@ -748,6 +750,12 @@ public partial class SpatialInventoryContainerNode : Control
             // Get dimensions from Domain (source of truth)
             var (width, height) = inventory.ItemDimensions.GetValueOrDefault(itemId, (1, 1));
             _itemDimensions[itemId] = (width, height); // Cache for rendering
+
+            // Get shape from Domain (Phase 4: L-shape support)
+            if (inventory.ItemShapes.TryGetValue(itemId, out var shape))
+            {
+                _itemShapes[itemId] = shape; // Cache for accurate highlight rendering
+            }
 
             // Get rotation from Domain (Phase 3)
             var rotation = inventory.ItemRotations.TryGetValue(itemId, out var rot1) ? rot1 : default(Darklands.Core.Domain.Common.Rotation);
@@ -1081,13 +1089,13 @@ public partial class SpatialInventoryContainerNode : Control
     }
 
     /// <summary>
-    /// Renders green/red highlight sprites showing where multi-cell item would be placed (Phase 2.4).
+    /// Renders green/red highlight sprites showing where multi-cell item would be placed (Phase 4: L-shape support).
     /// </summary>
     /// <param name="origin">Top-left position where item would be placed</param>
-    /// <param name="width">Item width in cells</param>
-    /// <param name="height">Item height in cells</param>
+    /// <param name="itemId">Item being dragged (to get shape)</param>
+    /// <param name="rotation">Current drag rotation</param>
     /// <param name="isValid">True for green (valid placement), false for red (invalid)</param>
-    private void RenderDragHighlight(GridPosition origin, int width, int height, bool isValid)
+    private void RenderDragHighlight(GridPosition origin, ItemId itemId, Darklands.Core.Domain.Common.Rotation rotation, bool isValid)
     {
         if (_highlightOverlayContainer == null || _itemTileSet == null)
             return;
@@ -1109,35 +1117,60 @@ public partial class SpatialInventoryContainerNode : Control
             Region = region
         };
 
-        // Render highlight sprite for each cell in item footprint
+        // PHASE 4: Get item shape and apply rotation
+        ItemShape rotatedShape;
+        if (_itemShapes.TryGetValue(itemId, out var baseShape))
+        {
+            // Apply rotation to shape (L-shapes rotate correctly!)
+            rotatedShape = baseShape;
+            for (int i = 0; i < ((int)rotation / 90); i++)
+            {
+                var rotResult = rotatedShape.RotateClockwise();
+                if (rotResult.IsSuccess)
+                    rotatedShape = rotResult.Value;
+            }
+        }
+        else
+        {
+            // Fallback: Create rectangle from cached dimensions
+            var (width, height) = _itemDimensions.GetValueOrDefault(itemId, (1, 1));
+            rotatedShape = ItemShape.CreateRectangle(width, height).Value;
+
+            // Apply rotation
+            for (int i = 0; i < ((int)rotation / 90); i++)
+            {
+                var rotResult = rotatedShape.RotateClockwise();
+                if (rotResult.IsSuccess)
+                    rotatedShape = rotResult.Value;
+            }
+        }
+
+        // Render highlight sprite for ONLY occupied cells (not bounding box!)
         int separationX = 2;
         int separationY = 2;
 
-        for (int dy = 0; dy < height; dy++)
+        foreach (var offset in rotatedShape.OccupiedCells)
         {
-            for (int dx = 0; dx < width; dx++)
+            float pixelX = (origin.X + offset.X) * (CellSize + separationX);
+            float pixelY = (origin.Y + offset.Y) * (CellSize + separationY);
+
+            var highlight = new TextureRect
             {
-                float pixelX = (origin.X + dx) * (CellSize + separationX);
-                float pixelY = (origin.Y + dy) * (CellSize + separationY);
+                Name = $"Highlight_{origin.X + offset.X}_{origin.Y + offset.Y}",
+                Texture = atlasTexture,
+                TextureFilter = CanvasItem.TextureFilterEnum.Nearest,
+                StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
+                ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+                CustomMinimumSize = new Vector2(CellSize, CellSize),
+                Position = new Vector2(pixelX, pixelY),
+                MouseFilter = MouseFilterEnum.Ignore,
+                // PHASE 3 FIX: Extreme transparency (0.25 = 25% opacity) - pragmatic solution
+                // WHY: Can't fix z-order reliably, so make highlights barely visible
+                // Trade-off: Faint glow, but items always clearly visible
+                Modulate = new Color(1, 1, 1, 0.25f)
+            };
 
-                var highlight = new TextureRect
-                {
-                    Name = $"Highlight_{origin.X + dx}_{origin.Y + dy}",
-                    Texture = atlasTexture,
-                    TextureFilter = CanvasItem.TextureFilterEnum.Nearest,
-                    StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
-                    ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
-                    CustomMinimumSize = new Vector2(CellSize, CellSize),
-                    Position = new Vector2(pixelX, pixelY),
-                    MouseFilter = MouseFilterEnum.Ignore,
-                    // PHASE 3 FIX: Extreme transparency (0.25 = 25% opacity) - pragmatic solution
-                    // WHY: Can't fix z-order reliably, so make highlights barely visible
-                    // Trade-off: Faint glow, but items always clearly visible
-                    Modulate = new Color(1, 1, 1, 0.25f)
-                };
-
-                _highlightOverlayContainer.AddChild(highlight);
-            }
+            _highlightOverlayContainer.AddChild(highlight);
         }
     }
 

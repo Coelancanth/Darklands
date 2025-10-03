@@ -44,6 +44,7 @@ public sealed class GetInventoryQueryHandler
                 inventory.ContainerType,
                 inventory.ItemPlacements,
                 inventory.ItemDimensions,  // Phase 2: Map dimensions
+                inventory.ItemShapes,      // Phase 4: Map shapes for L-shape rendering
                 inventory.ItemRotations)); // Phase 3: Map rotations
     }
 }
