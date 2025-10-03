@@ -815,7 +815,8 @@ public partial class SpatialInventoryContainerNode : Control
                     MouseFilter = MouseFilterEnum.Ignore, // Grid cells handle input
                     // PHASE 3: Apply rotation transform (rotate around BASE center)
                     Rotation = RotationHelper.ToRadians(rotation),
-                    PivotOffset = new Vector2(baseSpriteWidth / 2f, baseSpriteHeight / 2f) // Rotate around BASE center
+                    PivotOffset = new Vector2(baseSpriteWidth / 2f, baseSpriteHeight / 2f), // Rotate around BASE center
+                    ZIndex = 1 // PHASE 3: Render ABOVE highlights (positive = foreground)
                 };
 
                 _itemOverlayContainer?.AddChild(textureRect);
@@ -939,7 +940,8 @@ public partial class SpatialInventoryContainerNode : Control
                     CustomMinimumSize = new Vector2(CellSize, CellSize),
                     Position = new Vector2(pixelX, pixelY),
                     MouseFilter = MouseFilterEnum.Ignore,
-                    Modulate = new Color(1, 1, 1, 0.7f) // Semi-transparent
+                    Modulate = new Color(1, 1, 1, 0.7f), // Semi-transparent
+                    ZIndex = -1 // PHASE 3: Render BEHIND items (negative = background)
                 };
 
                 _highlightOverlayContainer.AddChild(highlight);
