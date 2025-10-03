@@ -685,6 +685,8 @@ public partial class SpatialInventoryContainerNode : Control
             ZIndex = 100
         };
         gridWrapper.AddChild(_highlightOverlayContainer);
+        _logger.LogInformation("🎨 Z-ORDER: Created HIGHLIGHT overlay container (ZAsRelative={Relative}, ZIndex={Z})",
+            _highlightOverlayContainer.ZAsRelative, _highlightOverlayContainer.ZIndex);
 
         // WHY: Items rendered on separate layer so they can span multiple cells freely
         // PHASE 3: Render ABOVE highlights (ZIndex=15) so sprites are visible
@@ -696,6 +698,8 @@ public partial class SpatialInventoryContainerNode : Control
             ZIndex = 200
         };
         gridWrapper.AddChild(_itemOverlayContainer);
+        _logger.LogInformation("🎨 Z-ORDER: Created ITEM overlay container (ZAsRelative={Relative}, ZIndex={Z})",
+            _itemOverlayContainer.ZAsRelative, _itemOverlayContainer.ZIndex);
     }
 
     private async void LoadInventoryAsync()
@@ -1022,11 +1026,14 @@ public partial class SpatialInventoryContainerNode : Control
                 // PHASE 3: Store CONTAINER reference for direct hiding during drag
                 _itemSpriteNodes[itemId] = textureContainer;
 
-                _logger.LogDebug("Rendered {ItemName} at ({X},{Y}): Sprite {SpriteW}×{SpriteH}, Inventory {InvW}×{InvH}, Rotation {Rotation}°",
-                    item.Name, origin.X, origin.Y,
-                    item.SpriteWidth, item.SpriteHeight,
-                    effectiveInvWidth, effectiveInvHeight,
-                    (int)rotation);
+                _logger.LogInformation("🎨 Z-ORDER: Rendered ITEM sprite '{ItemName}' at ({X},{Y})",
+                    item.Name, origin.X, origin.Y);
+                _logger.LogInformation("  └─ Container: ZAsRelative={ContainerRelative}, ZIndex={ContainerZ}",
+                    textureContainer.ZAsRelative, textureContainer.ZIndex);
+                _logger.LogInformation("  └─ Texture: ZIndex={TextureZ} (relative to container)",
+                    textureRect.ZIndex);
+                _logger.LogInformation("  └─ Parent overlay: ZAsRelative={ParentRelative}, ZIndex={ParentZ}",
+                    _itemOverlayContainer?.ZAsRelative, _itemOverlayContainer?.ZIndex);
             }
         }
         else
@@ -1152,6 +1159,17 @@ public partial class SpatialInventoryContainerNode : Control
                 };
 
                 _highlightOverlayContainer.AddChild(highlight);
+
+                // Log first highlight only (avoid spam)
+                if (dx == 0 && dy == 0)
+                {
+                    _logger.LogInformation("🎨 Z-ORDER: Rendered HIGHLIGHT ({Type}) at ({X},{Y})",
+                        isValid ? "GREEN" : "RED", origin.X, origin.Y);
+                    _logger.LogInformation("  └─ Highlight: ZAsRelative={HighlightRelative}, ZIndex={HighlightZ}",
+                        highlight.ZAsRelative, highlight.ZIndex);
+                    _logger.LogInformation("  └─ Parent overlay: ZAsRelative={ParentRelative}, ZIndex={ParentZ}",
+                        _highlightOverlayContainer.ZAsRelative, _highlightOverlayContainer.ZIndex);
+                }
             }
         }
     }
@@ -1166,6 +1184,12 @@ public partial class SpatialInventoryContainerNode : Control
 
         // PHASE 3: Use Free() instead of QueueFree() for immediate removal
         // WHY: QueueFree() delays removal until end of frame, causing ghost highlights
+        int highlightCount = _highlightOverlayContainer.GetChildCount();
+        if (highlightCount > 0)
+        {
+            _logger.LogInformation("🎨 Z-ORDER: Clearing {Count} highlights from overlay", highlightCount);
+        }
+
         foreach (Node child in _highlightOverlayContainer.GetChildren())
         {
             child.Free(); // Immediate removal, not queued
