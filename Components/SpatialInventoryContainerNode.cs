@@ -672,40 +672,21 @@ public partial class SpatialInventoryContainerNode : Control
         _gridContainer.AddThemeConstantOverride("v_separation", 2);
         gridWrapper.AddChild(_gridContainer);
 
-        // PHASE 3 FIX: Use CanvasLayer for strict render order control
-        // WHY: Control node ZIndex is unreliable - CanvasLayer enforces global layer ordering
-
-        // Layer 0: Highlights (background glow)
-        var highlightLayer = new CanvasLayer
-        {
-            Layer = 0,  // Renders first (background)
-            FollowViewportEnabled = false
-        };
-        gridWrapper.AddChild(highlightLayer);
+        // PHASE 3: Overlay containers (z-order solution: extreme transparency)
+        // WHY: Godot Control z-ordering is unreliable, CanvasLayer breaks positioning
+        // Pragmatic solution: Make highlights SO transparent they don't obscure items
 
         _highlightOverlayContainer = new Control
         {
             MouseFilter = MouseFilterEnum.Ignore
         };
-        highlightLayer.AddChild(_highlightOverlayContainer);
-        _logger.LogInformation("🎨 Z-ORDER: Created HIGHLIGHT overlay on CanvasLayer {Layer}",
-            highlightLayer.Layer);
-
-        // Layer 1: Items (foreground sprites)
-        var itemLayer = new CanvasLayer
-        {
-            Layer = 1,  // Renders second (foreground)
-            FollowViewportEnabled = false
-        };
-        gridWrapper.AddChild(itemLayer);
+        gridWrapper.AddChild(_highlightOverlayContainer);
 
         _itemOverlayContainer = new Control
         {
             MouseFilter = MouseFilterEnum.Ignore
         };
-        itemLayer.AddChild(_itemOverlayContainer);
-        _logger.LogInformation("🎨 Z-ORDER: Created ITEM overlay on CanvasLayer {Layer}",
-            itemLayer.Layer);
+        gridWrapper.AddChild(_itemOverlayContainer);
     }
 
     private async void LoadInventoryAsync()
@@ -1158,10 +1139,10 @@ public partial class SpatialInventoryContainerNode : Control
                     CustomMinimumSize = new Vector2(CellSize, CellSize),
                     Position = new Vector2(pixelX, pixelY),
                     MouseFilter = MouseFilterEnum.Ignore,
-                    // PHASE 3 FIX: Semi-transparent (0.5 = 50% opacity) for subtle glow
-                    // NOTE: Removed ShowBehindParent (made highlights invisible!) and ZIndex tweaks
-                    // Container sibling order handles layering (highlight overlay added before item overlay)
-                    Modulate = new Color(1, 1, 1, 0.5f)
+                    // PHASE 3 FIX: Extreme transparency (0.25 = 25% opacity) - pragmatic solution
+                    // WHY: Can't fix z-order reliably, so make highlights barely visible
+                    // Trade-off: Faint glow, but items always clearly visible
+                    Modulate = new Color(1, 1, 1, 0.25f)
                 };
 
                 _highlightOverlayContainer.AddChild(highlight);
