@@ -77,7 +77,8 @@ public partial class SpatialInventoryContainerNode : Control
     private int _gridWidth;
     private int _gridHeight;
     private ContainerType _containerType = ContainerType.General;
-    private Dictionary<GridPosition, ItemId> _itemsAtPositions = new();
+    private Dictionary<GridPosition, ItemId> _itemsAtPositions = new(); // Phase 2: Maps ALL occupied cells → ItemId
+    private Dictionary<ItemId, GridPosition> _itemOrigins = new(); // Phase 2: Maps ItemId → origin (from Domain)
     private Dictionary<ItemId, string> _itemTypes = new(); // Cache item types for color coding
     private Dictionary<ItemId, string> _itemNames = new(); // Cache item names for tooltips
     private Dictionary<ItemId, (int Width, int Height)> _itemDimensions = new(); // Cache item dimensions (Phase 2)
@@ -86,6 +87,7 @@ public partial class SpatialInventoryContainerNode : Control
     private Label? _titleLabel;
     private GridContainer? _gridContainer;
     private Control? _itemOverlayContainer; // Container for multi-cell item sprites (Phase 2)
+    private Control? _highlightOverlayContainer; // Container for drag highlight sprites (Phase 2.4)
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // GODOT LIFECYCLE
@@ -134,6 +136,34 @@ public partial class SpatialInventoryContainerNode : Control
     // DRAG-DROP SYSTEM (Godot built-in)
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+    public override void _Notification(int what)
+    {
+        base._Notification(what);
+
+        // Phase 2.4: Clear highlights when mouse exits container during drag
+        // WHY: Prevents stale highlights from remaining on source container when dragging to target
+        if (what == NotificationMouseExit)
+        {
+            ClearDragHighlights();
+        }
+    }
+
+    public override void _Input(InputEvent @event)
+    {
+        base._Input(@event);
+
+        // Phase 2.4: Clear highlights when drag ends (mouse released)
+        // WHY: If drop was rejected, _DropData isn't called, so highlights linger
+        if (@event is InputEventMouseButton mouseButton)
+        {
+            if (mouseButton.ButtonIndex == MouseButton.Left && !mouseButton.Pressed)
+            {
+                // Left mouse button released - drag ended (successful or rejected)
+                ClearDragHighlights();
+            }
+        }
+    }
+
     public override Variant _GetDragData(Vector2 atPosition)
     {
         _logger.LogDebug("_GetDragData called at position ({X}, {Y})", atPosition.X, atPosition.Y);
@@ -149,15 +179,18 @@ public partial class SpatialInventoryContainerNode : Control
 
         _logger.LogDebug("Grid position: ({GridX}, {GridY})", gridPos.Value.X, gridPos.Value.Y);
 
-        if (!_itemsAtPositions.ContainsKey(gridPos.Value))
+        // Phase 2: Check if ANY cell of a multi-cell item was clicked
+        if (!_itemsAtPositions.TryGetValue(gridPos.Value, out var itemId))
         {
             _logger.LogDebug("No item at grid position ({GridX}, {GridY})", gridPos.Value.X, gridPos.Value.Y);
             return default; // No item at this position
         }
 
-        var itemId = _itemsAtPositions[gridPos.Value];
-        _logger.LogInformation("Starting drag: Item {ItemId} from {Container} at ({X}, {Y})",
-            itemId, ContainerTitle, gridPos.Value.X, gridPos.Value.Y);
+        // Get item origin position (top-left) for drag data
+        // WHY: Commands operate on origin positions, not clicked cell positions
+        var origin = _itemOrigins[itemId];
+        _logger.LogInformation("Starting drag: Item {ItemId} from {Container} at origin ({X}, {Y}) (clicked cell: {ClickX}, {ClickY})",
+            itemId, ContainerTitle, origin.X, origin.Y, gridPos.Value.X, gridPos.Value.Y);
 
         // Create drag preview with item name (visual feedback)
         string itemName = _itemNames.GetValueOrDefault(itemId, "Item");
@@ -187,12 +220,13 @@ public partial class SpatialInventoryContainerNode : Control
         SetDragPreview(previewBg);
 
         // Return drag data using Guids (simpler than value objects)
+        // WHY: Use origin position for commands (not clicked cell)
         var dragData = new Godot.Collections.Dictionary
         {
             ["itemIdGuid"] = itemId.Value.ToString(),
             ["sourceActorIdGuid"] = OwnerActorId?.Value.ToString() ?? string.Empty,
-            ["sourceX"] = gridPos.Value.X,
-            ["sourceY"] = gridPos.Value.Y
+            ["sourceX"] = origin.X,
+            ["sourceY"] = origin.Y
         };
 
         _logger.LogDebug("Drag data created successfully");
@@ -206,6 +240,7 @@ public partial class SpatialInventoryContainerNode : Control
         if (data.VariantType != Variant.Type.Dictionary)
         {
             _logger.LogDebug("Invalid drag data type: {Type}", data.VariantType);
+            ClearDragHighlights(); // Phase 2.4
             return false;
         }
 
@@ -213,6 +248,7 @@ public partial class SpatialInventoryContainerNode : Control
         if (!dragData.ContainsKey("itemIdGuid"))
         {
             _logger.LogDebug("Drag data missing itemIdGuid key");
+            ClearDragHighlights(); // Phase 2.4
             return false;
         }
 
@@ -221,73 +257,135 @@ public partial class SpatialInventoryContainerNode : Control
         if (targetPos == null)
         {
             _logger.LogDebug("Target position outside grid bounds");
+            ClearDragHighlights(); // Phase 2.4
             return false;
         }
 
-        // Check if position is occupied
-        bool isOccupied = _itemsAtPositions.ContainsKey(targetPos.Value);
-
-        // SWAP SUPPORT (Option C): Equipment slots allow swapping, backpacks don't
-        if (isOccupied)
+        // Get item ID and dimensions for multi-cell validation (Phase 2.4)
+        var itemIdGuidStr = dragData["itemIdGuid"].AsString();
+        if (!Guid.TryParse(itemIdGuidStr, out var itemIdGuid))
         {
-            bool isEquipmentSlot = _containerType == ContainerType.WeaponOnly;
+            ClearDragHighlights();
+            return false;
+        }
 
-            if (isEquipmentSlot)
+        var itemId = new ItemId(itemIdGuid);
+
+        // Get dimensions - check cache first, query if not found (cross-container drag)
+        int itemWidth, itemHeight;
+        if (_itemDimensions.TryGetValue(itemId, out var cachedDimensions))
+        {
+            (itemWidth, itemHeight) = cachedDimensions;
+        }
+        else
+        {
+            // Cross-container drag: Item not in this container's cache yet
+            // Query dimensions from Item repository
+            var itemQuery = new GetItemByIdQuery(itemId);
+            var itemResult = _mediator.Send(itemQuery).Result; // Blocking, but necessary for validation
+
+            if (itemResult.IsSuccess)
             {
-                _logger.LogDebug("Position ({X}, {Y}) occupied - swap allowed (equipment slot)",
-                    targetPos.Value.X, targetPos.Value.Y);
-                // Swap validation happens in SwapItemsAsync (pre-validated before any removal)
+                itemWidth = itemResult.Value.InventoryWidth;
+                itemHeight = itemResult.Value.InventoryHeight;
             }
             else
             {
-                _logger.LogDebug("Position ({X}, {Y}) occupied - swap NOT allowed (backpack)",
-                    targetPos.Value.X, targetPos.Value.Y);
-                return false;
+                // Fallback if query fails
+                (itemWidth, itemHeight) = (1, 1);
+            }
+        }
+
+        // Override dimensions for equipment slots (matches placement handler logic)
+        bool isEquipmentSlot = _containerType == ContainerType.WeaponOnly;
+        if (isEquipmentSlot)
+        {
+            itemWidth = 1;
+            itemHeight = 1;
+        }
+
+        // Validation flags
+        bool isValid = true;
+        string validationError = "";
+
+        // Check bounds
+        if (targetPos.Value.X + itemWidth > _gridWidth || targetPos.Value.Y + itemHeight > _gridHeight)
+        {
+            isValid = false;
+            validationError = "exceeds bounds";
+        }
+
+        // Check occupation (Phase 2: Check all cells in footprint)
+        bool hasCollision = false;
+        if (isValid)
+        {
+            for (int dy = 0; dy < itemHeight && !hasCollision; dy++)
+            {
+                for (int dx = 0; dx < itemWidth && !hasCollision; dx++)
+                {
+                    var checkPos = new GridPosition(targetPos.Value.X + dx, targetPos.Value.Y + dy);
+                    if (_itemsAtPositions.ContainsKey(checkPos))
+                    {
+                        hasCollision = true;
+                    }
+                }
+            }
+
+            if (hasCollision)
+            {
+                // Equipment slots allow swap, backpacks don't
+                if (!isEquipmentSlot)
+                {
+                    isValid = false;
+                    validationError = "occupied";
+                }
+                // If equipment slot, allow (swap will happen in _DropData)
             }
         }
 
         // Type validation for specialized containers (prevent data loss bug)
-        // WHY: Must validate BEFORE Godot removes item from source container
-        if (OwnerActorId != null)
+        if (isValid && OwnerActorId != null)
         {
-            var itemIdGuidStr = dragData["itemIdGuid"].AsString();
-            if (Guid.TryParse(itemIdGuidStr, out var itemIdGuid))
+            // Query item type (synchronous lookup from cache)
+            if (_itemTypes.TryGetValue(itemId, out var itemType))
             {
-                var itemId = new ItemId(itemIdGuid);
-
-                // Query item type (synchronous lookup from cache)
-                if (_itemTypes.TryGetValue(itemId, out var itemType))
+                // Check type compatibility with this container
+                if (!CanAcceptItemType(itemType))
                 {
-                    // Check type compatibility with this container
-                    if (!CanAcceptItemType(itemType))
-                    {
-                        _logger.LogDebug("Item type '{ItemType}' rejected by container type filter", itemType);
-                        return false;
-                    }
+                    isValid = false;
+                    validationError = "wrong type";
                 }
-                else
+            }
+            else
+            {
+                // Item type not in cache - query via MediatR (blocks, but necessary)
+                var itemTypeResult = GetItemTypeAsync(itemId).Result;
+                if (itemTypeResult.IsSuccess)
                 {
-                    // Item type not in cache - query via MediatR (blocks, but necessary)
-                    var itemTypeResult = GetItemTypeAsync(itemId).Result;
-                    if (itemTypeResult.IsSuccess)
+                    if (!CanAcceptItemType(itemTypeResult.Value))
                     {
-                        if (!CanAcceptItemType(itemTypeResult.Value))
-                        {
-                            _logger.LogDebug("Item type '{ItemType}' rejected by container type filter", itemTypeResult.Value);
-                            return false;
-                        }
+                        isValid = false;
+                        validationError = "wrong type";
                     }
                 }
             }
         }
 
-        _logger.LogDebug("Can drop at ({X}, {Y}): true", targetPos.Value.X, targetPos.Value.Y);
-        return true;
+        // Phase 2.4: Render green/red highlight showing item footprint
+        RenderDragHighlight(targetPos.Value, itemWidth, itemHeight, isValid);
+
+        _logger.LogDebug("Can drop at ({X}, {Y}): {IsValid} ({Reason})",
+            targetPos.Value.X, targetPos.Value.Y, isValid, isValid ? "valid" : validationError);
+
+        return isValid;
     }
 
     public override void _DropData(Vector2 atPosition, Variant data)
     {
         _logger.LogInformation("_DropData called at position ({X}, {Y})", atPosition.X, atPosition.Y);
+
+        // Phase 2.4: Clear highlights after drop (will be refreshed after move completes)
+        ClearDragHighlights();
 
         var dragData = data.AsGodotDictionary();
         var itemIdGuidStr = dragData["itemIdGuid"].AsString();
@@ -386,6 +484,15 @@ public partial class SpatialInventoryContainerNode : Control
             ZIndex = 10 // Render above grid cells
         };
         gridWrapper.AddChild(_itemOverlayContainer);
+
+        // Highlight overlay container for drag preview (Phase 2.4)
+        // WHY: Shows green/red highlights for valid/invalid placement during drag
+        _highlightOverlayContainer = new Control
+        {
+            MouseFilter = MouseFilterEnum.Ignore, // Let grid cells handle input
+            ZIndex = 15 // Render above items
+        };
+        gridWrapper.AddChild(_highlightOverlayContainer);
     }
 
     private async void LoadInventoryAsync()
@@ -431,24 +538,56 @@ public partial class SpatialInventoryContainerNode : Control
                 _gridContainer.GetChildCount(), _gridWidth, _gridHeight);
         }
 
-        // Populate items
+        // Populate items (Phase 2: Use dimensions from Domain)
         _itemsAtPositions.Clear();
+        _itemOrigins.Clear();
         _itemTypes.Clear();
-        foreach (var placement in inventory.ItemPlacements)
+        _itemNames.Clear();
+        _itemDimensions.Clear();
+
+        // STEP 1: Store origins and dimensions from Domain
+        foreach (var (itemId, origin) in inventory.ItemPlacements)
         {
-            _itemsAtPositions[placement.Value] = placement.Key;
+            _itemOrigins[itemId] = origin;
+
+            // Get dimensions from Domain (source of truth)
+            var (width, height) = inventory.ItemDimensions.GetValueOrDefault(itemId, (1, 1));
+            _itemDimensions[itemId] = (width, height); // Cache for rendering
+
+            _logger.LogInformation("DEBUG: Item {ItemId} - Domain dimensions: {Width}×{Height}",
+                itemId, width, height);
         }
 
-        // Query item types for color coding
+        // STEP 2: Load item metadata (types, names) - needs item IDs from origins
         await LoadItemTypes();
+
+        // STEP 3: Build reverse lookup: ALL occupied cells → ItemId (multi-cell support)
+        foreach (var (itemId, origin) in _itemOrigins)
+        {
+            var (width, height) = _itemDimensions[itemId]; // Already cached from Domain
+
+            // Reserve ALL cells occupied by this item
+            for (int dy = 0; dy < height; dy++)
+            {
+                for (int dx = 0; dx < width; dx++)
+                {
+                    var occupiedCell = new GridPosition(origin.X + dx, origin.Y + dy);
+                    _itemsAtPositions[occupiedCell] = itemId;
+                }
+            }
+
+            _logger.LogInformation("Item {ItemId} at ({X},{Y}) occupies {Width}×{Height} cells",
+                itemId, origin.X, origin.Y, width, height);
+        }
 
         RefreshGridDisplay();
     }
 
     private async Task LoadItemTypes()
     {
-        // Query item details to determine types (weapon, item, etc.), names (for tooltips), and dimensions (Phase 2)
-        foreach (var itemId in _itemsAtPositions.Values.Distinct())
+        // Query item details to determine types (weapon, item, etc.) and names (for tooltips)
+        // WHY: Dimensions already cached from Domain in LoadInventoryAsync
+        foreach (var itemId in _itemOrigins.Keys)
         {
             var query = new GetItemByIdQuery(itemId);
             var result = await _mediator.Send(query);
@@ -457,8 +596,7 @@ public partial class SpatialInventoryContainerNode : Control
             {
                 _itemTypes[itemId] = result.Value.Type;
                 _itemNames[itemId] = result.Value.Name;
-                // Phase 2: Cache INVENTORY dimensions (for logical occupation, not sprite size)
-                _itemDimensions[itemId] = (result.Value.InventoryWidth, result.Value.InventoryHeight);
+
                 _logger.LogDebug("Item {ItemId}: {Name} ({Type}) Sprite {SpriteW}×{SpriteH}, Inventory {InvW}×{InvH}",
                     itemId, result.Value.Name, result.Value.Type,
                     result.Value.SpriteWidth, result.Value.SpriteHeight,
@@ -499,8 +637,6 @@ public partial class SpatialInventoryContainerNode : Control
         ClearAllItemSprites();
 
         // STEP 2: Update grid cell tooltips (cells remain for hit-testing)
-        var processedItems = new HashSet<ItemId>(); // Track which items we've rendered
-
         for (int i = 0; i < _gridContainer.GetChildCount(); i++)
         {
             if (_gridContainer.GetChild(i) is Panel cell)
@@ -515,13 +651,6 @@ public partial class SpatialInventoryContainerNode : Control
                     string itemName = _itemNames.GetValueOrDefault(itemId, "Unknown");
                     string itemType = _itemTypes.GetValueOrDefault(itemId, "unknown");
                     cell.TooltipText = $"{itemName} ({itemType})";
-
-                    // Render item sprite ONCE at its origin position (not per-cell)
-                    if (!processedItems.Contains(itemId))
-                    {
-                        RenderMultiCellItemSprite(itemId, gridPos);
-                        processedItems.Add(itemId);
-                    }
                 }
                 else
                 {
@@ -530,8 +659,14 @@ public partial class SpatialInventoryContainerNode : Control
             }
         }
 
+        // STEP 3: Render each item sprite ONCE at its origin position
+        foreach (var (itemId, origin) in _itemOrigins)
+        {
+            RenderMultiCellItemSprite(itemId, origin);
+        }
+
         _logger.LogDebug("{ContainerTitle}: {ItemCount} items displayed",
-            ContainerTitle, processedItems.Count);
+            ContainerTitle, _itemOrigins.Count);
     }
 
     /// <summary>
@@ -677,6 +812,79 @@ public partial class SpatialInventoryContainerNode : Control
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Renders green/red highlight sprites showing where multi-cell item would be placed (Phase 2.4).
+    /// </summary>
+    /// <param name="origin">Top-left position where item would be placed</param>
+    /// <param name="width">Item width in cells</param>
+    /// <param name="height">Item height in cells</param>
+    /// <param name="isValid">True for green (valid placement), false for red (invalid)</param>
+    private void RenderDragHighlight(GridPosition origin, int width, int height, bool isValid)
+    {
+        if (_highlightOverlayContainer == null || _itemTileSet == null)
+            return;
+
+        // Clear previous highlights
+        ClearDragHighlights();
+
+        var atlasSource = _itemTileSet.GetSource(0) as TileSetAtlasSource;
+        if (atlasSource == null)
+            return;
+
+        // Get highlight tile coords from TileSet
+        // highlight_green at (1,6), highlight_red at (1,7)
+        var highlightCoords = isValid ? new Vector2I(1, 6) : new Vector2I(1, 7);
+        var region = atlasSource.GetTileTextureRegion(highlightCoords);
+
+        var atlasTexture = new AtlasTexture
+        {
+            Atlas = atlasSource.Texture,
+            Region = region
+        };
+
+        // Render highlight sprite for each cell in item footprint
+        int separationX = 2;
+        int separationY = 2;
+
+        for (int dy = 0; dy < height; dy++)
+        {
+            for (int dx = 0; dx < width; dx++)
+            {
+                float pixelX = (origin.X + dx) * (CellSize + separationX);
+                float pixelY = (origin.Y + dy) * (CellSize + separationY);
+
+                var highlight = new TextureRect
+                {
+                    Name = $"Highlight_{origin.X + dx}_{origin.Y + dy}",
+                    Texture = atlasTexture,
+                    TextureFilter = CanvasItem.TextureFilterEnum.Nearest,
+                    StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
+                    ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+                    CustomMinimumSize = new Vector2(CellSize, CellSize),
+                    Position = new Vector2(pixelX, pixelY),
+                    MouseFilter = MouseFilterEnum.Ignore,
+                    Modulate = new Color(1, 1, 1, 0.7f) // Semi-transparent
+                };
+
+                _highlightOverlayContainer.AddChild(highlight);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Clears all drag highlight sprites from overlay.
+    /// </summary>
+    private void ClearDragHighlights()
+    {
+        if (_highlightOverlayContainer == null)
+            return;
+
+        foreach (Node child in _highlightOverlayContainer.GetChildren())
+        {
+            child.QueueFree();
+        }
     }
 
     /// <summary>

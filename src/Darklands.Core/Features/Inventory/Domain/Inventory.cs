@@ -17,13 +17,15 @@ namespace Darklands.Core.Features.Inventory.Domain;
 ///
 /// VS_018 EVOLUTION:
 /// - VS_008: Simple list-based storage (20-slot backpack)
-/// - VS_018 Phase 1: Spatial grid with positions (drag-drop UX)
+/// - VS_018 Phase 1: Spatial grid with positions (drag-drop UX, 1×1 items only)
+/// - VS_018 Phase 2: Multi-cell items (Width×Height footprints, rectangle collision)
 /// - Dictionary primary storage ensures single source of truth
 /// - Items property computed for backward compatibility
 /// </remarks>
 public sealed class Inventory
 {
     private readonly Dictionary<ItemId, GridPosition> _itemPositions;
+    private readonly Dictionary<ItemId, (int width, int height)> _itemDimensions; // Phase 2: Cache dimensions for collision
 
     /// <summary>
     /// Unique identifier for this inventory.
@@ -74,6 +76,12 @@ public sealed class Inventory
     /// </summary>
     public IReadOnlyDictionary<ItemId, GridPosition> ItemPlacements => _itemPositions;
 
+    /// <summary>
+    /// Read-only view of item dimensions (ItemId → (Width, Height) mapping).
+    /// Phase 2: Needed for rendering and collision detection.
+    /// </summary>
+    public IReadOnlyDictionary<ItemId, (int width, int height)> ItemDimensions => _itemDimensions;
+
     private Inventory(
         InventoryId id,
         int gridWidth,
@@ -86,6 +94,7 @@ public sealed class Inventory
         Capacity = gridWidth * gridHeight;
         ContainerType = containerType;
         _itemPositions = new Dictionary<ItemId, GridPosition>(Capacity);
+        _itemDimensions = new Dictionary<ItemId, (int, int)>(Capacity); // Phase 2
     }
 
     /// <summary>
@@ -144,27 +153,62 @@ public sealed class Inventory
     }
 
     /// <summary>
-    /// Places an item at a specific grid position.
+    /// Places an item at a specific grid position (Phase 1: 1×1 items only).
     /// </summary>
     /// <param name="itemId">ID of item to place</param>
     /// <param name="position">Grid position to place at</param>
     /// <returns>Success if placed, Failure with reason if not</returns>
+    /// <remarks>
+    /// BACKWARD COMPATIBILITY: This overload assumes 1×1 dimensions for Phase 1 items.
+    /// Phase 2 code should use PlaceItemAt(itemId, position, width, height).
+    /// </remarks>
     public Result PlaceItemAt(ItemId itemId, GridPosition position)
     {
-        // BUSINESS RULE: Position must be within grid bounds
-        if (position.X < 0 || position.X >= GridWidth ||
-            position.Y < 0 || position.Y >= GridHeight)
-            return Result.Failure("Position is out of bounds");
+        return PlaceItemAt(itemId, position, width: 1, height: 1);
+    }
 
-        // BUSINESS RULE: Position must be free
-        if (_itemPositions.Values.Contains(position))
-            return Result.Failure("Position is occupied");
+    /// <summary>
+    /// Places an item at a specific grid position with dimensions (Phase 2: multi-cell items).
+    /// </summary>
+    /// <param name="itemId">ID of item to place</param>
+    /// <param name="position">Top-left grid position (origin)</param>
+    /// <param name="width">Item width in cells</param>
+    /// <param name="height">Item height in cells</param>
+    /// <returns>Success if placed, Failure with reason if not</returns>
+    public Result PlaceItemAt(ItemId itemId, GridPosition position, int width, int height)
+    {
+        // BUSINESS RULE: Dimensions must be positive
+        if (width <= 0 || height <= 0)
+            return Result.Failure("Item dimensions must be positive");
+
+        // BUSINESS RULE: Item footprint must fit within grid bounds
+        if (position.X < 0 || position.Y < 0 ||
+            position.X + width > GridWidth ||
+            position.Y + height > GridHeight)
+            return Result.Failure("Item footprint exceeds grid bounds");
 
         // BUSINESS RULE: Cannot add duplicate items
         if (_itemPositions.ContainsKey(itemId))
             return Result.Failure("Item already in inventory");
 
+        // BUSINESS RULE: Item footprint must not overlap with existing items (rectangle collision)
+        foreach (var (existingItemId, existingOrigin) in _itemPositions)
+        {
+            var (existingWidth, existingHeight) = _itemDimensions.GetValueOrDefault(existingItemId, (1, 1));
+
+            // Rectangle overlap test (AABB collision)
+            bool overlaps = !(position.X >= existingOrigin.X + existingWidth ||   // newItem is to the right
+                              position.X + width <= existingOrigin.X ||            // newItem is to the left
+                              position.Y >= existingOrigin.Y + existingHeight ||   // newItem is below
+                              position.Y + height <= existingOrigin.Y);            // newItem is above
+
+            if (overlaps)
+                return Result.Failure($"Item footprint overlaps with existing item at ({existingOrigin.X}, {existingOrigin.Y})");
+        }
+
+        // All validations passed - place item
         _itemPositions[itemId] = position;
+        _itemDimensions[itemId] = (width, height);
         return Result.Success();
     }
 
@@ -236,7 +280,9 @@ public sealed class Inventory
                 var position = new GridPosition(x, y);
                 if (CanPlaceAt(position))
                 {
+                    // Use PlaceItemAt for consistency (assumes 1×1 for backward compat)
                     _itemPositions[itemId] = position;
+                    _itemDimensions[itemId] = (1, 1); // Phase 2: Default to 1×1
                     return Result.Success();
                 }
             }
@@ -256,6 +302,7 @@ public sealed class Inventory
             return Result.Failure("Item not found in inventory");
 
         _itemPositions.Remove(itemId);
+        _itemDimensions.Remove(itemId); // Phase 2: Clean up dimensions
         return Result.Success();
     }
 
@@ -267,5 +314,9 @@ public sealed class Inventory
     /// <summary>
     /// Removes all items from this inventory.
     /// </summary>
-    public void Clear() => _itemPositions.Clear();
+    public void Clear()
+    {
+        _itemPositions.Clear();
+        _itemDimensions.Clear(); // Phase 2: Clear dimensions
+    }
 }

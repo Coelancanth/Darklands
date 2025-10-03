@@ -142,10 +142,10 @@
 
 
 
-### VS_018: Spatial Inventory System (Multi-Phase) ✅ **PHASE 1 COMPLETE**
+### VS_018: Spatial Inventory System (Multi-Phase) ✅ **PHASE 2 COMPLETE**
 
-**Status**: Phase 1 100% Complete - All features working, ready for PR
-**Owner**: Dev Engineer (Phase 2 ready to start)
+**Status**: Phase 1 ✅ + Phase 2 ✅ Complete (including Phase 2.4 drag highlights) - Ready for PR
+**Owner**: Dev Engineer (Phase 2 done, self-collision polish optional, Phase 3 ready)
 **Size**: XL (12-16h across 4 phases, Phase 1 = 4-5h)
 **Priority**: Important (Phase 2 foundation - enhances VS_008 slot-based inventory)
 **Depends On**: VS_008 (Slot-Based Inventory ✅), VS_009 (Item Definitions ✅)
@@ -462,9 +462,104 @@
   - Status: Domain/Application/Infrastructure compile ✅, Tests compile ❌
 - 📋 **Next Session Tasks**:
   1. Fix remaining 15 test errors (add inventory dimensions to test helpers)
-  2. Run tests to verify backward compatibility
-  3. Test rendering in Godot (should see 4×4 sprites in 2×2 cells)
-  4. Implement Phase 2.4 (green/red drag highlight for multi-cell placement)
+
+**Dev Engineer Session** (2025-10-03 14:35 - Phase 2 Multi-Cell Occupation COMPLETE):
+- ✅ **Phase 2 Core Implementation - Multi-Cell Occupation**:
+  - **Problem Diagnosed**: Items only occupied single cell despite rendering correctly at multi-cell size
+  - **Root Cause**: Presentation layer's dimension caching order bug
+    - `LoadItemTypes()` called BEFORE `_itemsAtPositions` populated
+    - Iterated over empty dictionary → `_itemDimensions` never filled
+    - Rendering used `GetValueOrDefault(itemId, (1,1))` → always got 1×1 fallback
+- ✅ **Domain Layer - Rectangle Collision**:
+  - Added `_itemDimensions` dictionary caching width×height per item
+  - New `PlaceItemAt(itemId, position, width, height)` overload with AABB collision
+  - Rectangle overlap detection: `!(pos.X >= existing.X + width || ...)` logic
+  - Bounds validation: Ensures `position.X + width <= GridWidth`
+  - Backward compat: 1-param `PlaceItemAt()` calls 2-param with (1,1) dimensions
+  - Cleanup: `RemoveItem()` and `Clear()` now remove from both dictionaries
+- ✅ **Application Layer - Cross-Aggregate Orchestration**:
+  - `PlaceItemAtPositionCommandHandler`: Queries `item.InventoryWidth/Height`, passes to Domain
+  - `MoveItemBetweenContainersCommandHandler`: Fixed to preserve dimensions on cross-container moves
+  - `InventoryDto`: Added `ItemDimensions` property exposing Domain's dimension cache
+  - `GetInventoryQueryHandler`: Maps `inventory.ItemDimensions` to DTO
+- ✅ **Presentation Layer - Proper Dimension Caching**:
+  - Fixed caching order: Domain dimensions → `_itemDimensions` → LoadItemTypes() → Build cell map
+  - Added `_itemOrigins` dictionary (ItemId → GridPosition from Domain)
+  - Multi-cell occupation: Builds reverse lookup mapping ALL occupied cells → ItemId
+  - Drag detection: Works from ANY occupied cell, returns item origin for commands
+  - Rendering: Uses `_itemOrigins` to render each item once at its origin position
+- ✅ **Intra-Container Move Bug Fixed** (Data Loss Prevention):
+  - **Bug**: Items disappeared when moving within same container (collision with self)
+  - **Root Cause**: Handler removed item, placement failed (self-collision), rollback missing
+  - **Solution**: Capture original position before remove, full rollback on placement failure
+  - **Pattern**: `GetItemPosition() → RemoveItem() → PlaceItemAt() (if fail → restore at original)`
+  - User tested: Invalid moves now preserve item at original position ✅
+- ✅ **Equipment Slot Dimension Override** (Industry Standard Pattern):
+  - **Problem**: Weapon slot (1×1 grid) rejected multi-cell weapons (2×1 dagger, 2×2 ray_gun)
+  - **Option A Tried**: Enlarged weapon slot to 4×4 grid → Worked but wrong UX
+  - **Option B Implemented**: Application handlers override dimensions to 1×1 for equipment slots
+  - **Logic**: `if (containerType == WeaponOnly) { width = 1; height = 1; }`
+  - **Result**: Any weapon fits in 1×1 weapon slot, backpack Tetris still uses real dimensions
+  - **Industry Precedent**: Matches Diablo 2, Path of Exile, Resident Evil equipment behavior
+  - Reverted weapon slot back to 1×1 grid (proper single-slot appearance)
+- 📊 **Testing Results**:
+  - ✅ User verified: Intra-container repositioning works (dagger moves within backpack)
+  - ✅ User verified: Cross-container moves work (items maintain size backpack A → B)
+  - ✅ User verified: Equipment slot accepts all weapons (2×1, 2×2, any size)
+  - ✅ User verified: Equipment swap working (weapon ↔ weapon in slot)
+  - ✅ User verified: Collision detection prevents overlapping multi-cell items
+  - ✅ User verified: No data loss on invalid moves (rollback successful)
+- 🎯 **Phase 2 Core Features Complete**:
+  - ✅ Multi-cell rendering (items span Width×Height cells visually)
+  - ✅ Multi-cell occupation (Domain stores all occupied cells, prevents overlaps)
+  - ✅ Rectangle collision (AABB overlap detection for complex item shapes)
+  - ✅ Equipment slot dimension override (1×1 weapon slot accepts any weapon)
+  - ✅ Drag from any cell (can grab multi-cell item from any occupied cell)
+  - ✅ Intra-container repositioning with rollback (no data loss)
+  - ✅ Cross-container moves preserve dimensions
+- ✅ **Phase 2.4 Implemented** (UX Polish - Drag Highlight):
+  - ✅ Green/red highlight sprites showing multi-cell item footprint during drag
+  - ✅ Highlight overlay container (Z-index 15, renders above items)
+  - ✅ Real-time validation feedback (bounds, collision, type checking)
+  - ✅ Cross-container dimension query (lazy loading when not in cache)
+  - ✅ Highlight cleanup on mouse exit, drag end, and successful drop
+  - ✅ Equipment slot dimension override (1×1 highlights for weapon slots)
+  - ⚠️ **Known Issue**: Self-collision when dropping at same position (shows red instead of green)
+- 🎉 **PHASE 2 COMPLETE** (Core features working, minor self-collision polish pending)
+
+**Dev Engineer Session** (2025-10-03 15:15 - Phase 2.4 Drag Highlight Complete):
+- ✅ **Highlight Overlay System**:
+  - Added `_highlightOverlayContainer` (Z-index 15, above items at Z-index 10)
+  - `RenderDragHighlight()`: Renders green (`highlight_green` 1,6) or red (`highlight_red` 1,7) sprites
+  - Multi-cell support: Renders highlight for EVERY cell in item footprint
+  - 70% opacity for semi-transparent overlay effect
+- ✅ **Dynamic Validation in `_CanDropData`**:
+  - Full validation: Bounds check, multi-cell collision, type filtering
+  - Dimension query: Cache lookup first, falls back to MediatR query for cross-container drags
+  - Equipment slot override: Forces 1×1 dimensions for weapon slots (matches placement logic)
+  - Visual feedback: `isValid` flag determines green vs red highlight
+- ✅ **Highlight Lifecycle Management**:
+  - `_Notification(NOTIFICATION_MOUSE_EXIT)`: Clear when mouse leaves container
+  - `_Input(InputEventMouseButton)`: Clear when left mouse released (handles rejected drops)
+  - `_DropData()`: Clear on successful drop
+- ✅ **Cross-Container Bug Fixes**:
+  - Bug: Highlights appeared on source container instead of target
+  - Fix: Mouse exit clears source highlights when dragging to different container
+  - Bug: Wrong highlight size (1×1 instead of 2×2) for cross-container drags
+  - Fix: Query item dimensions from repository when not in local cache
+  - Bug: Lingering red highlights after failed drop
+  - Fix: Detect mouse release via `_Input` to clear highlights on drag end
+- 📊 **User Testing Results**:
+  - ✅ Green highlights for valid placements (multi-cell footprint accurate)
+  - ✅ Red highlights for collisions, bounds errors, type mismatches
+  - ✅ Cross-container drag shows correct 2×2 highlights
+  - ✅ Equipment slot shows 1×1 highlights (dimension override working)
+  - ✅ Highlights clear instantly on drop (successful or failed)
+  - ⚠️ Self-collision issue: Dropping item at same position shows red (should be green)
+- 🎯 **Phase 2.4 Complete** - Full visual feedback system working
+- ⏭️ **Minor Polish**: Fix self-collision detection (allow dropping at current position)
+
+---
 
 **Dev Engineer Session** (2025-10-03 14:00 - Build Errors Fixed):
 - ✅ **All Compilation Errors Resolved** (15 → 0):
