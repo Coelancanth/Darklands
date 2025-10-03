@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-03 13:25 (Dev Engineer: VS_018 Phase 2 - Multi-cell rendering complete, drag highlight next)
+**Last Updated**: 2025-10-03 13:50 (Dev Engineer: VS_018 Phase 2 - Sprite/Inventory dimension separation, tests WIP)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -431,6 +431,40 @@
     - SpatialInventoryTestScene.tscn: TileSet resource assignment
 - 🎯 **Phase 2.3 Complete** - Rendering verified working
 - ⏭️ **Next**: Phase 2.4 (green/red drag highlight), then Domain/Application collision
+
+**Dev Engineer Session** (2025-10-03 13:50 - Phase 2 Sprite/Inventory Dimension Separation):
+- ✅ **Critical Insight**: User caught conceptual error - sprite size ≠ inventory occupation
+  - **Problem**: Phase 2.3 used `size_in_atlas` for BOTH visual rendering AND logical collision
+  - **Example**: ray_gun sprite is 4×4 atlas tiles but should occupy 2×2 inventory cells
+  - **Root Cause**: Single Width/Height property mixed visual and logical concerns
+- ✅ **Solution: Dual Metadata System** (TileSet custom_data_3/4):
+  - `size_in_atlas` → `SpriteWidth/Height` (visual rendering size in atlas tiles)
+  - `custom_data_3/4` → `InventoryWidth/Height` (logical occupation in grid cells)
+  - **Metadata verified**: ray_gun (4×4 sprite → 2×2 inventory), dagger (4×2 → 2×1), etc.
+- ✅ **Domain Entity Updated**: `Item.cs`
+  - Renamed: `Width/Height` → `SpriteWidth/SpriteHeight` (breaking change)
+  - Added: `InventoryWidth/InventoryHeight` properties
+  - Validation: Both dimensions must be positive (4 new business rules)
+- ✅ **Application Layer Updated**:
+  - `ItemDto`: Added `SpriteWidth/Height` + `InventoryWidth/Height` fields
+  - Query handlers: Map new properties (GetItemById, GetAll, GetByType)
+- ✅ **Infrastructure Updated**: `TileSetItemRepository.cs`
+  - Reads `custom_data_3` (inventory_width) with fallback to sprite width
+  - Reads `custom_data_4` (inventory_height) with fallback to sprite height
+  - Logging: Shows both dimensions for debugging
+- ✅ **Presentation Updated**: `SpatialInventoryContainerNode.cs`
+  - Rendering uses `InventoryWidth/Height` for pixel size (how many cells sprite spans)
+  - AtlasTexture extracts sprite region using atlas coordinates (sprite dimensions)
+  - Result: 4×4 sprite renders within 2×2 inventory cell space (scaled to fit)
+- ⏳ **Tests WIP** (15 compilation errors remaining):
+  - Batch fixed: ~40 test files updated with `spriteWidth/spriteHeight` parameters
+  - Remaining: Inventory test helpers need `inventoryWidth/inventoryHeight` added
+  - Status: Domain/Application/Infrastructure compile ✅, Tests compile ❌
+- 📋 **Next Session Tasks**:
+  1. Fix remaining 15 test errors (add inventory dimensions to test helpers)
+  2. Run tests to verify backward compatibility
+  3. Test rendering in Godot (should see 4×4 sprites in 2×2 cells)
+  4. Implement Phase 2.4 (green/red drag highlight for multi-cell placement)
 
 ---
 

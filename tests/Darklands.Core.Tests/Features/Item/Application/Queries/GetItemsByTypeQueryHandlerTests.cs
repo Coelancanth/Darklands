@@ -37,8 +37,10 @@ public class GetItemsByTypeQueryHandlerTests
             atlasY: 0,
             name: "ray_gun",
             type: "weapon",
-            width: 4,
-            height: 4,
+            spriteWidth: 4,
+            spriteHeight: 4,
+            inventoryWidth: 1,
+            inventoryHeight: 1,
             maxStackSize: 1).Value;
 
         var weapon2 = ItemEntity.Create(
@@ -47,8 +49,10 @@ public class GetItemsByTypeQueryHandlerTests
             atlasY: 0,
             name: "baton",
             type: "weapon",
-            width: 2,
-            height: 8,
+            spriteWidth: 2,
+            spriteHeight: 8,
+            inventoryWidth: 1,
+            inventoryHeight: 1,
             maxStackSize: 1).Value;
 
         var weapons = new List<ItemEntity> { weapon1, weapon2 };
@@ -78,8 +82,10 @@ public class GetItemsByTypeQueryHandlerTests
             atlasY: 6,
             name: "green_vial",
             type: "item",
-            width: 2,
-            height: 2,
+            spriteWidth: 2,
+            spriteHeight: 2,
+            inventoryWidth: 1,
+            inventoryHeight: 1,
             maxStackSize: 5).Value;
 
         var items = new List<ItemEntity> { item1 };
@@ -156,8 +162,10 @@ public class GetItemsByTypeQueryHandlerTests
             atlasY: 4,
             name: "dagger",
             type: "weapon",
-            width: 4,
-            height: 2,
+            spriteWidth: 4,
+            spriteHeight: 2,
+            inventoryWidth: 1,
+            inventoryHeight: 1,
             maxStackSize: 1).Value;
 
         _mockRepository.GetByType("weapon")
@@ -177,8 +185,8 @@ public class GetItemsByTypeQueryHandlerTests
         dto.AtlasY.Should().Be(4);
         dto.Name.Should().Be("dagger");
         dto.Type.Should().Be("weapon");
-        dto.Width.Should().Be(4);
-        dto.Height.Should().Be(2);
+        dto.SpriteWidth.Should().Be(4);
+        dto.SpriteHeight.Should().Be(2);
         dto.MaxStackSize.Should().Be(1);
         dto.IsStackable.Should().BeFalse();
     }

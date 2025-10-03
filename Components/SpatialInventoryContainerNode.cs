@@ -457,9 +457,12 @@ public partial class SpatialInventoryContainerNode : Control
             {
                 _itemTypes[itemId] = result.Value.Type;
                 _itemNames[itemId] = result.Value.Name;
-                _itemDimensions[itemId] = (result.Value.Width, result.Value.Height); // Phase 2: Cache dimensions
-                _logger.LogDebug("Item {ItemId}: {Name} ({Type}) {Width}×{Height}",
-                    itemId, result.Value.Name, result.Value.Type, result.Value.Width, result.Value.Height);
+                // Phase 2: Cache INVENTORY dimensions (for logical occupation, not sprite size)
+                _itemDimensions[itemId] = (result.Value.InventoryWidth, result.Value.InventoryHeight);
+                _logger.LogDebug("Item {ItemId}: {Name} ({Type}) Sprite {SpriteW}×{SpriteH}, Inventory {InvW}×{InvH}",
+                    itemId, result.Value.Name, result.Value.Type,
+                    result.Value.SpriteWidth, result.Value.SpriteHeight,
+                    result.Value.InventoryWidth, result.Value.InventoryHeight);
             }
         }
     }
@@ -548,13 +551,13 @@ public partial class SpatialInventoryContainerNode : Control
 
     /// <summary>
     /// Renders a multi-cell item sprite using TextureRect (Phase 2).
-    /// WHY: Items can span Width×Height cells, matching reference image visual style.
+    /// WHY: Sprite size (visual) ≠ Inventory size (logical occupation).
     /// </summary>
     /// <param name="itemId">Item to render</param>
     /// <param name="origin">Top-left grid position of the item</param>
     private async void RenderMultiCellItemSprite(ItemId itemId, GridPosition origin)
     {
-        // Query item data for atlas coordinates
+        // Query item data for atlas coordinates and dimensions
         var itemQuery = new GetItemByIdQuery(itemId);
         var itemResult = await _mediator.Send(itemQuery);
 
@@ -567,8 +570,9 @@ public partial class SpatialInventoryContainerNode : Control
 
         var item = itemResult.Value;
 
-        // Get dimensions (fallback to 1×1 if not cached)
-        var (width, height) = _itemDimensions.GetValueOrDefault(itemId, (1, 1));
+        // Get INVENTORY dimensions for positioning/sizing (logical occupation)
+        // WHY: Item occupies InventoryWidth×InventoryHeight grid cells
+        var (invWidth, invHeight) = _itemDimensions.GetValueOrDefault(itemId, (1, 1));
 
         // PHASE 2: Render TextureRect sprite if TileSet available
         if (_itemTileSet != null)
@@ -576,16 +580,17 @@ public partial class SpatialInventoryContainerNode : Control
             var atlasSource = _itemTileSet.GetSource(0) as TileSetAtlasSource;
             if (atlasSource != null)
             {
-                // Calculate pixel position and size
-                // WHY: Grid has 2px separation, account for gaps
+                // Calculate pixel position and size based on INVENTORY dimensions
+                // WHY: Sprite renders within the inventory cells it occupies
                 int separationX = 2;
                 int separationY = 2;
                 float pixelX = origin.X * (CellSize + separationX);
                 float pixelY = origin.Y * (CellSize + separationY);
-                float pixelWidth = width * CellSize + (width - 1) * separationX;
-                float pixelHeight = height * CellSize + (height - 1) * separationY;
+                float pixelWidth = invWidth * CellSize + (invWidth - 1) * separationX;
+                float pixelHeight = invHeight * CellSize + (invHeight - 1) * separationY;
 
                 // Create AtlasTexture for this specific tile (VS_009 pattern)
+                // WHY: Extracts sprite region from atlas (sprite dimensions are SpriteWidth×SpriteHeight)
                 var tileCoords = new Vector2I(item.AtlasX, item.AtlasY);
                 var region = atlasSource.GetTileTextureRegion(tileCoords);
 
@@ -609,8 +614,10 @@ public partial class SpatialInventoryContainerNode : Control
 
                 _itemOverlayContainer?.AddChild(textureRect);
 
-                _logger.LogDebug("Rendered {ItemName} at ({X},{Y}) with size {W}×{H}",
-                    item.Name, origin.X, origin.Y, width, height);
+                _logger.LogDebug("Rendered {ItemName} at ({X},{Y}): Sprite {SpriteW}×{SpriteH}, Inventory {InvW}×{InvH}",
+                    item.Name, origin.X, origin.Y,
+                    item.SpriteWidth, item.SpriteHeight,
+                    invWidth, invHeight);
             }
         }
         else
@@ -620,7 +627,7 @@ public partial class SpatialInventoryContainerNode : Control
             {
                 Name = $"Item_{itemId.Value}_Fallback",
                 Color = GetItemColorFallback(item.Name),
-                CustomMinimumSize = new Vector2(width * CellSize * 0.9f, height * CellSize * 0.9f),
+                CustomMinimumSize = new Vector2(invWidth * CellSize * 0.9f, invHeight * CellSize * 0.9f),
                 Position = new Vector2(origin.X * CellSize + CellSize * 0.05f, origin.Y * CellSize + CellSize * 0.05f),
                 MouseFilter = MouseFilterEnum.Ignore
             };

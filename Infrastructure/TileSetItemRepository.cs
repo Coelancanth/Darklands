@@ -83,13 +83,15 @@ public sealed class TileSetItemRepository : IItemRepository
                 _allItems.Add(item);
 
                 _logger.LogDebug(
-                    "Loaded item: {Name} (type: {Type}, atlas: {X},{Y}, size: {Width}x{Height}, stack: {MaxStack})",
+                    "Loaded item: {Name} (type: {Type}, atlas: {X},{Y}, sprite: {SpriteW}×{SpriteH}, inventory: {InvW}×{InvH}, stack: {MaxStack})",
                     item.Name,
                     item.Type,
                     item.AtlasX,
                     item.AtlasY,
-                    item.Width,
-                    item.Height,
+                    item.SpriteWidth,
+                    item.SpriteHeight,
+                    item.InventoryWidth,
+                    item.InventoryHeight,
                     item.MaxStackSize);
             }
             else
@@ -122,8 +124,28 @@ public sealed class TileSetItemRepository : IItemRepository
         var type = tileData.GetCustomData("item_type").AsString();
         var maxStackSize = tileData.GetCustomData("max_stack_size").AsInt32();
 
-        // Read size_in_atlas for width/height
+        // Read sprite dimensions from size_in_atlas (for rendering)
         var sizeInAtlas = atlasSource.GetTileSizeInAtlas(tileCoords);
+        int spriteWidth = sizeInAtlas.X;
+        int spriteHeight = sizeInAtlas.Y;
+
+        // Read inventory dimensions from custom_data (for logical occupation/collision)
+        // WHY: Sprite size ≠ Inventory footprint (4×4 sprite might occupy 2×2 inventory cells)
+        var invWidthVariant = tileData.GetCustomData("inventory_width");
+        var invHeightVariant = tileData.GetCustomData("inventory_height");
+
+        // Fallback: If inventory dimensions not specified, default to sprite size
+        int inventoryWidth = invWidthVariant.VariantType == Variant.Type.Int
+            ? invWidthVariant.AsInt32()
+            : spriteWidth;
+
+        int inventoryHeight = invHeightVariant.VariantType == Variant.Type.Int
+            ? invHeightVariant.AsInt32()
+            : spriteHeight;
+
+        _logger.LogDebug(
+            "Item {Name}: Sprite {SpriteW}×{SpriteH} atlas tiles, Inventory {InvW}×{InvH} grid cells",
+            name, spriteWidth, spriteHeight, inventoryWidth, inventoryHeight);
 
         // ARCHITECTURE: Extract primitives from Godot types, pass to Domain
         return ItemEntity.Create(
@@ -132,8 +154,10 @@ public sealed class TileSetItemRepository : IItemRepository
             atlasY: tileCoords.Y,
             name: name,
             type: type,
-            width: sizeInAtlas.X,
-            height: sizeInAtlas.Y,
+            spriteWidth: spriteWidth,
+            spriteHeight: spriteHeight,
+            inventoryWidth: inventoryWidth,
+            inventoryHeight: inventoryHeight,
             maxStackSize: maxStackSize);
     }
 

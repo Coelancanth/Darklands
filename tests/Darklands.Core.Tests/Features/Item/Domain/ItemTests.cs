@@ -24,8 +24,10 @@ public class ItemTests
             atlasY: 0,
             name: "ray_gun",
             type: "weapon",
-            width: 4,
-            height: 4,
+            spriteWidth: 4,
+            spriteHeight: 4,
+            inventoryWidth: 1,
+            inventoryHeight: 1,
             maxStackSize: 1);
 
         // Assert
@@ -35,8 +37,8 @@ public class ItemTests
         result.Value.AtlasY.Should().Be(0);
         result.Value.Name.Should().Be("ray_gun");
         result.Value.Type.Should().Be("weapon");
-        result.Value.Width.Should().Be(4);
-        result.Value.Height.Should().Be(4);
+        result.Value.SpriteWidth.Should().Be(4);
+        result.Value.SpriteHeight.Should().Be(4);
         result.Value.MaxStackSize.Should().Be(1);
     }
 
@@ -50,8 +52,10 @@ public class ItemTests
             atlasY: 6,
             name: "green_vial",
             type: "item",
-            width: 2,
-            height: 2,
+            spriteWidth: 2,
+            spriteHeight: 2,
+            inventoryWidth: 1,
+            inventoryHeight: 1,
             maxStackSize: 2);
 
         // Assert
@@ -75,8 +79,10 @@ public class ItemTests
             atlasY: 0,
             name: "test_item",
             type: "item",
-            width: 1,
-            height: 1,
+            spriteWidth: 1,
+            spriteHeight: 1,
+            inventoryWidth: 1,
+            inventoryHeight: 1,
             maxStackSize: 1);
 
         // Assert
@@ -96,8 +102,10 @@ public class ItemTests
             atlasY: -1,
             name: "test_item",
             type: "item",
-            width: 1,
-            height: 1,
+            spriteWidth: 1,
+            spriteHeight: 1,
+            inventoryWidth: 1,
+            inventoryHeight: 1,
             maxStackSize: 1);
 
         // Assert
@@ -117,8 +125,10 @@ public class ItemTests
             atlasY: 0,
             name: "test_item",
             type: "item",
-            width: 1,
-            height: 1,
+            spriteWidth: 1,
+            spriteHeight: 1,
+            inventoryWidth: 1,
+            inventoryHeight: 1,
             maxStackSize: 1);
 
         // Assert
@@ -141,8 +151,10 @@ public class ItemTests
             atlasY: 0,
             name: "",
             type: "item",
-            width: 1,
-            height: 1,
+            spriteWidth: 1,
+            spriteHeight: 1,
+            inventoryWidth: 1,
+            inventoryHeight: 1,
             maxStackSize: 1);
 
         // Assert
@@ -162,8 +174,10 @@ public class ItemTests
             atlasY: 0,
             name: "   ",
             type: "item",
-            width: 1,
-            height: 1,
+            spriteWidth: 1,
+            spriteHeight: 1,
+            inventoryWidth: 1,
+            inventoryHeight: 1,
             maxStackSize: 1);
 
         // Assert
@@ -187,8 +201,10 @@ public class ItemTests
             atlasY: 0,
             name: "test_item",
             type: "",
-            width: 1,
-            height: 1,
+            spriteWidth: 1,
+            spriteHeight: 1,
+            inventoryWidth: 1,
+            inventoryHeight: 1,
             maxStackSize: 1);
 
         // Assert
@@ -215,8 +231,10 @@ public class ItemTests
             atlasY: 0,
             name: "test_item",
             type: "item",
-            width: invalidWidth,
-            height: 1,
+            spriteWidth: invalidWidth,
+            spriteHeight: 1,
+            inventoryWidth: 1,
+            inventoryHeight: 1,
             maxStackSize: 1);
 
         // Assert
@@ -239,8 +257,10 @@ public class ItemTests
             atlasY: 0,
             name: "test_item",
             type: "item",
-            width: 1,
-            height: invalidHeight,
+            spriteWidth: 1,
+            spriteHeight: invalidHeight,
+            inventoryWidth: 1,
+            inventoryHeight: 1,
             maxStackSize: 1);
 
         // Assert
@@ -260,14 +280,16 @@ public class ItemTests
             atlasY: 0,
             name: "baton",
             type: "weapon",
-            width: 2,
-            height: 8,
+            spriteWidth: 2,
+            spriteHeight: 8,
+            inventoryWidth: 1,
+            inventoryHeight: 1,
             maxStackSize: 1);
 
         // Assert
         result.IsSuccess.Should().BeTrue();
-        result.Value.Width.Should().Be(2);
-        result.Value.Height.Should().Be(8);
+        result.Value.SpriteWidth.Should().Be(2);
+        result.Value.SpriteHeight.Should().Be(8);
     }
 
     #endregion
@@ -286,8 +308,10 @@ public class ItemTests
             atlasY: 0,
             name: "test_item",
             type: "item",
-            width: 1,
-            height: 1,
+            spriteWidth: 1,
+            spriteHeight: 1,
+            inventoryWidth: 1,
+            inventoryHeight: 1,
             maxStackSize: -1);
 
         // Assert
@@ -307,8 +331,10 @@ public class ItemTests
             atlasY: 0,
             name: "unique_item",
             type: "item",
-            width: 1,
-            height: 1,
+            spriteWidth: 1,
+            spriteHeight: 1,
+            inventoryWidth: 1,
+            inventoryHeight: 1,
             maxStackSize: 0);
 
         // Assert
@@ -330,8 +356,10 @@ public class ItemTests
             atlasY: 0,
             name: "unique_item",
             type: "item",
-            width: 1,
-            height: 1,
+            spriteWidth: 1,
+            spriteHeight: 1,
+            inventoryWidth: 1,
+            inventoryHeight: 1,
             maxStackSize: 0).Value;
 
         // Assert
@@ -348,8 +376,10 @@ public class ItemTests
             atlasY: 0,
             name: "ray_gun",
             type: "weapon",
-            width: 4,
-            height: 4,
+            spriteWidth: 4,
+            spriteHeight: 4,
+            inventoryWidth: 1,
+            inventoryHeight: 1,
             maxStackSize: 1).Value;
 
         // Assert
@@ -370,8 +400,10 @@ public class ItemTests
             atlasY: 6,
             name: "vial",
             type: "item",
-            width: 2,
-            height: 2,
+            spriteWidth: 2,
+            spriteHeight: 2,
+            inventoryWidth: 1,
+            inventoryHeight: 1,
             maxStackSize: maxStackSize).Value;
 
         // Assert
