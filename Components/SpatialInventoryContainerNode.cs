@@ -225,13 +225,23 @@ public partial class SpatialInventoryContainerNode : Control
         // Check if position is occupied
         bool isOccupied = _itemsAtPositions.ContainsKey(targetPos.Value);
 
-        // SWAP DISABLED (causes data loss bug - needs proper implementation)
-        // TODO: Implement atomic swap command or use temporary storage position
+        // SWAP SUPPORT (Option C): Equipment slots allow swapping, backpacks don't
         if (isOccupied)
         {
-            _logger.LogDebug("Position ({X}, {Y}) occupied - drops to occupied slots not allowed (swap disabled due to data loss bug)",
-                targetPos.Value.X, targetPos.Value.Y);
-            return false;
+            bool isEquipmentSlot = _containerType == ContainerType.WeaponOnly;
+
+            if (isEquipmentSlot)
+            {
+                _logger.LogDebug("Position ({X}, {Y}) occupied - swap allowed (equipment slot)",
+                    targetPos.Value.X, targetPos.Value.Y);
+                // Swap validation happens in SwapItemsAsync (pre-validated before any removal)
+            }
+            else
+            {
+                _logger.LogDebug("Position ({X}, {Y}) occupied - swap NOT allowed (backpack)",
+                    targetPos.Value.X, targetPos.Value.Y);
+                return false;
+            }
         }
 
         // Type validation for specialized containers (prevent data loss bug)
@@ -302,12 +312,30 @@ public partial class SpatialInventoryContainerNode : Control
         var itemId = new ItemId(itemIdGuid);
         var sourceActorId = new ActorId(sourceActorIdGuid);
 
-        // REGULAR MOVE: Position must be free (swap disabled due to data loss bug)
-        _logger.LogInformation("Drop confirmed: Moving item {ItemId} to ({X}, {Y})",
-            itemId, targetPos.Value.X, targetPos.Value.Y);
+        // Check if this is a SWAP operation (equipment slot with occupied position)
+        bool isOccupied = _itemsAtPositions.TryGetValue(targetPos.Value, out var targetItemId);
+        bool isEquipmentSlot = _containerType == ContainerType.WeaponOnly;
 
-        // Send MoveItemBetweenContainersCommand
-        MoveItemAsync(sourceActorId, itemId, targetPos.Value);
+        if (isOccupied && isEquipmentSlot)
+        {
+            // SAFE SWAP: Validate + Remove + Place with rollback on failure
+            var sourceX = dragData["sourceX"].AsInt32();
+            var sourceY = dragData["sourceY"].AsInt32();
+            var sourcePos = new GridPosition(sourceX, sourceY);
+
+            _logger.LogInformation("Initiating safe swap: {ItemA} ↔ {ItemB}",
+                itemId, targetItemId);
+
+            SwapItemsSafeAsync(sourceActorId, itemId, sourcePos, OwnerActorId!.Value, targetItemId, targetPos.Value);
+        }
+        else
+        {
+            // REGULAR MOVE: Position is free
+            _logger.LogInformation("Drop confirmed: Moving item {ItemId} to ({X}, {Y})",
+                itemId, targetPos.Value.X, targetPos.Value.Y);
+
+            MoveItemAsync(sourceActorId, itemId, targetPos.Value);
+        }
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -564,10 +592,10 @@ public partial class SpatialInventoryContainerNode : Control
     }
 
     /// <summary>
-    /// Swaps two items between containers (equipment slot swap - Option C).
-    /// WHY: Equipment slots allow swapping for UX (Diablo 2, Resident Evil pattern).
+    /// Safely swaps two items using Remove+Place pattern with full rollback on failure.
+    /// WHY: Equipment slots need swap for UX, but must prevent data loss at all costs.
     /// </summary>
-    private async void SwapItemsAsync(
+    private async void SwapItemsSafeAsync(
         ActorId sourceActorId,
         ItemId sourceItemId,
         GridPosition sourcePos,
@@ -575,43 +603,58 @@ public partial class SpatialInventoryContainerNode : Control
         ItemId targetItemId,
         GridPosition targetPos)
     {
-        _logger.LogInformation("Executing swap: {SourceItem} @ {SourceActor}({SourceX},{SourceY}) ↔ {TargetItem} @ {TargetActor}({TargetX},{TargetY})",
-            sourceItemId, sourceActorId, sourcePos.X, sourcePos.Y,
-            targetItemId, targetActorId, targetPos.X, targetPos.Y);
+        _logger.LogInformation("SAFE SWAP: {SourceItem} @ ({SourceX},{SourceY}) ↔ {TargetItem} @ ({TargetX},{TargetY})",
+            sourceItemId, sourcePos.X, sourcePos.Y,
+            targetItemId, targetPos.X, targetPos.Y);
 
-        // ATOMICITY: Use temporary position to avoid collision
-        // Step 1: Move target item to source position
-        var moveTargetCmd = new MoveItemBetweenContainersCommand(
-            targetActorId,
-            sourceActorId,
-            targetItemId,
-            sourcePos);
+        // STEP 1: Remove both items (hold in memory for rollback)
+        var removeSourceCmd = new RemoveItemCommand(sourceActorId, sourceItemId);
+        var removeTargetCmd = new RemoveItemCommand(targetActorId, targetItemId);
 
-        var moveTargetResult = await _mediator.Send(moveTargetCmd);
-        if (moveTargetResult.IsFailure)
+        var removeSourceResult = await _mediator.Send(removeSourceCmd);
+        if (removeSourceResult.IsFailure)
         {
-            _logger.LogError("Swap failed (step 1): {Error}", moveTargetResult.Error);
+            _logger.LogError("Swap aborted: Failed to remove source item: {Error}", removeSourceResult.Error);
+            return; // Nothing removed yet, safe to abort
+        }
+
+        var removeTargetResult = await _mediator.Send(removeTargetCmd);
+        if (removeTargetResult.IsFailure)
+        {
+            _logger.LogError("Swap aborted: Failed to remove target item: {Error}", removeTargetResult.Error);
+            // Rollback: Put source item back
+            await _mediator.Send(new PlaceItemAtPositionCommand(sourceActorId, sourceItemId, sourcePos));
             return;
         }
 
-        // Step 2: Move source item to target position (now free)
-        var moveSourceCmd = new MoveItemBetweenContainersCommand(
-            sourceActorId,
-            targetActorId,
-            sourceItemId,
-            targetPos);
+        // STEP 2: Place both items at swapped positions
+        var placeSourceCmd = new PlaceItemAtPositionCommand(targetActorId, sourceItemId, targetPos);
+        var placeTargetCmd = new PlaceItemAtPositionCommand(sourceActorId, targetItemId, sourcePos);
 
-        var moveSourceResult = await _mediator.Send(moveSourceCmd);
-        if (moveSourceResult.IsFailure)
+        var placeSourceResult = await _mediator.Send(placeSourceCmd);
+        if (placeSourceResult.IsFailure)
         {
-            _logger.LogError("Swap failed (step 2): {Error}", moveSourceResult.Error);
-            // TODO: Rollback step 1 if step 2 fails (requires RemoveItemAtPositionCommand)
+            _logger.LogError("Swap failed: Could not place source item at target: {Error}", placeSourceResult.Error);
+            // Rollback: Put both items back at original positions
+            await _mediator.Send(new PlaceItemAtPositionCommand(sourceActorId, sourceItemId, sourcePos));
+            await _mediator.Send(new PlaceItemAtPositionCommand(targetActorId, targetItemId, targetPos));
+            EmitSignal(SignalName.InventoryChanged); // Refresh to show rollback
+            return;
+        }
+
+        var placeTargetResult = await _mediator.Send(placeTargetCmd);
+        if (placeTargetResult.IsFailure)
+        {
+            _logger.LogError("Swap failed: Could not place target item at source: {Error}", placeTargetResult.Error);
+            // Rollback: Remove source item from wrong place, put both back
+            await _mediator.Send(new RemoveItemCommand(targetActorId, sourceItemId));
+            await _mediator.Send(new PlaceItemAtPositionCommand(sourceActorId, sourceItemId, sourcePos));
+            await _mediator.Send(new PlaceItemAtPositionCommand(targetActorId, targetItemId, targetPos));
+            EmitSignal(SignalName.InventoryChanged); // Refresh to show rollback
             return;
         }
 
         _logger.LogInformation("Swap completed successfully");
-
-        // Emit signal to refresh both containers
         EmitSignal(SignalName.InventoryChanged);
     }
 
