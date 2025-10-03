@@ -451,11 +451,11 @@ public partial class SpatialInventoryContainerNode : Control
         {
             CustomMinimumSize = new Vector2(CellSize, CellSize),
             TooltipText = $"Grid ({pos.X}, {pos.Y})",
-            // Let parent container handle drag & drop
-            MouseFilter = MouseFilterEnum.Ignore
+            // WHY: Pass allows tooltips to work AND events bubble to parent for drag-drop
+            MouseFilter = MouseFilterEnum.Pass
         };
 
-        // Add visual styling (gray border for empty cells)
+        // Add visual styling (uniform gray for all cells - colors show ITEMS, not cells)
         var style = new StyleBoxFlat
         {
             BgColor = new Color(0.2f, 0.2f, 0.2f),
@@ -490,48 +490,81 @@ public partial class SpatialInventoryContainerNode : Control
                     string itemName = _itemNames.GetValueOrDefault(itemId, "Unknown");
                     string itemType = _itemTypes.GetValueOrDefault(itemId, "unknown");
                     cell.TooltipText = $"{itemName} ({itemType})";
+
+                    // Render colored icon INSIDE cell (Phase 1 placeholder for sprites)
+                    // WHY: Each item gets unique color for visual distinction
+                    RenderItemIcon(cell, itemName);
                 }
                 else
                 {
-                    // Empty cell: Show grid position
+                    // Empty cell: Show grid position, clear any existing icon
                     cell.TooltipText = $"Empty ({gridPos.X}, {gridPos.Y})";
-                }
-
-                // Highlight occupied cells with different color based on item type
-                var style = cell.GetThemeStylebox("panel") as StyleBoxFlat;
-                if (style != null)
-                {
-                    if (_itemsAtPositions.TryGetValue(gridPos, out var itemIdForColor))
-                    {
-                        // Occupied cell: Color by item type (4 distinct color-coded types)
-                        if (_itemTypes.TryGetValue(itemIdForColor, out var itemType))
-                        {
-                            style.BgColor = itemType switch
-                            {
-                                "weapon" => new Color(0.25f, 0.45f, 0.85f, 0.75f),     // Steel blue (refined blue)
-                                "consumable" => new Color(0.85f, 0.35f, 0.35f, 0.75f), // Crimson red (health/potions)
-                                "tool" => new Color(0.35f, 0.75f, 0.45f, 0.75f),       // Emerald green (refined green)
-                                "armor" => new Color(0.55f, 0.65f, 0.35f, 0.75f),      // Olive green (protective gear)
-                                _ => new Color(0.75f, 0.35f, 0.75f, 0.75f)             // Purple (unknown type fallback)
-                            };
-                        }
-                        else
-                        {
-                            // Type unknown: Purple (fallback)
-                            style.BgColor = new Color(0.75f, 0.35f, 0.75f, 0.75f);
-                        }
-                    }
-                    else
-                    {
-                        // Empty cell: Dark gray
-                        style.BgColor = new Color(0.2f, 0.2f, 0.2f);
-                    }
+                    ClearItemIcon(cell);
                 }
             }
         }
 
         _logger.LogDebug("{ContainerTitle}: {ItemCount} items displayed",
             ContainerTitle, _itemsAtPositions.Count);
+    }
+
+    /// <summary>
+    /// Renders a colored icon inside a cell to represent an item (Phase 1 sprite placeholder).
+    /// Each item gets a unique color based on its name.
+    /// </summary>
+    private void RenderItemIcon(Panel cell, string itemName)
+    {
+        // Check if icon already exists
+        var existingIcon = cell.GetNodeOrNull<ColorRect>("ItemIcon");
+        if (existingIcon != null)
+        {
+            // Update existing icon color
+            existingIcon.Color = GetItemColor(itemName);
+            return;
+        }
+
+        // Create new icon (centered ColorRect)
+        var icon = new ColorRect
+        {
+            Name = "ItemIcon",
+            Color = GetItemColor(itemName),
+            CustomMinimumSize = new Vector2(CellSize * 0.7f, CellSize * 0.7f),
+            Position = new Vector2(CellSize * 0.15f, CellSize * 0.15f), // Center with 15% margin
+            MouseFilter = MouseFilterEnum.Ignore // Let parent cell handle mouse events
+        };
+
+        cell.AddChild(icon);
+    }
+
+    /// <summary>
+    /// Clears the item icon from a cell (when cell becomes empty).
+    /// </summary>
+    private void ClearItemIcon(Panel cell)
+    {
+        var icon = cell.GetNodeOrNull<ColorRect>("ItemIcon");
+        if (icon != null)
+        {
+            icon.QueueFree();
+        }
+    }
+
+    /// <summary>
+    /// Assigns a unique color to each item based on its name.
+    /// WHY: Visual distinction - dagger vs ray_gun get different colors.
+    /// </summary>
+    private Color GetItemColor(string itemName)
+    {
+        // Per-item color assignment (unique color for each item, not type)
+        return itemName switch
+        {
+            "dagger" => new Color(0.4f, 0.6f, 1.0f),      // Light blue
+            "ray_gun" => new Color(0.7f, 0.3f, 0.9f),     // Purple
+            "baton" => new Color(0.5f, 0.5f, 0.5f),       // Gray
+            "red_vial" => new Color(1.0f, 0.3f, 0.3f),    // Red
+            "green_vial" => new Color(0.3f, 1.0f, 0.5f),  // Bright green
+            "gadget" => new Color(1.0f, 0.8f, 0.2f),      // Yellow/gold
+            _ => new Color(0.8f, 0.8f, 0.8f)              // White (unknown items)
+        };
     }
 
     private GridPosition? PixelToGridPosition(Vector2 pixelPos)
