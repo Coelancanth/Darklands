@@ -83,6 +83,7 @@ public partial class SpatialInventoryContainerNode : Control
     private Dictionary<ItemId, string> _itemNames = new(); // Cache item names for tooltips
     private Dictionary<ItemId, (int Width, int Height)> _itemDimensions = new(); // Cache item dimensions (Phase 2)
     private Dictionary<ItemId, Rotation> _itemRotations = new(); // Cache item rotations (Phase 3)
+    private Dictionary<ItemId, Node> _itemSpriteNodes = new(); // PHASE 3: Direct references to sprite nodes for hiding during drag
 
     // PHASE 3: Drag-time rotation state
     private Rotation _currentDragRotation = default(Darklands.Core.Domain.Common.Rotation); // Rotation during active drag
@@ -172,8 +173,20 @@ public partial class SpatialInventoryContainerNode : Control
             {
                 // Left mouse button released - drag ended (successful or rejected)
                 ClearDragHighlights();
+
+                // PHASE 3: If drag was active but cancelled (not dropped), restore hidden sprite
+                // WHY: HideItemSprite() removed the node, need full refresh to recreate it
+                bool wasDragging = _isDragging && _draggingItemId != null;
+
                 _isDragging = false; // Reset drag state
                 _draggingItemId = null;
+
+                // If drag was cancelled (not dropped), refresh to restore sprite
+                if (wasDragging)
+                {
+                    _logger.LogInformation("🔄 Drag cancelled, refreshing to restore hidden sprite");
+                    LoadInventoryAsync(); // Full reload to recreate sprite nodes
+                }
             }
 
             // PHASE 3: Mouse scroll during drag to rotate item
@@ -241,6 +254,10 @@ public partial class SpatialInventoryContainerNode : Control
 
         _logger.LogInformation("🎯 Starting drag: Item {ItemId} from {Container} at origin ({X}, {Y}) with rotation {Rotation}",
             itemId, ContainerTitle, origin.X, origin.Y, _currentDragRotation);
+
+        // PHASE 3: Immediately hide source sprite (remove from overlay)
+        // WHY: Uses direct node reference - no string matching needed!
+        HideItemSprite(itemId);
 
         // PHASE 3: Create sprite-based drag preview (updates with rotation)
         CreateDragPreview(itemId);
@@ -743,6 +760,29 @@ public partial class SpatialInventoryContainerNode : Control
         {
             child.QueueFree();
         }
+
+        // PHASE 3: Clear sprite node references
+        _itemSpriteNodes.Clear();
+    }
+
+    /// <summary>
+    /// Hides a specific item sprite immediately (used during drag start).
+    /// WHY: Sprite already rendered, need immediate removal (not wait for refresh).
+    /// PHASE 3: Uses direct node reference - no string matching, no async issues!
+    /// </summary>
+    private void HideItemSprite(ItemId itemId)
+    {
+        // Direct dictionary lookup using ItemId (no string name matching!)
+        if (_itemSpriteNodes.TryGetValue(itemId, out var spriteNode))
+        {
+            _logger.LogInformation("✅ Hiding sprite for item {ItemId} (direct reference)", itemId);
+            spriteNode.Free(); // Immediate removal from scene tree
+            _itemSpriteNodes.Remove(itemId); // Clear reference
+        }
+        else
+        {
+            _logger.LogWarning("❌ Item {ItemId} sprite node not found in cache", itemId);
+        }
     }
 
     /// <summary>
@@ -821,6 +861,9 @@ public partial class SpatialInventoryContainerNode : Control
 
                 _itemOverlayContainer?.AddChild(textureRect);
 
+                // PHASE 3: Store node reference for direct hiding during drag
+                _itemSpriteNodes[itemId] = textureRect;
+
                 _logger.LogDebug("Rendered {ItemName} at ({X},{Y}): Sprite {SpriteW}×{SpriteH}, Inventory {InvW}×{InvH}, Rotation {Rotation}°",
                     item.Name, origin.X, origin.Y,
                     item.SpriteWidth, item.SpriteHeight,
@@ -844,6 +887,9 @@ public partial class SpatialInventoryContainerNode : Control
             };
 
             _itemOverlayContainer?.AddChild(colorRect);
+
+            // PHASE 3: Store node reference for direct hiding during drag
+            _itemSpriteNodes[itemId] = colorRect;
         }
     }
 
