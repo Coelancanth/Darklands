@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-03 17:09 (Dev Engineer: VS_018 Phase 3 - Fixed drag-drop visual artifact via direct node references, 2 bugs remaining: z-order + occupation)
+**Last Updated**: 2025-10-03 18:41 (Dev Engineer: VS_018 Phase 3 - Fixed drag preview centering + z-order attempts, 2 bugs: rotation persistence + highlight overlap)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -199,16 +199,17 @@
 - **Application**: ✅ `RotateItemCommand`, `MoveItemBetweenContainersCommand` with rotation
 - **Presentation**: ✅ Mouse scroll during drag, sprite rotation, highlight updates
 - **Tests**: ✅ 13 new rotation tests (335/335 passing)
-- **BUGS STATUS** (2025-10-03 17:09):
-  1. ❌ **Z-Order Rendering**: Item sprites render BELOW green highlights (should be above)
-     - Tried: Container ZIndex swap (no effect), Individual sprite ZIndex (highlights still on top)
-     - Root Cause: Godot rendering order not respecting ZIndex=-1 (highlights) vs ZIndex=1 (items)
-     - Next: Investigate Godot CanvasLayer separation or use modulate blending instead of overlay
-  2. ❌ **Logical Occupation Bug**: Rotated items occupy WRONG grid cells
-     - Symptom: 2×1 item rotated 90° occupies cells as if still 2×1 horizontal (not 1×2 vertical)
-     - Root Cause: `PlaceItemAt()` receives rotation but collision uses base dimensions
-     - Impact: Can place items in invalid positions, overlapping after rotation
-     - Fix: Verify effective dimensions used in both `_CanDropData` AND `PlaceItemAt`
+- **BUGS STATUS** (2025-10-03 18:41):
+  1. ❌ **Rotation Persistence**: Rotation resets to Degrees0 when moving item between containers
+     - Symptom: Item rotated to Degrees180 during drag → dropped in new container → renders as Degrees0
+     - Root Cause: `_DropData` passes `_currentDragRotation` to command, but domain doesn't persist it
+     - Log Evidence: "Drop confirmed: ... rotation Degrees180" → "DEBUG: ... rotation: Degrees0"
+     - Impact: User loses rotation state on cross-container moves (frustrating UX)
+     - Fix: Verify `MoveItemBetweenContainersCommand` actually sets rotation in domain
+  2. ❌ **Z-Order Rendering**: Highlight overlays render ABOVE item sprites (unnatural appearance)
+     - Symptom: Green/red highlights obscure item sprites (should glow BEHIND items)
+     - Tried: Absolute ZIndex (highlights=100, items=200) - no effect yet
+     - Next: Test in-game to confirm if absolute ZIndex solved it
   3. ✅ **Double Rotation**: FIXED (one scroll = one 90° rotation, `Pressed` check added)
   4. ✅ **Ghost Highlights**: FIXED (`Free()` instead of `QueueFree()` for immediate cleanup)
   5. ✅ **Drag-Drop Visual Artifact**: FIXED (2025-10-03 17:09)
@@ -219,6 +220,9 @@
        - Store reference on render: `_itemSpriteNodes[itemId] = textureRect`
        - Hide on drag start: `_itemSpriteNodes[itemId].Free()` (O(1) lookup, no string matching)
        - Restore on cancel: `LoadInventoryAsync()` recreates all sprite nodes
+  6. ✅ **Drag Preview Centering**: FIXED (2025-10-03 18:41)
+     - **Bug**: Drag preview offset from cursor (cursor not at sprite center)
+     - **Solution**: Offset container by `-baseSpriteWidth/2, -baseSpriteHeight/2` so cursor sits at center
 
 **🔧 Phase 3 Progress** (2025-10-03, 4h so far):
 - **Core**: ✅ Rotation enum, RotationHelper, dimension swapping, MoveItemBetweenContainers with rotation

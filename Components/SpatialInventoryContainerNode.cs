@@ -206,32 +206,15 @@ public partial class SpatialInventoryContainerNode : Control
 
                 _currentDragRotation = newRotation;
 
-                // PHASE 3 FIX: Update sprite preview - recalculate effective size, reposition texture
-                if (_dragPreviewSprite != null && _draggingItemId != null)
+                // PHASE 3 FIX: Update sprite preview - ONLY rotation changes (single-layer approach)
+                // WHY: Container is base-sized, texture just rotates inside via PivotOffset
+                if (_dragPreviewSprite != null)
                 {
-                    // Get base dimensions
-                    var (baseWidth, baseHeight) = _itemDimensions.GetValueOrDefault(_draggingItemId.Value, (1, 1));
-                    float baseSpriteWidth = baseWidth * CellSize;
-                    float baseSpriteHeight = baseHeight * CellSize;
-
-                    // Calculate NEW effective dimensions after rotation
-                    var (newEffectiveWidth, newEffectiveHeight) = RotationHelper.GetRotatedDimensions(baseWidth, baseHeight, _currentDragRotation);
-                    float newEffectiveSpriteWidth = newEffectiveWidth * CellSize;
-                    float newEffectiveSpriteHeight = newEffectiveHeight * CellSize;
-
-                    // Update sprite: rotation changes, size stays BASE dimensions
+                    // Simply update rotation - size and position stay constant!
                     _dragPreviewSprite.Rotation = RotationHelper.ToRadians(_currentDragRotation);
-                    // Reposition texture to stay centered in container
-                    _dragPreviewSprite.Position = new Vector2(
-                        (newEffectiveSpriteWidth - baseSpriteWidth) / 2f,
-                        (newEffectiveSpriteHeight - baseSpriteHeight) / 2f
-                    );
 
-                    // Update container size to match NEW effective dimensions
-                    if (_dragPreviewNode != null)
-                    {
-                        _dragPreviewNode.CustomMinimumSize = new Vector2(newEffectiveSpriteWidth, newEffectiveSpriteHeight);
-                    }
+                    // No need to update container size or texture position
+                    // Container stays BASE size, texture rotates around its PivotOffset
                 }
 
                 // PHASE 3 BUG FIX: Update highlights immediately after rotation
@@ -286,10 +269,12 @@ public partial class SpatialInventoryContainerNode : Control
         // WHY: Uses direct node reference - no string matching needed!
         HideItemSprite(itemId);
 
-        // PHASE 3: Create sprite-based drag preview (updates with rotation)
+        // PHASE 3: Create sprite-based drag preview (updates with rotation) and set immediately
         CreateDragPreview(itemId);
-
-        SetDragPreview(_dragPreviewNode!);
+        if (_dragPreviewNode != null)
+        {
+            SetDragPreview(_dragPreviewNode);
+        }
 
         // Return drag data using Guids (simpler than value objects)
         // WHY: Use origin position for commands (not clicked cell)
@@ -681,8 +666,11 @@ public partial class SpatialInventoryContainerNode : Control
         // PHASE 3: Render BELOW items (ZIndex=10) so sprites appear above glow
         _highlightOverlayContainer = new Control
         {
-            MouseFilter = MouseFilterEnum.Ignore, // Let grid cells handle input
-            ZIndex = 10 // Render as background glow (below items)
+            MouseFilter = MouseFilterEnum.Ignore,
+            // Use absolute Z so ordering is deterministic across the UI tree
+            ZAsRelative = false,
+            // Above grid (0), below items (200)
+            ZIndex = 100
         };
         gridWrapper.AddChild(_highlightOverlayContainer);
 
@@ -690,8 +678,10 @@ public partial class SpatialInventoryContainerNode : Control
         // PHASE 3: Render ABOVE highlights (ZIndex=15) so sprites are visible
         _itemOverlayContainer = new Control
         {
-            MouseFilter = MouseFilterEnum.Ignore, // Let grid cells handle input
-            ZIndex = 15 // Render above highlights (items on top!)
+            MouseFilter = MouseFilterEnum.Ignore,
+            // Absolute Z higher than highlights
+            ZAsRelative = false,
+            ZIndex = 200
         };
         gridWrapper.AddChild(_itemOverlayContainer);
     }
@@ -985,7 +975,10 @@ public partial class SpatialInventoryContainerNode : Control
                     CustomMinimumSize = new Vector2(effectiveSpriteWidth, effectiveSpriteHeight),
                     Size = new Vector2(effectiveSpriteWidth, effectiveSpriteHeight),
                     Position = new Vector2(pixelX, pixelY),
-                    MouseFilter = MouseFilterEnum.Ignore
+                    MouseFilter = MouseFilterEnum.Ignore,
+                    // Ensure item layer is absolute above highlight layer
+                    ZAsRelative = false,
+                    ZIndex = 200
                 };
 
                 var textureRect = new TextureRect
@@ -1007,7 +1000,8 @@ public partial class SpatialInventoryContainerNode : Control
                     // Rotate texture around its own center
                     Rotation = RotationHelper.ToRadians(rotation),
                     PivotOffset = new Vector2(baseSpriteWidth / 2f, baseSpriteHeight / 2f),
-                    ZIndex = 1
+                    // Ensure sprites render above highlights
+                    ZIndex = 100
                 };
 
                 textureContainer.AddChild(textureRect);
@@ -1035,7 +1029,8 @@ public partial class SpatialInventoryContainerNode : Control
                 Position = new Vector2(origin.X * CellSize + CellSize * 0.05f, origin.Y * CellSize + CellSize * 0.05f),
                 MouseFilter = MouseFilterEnum.Ignore,
                 Rotation = RotationHelper.ToRadians(rotation),
-                PivotOffset = new Vector2(baseInvWidth * CellSize * 0.45f, baseInvHeight * CellSize * 0.45f)
+                PivotOffset = new Vector2(baseInvWidth * CellSize * 0.45f, baseInvHeight * CellSize * 0.45f),
+                ZIndex = 100
             };
 
             _itemOverlayContainer?.AddChild(colorRect);
@@ -1138,8 +1133,10 @@ public partial class SpatialInventoryContainerNode : Control
                     CustomMinimumSize = new Vector2(CellSize, CellSize),
                     Position = new Vector2(pixelX, pixelY),
                     MouseFilter = MouseFilterEnum.Ignore,
-                    Modulate = new Color(1, 1, 1, 0.7f), // Semi-transparent
-                    ZIndex = -1 // PHASE 3: Render BEHIND items (negative = background)
+                    Modulate = new Color(1, 1, 1, 0.7f),
+                    // Absolute Z below items
+                    ZAsRelative = false,
+                    ZIndex = 100
                 };
 
                 _highlightOverlayContainer.AddChild(highlight);
@@ -1304,11 +1301,11 @@ public partial class SpatialInventoryContainerNode : Control
     /// <summary>
     /// Creates a sprite-based drag preview that can be updated with rotation (Phase 3).
     /// </summary>
-    private async void CreateDragPreview(ItemId itemId)
+    private void CreateDragPreview(ItemId itemId)
     {
-        // Query item data for sprite rendering
+        // Query item data for sprite rendering (synchronously for immediate preview)
         var itemQuery = new GetItemByIdQuery(itemId);
-        var itemResult = await _mediator.Send(itemQuery);
+        var itemResult = _mediator.Send(itemQuery).Result;
 
         if (itemResult.IsFailure || _itemTileSet == null)
         {
@@ -1328,13 +1325,10 @@ public partial class SpatialInventoryContainerNode : Control
         // Get base dimensions (UNROTATED)
         var (baseWidth, baseHeight) = _itemDimensions.GetValueOrDefault(itemId, (1, 1));
 
-        // PHASE 3 FIX: Calculate BOTH base and effective dimensions
+        // PHASE 3 FIX: For drag preview, use BASE-sized container (simpler than two-layer)
+        // WHY: Drag preview doesn't need to occupy cells - just needs to rotate naturally
         float baseSpriteWidth = baseWidth * CellSize;
         float baseSpriteHeight = baseHeight * CellSize;
-
-        var (effectiveWidth, effectiveHeight) = RotationHelper.GetRotatedDimensions(baseWidth, baseHeight, _currentDragRotation);
-        float effectiveSpriteWidth = effectiveWidth * CellSize;
-        float effectiveSpriteHeight = effectiveHeight * CellSize;
 
         // Extract sprite from atlas
         var tileCoords = new Vector2I(item.AtlasX, item.AtlasY);
@@ -1345,7 +1339,7 @@ public partial class SpatialInventoryContainerNode : Control
             Region = region
         };
 
-        // Create sprite preview (texture at BASE size, preserves aspect ratio)
+        // Create sprite preview (single-layer: texture fills container, rotates around center)
         _dragPreviewSprite = new TextureRect
         {
             Texture = atlasTexture,
@@ -1354,22 +1348,28 @@ public partial class SpatialInventoryContainerNode : Control
             ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
             CustomMinimumSize = new Vector2(baseSpriteWidth, baseSpriteHeight),
             Size = new Vector2(baseSpriteWidth, baseSpriteHeight),
-            // Center texture inside container
-            Position = new Vector2(
-                (effectiveSpriteWidth - baseSpriteWidth) / 2f,
-                (effectiveSpriteHeight - baseSpriteHeight) / 2f
-            ),
+            Position = Vector2.Zero,
             Rotation = RotationHelper.ToRadians(_currentDragRotation),
             PivotOffset = new Vector2(baseSpriteWidth / 2f, baseSpriteHeight / 2f),
-            Modulate = new Color(1, 1, 1, 0.8f) // Semi-transparent
+            Modulate = new Color(1, 1, 1, 0.8f)
         };
 
-        // Wrap in container (container at EFFECTIVE size = rotated footprint)
-        _dragPreviewNode = new Control
+        // Root for preview (engine positions this at the mouse)
+        var previewRoot = new Control
         {
-            CustomMinimumSize = new Vector2(effectiveSpriteWidth, effectiveSpriteHeight)
+            MouseFilter = MouseFilterEnum.Ignore
         };
-        _dragPreviewNode.AddChild(_dragPreviewSprite);
+
+        // Child offset container so the cursor sits at the sprite's CENTER
+        var offsetContainer = new Control
+        {
+            Position = new Vector2(-baseSpriteWidth / 2f, -baseSpriteHeight / 2f),
+            CustomMinimumSize = new Vector2(baseSpriteWidth, baseSpriteHeight),
+            Size = new Vector2(baseSpriteWidth, baseSpriteHeight)
+        };
+        offsetContainer.AddChild(_dragPreviewSprite);
+        previewRoot.AddChild(offsetContainer);
+        _dragPreviewNode = previewRoot;
     }
 
     /// <summary>
