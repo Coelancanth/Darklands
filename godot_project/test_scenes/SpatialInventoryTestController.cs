@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Darklands.Core.Domain.Common;
 using Darklands.Core.Features.Inventory.Application;
 using Darklands.Core.Features.Inventory.Application.Commands;
@@ -165,91 +166,70 @@ public partial class SpatialInventoryTestController : Control
         // WHY: Pre-populate containers with test items for drag-drop validation
         // Phase 1 acceptance criteria require manual drag-drop testing
 
-        // Query all available items
+        // Query all available item types (4 distinct types for color coding)
         _logger.LogDebug("Querying items for test population...");
 
         var weaponQuery = new GetItemsByTypeQuery("weapon");
         var weaponResult = await _mediator.Send(weaponQuery);
 
-        // WHY: Use "item" type instead of "consumable" (TileSet uses generic "item" for non-weapons)
-        var itemQuery = new GetItemsByTypeQuery("item");
-        var itemResult = await _mediator.Send(itemQuery);
+        var consumableQuery = new GetItemsByTypeQuery("consumable");
+        var consumableResult = await _mediator.Send(consumableQuery);
 
-        if (weaponResult.IsFailure)
+        var toolQuery = new GetItemsByTypeQuery("tool");
+        var toolResult = await _mediator.Send(toolQuery);
+
+        var armorQuery = new GetItemsByTypeQuery("armor");
+        var armorResult = await _mediator.Send(armorQuery);
+
+        if (weaponResult.IsFailure || consumableResult.IsFailure ||
+            toolResult.IsFailure || armorResult.IsFailure)
         {
-            _logger.LogError("Failed to query weapons: {Error}", weaponResult.Error);
+            _logger.LogError("Failed to query items");
             return;
         }
 
-        if (itemResult.IsFailure)
-        {
-            _logger.LogError("Failed to query items: {Error}", itemResult.Error);
-            return;
-        }
-
-        _logger.LogInformation("Found {WeaponCount} weapons and {ItemCount} items",
+        _logger.LogInformation("Found {WeaponCount} weapons, {ConsumableCount} consumables, {ToolCount} tools, {ArmorCount} armor",
             weaponResult.Value.Count,
-            itemResult.Value.Count);
+            consumableResult.Value.Count,
+            toolResult.Value.Count,
+            armorResult.Value.Count);
 
-        // Place 2 weapons in Backpack A (using DIFFERENT weapons to avoid collision)
+        // Place items in Backpack A (2 weapons - blue)
         if (weaponResult.Value.Count >= 2)
         {
-            var weapon1 = weaponResult.Value[0].Id;
-            var weapon2 = weaponResult.Value[1].Id;
-
-            _logger.LogDebug("Placing weapon1 {ItemId} at Backpack A (0,0)", weapon1);
-            var result1 = await _mediator.Send(new PlaceItemAtPositionCommand(
-                _backpackAActorId, weapon1, new GridPosition(0, 0)));
-
-            if (result1.IsFailure)
-            {
-                _logger.LogError("Failed to place weapon1: {Error}", result1.Error);
-            }
-
-            _logger.LogDebug("Placing weapon2 {ItemId} at Backpack A (2,0)", weapon2);
-            var result2 = await _mediator.Send(new PlaceItemAtPositionCommand(
-                _backpackAActorId, weapon2, new GridPosition(2, 0)));
-
-            if (result2.IsFailure)
-            {
-                _logger.LogError("Failed to place weapon2: {Error}", result2.Error);
-            }
-        }
-        else
-        {
-            _logger.LogWarning("Not enough weapons found (need 2, got {Count})", weaponResult.Value.Count);
+            await PlaceItemAt(_backpackAActorId, weaponResult.Value[0].Id, 0, 0, "weapon1");
+            await PlaceItemAt(_backpackAActorId, weaponResult.Value[1].Id, 2, 0, "weapon2");
         }
 
-        // Place 2 items in Backpack B (using DIFFERENT items - potions, scrolls, etc.)
-        if (itemResult.Value.Count >= 2)
+        // Place items in Backpack B (variety of types for color testing)
+        var placements = new[]
         {
-            var item1 = itemResult.Value[0].Id;
-            var item2 = itemResult.Value[1].Id;
+            (consumableResult.Value.Count > 0, consumableResult.Value.ElementAtOrDefault(0)?.Id, 0, 0, "consumable"),
+            (toolResult.Value.Count > 0, toolResult.Value.ElementAtOrDefault(0)?.Id, 3, 0, "tool"),
+            (armorResult.Value.Count > 0, armorResult.Value.ElementAtOrDefault(0)?.Id, 0, 2, "armor")
+        };
 
-            _logger.LogDebug("Placing item1 {ItemId} at Backpack B (0,0)", item1);
-            var result3 = await _mediator.Send(new PlaceItemAtPositionCommand(
-                _backpackBActorId, item1, new GridPosition(0, 0)));
-
-            if (result3.IsFailure)
-            {
-                _logger.LogError("Failed to place item1: {Error}", result3.Error);
-            }
-
-            _logger.LogDebug("Placing item2 {ItemId} at Backpack B (3,0)", item2);
-            var result4 = await _mediator.Send(new PlaceItemAtPositionCommand(
-                _backpackBActorId, item2, new GridPosition(3, 0)));
-
-            if (result4.IsFailure)
-            {
-                _logger.LogError("Failed to place item2: {Error}", result4.Error);
-            }
-        }
-        else
+        foreach (var (hasItem, itemId, x, y, typeName) in placements)
         {
-            _logger.LogWarning("Not enough items found (need 2, got {Count})", itemResult.Value.Count);
+            if (hasItem && itemId != null)
+            {
+                await PlaceItemAt(_backpackBActorId, itemId.Value, x, y, typeName);
+            }
         }
 
         _logger.LogInformation("Test item population complete");
+    }
+
+    private async System.Threading.Tasks.Task PlaceItemAt(ActorId actorId, ItemId itemId, int x, int y, string itemName)
+    {
+        _logger.LogDebug("Placing {ItemName} {ItemId} at ({X},{Y})", itemName, itemId, x, y);
+        var result = await _mediator.Send(new PlaceItemAtPositionCommand(
+            actorId, itemId, new GridPosition(x, y)));
+
+        if (result.IsFailure)
+        {
+            _logger.LogError("Failed to place {ItemName}: {Error}", itemName, result.Error);
+        }
     }
 
     /// <summary>

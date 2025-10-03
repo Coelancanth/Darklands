@@ -202,11 +202,26 @@ public partial class SpatialInventoryContainerNode : Control
             return false;
         }
 
-        // Check if position is free
-        if (_itemsAtPositions.ContainsKey(targetPos.Value))
+        // Check if position is occupied
+        bool isOccupied = _itemsAtPositions.ContainsKey(targetPos.Value);
+
+        // SWAP SUPPORT (Option C): Equipment slots allow swapping, backpacks don't
+        if (isOccupied)
         {
-            _logger.LogDebug("Position ({X}, {Y}) occupied", targetPos.Value.X, targetPos.Value.Y);
-            return false;
+            bool isEquipmentSlot = _containerType == ContainerType.WeaponOnly;
+
+            if (isEquipmentSlot)
+            {
+                _logger.LogDebug("Position ({X}, {Y}) occupied - swap allowed (equipment slot)",
+                    targetPos.Value.X, targetPos.Value.Y);
+                // Continue to type validation (swap will be processed in _DropData)
+            }
+            else
+            {
+                _logger.LogDebug("Position ({X}, {Y}) occupied - swap NOT allowed (backpack)",
+                    targetPos.Value.X, targetPos.Value.Y);
+                return false;
+            }
         }
 
         // Type validation for specialized containers (prevent data loss bug)
@@ -277,11 +292,32 @@ public partial class SpatialInventoryContainerNode : Control
         var itemId = new ItemId(itemIdGuid);
         var sourceActorId = new ActorId(sourceActorIdGuid);
 
-        _logger.LogInformation("Drop confirmed: Moving item {ItemId} to ({X}, {Y})",
-            itemId, targetPos.Value.X, targetPos.Value.Y);
+        // Check if this is a SWAP operation (equipment slot with occupied position)
+        bool isOccupied = _itemsAtPositions.ContainsKey(targetPos.Value);
+        bool isEquipmentSlot = _containerType == ContainerType.WeaponOnly;
 
-        // Send MoveItemBetweenContainersCommand
-        MoveItemAsync(sourceActorId, itemId, targetPos.Value);
+        if (isOccupied && isEquipmentSlot)
+        {
+            // SWAP OPERATION: Exchange items between source and target positions
+            var targetItemId = _itemsAtPositions[targetPos.Value];
+            var sourceX = dragData["sourceX"].AsInt32();
+            var sourceY = dragData["sourceY"].AsInt32();
+            var sourcePos = new GridPosition(sourceX, sourceY);
+
+            _logger.LogInformation("Swap operation: {ItemA} ↔ {ItemB} at ({X}, {Y})",
+                itemId, targetItemId, targetPos.Value.X, targetPos.Value.Y);
+
+            SwapItemsAsync(sourceActorId, itemId, sourcePos, OwnerActorId!.Value, targetItemId, targetPos.Value);
+        }
+        else
+        {
+            // REGULAR MOVE: Position is free, just move the item
+            _logger.LogInformation("Drop confirmed: Moving item {ItemId} to ({X}, {Y})",
+                itemId, targetPos.Value.X, targetPos.Value.Y);
+
+            // Send MoveItemBetweenContainersCommand
+            MoveItemAsync(sourceActorId, itemId, targetPos.Value);
+        }
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -432,17 +468,22 @@ public partial class SpatialInventoryContainerNode : Control
                 {
                     if (_itemsAtPositions.TryGetValue(gridPos, out var itemId))
                     {
-                        // Occupied cell: Color by item type
+                        // Occupied cell: Color by item type (4 distinct color-coded types)
                         if (_itemTypes.TryGetValue(itemId, out var itemType))
                         {
-                            style.BgColor = itemType == "weapon"
-                                ? new Color(0.2f, 0.4f, 0.8f, 0.7f) // Weapons: Blue
-                                : new Color(0.2f, 0.8f, 0.4f, 0.7f); // Items: Green
+                            style.BgColor = itemType switch
+                            {
+                                "weapon" => new Color(0.25f, 0.45f, 0.85f, 0.75f),     // Steel blue (refined blue)
+                                "consumable" => new Color(0.85f, 0.35f, 0.35f, 0.75f), // Crimson red (health/potions)
+                                "tool" => new Color(0.35f, 0.75f, 0.45f, 0.75f),       // Emerald green (refined green)
+                                "armor" => new Color(0.55f, 0.65f, 0.35f, 0.75f),      // Olive green (protective gear)
+                                _ => new Color(0.75f, 0.35f, 0.75f, 0.75f)             // Purple (unknown type fallback)
+                            };
                         }
                         else
                         {
                             // Type unknown: Purple (fallback)
-                            style.BgColor = new Color(0.8f, 0.2f, 0.8f, 0.7f);
+                            style.BgColor = new Color(0.75f, 0.35f, 0.75f, 0.75f);
                         }
                     }
                     else
@@ -482,6 +523,58 @@ public partial class SpatialInventoryContainerNode : Control
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Swaps two items between containers (equipment slot swap - Option C).
+    /// WHY: Equipment slots allow swapping for UX (Diablo 2, Resident Evil pattern).
+    /// </summary>
+    private async void SwapItemsAsync(
+        ActorId sourceActorId,
+        ItemId sourceItemId,
+        GridPosition sourcePos,
+        ActorId targetActorId,
+        ItemId targetItemId,
+        GridPosition targetPos)
+    {
+        _logger.LogInformation("Executing swap: {SourceItem} @ {SourceActor}({SourceX},{SourceY}) ↔ {TargetItem} @ {TargetActor}({TargetX},{TargetY})",
+            sourceItemId, sourceActorId, sourcePos.X, sourcePos.Y,
+            targetItemId, targetActorId, targetPos.X, targetPos.Y);
+
+        // ATOMICITY: Use temporary position to avoid collision
+        // Step 1: Move target item to source position
+        var moveTargetCmd = new MoveItemBetweenContainersCommand(
+            targetActorId,
+            sourceActorId,
+            targetItemId,
+            sourcePos);
+
+        var moveTargetResult = await _mediator.Send(moveTargetCmd);
+        if (moveTargetResult.IsFailure)
+        {
+            _logger.LogError("Swap failed (step 1): {Error}", moveTargetResult.Error);
+            return;
+        }
+
+        // Step 2: Move source item to target position (now free)
+        var moveSourceCmd = new MoveItemBetweenContainersCommand(
+            sourceActorId,
+            targetActorId,
+            sourceItemId,
+            targetPos);
+
+        var moveSourceResult = await _mediator.Send(moveSourceCmd);
+        if (moveSourceResult.IsFailure)
+        {
+            _logger.LogError("Swap failed (step 2): {Error}", moveSourceResult.Error);
+            // TODO: Rollback step 1 if step 2 fails (requires RemoveItemAtPositionCommand)
+            return;
+        }
+
+        _logger.LogInformation("Swap completed successfully");
+
+        // Emit signal to refresh both containers
+        EmitSignal(SignalName.InventoryChanged);
     }
 
     private async void MoveItemAsync(ActorId sourceActorId, ItemId itemId, GridPosition targetPos)
