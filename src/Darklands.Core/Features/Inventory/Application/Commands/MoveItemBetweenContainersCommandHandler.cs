@@ -89,7 +89,7 @@ public sealed class MoveItemBetweenContainersCommandHandler
             // INTRA-CONTAINER MOVE: Must preserve original position for rollback
             // WHY: If new placement fails, we need to restore item at original position
 
-            // Get original position before removing
+            // PHASE 3: Capture original position AND rotation before removing (for rollback)
             var originalPositionResult = sourceInventory.GetItemPosition(command.ItemId);
             if (originalPositionResult.IsFailure)
             {
@@ -99,6 +99,12 @@ public sealed class MoveItemBetweenContainersCommandHandler
 
             var originalPosition = originalPositionResult.Value;
 
+            // Capture original rotation BEFORE RemoveItem (which clears rotation dictionary)
+            var originalRotationResult = sourceInventory.GetItemRotation(command.ItemId);
+            var originalRotation = originalRotationResult.IsSuccess
+                ? originalRotationResult.Value
+                : Rotation.Degrees0;
+
             var removeResult = sourceInventory.RemoveItem(command.ItemId);
             if (removeResult.IsFailure)
             {
@@ -106,23 +112,26 @@ public sealed class MoveItemBetweenContainersCommandHandler
                 return removeResult;
             }
 
+            // PHASE 3: Apply rotation for intra-container moves (was missing - caused unrotated placement bug)
             var placeResult = sourceInventory.PlaceItemAt(
                 command.ItemId,
                 command.TargetPosition,
                 item.InventoryWidth,
-                item.InventoryHeight);
+                item.InventoryHeight,
+                command.Rotation); // PHASE 3: Apply rotation from command
 
             if (placeResult.IsFailure)
             {
-                // ROLLBACK: Restore item at original position
-                _logger.LogWarning("Failed to place item at new position: {Error}, rolling back to original position ({X},{Y})",
-                    placeResult.Error, originalPosition.X, originalPosition.Y);
+                // ROLLBACK: Restore item at original position with original rotation
+                _logger.LogWarning("Failed to place item at new position: {Error}, rolling back to original position ({X},{Y}) with rotation {Rotation}",
+                    placeResult.Error, originalPosition.X, originalPosition.Y, originalRotation);
 
                 var rollbackResult = sourceInventory.PlaceItemAt(
                     command.ItemId,
                     originalPosition,
                     item.InventoryWidth,
-                    item.InventoryHeight);
+                    item.InventoryHeight,
+                    originalRotation); // Restore original rotation on rollback
 
                 if (rollbackResult.IsFailure)
                 {

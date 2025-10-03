@@ -213,6 +213,12 @@ public partial class SpatialInventoryContainerNode : Control
                     _dragPreviewSprite.Rotation = RotationHelper.ToRadians(_currentDragRotation);
                 }
 
+                // PHASE 3 BUG FIX: Update highlights immediately after rotation
+                // WHY: _CanDropData only called on mouse move, not on scroll
+                // Get current mouse position and trigger highlight update manually
+                var currentMousePos = GetLocalMousePosition();
+                UpdateDragHighlightsAtPosition(currentMousePos);
+
                 // Consume the event to prevent scrolling the container
                 GetViewport().SetInputAsHandled();
             }
@@ -435,6 +441,111 @@ public partial class SpatialInventoryContainerNode : Control
             targetPos.Value.X, targetPos.Value.Y, isValid, isValid ? "valid" : validationError);
 
         return isValid;
+    }
+
+    /// <summary>
+    /// Updates drag highlights at the given mouse position.
+    /// WHY: Called manually after rotation to refresh highlights (Godot doesn't call _CanDropData on scroll).
+    /// </summary>
+    private void UpdateDragHighlightsAtPosition(Vector2 mousePosition)
+    {
+        if (!_isDragging || _draggingItemId == null)
+        {
+            ClearDragHighlights();
+            return;
+        }
+
+        // Find target grid position
+        var targetPos = PixelToGridPosition(mousePosition);
+        if (targetPos == null)
+        {
+            ClearDragHighlights();
+            return;
+        }
+
+        var itemId = _draggingItemId.Value;
+
+        // Get BASE dimensions
+        int baseItemWidth, baseItemHeight;
+        if (_itemDimensions.TryGetValue(itemId, out var cachedDimensions))
+        {
+            (baseItemWidth, baseItemHeight) = cachedDimensions;
+        }
+        else
+        {
+            // Cross-container drag: Query dimensions
+            var itemQuery = new GetItemByIdQuery(itemId);
+            var itemResult = _mediator.Send(itemQuery).Result;
+
+            if (itemResult.IsSuccess)
+            {
+                baseItemWidth = itemResult.Value.InventoryWidth;
+                baseItemHeight = itemResult.Value.InventoryHeight;
+            }
+            else
+            {
+                (baseItemWidth, baseItemHeight) = (1, 1);
+            }
+        }
+
+        // PHASE 3: Calculate effective dimensions after rotation
+        var (itemWidth, itemHeight) = RotationHelper.GetRotatedDimensions(baseItemWidth, baseItemHeight, _currentDragRotation);
+
+        // Override dimensions for equipment slots
+        bool isEquipmentSlot = _containerType == ContainerType.WeaponOnly;
+        if (isEquipmentSlot)
+        {
+            itemWidth = 1;
+            itemHeight = 1;
+        }
+
+        // Validation
+        bool isValid = true;
+
+        // Check bounds
+        if (targetPos.Value.X + itemWidth > _gridWidth || targetPos.Value.Y + itemHeight > _gridHeight)
+        {
+            isValid = false;
+        }
+
+        // Check occupation
+        if (isValid)
+        {
+            for (int dy = 0; dy < itemHeight; dy++)
+            {
+                for (int dx = 0; dx < itemWidth; dx++)
+                {
+                    var checkPos = new GridPosition(targetPos.Value.X + dx, targetPos.Value.Y + dy);
+                    if (_itemsAtPositions.TryGetValue(checkPos, out var occupyingItemId))
+                    {
+                        if (occupyingItemId != itemId)
+                        {
+                            if (!isEquipmentSlot)
+                            {
+                                isValid = false;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (!isValid) break;
+            }
+        }
+
+        // Type validation
+        if (isValid && OwnerActorId != null)
+        {
+            if (_itemTypes.TryGetValue(itemId, out var itemType))
+            {
+                if (!CanAcceptItemType(itemType))
+                {
+                    isValid = false;
+                }
+            }
+        }
+
+        // Render highlight with rotated dimensions
+        RenderDragHighlight(targetPos.Value, itemWidth, itemHeight, isValid);
     }
 
     public override void _DropData(Vector2 atPosition, Variant data)
