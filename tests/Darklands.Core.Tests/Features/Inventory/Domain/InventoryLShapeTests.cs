@@ -30,13 +30,12 @@ public class InventoryLShapeTests
         // Cell (0,1) is EMPTY (the "notch" of the L)
         var lShape = ItemShape.CreateFromEncoding("custom:0,0;1,0;1,1", width: 2, height: 2).Value;
 
-        // Act: Place L-shape at (0,0)
+        // Act: Place L-shape at (0,0) using new shape-based API
         var placeLShapeResult = inventory.PlaceItemAt(
             lShapeItem,
             new GridPosition(0, 0),
-            width: 2,
-            height: 2,
-            rotation: Rotation.Degrees0);
+            lShape,
+            Rotation.Degrees0);
 
         // Assert: L-shape placed successfully
         placeLShapeResult.IsSuccess.Should().BeTrue();
@@ -71,13 +70,14 @@ public class InventoryLShapeTests
         var item2 = ItemId.NewId();
         var item3 = ItemId.NewId();
 
+        var lShape = ItemShape.CreateFromEncoding("custom:0,0;1,0;1,1", width: 2, height: 2).Value;
+
         // Act: Place L-shape at (0,0)
         inventory.PlaceItemAt(
             lShapeItem,
             new GridPosition(0, 0),
-            width: 2,
-            height: 2,
-            rotation: Rotation.Degrees0);
+            lShape,
+            Rotation.Degrees0);
 
         // Try to place items at the 3 occupied cells
         var placeAt00 = inventory.PlaceItemAt(item1, new GridPosition(0, 0), 1, 1, Rotation.Degrees0);
@@ -107,13 +107,14 @@ public class InventoryLShapeTests
         var lShapeItem = ItemId.NewId();
         var testItem = ItemId.NewId();
 
+        var lShape = ItemShape.CreateFromEncoding("custom:0,0;1,0;1,1", width: 2, height: 2).Value;
+
         // Act: Place L-shape at (0,0) with 90° rotation
         var placeResult = inventory.PlaceItemAt(
             lShapeItem,
             new GridPosition(0, 0),
-            width: 2,
-            height: 2,
-            rotation: Rotation.Degrees90);
+            lShape,
+            Rotation.Degrees90);
 
         placeResult.IsSuccess.Should().BeTrue();
 
@@ -144,11 +145,13 @@ public class InventoryLShapeTests
             gridHeight: 3,
             ContainerType.General).Value;
 
-        var lShape = ItemId.NewId();
+        var lShapeId = ItemId.NewId();
         var filler = ItemId.NewId();
 
+        var lShape = ItemShape.CreateFromEncoding("custom:0,0;1,0;1,1", width: 2, height: 2).Value;
+
         // Act: Place L-shape at (0,0)
-        inventory.PlaceItemAt(lShape, new GridPosition(0, 0), width: 2, height: 2, Rotation.Degrees0);
+        inventory.PlaceItemAt(lShapeId, new GridPosition(0, 0), lShape, Rotation.Degrees0);
 
         // Place 1×1 item in the notch
         var fillNotch = inventory.PlaceItemAt(filler, new GridPosition(0, 1), width: 1, height: 1, Rotation.Degrees0);
@@ -170,15 +173,16 @@ public class InventoryLShapeTests
             gridHeight: 3,
             ContainerType.General).Value;
 
-        var lShape = ItemId.NewId();
+        var lShapeId = ItemId.NewId();
+
+        var lShape = ItemShape.CreateFromEncoding("custom:0,0;1,0;1,1", width: 2, height: 2).Value;
 
         // Act: Try to place L-shape at (2,2) - would put cell (3,2) or (3,3) out of bounds
         var placeResult = inventory.PlaceItemAt(
-            lShape,
+            lShapeId,
             new GridPosition(2, 2),
-            width: 2,
-            height: 2,
-            rotation: Rotation.Degrees0);
+            lShape,
+            Rotation.Degrees0);
 
         // Assert: Should fail due to out-of-bounds occupied cells
         placeResult.IsFailure.Should().BeTrue();

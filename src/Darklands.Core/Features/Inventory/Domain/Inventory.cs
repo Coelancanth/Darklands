@@ -225,8 +225,34 @@ public sealed class Inventory
     }
 
     /// <summary>
-    /// Places an item using explicit ItemShape (Phase 4: complex shapes support).
-    /// CORE COLLISION LOGIC: Uses OccupiedCells iteration for L/T-shape compatibility.
+    /// Places an item using explicit ItemShape with rotation (Phase 4 PUBLIC API).
+    /// Enables L/T/Z-shapes by using item's actual OccupiedCells.
+    /// </summary>
+    /// <param name="itemId">ID of item to place</param>
+    /// <param name="position">Top-left grid position (anchor)</param>
+    /// <param name="shape">ItemShape from Item.Shape (base, unrotated)</param>
+    /// <param name="rotation">Rotation to apply</param>
+    /// <returns>Success if placed, Failure with reason if not</returns>
+    public Result PlaceItemAt(ItemId itemId, GridPosition position, ItemShape shape, Rotation rotation)
+    {
+        // Apply rotation to shape
+        var rotatedShape = shape;
+        for (int i = 0; i < ((int)rotation / 90); i++)
+        {
+            var rotateResult = rotatedShape.RotateClockwise();
+            if (rotateResult.IsFailure)
+                return Result.Failure(rotateResult.Error);
+            rotatedShape = rotateResult.Value;
+        }
+
+        // Delegate to core placement logic
+        // Store base (unrotated) dimensions for backward compat
+        return PlaceItemWithShape(itemId, position, shape.Width, shape.Height, rotatedShape, rotation);
+    }
+
+    /// <summary>
+    /// Places an item using explicit ItemShape (Phase 4: CORE COLLISION LOGIC).
+    /// Uses OccupiedCells iteration for L/T-shape compatibility.
     /// </summary>
     /// <param name="itemId">ID of item to place</param>
     /// <param name="position">Top-left grid position (anchor)</param>

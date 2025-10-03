@@ -282,16 +282,22 @@ L-shape (2×2 box, 3 cells): Iterates 3 OccupiedCells → occupies 3 cells only 
 Empty cell (0,1) in L-shape: NOT in OccupiedCells → FREE for other items! ✅
 ```
 
-**🚧 Remaining Work** (~1-2h, straightforward wiring):
-- **Issue**: L-shape integration tests RED (5 tests failing)
-- **Root Cause**: Current `PlaceItemAt(itemId, pos, width, height, rotation)` API creates rectangles from dimensions
-- **Fix Required**:
-  1. Update 2 handler call sites (`PlaceItemAtPositionCommandHandler`, `MoveItemBetweenContainersCommandHandler`)
-     - Change: `item.InventoryWidth, item.InventoryHeight` → `item.Shape`
-  2. Add public overload: `Inventory.PlaceItemAt(ItemId itemId, GridPosition position, ItemShape shape, Rotation rotation)`
-     - Wire to existing `PlaceItemWithShape()` private method (baseWidth/Height from shape.Width/Height)
-  3. Fix 5 L-shape integration tests to use new overload
-  4. Update Presentation rendering to iterate `item.Shape.OccupiedCells` (currently renders rectangles)
+**🚧 Remaining Work** (~30-45min, one additional pass):
+- **Issue**: L-shape integration tests RED (3/5 failing)
+- **Root Cause Discovery**: Inventory storage layer doesn't persist shapes!
+  - Current: `_itemDimensions: Dictionary<ItemId, (int, int)>` stores only width×height
+  - Problem: When reconstructing shapes for collision, creates rectangles → loses L-shape!
+  - Example: L-shape placed → stored as (2, 2) → reconstructed as 2×2 rectangle (4 cells) → collision fails!
+
+**Fix Required** (straightforward, ~30min):
+  1. ✅ Add public API: `Inventory.PlaceItemAt(ItemId, GridPosition, ItemShape, Rotation)` (DONE)
+  2. ✅ Fix L-shape test API calls (DONE - 2/5 now GREEN: bounds check, blocking test)
+  3. ❌ **Replace storage**: `Dictionary<ItemId, (int, int)>` → `Dictionary<ItemId, ItemShape>`
+     - Store full `ItemShape` (preserves OccupiedCells)
+     - Collision reconstruction: Use stored shape directly (no rectangle conversion!)
+     - Backward compat: Existing code passes dimensions → create rectangle shape → store it
+  4. ❌ Update handlers: Pass `item.Shape` instead of `item.InventoryWidth/Height`
+  5. ❌ Update Presentation rendering to iterate `item.Shape.OccupiedCells`
 
 **Files Modified**:
 - **Domain**: `ItemShape.cs` (NEW, 194 lines), `Item.cs` (refactored, +60 lines)
