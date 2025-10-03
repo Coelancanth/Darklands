@@ -162,12 +162,16 @@ public sealed class MoveItemBetweenContainersCommandHandler
             int placementWidth = isEquipmentSlot ? 1 : item.InventoryWidth;
             int placementHeight = isEquipmentSlot ? 1 : item.InventoryHeight;
 
+            // PHASE 3: Equipment slots reset rotation to default (visual consistency)
+            // WHY: Equipment slots are 1×1, rotation doesn't affect placement, show in standard orientation
+            var placementRotation = isEquipmentSlot ? Rotation.Degrees0 : command.Rotation;
+
             var placeResult = targetInventory.PlaceItemAt(
                 command.ItemId,
                 command.TargetPosition,
                 placementWidth,
                 placementHeight,
-                command.Rotation); // PHASE 3: Apply rotation from command
+                placementRotation); // PHASE 3: Apply rotation (or reset for equipment slots)
 
             if (placeResult.IsFailure)
                 return placeResult;
