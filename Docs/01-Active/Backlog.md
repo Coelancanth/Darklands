@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-03 18:41 (Dev Engineer: VS_018 Phase 3 - Fixed drag preview centering + z-order attempts, 2 bugs: rotation persistence + highlight overlap)
+**Last Updated**: 2025-10-03 19:11 (Dev Engineer: VS_018 Phase 3 COMPLETE - Rotation, cross-container persistence, equipment reset, extreme transparency solution)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -142,11 +142,11 @@
 
 
 
-### VS_018: Spatial Inventory System (Multi-Phase) ⚠️ **PHASE 3 IN PROGRESS - 2 BUGS**
+### VS_018: Spatial Inventory System (Multi-Phase) ✅ **PHASE 3 COMPLETE**
 
-**Status**: Phase 1 ✅ + Phase 2 ✅ + Phase 3 🔧 (Rotation working, z-order + occupation bugs remain)
-**Owner**: Dev Engineer (2 bugs blocking Phase 3 completion)
-**Size**: XL (12-16h across 4 phases) | **Actual**: Phase 1 (6h), Phase 2 (5h), Phase 3 (4h so far)
+**Status**: Phase 1 ✅ + Phase 2 ✅ + Phase 3 ✅ (Ready for Phase 4)
+**Owner**: Product Owner (decide on Phase 4 timing)
+**Size**: XL (12-16h across 4 phases) | **Actual**: Phase 1 (6h), Phase 2 (5h), Phase 3 (6h)
 **Priority**: Important (Core gameplay mechanic)
 **Depends On**: VS_008 (Slot-Based Inventory ✅), VS_009 (Item Definitions ✅)
 **Markers**: [ARCHITECTURE] [UX-CRITICAL] [BACKWARD-COMPATIBLE]
@@ -193,45 +193,30 @@
 - **NO rotation yet** (sword is always 2×1, cannot become 1×2)
 - **Tests**: 15-20 additional tests (multi-cell collision, boundary checks)
 
-**Phase 3: Rotation Support** (2-3h) ⚠️ **IN PROGRESS - 2 BUGS REMAINING**
+**Phase 3: Rotation Support** (2-3h) ✅ **COMPLETE** (2025-10-03 19:11)
 - **Goal**: Rotate items 90° (2×1 sword → 1×2 sword)
 - **Domain**: ✅ `Rotation` enum, `RotationHelper`, dimension swapping, collision validation
 - **Application**: ✅ `RotateItemCommand`, `MoveItemBetweenContainersCommand` with rotation
-- **Presentation**: ✅ Mouse scroll during drag, sprite rotation, highlight updates
-- **Tests**: ✅ 13 new rotation tests (335/335 passing)
-- **BUGS STATUS** (2025-10-03 18:41):
-  1. ❌ **Rotation Persistence**: Rotation resets to Degrees0 when moving item between containers
-     - Symptom: Item rotated to Degrees180 during drag → dropped in new container → renders as Degrees0
-     - Root Cause: `_DropData` passes `_currentDragRotation` to command, but domain doesn't persist it
-     - Log Evidence: "Drop confirmed: ... rotation Degrees180" → "DEBUG: ... rotation: Degrees0"
-     - Impact: User loses rotation state on cross-container moves (frustrating UX)
-     - Fix: Verify `MoveItemBetweenContainersCommand` actually sets rotation in domain
-  2. ❌ **Z-Order Rendering**: Highlight overlays render ABOVE item sprites (unnatural appearance)
-     - Symptom: Green/red highlights obscure item sprites (should glow BEHIND items)
-     - Tried: Absolute ZIndex (highlights=100, items=200) - no effect yet
-     - Next: Test in-game to confirm if absolute ZIndex solved it
-  3. ✅ **Double Rotation**: FIXED (one scroll = one 90° rotation, `Pressed` check added)
-  4. ✅ **Ghost Highlights**: FIXED (`Free()` instead of `QueueFree()` for immediate cleanup)
-  5. ✅ **Drag-Drop Visual Artifact**: FIXED (2025-10-03 17:09)
-     - **Bug**: During drag, both source sprite AND drag preview visible (should only show preview)
-     - **Root Cause 1**: Async `RenderMultiCellItemSprite()` + Godot auto-generated node names (`@TextureRect@151`)
-     - **Root Cause 2**: Cancelled drags didn't restore hidden sprite (node was `.Free()`'d permanently)
-     - **Solution**: Direct node references via `Dictionary<ItemId, Node> _itemSpriteNodes`
-       - Store reference on render: `_itemSpriteNodes[itemId] = textureRect`
-       - Hide on drag start: `_itemSpriteNodes[itemId].Free()` (O(1) lookup, no string matching)
-       - Restore on cancel: `LoadInventoryAsync()` recreates all sprite nodes
-  6. ✅ **Drag Preview Centering**: FIXED (2025-10-03 18:41)
-     - **Bug**: Drag preview offset from cursor (cursor not at sprite center)
-     - **Solution**: Offset container by `-baseSpriteWidth/2, -baseSpriteHeight/2` so cursor sits at center
+- **Presentation**: ✅ Mouse scroll during drag, sprite rotation, highlight updates, extreme transparency solution
+- **Tests**: ✅ 13 new rotation tests (348/348 passing)
+- **ALL FEATURES WORKING** ✅:
+  1. ✅ **Rotation Persistence** (2025-10-03 19:11): Static `_sharedDragRotation` variable preserves rotation across container moves
+  2. ✅ **Equipment Slot Reset** (2025-10-03 19:11): Equipment slots reset rotation to Degrees0 for visual consistency
+  3. ✅ **Z-Order Rendering** (2025-10-03 19:11): Extreme transparency (25% opacity) makes highlights visible but non-obscuring
+  4. ✅ **Double Rotation**: One scroll = one 90° rotation (`Pressed` check added)
+  5. ✅ **Ghost Highlights**: `Free()` instead of `QueueFree()` for immediate cleanup
+  6. ✅ **Drag-Drop Visual Artifact**: Direct node references via `Dictionary<ItemId, Node>`
+  7. ✅ **Drag Preview Centering**: Offset container centers cursor at sprite center
 
-**🔧 Phase 3 Progress** (2025-10-03, 4h so far):
-- **Core**: ✅ Rotation enum, RotationHelper, dimension swapping, MoveItemBetweenContainers with rotation
-- **UI**: ✅ Mouse scroll rotation during drag, sprite rotation (PivotOffset), highlight updates
-- **Tests**: ✅ 13 new rotation tests (335/335 passing)
-- **Lessons**:
-  - **Godot node naming**: Async rendering causes auto-generated names - use direct references instead
-  - **Drag cancellation**: Must trigger full reload to recreate freed sprite nodes
-  - **Direct lookups**: `Dictionary<ItemId, Node>` beats string matching (O(1), no async issues)
+**✨ Phase 3 Final Solution Summary**:
+- **Core**: Static shared rotation state for cross-container drag-drop
+- **UI**: Mouse scroll rotation, sprite PivotOffset rotation, extreme transparency highlights (25%)
+- **Tests**: 13 new rotation tests, all passing (348/348 total)
+- **Key Lessons**:
+  - Godot's drag-drop state is container-local → use static variables for cross-container communication
+  - Control node z-ordering unreliable → pragmatic transparency workaround (25% opacity)
+  - Direct node references beat string matching (O(1) lookup, no async issues)
+  - Equipment slots reset rotation to Degrees0 for standard orientation display
 
 **Phase 4: Complex Shapes** (3-4h)
 - **Goal**: L-shapes, T-shapes via bool[] masks (Tetris-style)

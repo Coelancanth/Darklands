@@ -1012,15 +1012,6 @@ public partial class SpatialInventoryContainerNode : Control
 
                 // PHASE 3: Store CONTAINER reference for direct hiding during drag
                 _itemSpriteNodes[itemId] = textureContainer;
-
-                _logger.LogInformation("🎨 Z-ORDER: Rendered ITEM sprite '{ItemName}' at ({X},{Y})",
-                    item.Name, origin.X, origin.Y);
-                _logger.LogInformation("  └─ Container: ZAsRelative={ContainerRelative}, ZIndex={ContainerZ}",
-                    textureContainer.ZAsRelative, textureContainer.ZIndex);
-                _logger.LogInformation("  └─ Texture: ZIndex={TextureZ} (relative to container)",
-                    textureRect.ZIndex);
-                _logger.LogInformation("  └─ Parent overlay: ZAsRelative={ParentRelative}, ZIndex={ParentZ}",
-                    _itemOverlayContainer?.ZAsRelative, _itemOverlayContainer?.ZIndex);
             }
         }
         else
@@ -1146,17 +1137,6 @@ public partial class SpatialInventoryContainerNode : Control
                 };
 
                 _highlightOverlayContainer.AddChild(highlight);
-
-                // Log first highlight only (avoid spam)
-                if (dx == 0 && dy == 0)
-                {
-                    _logger.LogInformation("🎨 Z-ORDER: Rendered HIGHLIGHT ({Type}) at ({X},{Y})",
-                        isValid ? "GREEN" : "RED", origin.X, origin.Y);
-                    _logger.LogInformation("  └─ Highlight: ZAsRelative={HighlightRelative}, ZIndex={HighlightZ}",
-                        highlight.ZAsRelative, highlight.ZIndex);
-                    _logger.LogInformation("  └─ Parent overlay: ZAsRelative={ParentRelative}, ZIndex={ParentZ}",
-                        _highlightOverlayContainer.ZAsRelative, _highlightOverlayContainer.ZIndex);
-                }
             }
         }
     }
@@ -1171,12 +1151,6 @@ public partial class SpatialInventoryContainerNode : Control
 
         // PHASE 3: Use Free() instead of QueueFree() for immediate removal
         // WHY: QueueFree() delays removal until end of frame, causing ghost highlights
-        int highlightCount = _highlightOverlayContainer.GetChildCount();
-        if (highlightCount > 0)
-        {
-            _logger.LogInformation("🎨 Z-ORDER: Clearing {Count} highlights from overlay", highlightCount);
-        }
-
         foreach (Node child in _highlightOverlayContainer.GetChildren())
         {
             child.Free(); // Immediate removal, not queued
