@@ -88,6 +88,8 @@ public partial class SpatialInventoryContainerNode : Control
     private Rotation _currentDragRotation = default(Darklands.Core.Domain.Common.Rotation); // Rotation during active drag
     private bool _isDragging = false; // Track if drag is active
     private ItemId? _draggingItemId = null; // Track which item is being dragged
+    private Control? _dragPreviewNode = null; // Custom drag preview that we can update
+    private TextureRect? _dragPreviewSprite = null; // Sprite inside preview for rotation updates
 
     // TileSet atlas coordinates for drag highlight sprites
     private static readonly Vector2I HIGHLIGHT_GREEN_COORDS = new(1, 6);
@@ -189,6 +191,23 @@ public partial class SpatialInventoryContainerNode : Control
 
                 _currentDragRotation = newRotation;
 
+                // Update sprite preview rotation
+                if (_dragPreviewSprite != null && _draggingItemId != null)
+                {
+                    // Recalculate effective dimensions after rotation
+                    var (baseWidth, baseHeight) = _itemDimensions.GetValueOrDefault(_draggingItemId.Value, (1, 1));
+                    var (effectiveWidth, effectiveHeight) = RotationHelper.GetRotatedDimensions(baseWidth, baseHeight, _currentDragRotation);
+
+                    float previewWidth = effectiveWidth * CellSize;
+                    float previewHeight = effectiveHeight * CellSize;
+
+                    // Update sprite rotation and size
+                    _dragPreviewSprite.Rotation = RotationHelper.ToRadians(_currentDragRotation);
+                    _dragPreviewSprite.PivotOffset = new Vector2(previewWidth / 2f, previewHeight / 2f);
+                    _dragPreviewSprite.CustomMinimumSize = new Vector2(previewWidth, previewHeight);
+                    _dragPreviewNode!.CustomMinimumSize = new Vector2(previewWidth, previewHeight);
+                }
+
                 // Consume the event to prevent scrolling the container
                 GetViewport().SetInputAsHandled();
             }
@@ -231,32 +250,10 @@ public partial class SpatialInventoryContainerNode : Control
         _logger.LogInformation("🎯 Starting drag: Item {ItemId} from {Container} at origin ({X}, {Y}) with rotation {Rotation}",
             itemId, ContainerTitle, origin.X, origin.Y, _currentDragRotation);
 
-        // Create drag preview with item name (visual feedback)
-        string itemName = _itemNames.GetValueOrDefault(itemId, "Item");
-        string itemType = _itemTypes.GetValueOrDefault(itemId, "?");
+        // PHASE 3: Create sprite-based drag preview (updates with rotation)
+        CreateDragPreview(itemId);
 
-        var preview = new Label
-        {
-            Text = $"📦 {itemName}",
-            Modulate = new Color(1, 1, 1, 0.8f)
-        };
-        preview.AddThemeFontSizeOverride("font_size", 16);
-
-        // Add background to preview for better visibility
-        var previewBg = new Panel();
-        var previewStyle = new StyleBoxFlat
-        {
-            BgColor = new Color(0.1f, 0.1f, 0.1f, 0.9f),
-            CornerRadiusTopLeft = 4,
-            CornerRadiusTopRight = 4,
-            CornerRadiusBottomLeft = 4,
-            CornerRadiusBottomRight = 4
-        };
-        previewStyle.SetContentMarginAll(8);
-        previewBg.AddThemeStyleboxOverride("panel", previewStyle);
-        previewBg.AddChild(preview);
-
-        SetDragPreview(previewBg);
+        SetDragPreview(_dragPreviewNode!);
 
         // Return drag data using Guids (simpler than value objects)
         // WHY: Use origin position for commands (not clicked cell)
@@ -445,6 +442,8 @@ public partial class SpatialInventoryContainerNode : Control
         // Reset drag state
         _isDragging = false;
         _draggingItemId = null;
+        _dragPreviewNode = null;
+        _dragPreviewSprite = null;
 
         var dragData = data.AsGodotDictionary();
         var itemIdGuidStr = dragData["itemIdGuid"].AsString();
@@ -1098,6 +1097,68 @@ public partial class SpatialInventoryContainerNode : Control
             return Result.Failure<string>(result.Error);
 
         return Result.Success(result.Value.Type);
+    }
+
+    /// <summary>
+    /// Creates a sprite-based drag preview that can be updated with rotation (Phase 3).
+    /// </summary>
+    private async void CreateDragPreview(ItemId itemId)
+    {
+        // Query item data for sprite rendering
+        var itemQuery = new GetItemByIdQuery(itemId);
+        var itemResult = await _mediator.Send(itemQuery);
+
+        if (itemResult.IsFailure || _itemTileSet == null)
+        {
+            // Fallback: Create simple label preview
+            _dragPreviewNode = new Label { Text = $"📦 {_itemNames.GetValueOrDefault(itemId, "Item")}" };
+            return;
+        }
+
+        var item = itemResult.Value;
+        var atlasSource = _itemTileSet.GetSource(0) as TileSetAtlasSource;
+        if (atlasSource == null)
+        {
+            _dragPreviewNode = new Label { Text = $"📦 {item.Name}" };
+            return;
+        }
+
+        // Get base dimensions
+        var (baseWidth, baseHeight) = _itemDimensions.GetValueOrDefault(itemId, (1, 1));
+        var (effectiveWidth, effectiveHeight) = RotationHelper.GetRotatedDimensions(baseWidth, baseHeight, _currentDragRotation);
+
+        // Calculate preview size (same as in-grid rendering)
+        float previewWidth = effectiveWidth * CellSize;
+        float previewHeight = effectiveHeight * CellSize;
+
+        // Extract sprite from atlas
+        var tileCoords = new Vector2I(item.AtlasX, item.AtlasY);
+        var region = atlasSource.GetTileTextureRegion(tileCoords);
+        var atlasTexture = new AtlasTexture
+        {
+            Atlas = atlasSource.Texture,
+            Region = region
+        };
+
+        // Create sprite preview
+        _dragPreviewSprite = new TextureRect
+        {
+            Texture = atlasTexture,
+            TextureFilter = CanvasItem.TextureFilterEnum.Nearest,
+            StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
+            ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+            CustomMinimumSize = new Vector2(previewWidth, previewHeight),
+            Rotation = RotationHelper.ToRadians(_currentDragRotation),
+            PivotOffset = new Vector2(previewWidth / 2f, previewHeight / 2f),
+            Modulate = new Color(1, 1, 1, 0.8f) // Semi-transparent
+        };
+
+        // Wrap in container
+        _dragPreviewNode = new Control
+        {
+            CustomMinimumSize = new Vector2(previewWidth, previewHeight)
+        };
+        _dragPreviewNode.AddChild(_dragPreviewSprite);
     }
 
     /// <summary>
