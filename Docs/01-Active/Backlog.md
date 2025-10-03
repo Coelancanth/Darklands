@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-03 20:32 (Dev Engineer: VS_018 Phase 4 IN PROGRESS - Shape editor foundation complete, checkbox grid working, next: refactor Width/Height → ItemShape)
+**Last Updated**: 2025-10-03 21:03 (Dev Engineer: VS_018 Phase 4 - L-shape test case ready (ray_gun), refactoring plan documented: Cells as SSOT for collision)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -233,33 +233,44 @@
   - ✅ Click to toggle cells (1=filled, 0=empty)
   - ✅ Dynamic grid resize: Width×Height changes instantly update checkbox count
   - ✅ Designer workflow: TileSet Custom Data Layer (Type: Object) → Assign ItemShapeResource
-- **File**: `addons/item_shape_editor/ItemShapeEditorPlugin.cs` (133 lines)
+- **Test Data**:
+  - ✅ `ray_gun` configured as L-shape test case (2×2 bounding box, 3 occupied cells)
+  - ✅ Cells = [1, 1, 0, 1] → Visual: `[✓][✓]` / `[ ][✓]` (L-shape)
+  - ✅ Encoding: "custom:0,0;1,0;1,1" (validates complex shape end-to-end)
+- **Files**: `addons/item_shape_editor/` (plugin), `assets/inventory_ref/item_sprites.tres` (L-shape config)
 
-**🔄 NEXT: Refactor Architecture** (Estimated 3-4h remaining):
+**🔄 NEXT: Refactor Architecture - Cells as SSOT** (Estimated 3-4h remaining):
+- **Core Principle**: `OccupiedCells` is single source of truth for collision, Width/Height are stored metadata
 - **Domain**:
-  - `ItemShape` value object (replaces Width/Height properties)
-    - `IReadOnlyList<GridPosition> OccupiedCells` (coordinate-based, not 2D array)
-    - `CreateRectangle(width, height)` factory (optimized for 90% of items)
-    - `CreateCustom(string encoding)` factory (parses "custom:x,y;x,y;...")
-    - `RotateClockwise()` transformation (transforms all coordinates)
-  - **BREAKING CHANGE**: `ItemDefinition.Width` + `ItemDefinition.Height` → `ItemDefinition.Shape`
-  - **BREAKING CHANGE**: `Inventory` collision detection must iterate `Shape.OccupiedCells`
+  - `ItemShape` value object (stores BOTH cells AND dimensions)
+    - `IReadOnlyList<GridPosition> OccupiedCells` ← **SSOT for collision** (what cells item actually occupies)
+    - `int Width, int Height` ← Bounding box metadata (for quick bounds checks, rotation dimension swap)
+    - `CreateRectangle(width, height)` factory (generates all W×H cells, stores dimensions)
+    - `CreateFromEncoding(encoding, width, height)` factory (parses cells from encoding, stores dimensions)
+    - `RotateClockwise()` transformation (transforms OccupiedCells coordinates, swaps Width↔Height)
+  - **BREAKING CHANGE**: `ItemDefinition.Width` + `ItemDefinition.Height` → `ItemDefinition.Shape` (convenience properties delegate to Shape)
+  - **CRITICAL**: ALL collision detection uses `Shape.OccupiedCells` iteration (NEVER Width×Height loops)
+    - Rectangle (2×3): Iterates 6 cells
+    - L-shape (2×2 box, 3 cells): Iterates 3 cells only (empty cell skipped!)
+    - Ensures L/T/Z shapes work correctly (only check occupied cells, not bounding box)
 - **Infrastructure**:
   - `ItemCatalogService.ParseShapeFromTile()`: Load ItemShapeResource → call `.ToEncoding()` → parse to ItemShape
   - Fallback: Missing shape metadata → default to `ItemShape.CreateRectangle(inventory_w, inventory_h)`
 - **Application**:
-  - Update ALL command handlers: Replace Width/Height references with Shape.OccupiedCells iteration
-  - `CanPlaceItemAtQuery`: Check collision for ALL occupied cells (not just top-left anchor)
-  - `MoveItemBetweenContainersCommand`: Use Shape for validation
+  - **CRITICAL**: Replace ALL `for (x < Width)` loops with `foreach (var offset in Shape.OccupiedCells)` iteration
+  - `CanPlaceItemAtQuery`: `foreach (offset in item.Shape.OccupiedCells) { if (IsOccupied(anchor + offset)) return false; }`
+  - `PlaceItemAtCommand`: Occupy only OccupiedCells positions (3 cells for L-shape, not 4!)
+  - `MoveItemBetweenContainersCommand`: Clear source OccupiedCells, validate target OccupiedCells, occupy target OccupiedCells
+  - `RotateItemCommand`: Use rotated shape's OccupiedCells for collision check
 - **Presentation**:
-  - Update rendering: `foreach (var offset in item.Shape.OccupiedCells) { RenderCell(anchor + offset); }`
-  - Existing rotation/drag-drop code compatible (just uses Shape instead of dimensions)
+  - Update rendering: `foreach (var offset in item.Shape.OccupiedCells) { RenderCell(anchor + offset, sprite); }`
+  - L-shape ray_gun renders 3 TextureRect nodes (not 4), empty cell (0,1) is transparent
+  - Existing rotation/drag-drop code compatible (works with rotated OccupiedCells)
 - **Tests**: 20-25 new tests
-  - Domain: ItemShape creation, rotation, coordinate normalization
-  - Infrastructure: Encoding parsing, TileSet integration
-  - Application: Complex shape collision, placement, movement
-- **Presentation**: Render complex shapes, rotation affects shape orientation
-- **Tests**: 20-25 tests (shape parsing, complex collision, L-shape rotation)
+  - Domain: ItemShape.CreateRectangle (all cells filled), ItemShape.CreateFromEncoding (L-shape = 3 cells), rotation (coordinates transform)
+  - Infrastructure: Parse ray_gun → ItemShape with 3 OccupiedCells, fallback to rectangle for missing shapes
+  - Application: Place L-shape at (0,0) → cells (0,0), (1,0), (1,1) occupied, cell (0,1) FREE for other items
+  - Integration: Place item at L-shape's empty cell (0,1) → succeeds (validates Cells-based collision)
 
 **Backward Compatibility (CRITICAL)**:
 - ✅ VS_008 tests MUST still pass (existing `AddItem()` API preserved)
