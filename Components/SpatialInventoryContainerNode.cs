@@ -191,21 +191,11 @@ public partial class SpatialInventoryContainerNode : Control
 
                 _currentDragRotation = newRotation;
 
-                // Update sprite preview rotation
-                if (_dragPreviewSprite != null && _draggingItemId != null)
+                // Update sprite preview rotation (size stays constant, only rotation changes)
+                if (_dragPreviewSprite != null)
                 {
-                    // Recalculate effective dimensions after rotation
-                    var (baseWidth, baseHeight) = _itemDimensions.GetValueOrDefault(_draggingItemId.Value, (1, 1));
-                    var (effectiveWidth, effectiveHeight) = RotationHelper.GetRotatedDimensions(baseWidth, baseHeight, _currentDragRotation);
-
-                    float previewWidth = effectiveWidth * CellSize;
-                    float previewHeight = effectiveHeight * CellSize;
-
-                    // Update sprite rotation and size
+                    // JUST update rotation - size and pivot stay the same (rotate around base center)
                     _dragPreviewSprite.Rotation = RotationHelper.ToRadians(_currentDragRotation);
-                    _dragPreviewSprite.PivotOffset = new Vector2(previewWidth / 2f, previewHeight / 2f);
-                    _dragPreviewSprite.CustomMinimumSize = new Vector2(previewWidth, previewHeight);
-                    _dragPreviewNode!.CustomMinimumSize = new Vector2(previewWidth, previewHeight);
                 }
 
                 // Consume the event to prevent scrolling the container
@@ -786,14 +776,16 @@ public partial class SpatialInventoryContainerNode : Control
             var atlasSource = _itemTileSet.GetSource(0) as TileSetAtlasSource;
             if (atlasSource != null)
             {
-                // Calculate pixel position and size based on EFFECTIVE (rotated) INVENTORY dimensions
-                // WHY: Sprite renders within the inventory cells it occupies (after rotation)
+                // Calculate pixel position based on EFFECTIVE (rotated) dimensions for placement
+                // But sprite SIZE is ALWAYS base dimensions (rotation happens visually)
                 int separationX = 2;
                 int separationY = 2;
                 float pixelX = origin.X * (CellSize + separationX);
                 float pixelY = origin.Y * (CellSize + separationY);
-                float pixelWidth = effectiveInvWidth * CellSize + (effectiveInvWidth - 1) * separationX;
-                float pixelHeight = effectiveInvHeight * CellSize + (effectiveInvHeight - 1) * separationY;
+
+                // PHASE 3: Sprite size is BASE dimensions (rotation visual only)
+                float baseSpriteWidth = baseInvWidth * CellSize + (baseInvWidth - 1) * separationX;
+                float baseSpriteHeight = baseInvHeight * CellSize + (baseInvHeight - 1) * separationX;
 
                 // Create AtlasTexture for this specific tile (VS_009 pattern)
                 // WHY: Extracts sprite region from atlas (sprite dimensions are SpriteWidth×SpriteHeight)
@@ -813,12 +805,13 @@ public partial class SpatialInventoryContainerNode : Control
                     TextureFilter = CanvasItem.TextureFilterEnum.Nearest, // Pixel-perfect rendering
                     StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
                     ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
-                    CustomMinimumSize = new Vector2(pixelWidth, pixelHeight),
+                    CustomMinimumSize = new Vector2(baseSpriteWidth, baseSpriteHeight), // BASE size (not rotated)
+                    Size = new Vector2(baseSpriteWidth, baseSpriteHeight),
                     Position = new Vector2(pixelX, pixelY),
                     MouseFilter = MouseFilterEnum.Ignore, // Grid cells handle input
-                    // PHASE 3: Apply rotation transform
+                    // PHASE 3: Apply rotation transform (rotate around BASE center)
                     Rotation = RotationHelper.ToRadians(rotation),
-                    PivotOffset = new Vector2(pixelWidth / 2f, pixelHeight / 2f) // Rotate around center
+                    PivotOffset = new Vector2(baseSpriteWidth / 2f, baseSpriteHeight / 2f) // Rotate around BASE center
                 };
 
                 _itemOverlayContainer?.AddChild(textureRect);
@@ -833,13 +826,16 @@ public partial class SpatialInventoryContainerNode : Control
         else
         {
             // FALLBACK: Phase 1 ColorRect rendering (no TileSet assigned)
+            // Note: ColorRect doesn't support rotation, so fallback doesn't show rotation visually
             var colorRect = new ColorRect
             {
                 Name = $"Item_{itemId.Value}_Fallback",
                 Color = GetItemColorFallback(item.Name),
-                CustomMinimumSize = new Vector2(effectiveInvWidth * CellSize * 0.9f, effectiveInvHeight * CellSize * 0.9f),
+                CustomMinimumSize = new Vector2(baseInvWidth * CellSize * 0.9f, baseInvHeight * CellSize * 0.9f),
                 Position = new Vector2(origin.X * CellSize + CellSize * 0.05f, origin.Y * CellSize + CellSize * 0.05f),
-                MouseFilter = MouseFilterEnum.Ignore
+                MouseFilter = MouseFilterEnum.Ignore,
+                Rotation = RotationHelper.ToRadians(rotation),
+                PivotOffset = new Vector2(baseInvWidth * CellSize * 0.45f, baseInvHeight * CellSize * 0.45f)
             };
 
             _itemOverlayContainer?.AddChild(colorRect);
@@ -1123,13 +1119,12 @@ public partial class SpatialInventoryContainerNode : Control
             return;
         }
 
-        // Get base dimensions
+        // Get base dimensions (UNROTATED)
         var (baseWidth, baseHeight) = _itemDimensions.GetValueOrDefault(itemId, (1, 1));
-        var (effectiveWidth, effectiveHeight) = RotationHelper.GetRotatedDimensions(baseWidth, baseHeight, _currentDragRotation);
 
-        // Calculate preview size (same as in-grid rendering)
-        float previewWidth = effectiveWidth * CellSize;
-        float previewHeight = effectiveHeight * CellSize;
+        // Calculate BASE sprite size (before rotation)
+        float baseSpriteWidth = baseWidth * CellSize;
+        float baseSpriteHeight = baseHeight * CellSize;
 
         // Extract sprite from atlas
         var tileCoords = new Vector2I(item.AtlasX, item.AtlasY);
@@ -1140,23 +1135,24 @@ public partial class SpatialInventoryContainerNode : Control
             Region = region
         };
 
-        // Create sprite preview
+        // Create sprite preview (size is ALWAYS base dimensions, rotation happens around center)
         _dragPreviewSprite = new TextureRect
         {
             Texture = atlasTexture,
             TextureFilter = CanvasItem.TextureFilterEnum.Nearest,
             StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
             ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
-            CustomMinimumSize = new Vector2(previewWidth, previewHeight),
+            CustomMinimumSize = new Vector2(baseSpriteWidth, baseSpriteHeight),
+            Size = new Vector2(baseSpriteWidth, baseSpriteHeight),
             Rotation = RotationHelper.ToRadians(_currentDragRotation),
-            PivotOffset = new Vector2(previewWidth / 2f, previewHeight / 2f),
+            PivotOffset = new Vector2(baseSpriteWidth / 2f, baseSpriteHeight / 2f), // Rotate around BASE center
             Modulate = new Color(1, 1, 1, 0.8f) // Semi-transparent
         };
 
-        // Wrap in container
+        // Wrap in container (container size is base dimensions, sprite rotates inside)
         _dragPreviewNode = new Control
         {
-            CustomMinimumSize = new Vector2(previewWidth, previewHeight)
+            CustomMinimumSize = new Vector2(baseSpriteWidth, baseSpriteHeight)
         };
         _dragPreviewNode.AddChild(_dragPreviewSprite);
     }
