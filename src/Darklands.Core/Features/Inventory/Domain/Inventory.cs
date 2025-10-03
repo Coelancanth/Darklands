@@ -228,14 +228,13 @@ public sealed class Inventory
     /// Gets the grid position of an item.
     /// </summary>
     /// <param name="itemId">ID of item to locate</param>
-    /// <returns>Grid position of the item</returns>
-    /// <exception cref="InvalidOperationException">If item not in inventory</exception>
-    public GridPosition GetItemPosition(ItemId itemId)
+    /// <returns>Success with grid position, or Failure if item not in inventory</returns>
+    public Result<GridPosition> GetItemPosition(ItemId itemId)
     {
         if (!_itemPositions.TryGetValue(itemId, out var position))
-            throw new InvalidOperationException("Item not found in inventory");
+            return Result.Failure<GridPosition>("Item not found in inventory");
 
-        return position;
+        return Result.Success(position);
     }
 
     /// <summary>

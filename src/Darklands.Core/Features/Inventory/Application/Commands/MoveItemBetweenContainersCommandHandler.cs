@@ -90,7 +90,14 @@ public sealed class MoveItemBetweenContainersCommandHandler
             // WHY: If new placement fails, we need to restore item at original position
 
             // Get original position before removing
-            var originalPosition = sourceInventory.GetItemPosition(command.ItemId);
+            var originalPositionResult = sourceInventory.GetItemPosition(command.ItemId);
+            if (originalPositionResult.IsFailure)
+            {
+                _logger.LogError("Item not found in source inventory: {Error}", originalPositionResult.Error);
+                return Result.Failure(originalPositionResult.Error);
+            }
+
+            var originalPosition = originalPositionResult.Value;
 
             var removeResult = sourceInventory.RemoveItem(command.ItemId);
             if (removeResult.IsFailure)
