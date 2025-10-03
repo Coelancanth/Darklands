@@ -25,7 +25,7 @@ namespace Darklands.Core.Features.Inventory.Domain;
 public sealed class Inventory
 {
     private readonly Dictionary<ItemId, GridPosition> _itemPositions;
-    private readonly Dictionary<ItemId, (int width, int height)> _itemDimensions; // Phase 2: Cache dimensions for collision
+    private readonly Dictionary<ItemId, ItemShape> _itemShapes; // Phase 4: Cache shapes for collision (OccupiedCells)
     private readonly Dictionary<ItemId, Rotation> _itemRotations; // Phase 3: Rotation state per placement
 
     /// <summary>
@@ -78,10 +78,17 @@ public sealed class Inventory
     public IReadOnlyDictionary<ItemId, GridPosition> ItemPlacements => _itemPositions;
 
     /// <summary>
-    /// Read-only view of item dimensions (ItemId → (Width, Height) mapping).
-    /// Phase 2: Needed for rendering and collision detection.
+    /// Read-only view of item shapes (ItemId → ItemShape mapping).
+    /// Phase 4: Contains OccupiedCells for accurate collision detection (L/T-shapes).
     /// </summary>
-    public IReadOnlyDictionary<ItemId, (int width, int height)> ItemDimensions => _itemDimensions;
+    public IReadOnlyDictionary<ItemId, ItemShape> ItemShapes => _itemShapes;
+
+    /// <summary>
+    /// Read-only view of item dimensions (ItemId → (Width, Height) mapping).
+    /// BACKWARD COMPATIBILITY: Computed from ItemShapes (Width, Height properties).
+    /// </summary>
+    public IReadOnlyDictionary<ItemId, (int width, int height)> ItemDimensions =>
+        _itemShapes.ToDictionary(kvp => kvp.Key, kvp => (kvp.Value.Width, kvp.Value.Height));
 
     /// <summary>
     /// Read-only view of item rotations (ItemId → Rotation mapping).
@@ -101,7 +108,7 @@ public sealed class Inventory
         Capacity = gridWidth * gridHeight;
         ContainerType = containerType;
         _itemPositions = new Dictionary<ItemId, GridPosition>(Capacity);
-        _itemDimensions = new Dictionary<ItemId, (int, int)>(Capacity); // Phase 2
+        _itemShapes = new Dictionary<ItemId, ItemShape>(Capacity); // Phase 4: Store full shapes
         _itemRotations = new Dictionary<ItemId, Rotation>(Capacity); // Phase 3
     }
 
@@ -246,8 +253,7 @@ public sealed class Inventory
         }
 
         // Delegate to core placement logic
-        // Store base (unrotated) dimensions for backward compat
-        return PlaceItemWithShape(itemId, position, shape.Width, shape.Height, rotatedShape, rotation);
+        return PlaceItemWithShape(itemId, position, shape, rotatedShape, rotation);
     }
 
     /// <summary>
@@ -256,17 +262,15 @@ public sealed class Inventory
     /// </summary>
     /// <param name="itemId">ID of item to place</param>
     /// <param name="position">Top-left grid position (anchor)</param>
-    /// <param name="baseWidth">Base width for backward compat storage</param>
-    /// <param name="baseHeight">Base height for backward compat storage</param>
-    /// <param name="shape">ItemShape with OccupiedCells (after rotation applied)</param>
+    /// <param name="baseShape">Base shape (unrotated) to store for future collision checks</param>
+    /// <param name="rotatedShape">Rotated shape (used for current collision check)</param>
     /// <param name="rotation">Rotation state for storage</param>
     /// <returns>Success if placed, Failure with reason if not</returns>
     private Result PlaceItemWithShape(
         ItemId itemId,
         GridPosition position,
-        int baseWidth,
-        int baseHeight,
-        ItemShape shape,
+        ItemShape baseShape,
+        ItemShape rotatedShape,
         Rotation rotation)
     {
         // BUSINESS RULE: Cannot add duplicate items
@@ -291,17 +295,14 @@ public sealed class Inventory
 
         foreach (var (existingItemId, existingOrigin) in _itemPositions)
         {
-            var (existingBaseWidth, existingBaseHeight) = _itemDimensions.GetValueOrDefault(existingItemId, (1, 1));
+            // PHASE 4: Use stored shape (preserves L/T-shapes!)
+            if (!_itemShapes.TryGetValue(existingItemId, out var existingBaseShape))
+                continue; // Skip items without shape (shouldn't happen)
+
             var existingRotation = _itemRotations.GetValueOrDefault(existingItemId, Rotation.Degrees0);
 
-            // Reconstruct existing item's shape
-            var existingShapeResult = ItemShape.CreateRectangle(existingBaseWidth, existingBaseHeight);
-            if (existingShapeResult.IsFailure)
-                continue; // Skip malformed items (shouldn't happen)
-
-            var existingShape = existingShapeResult.Value;
-
-            // Apply existing item's rotation
+            // Apply rotation to stored shape
+            var existingShape = existingBaseShape;
             for (int i = 0; i < ((int)existingRotation / 90); i++)
             {
                 var rotResult = existingShape.RotateClockwise();
@@ -331,7 +332,11 @@ public sealed class Inventory
 
         // All validations passed - place item
         _itemPositions[itemId] = position;
-        _itemDimensions[itemId] = (baseWidth, baseHeight); // Store BASE dimensions (backward compat)
+
+        // PHASE 4: Store BASE shape (unrotated) - reconstruct from baseWidth/baseHeight
+        var baseShape = ItemShape.CreateRectangle(baseWidth, baseHeight).Value; // Should never fail (validated earlier)
+        _itemShapes[itemId] = baseShape;
+
         _itemRotations[itemId] = rotation;
         return Result.Success();
     }

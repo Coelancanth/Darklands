@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-03 21:25 (Dev Engineer: VS_018 Phase 4 - Core architecture 85% complete: ItemShape, collision refactored, 373/378 tests green)
+**Last Updated**: 2025-10-03 21:36 (Dev Engineer: VS_018 Phase 4 - 95% complete, storage layer refactored, ~5-10min compilation fixes remaining)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -218,8 +218,9 @@
   - Direct node references beat string matching (O(1) lookup, no async issues)
   - Equipment slots reset rotation to Degrees0 for standard orientation display
 
-**Phase 4: Complex Shapes** (8-10h total) **← 85% COMPLETE** (2025-10-03 21:25)
+**Phase 4: Complex Shapes** (8-10h total) **← 95% COMPLETE** (2025-10-03 21:36)
 - **Goal**: L-shapes, T-shapes via coordinate-based masks (Tetris-style)
+- **Status**: Core architecture complete, storage layer refactored, compilation fixes needed
 
 **✅ Shape Editor Foundation COMPLETE** (2025-10-03 20:30):
 - **Infrastructure**:
@@ -282,22 +283,39 @@ L-shape (2×2 box, 3 cells): Iterates 3 OccupiedCells → occupies 3 cells only 
 Empty cell (0,1) in L-shape: NOT in OccupiedCells → FREE for other items! ✅
 ```
 
-**🚧 Remaining Work** (~30-45min, one additional pass):
-- **Issue**: L-shape integration tests RED (3/5 failing)
-- **Root Cause Discovery**: Inventory storage layer doesn't persist shapes!
-  - Current: `_itemDimensions: Dictionary<ItemId, (int, int)>` stores only width×height
-  - Problem: When reconstructing shapes for collision, creates rectangles → loses L-shape!
-  - Example: L-shape placed → stored as (2, 2) → reconstructed as 2×2 rectangle (4 cells) → collision fails!
+**✅ Storage Layer Refactored** (2025-10-03 21:36):
+- ✅ Replaced `_itemDimensions` with `_itemShapes: Dictionary<ItemId, ItemShape>`
+- ✅ Added `ItemShapes` public property (new), kept `ItemDimensions` for backward compat (computed)
+- ✅ Updated collision reconstruction to use stored shapes (preserves L-shapes!)
+- ✅ Signature change: `PlaceItemWithShape(baseShape, rotatedShape)` instead of `(width, height)`
 
-**Fix Required** (straightforward, ~30min):
-  1. ✅ Add public API: `Inventory.PlaceItemAt(ItemId, GridPosition, ItemShape, Rotation)` (DONE)
-  2. ✅ Fix L-shape test API calls (DONE - 2/5 now GREEN: bounds check, blocking test)
-  3. ❌ **Replace storage**: `Dictionary<ItemId, (int, int)>` → `Dictionary<ItemId, ItemShape>`
-     - Store full `ItemShape` (preserves OccupiedCells)
-     - Collision reconstruction: Use stored shape directly (no rectangle conversion!)
-     - Backward compat: Existing code passes dimensions → create rectangle shape → store it
-  4. ❌ Update handlers: Pass `item.Shape` instead of `item.InventoryWidth/Height`
-  5. ❌ Update Presentation rendering to iterate `item.Shape.OccupiedCells`
+**🔧 Remaining Work** (~5-10min, mechanical compilation fixes):
+
+**NEXT SESSION - Quick Checklist**:
+1. **Fix PlaceItemAt (backward-compat overload)** (line ~216):
+   ```csharp
+   // Create rectangle shape from dimensions
+   var rectShape = ItemShape.CreateRectangle(width, height).Value;
+   // Apply rotation...
+   return PlaceItemWithShape(itemId, position, rectShape, rotatedShape, rotation);
+   ```
+
+2. **Fix parameter references** (lines ~281, 323):
+   - Change: `foreach (offset in shape.OccupiedCells)` → `foreach (offset in rotatedShape.OccupiedCells)`
+
+3. **Fix storage line** (line ~340):
+   - Change: `var baseShape = ItemShape.CreateRectangle(baseWidth, baseHeight).Value;`
+   - To: `_itemShapes[itemId] = baseShape;` (baseShape is already parameter!)
+
+4. **Fix remaining _itemDimensions references** (lines 403, 420, 486, 507, 523):
+   - Pattern: Get shape, apply rotation, use OccupiedCells
+   - Example: `if (!_itemShapes.TryGetValue(itemId, out var shape)) return failure;`
+
+5. **Run tests**: `dotnet test` → expect 378/378 GREEN ✅
+
+**Files to Edit**: Only `src/.../Inventory/Domain/Inventory.cs` (already open, 6 locations)
+
+**Estimated Time**: 5-10 minutes (straightforward find-replace + compilation verification)
 
 **Files Modified**:
 - **Domain**: `ItemShape.cs` (NEW, 194 lines), `Item.cs` (refactored, +60 lines)
