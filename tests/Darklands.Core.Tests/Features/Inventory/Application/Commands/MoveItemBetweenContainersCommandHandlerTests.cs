@@ -23,7 +23,7 @@ public class MoveItemBetweenContainersCommandHandlerTests
         var sourcePos = new GridPosition(0, 0);
         var targetPos = new GridPosition(3, 3);
 
-        var item = Darklands.Core.Features.Item.Domain.Item.Create(itemId, 0, 0, "Sword", "weapon", 1, 1, 1).Value;
+        var item = Darklands.Core.Features.Item.Domain.Item.Create(itemId, 0, 0, "Sword", "weapon", 1, 1, 1, 1, 1).Value;
         var itemRepo = new StubItemRepository(item);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
@@ -70,7 +70,7 @@ public class MoveItemBetweenContainersCommandHandlerTests
         var sourcePos = new GridPosition(0, 0);
         var targetPos = new GridPosition(4, 3); // Valid position in 5×4 grid (20 capacity)
 
-        var item = Darklands.Core.Features.Item.Domain.Item.Create(itemId, 0, 0, "Sword", "weapon", 1, 1, 1).Value;
+        var item = Darklands.Core.Features.Item.Domain.Item.Create(itemId, 0, 0, "Sword", "weapon", 1, 1, 1, 1, 1).Value;
         var itemRepo = new StubItemRepository(item);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
@@ -111,7 +111,7 @@ public class MoveItemBetweenContainersCommandHandlerTests
         var targetActorId = ActorId.NewId();
         var itemId = ItemId.NewId();
 
-        var potion = Darklands.Core.Features.Item.Domain.Item.Create(itemId, 1, 0, "Potion", "item", 1, 1, 10).Value;
+        var potion = Darklands.Core.Features.Item.Domain.Item.Create(itemId, 1, 0, "Potion", "item", 1, 1, 1, 1, 10).Value;
         var itemRepo = new StubItemRepository(potion);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
@@ -172,7 +172,7 @@ public class MoveItemBetweenContainersCommandHandlerTests
         var sourcePos = new GridPosition(2, 1);
 
         var potion = Darklands.Core.Features.Item.Domain.Item.Create(
-            itemId, 1, 0, "Health Potion", "item", 1, 1, 10).Value;
+            itemId, 1, 0, "Health Potion", "item", 1, 1, 1, 1, 10).Value;
         var itemRepo = new StubItemRepository(potion);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 

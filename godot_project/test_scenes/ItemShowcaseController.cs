@@ -166,7 +166,7 @@ public partial class ItemShowcaseController : Control
         // Add item metadata label
         var metadataLabel = new Label
         {
-            Text = $"Type: {itemDto.Type} | Size: {itemDto.Width}x{itemDto.Height} | Stack: {itemDto.MaxStackSize}",
+            Text = $"Type: {itemDto.Type} | Sprite: {itemDto.SpriteWidth}x{itemDto.SpriteHeight} | Inventory: {itemDto.InventoryWidth}x{itemDto.InventoryHeight} | Stack: {itemDto.MaxStackSize}",
             HorizontalAlignment = HorizontalAlignment.Center,
             Theme = new Theme()
         };
@@ -178,7 +178,7 @@ public partial class ItemShowcaseController : Control
         // Add to container
         _itemContainer?.AddChild(itemPanel);
 
-        _logger.LogDebug("Displayed item: {Name} (size: {Width}x{Height} cells)",
-            itemDto.Name, itemDto.Width, itemDto.Height);
+        _logger.LogDebug("Displayed item: {Name} (sprite: {SpriteW}x{SpriteH}, inventory: {InvW}x{InvH})",
+            itemDto.Name, itemDto.SpriteWidth, itemDto.SpriteHeight, itemDto.InventoryWidth, itemDto.InventoryHeight);
     }
 }

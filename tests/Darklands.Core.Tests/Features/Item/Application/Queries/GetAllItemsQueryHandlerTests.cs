@@ -75,8 +75,8 @@ public class GetAllItemsQueryHandlerTests
         dto1.AtlasY.Should().Be(0);
         dto1.Name.Should().Be("ray_gun");
         dto1.Type.Should().Be("weapon");
-        dto1.Width.Should().Be(4);
-        dto1.Height.Should().Be(4);
+        dto1.SpriteWidth.Should().Be(4);
+        dto1.SpriteHeight.Should().Be(4);
         dto1.MaxStackSize.Should().Be(1);
         dto1.IsStackable.Should().BeFalse();
 

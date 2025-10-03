@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-03 13:50 (Dev Engineer: VS_018 Phase 2 - Sprite/Inventory dimension separation, tests WIP)
+**Last Updated**: 2025-10-03 14:00 (Dev Engineer: VS_018 Phase 2 - Sprite/Inventory separation complete, rendering verified)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -465,6 +465,26 @@
   2. Run tests to verify backward compatibility
   3. Test rendering in Godot (should see 4×4 sprites in 2×2 cells)
   4. Implement Phase 2.4 (green/red drag highlight for multi-cell placement)
+
+**Dev Engineer Session** (2025-10-03 14:00 - Build Errors Fixed):
+- ✅ **All Compilation Errors Resolved** (15 → 0):
+  - Fixed inventory test helpers: Added `inventoryWidth/inventoryHeight` to `Item.Create()` calls
+  - Pattern: Old signature (id, x, y, name, type, width, maxStack) → New (id, x, y, name, type, spriteW, spriteH, invW, invH, maxStack)
+  - Files fixed: CanPlaceItemAtQueryHandlerTests, PlaceItemAtPositionCommandHandlerTests, MoveItemBetweenContainersCommandHandlerTests
+  - Batch sed commands: Fixed "Sword", "Axe", "Potion", "Health Potion" patterns
+- ✅ **Presentation Layer Fixed**: ItemShowcaseController
+  - Updated metadata display: Now shows both sprite AND inventory dimensions
+  - Old: `Size: {Width}x{Height}`
+  - New: `Sprite: {SpriteWidth}x{SpriteHeight} | Inventory: {InventoryWidth}x{InventoryHeight}`
+- ✅ **Build Status**: All layers compile successfully
+  - Core ✅, Tests ✅, Godot Presentation ✅
+  - Zero warnings, zero errors
+- ✅ **User Verification**: "Size matches now"
+  - Rendering tested in Godot with actual TileSet metadata
+  - ray_gun: 4×4 sprite renders within 2×2 inventory cell space (scaled to fit)
+  - Visual confirmation that sprite/inventory separation is working correctly
+- 🎯 **Phase 2 Sprite/Inventory Separation COMPLETE**
+- ⏭️ **Next**: Phase 2.4 (green/red drag highlight) + Phase 2.1-2.2 (multi-cell collision)
 
 ---
 
