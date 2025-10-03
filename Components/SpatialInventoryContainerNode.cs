@@ -953,9 +953,11 @@ public partial class SpatialInventoryContainerNode : Control
         if (_highlightOverlayContainer == null)
             return;
 
+        // PHASE 3: Use Free() instead of QueueFree() for immediate removal
+        // WHY: QueueFree() delays removal until end of frame, causing ghost highlights
         foreach (Node child in _highlightOverlayContainer.GetChildren())
         {
-            child.QueueFree();
+            child.Free(); // Immediate removal, not queued
         }
     }
 
