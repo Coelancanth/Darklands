@@ -247,7 +247,7 @@ public class InventoryTests
         // Assert
         result.IsSuccess.Should().BeTrue();
         inventory.Contains(itemId).Should().BeTrue();
-        inventory.GetItemPosition(itemId).Should().Be(position);
+        inventory.GetItemPosition(itemId).Value.Should().Be(position);
         inventory.Count.Should().Be(1);
     }
 
@@ -351,8 +351,8 @@ public class InventoryTests
         // Assert
         inventory.Contains(itemId1).Should().BeTrue();
         inventory.Contains(itemId2).Should().BeTrue();
-        inventory.GetItemPosition(itemId1).Should().Be(new GridPosition(0, 0)); // Top-left
-        inventory.GetItemPosition(itemId2).Should().Be(new GridPosition(1, 0)); // Next position
+        inventory.GetItemPosition(itemId1).Value.Should().Be(new GridPosition(0, 0)); // Top-left
+        inventory.GetItemPosition(itemId2).Value.Should().Be(new GridPosition(1, 0)); // Next position
     }
 
     [Fact]

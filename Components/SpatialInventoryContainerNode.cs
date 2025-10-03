@@ -83,6 +83,10 @@ public partial class SpatialInventoryContainerNode : Control
     private Dictionary<ItemId, string> _itemNames = new(); // Cache item names for tooltips
     private Dictionary<ItemId, (int Width, int Height)> _itemDimensions = new(); // Cache item dimensions (Phase 2)
 
+    // TileSet atlas coordinates for drag highlight sprites
+    private static readonly Vector2I HIGHLIGHT_GREEN_COORDS = new(1, 6);
+    private static readonly Vector2I HIGHLIGHT_RED_COORDS = new(1, 7);
+
     // UI nodes
     private Label? _titleLabel;
     private GridContainer? _gridContainer;
@@ -840,8 +844,7 @@ public partial class SpatialInventoryContainerNode : Control
             return;
 
         // Get highlight tile coords from TileSet
-        // highlight_green at (1,6), highlight_red at (1,7)
-        var highlightCoords = isValid ? new Vector2I(1, 6) : new Vector2I(1, 7);
+        var highlightCoords = isValid ? HIGHLIGHT_GREEN_COORDS : HIGHLIGHT_RED_COORDS;
         var region = atlasSource.GetTileTextureRegion(highlightCoords);
 
         var atlasTexture = new AtlasTexture

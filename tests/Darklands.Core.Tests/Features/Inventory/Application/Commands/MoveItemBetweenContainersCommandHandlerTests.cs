@@ -56,7 +56,7 @@ public class MoveItemBetweenContainersCommandHandlerTests
         // Verify item added to target
         var updatedTarget = await inventoryRepo.GetByActorIdAsync(targetActorId);
         updatedTarget.Value.Contains(itemId).Should().BeTrue();
-        updatedTarget.Value.GetItemPosition(itemId).Should().Be(targetPos);
+        updatedTarget.Value.GetItemPosition(itemId).Value.Should().Be(targetPos);
     }
 
     [Fact]
@@ -98,7 +98,7 @@ public class MoveItemBetweenContainersCommandHandlerTests
 
         var updatedInventory = await inventoryRepo.GetByActorIdAsync(actorId);
         updatedInventory.Value.Contains(itemId).Should().BeTrue();
-        updatedInventory.Value.GetItemPosition(itemId).Should().Be(targetPos);
+        updatedInventory.Value.GetItemPosition(itemId).Value.Should().Be(targetPos);
     }
 
     [Fact]
@@ -184,7 +184,7 @@ public class MoveItemBetweenContainersCommandHandlerTests
         // Verify initial state: Potion in source at (2,1)
         sourceInventory = await inventoryRepo.GetByActorIdAsync(sourceActorId);
         sourceInventory.Value.Contains(itemId).Should().BeTrue();
-        sourceInventory.Value.GetItemPosition(itemId).Should().Be(sourcePos);
+        sourceInventory.Value.GetItemPosition(itemId).Value.Should().Be(sourcePos);
 
         // Create weapon-only target inventory (will reject potion)
         var targetInventory = await inventoryRepo.GetByActorIdAsync(targetActorId);
@@ -216,10 +216,75 @@ public class MoveItemBetweenContainersCommandHandlerTests
         // CRITICAL: Verify item STILL in source inventory (not lost!)
         var finalSourceState = await inventoryRepo.GetByActorIdAsync(sourceActorId);
         finalSourceState.Value.Contains(itemId).Should().BeTrue("item must remain in source after failed validation");
-        finalSourceState.Value.GetItemPosition(itemId).Should().Be(sourcePos, "item position should be unchanged");
+        finalSourceState.Value.GetItemPosition(itemId).Value.Should().Be(sourcePos, "item position should be unchanged");
 
         // Verify item NOT in target inventory
         var finalTargetState = await inventoryRepo.GetByActorIdAsync(targetActorId);
         finalTargetState.Value.Contains(itemId).Should().BeFalse("item should not be added to target after validation failure");
+    }
+
+    [Fact]
+    public async Task Handle_Move2x2ItemBetweenContainers_ShouldPreserveDimensions()
+    {
+        // INTEGRATION TEST: Cross-container dimension preservation (PR #87 suggestion)
+        // WHY: Ensures multi-cell items (2×2) moved from Backpack A → B still occupy 4 cells in target
+        // REGRESSION RISK: If dimension-passing logic breaks, items could become 1×1 in target
+
+        // Arrange: Create 2×2 multi-cell item (ray_gun)
+        var sourceActorId = ActorId.NewId();
+        var targetActorId = ActorId.NewId();
+        var itemId = ItemId.NewId();
+        var sourcePos = new GridPosition(1, 1);
+        var targetPos = new GridPosition(3, 3);
+
+        // 2×2 item: SpriteWidth=4, SpriteHeight=4, InventoryWidth=2, InventoryHeight=2
+        var multiCellItem = Darklands.Core.Features.Item.Domain.Item.Create(itemId, 0, 0, "ray_gun", "weapon", 4, 4, 2, 2, 1).Value;
+        var itemRepo = new StubItemRepository(multiCellItem);
+        var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
+
+        // Create source backpack (10×10 grid) and place 2×2 item at (1,1)
+        var sourceInventory = await inventoryRepo.GetByActorIdAsync(sourceActorId);
+        sourceInventory.Value.PlaceItemAt(itemId, sourcePos, 2, 2);
+        await inventoryRepo.SaveAsync(sourceInventory.Value, default);
+
+        // Create target backpack (10×10 grid, empty)
+        var targetInventory = await inventoryRepo.GetByActorIdAsync(targetActorId);
+        var emptyBackpack = Core.Features.Inventory.Domain.Inventory.Create(
+            targetInventory.Value.Id, 10, 10, ContainerType.General).Value;
+        inventoryRepo.RegisterInventoryForActor(targetActorId, emptyBackpack);
+
+        var handler = new MoveItemBetweenContainersCommandHandler(
+            inventoryRepo,
+            itemRepo,
+            NullLogger<MoveItemBetweenContainersCommandHandler>.Instance);
+
+        var command = new MoveItemBetweenContainersCommand(
+            sourceActorId, targetActorId, itemId, targetPos);
+
+        // Act: Move 2×2 item from source → target
+        var result = await handler.Handle(command, default);
+
+        // Assert: Command succeeded
+        result.IsSuccess.Should().BeTrue();
+
+        // Verify item removed from source
+        var updatedSource = await inventoryRepo.GetByActorIdAsync(sourceActorId);
+        updatedSource.Value.Contains(itemId).Should().BeFalse();
+
+        // CRITICAL: Verify item STILL occupies 2×2 cells in target (not collapsed to 1×1)
+        var updatedTarget = await inventoryRepo.GetByActorIdAsync(targetActorId);
+        updatedTarget.Value.Contains(itemId).Should().BeTrue();
+        updatedTarget.Value.GetItemPosition(itemId).Value.Should().Be(targetPos);
+
+        // CRITICAL: Verify dimensions preserved in target (not collapsed to 1×1)
+        var dimensions = updatedTarget.Value.ItemDimensions;
+        dimensions.Should().ContainKey(itemId, "item dimensions should be cached in target inventory");
+        dimensions[itemId].width.Should().Be(2, "inventory width should be preserved across containers");
+        dimensions[itemId].height.Should().Be(2, "inventory height should be preserved across containers");
+
+        // Verify multi-cell collision still enforced (cannot place new item at occupied origin)
+        var sameOriginItem = ItemId.NewId();
+        var placeAtSameOriginResult = updatedTarget.Value.PlaceItemAt(sameOriginItem, targetPos, 1, 1);
+        placeAtSameOriginResult.IsFailure.Should().BeTrue("origin position should be blocked by existing 2×2 item");
     }
 }

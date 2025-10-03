@@ -40,7 +40,7 @@ public class PlaceItemAtPositionCommandHandlerTests
 
         var inventory = await inventoryRepo.GetByActorIdAsync(actorId);
         inventory.Value.Contains(itemId).Should().BeTrue();
-        inventory.Value.GetItemPosition(itemId).Should().Be(position);
+        inventory.Value.GetItemPosition(itemId).Value.Should().Be(position);
     }
 
     [Fact]
