@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-03 22:48 (Dev Engineer: BR_004 Complete - Presentation layer architectural fix + VS_018 fully validated)
+**Last Updated**: 2025-10-03 23:00 (Dev Engineer: BR_005 Complete - Cross-container L-shape highlights now accurate)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -9,7 +9,7 @@
 ## 🔢 Next Item Numbers by Type
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
-- **Next BR**: 006
+- **Next BR**: 007
 - **Next TD**: 003
 - **Next VS**: 019
 
@@ -71,6 +71,7 @@
 ---
 
 *Recently completed and archived (2025-10-03):*
+- **BR_005**: Cross-Container L-Shape Highlight Inaccuracy - When dragging L-shapes between containers, highlights showed 1×1 (original) or 2×2 rectangle (first fix) instead of accurate 3-cell L-shape. Root cause: ItemDto (Phase 2 DTO) only exposed InventoryWidth/Height, not ItemShape. Fixed by evolving ItemDto to Phase 4: added ItemShape property, updated all query handlers (GetItemById, GetAll, GetByType) to map Shape. RenderDragHighlight now uses actual Shape for cross-container drags. Result: Pixel-perfect L-shape highlighting for both within-container and cross-container scenarios. All 359 tests GREEN. ✅ (2025-10-03 23:00)
 - **BR_004**: Presentation Layer Validation Duplication - Presentation layer (_CanDropData, UpdateDragHighlightsAtPosition) duplicated collision logic, iterating bounding box instead of OccupiedCells. Result: UI blocked dagger placement in L-shape empty corner. Fixed by delegating ALL validation to CanPlaceItemAtQuery (Core). Removed 200+ lines of duplicated business logic from Presentation. Architectural compliance: Presentation now thin display layer, Core owns all validation. Memory Bank updated with "Presentation Layer Responsibilities" guidelines. All 359 tests GREEN. ✅ (2025-10-03 22:48)
 - **BR_003**: L-Shape Collision Bug - PlaceItemAtPositionCommandHandler & MoveItemBetweenContainersCommandHandler converted width×height to rectangles, destroying L-shapes. Fixed by using `item.Shape` (Phase 4 API) in all placement paths. Root cause: Application layer handlers called backward-compatible Phase 2 signature. Impact: L-shapes now preserve 3-cell structure through placement, movement, and rollback. All 359 tests GREEN. ✅ (2025-10-03 22:33)
 - **VS_018**: Spatial Inventory L-Shapes - 4-phase implementation (Domain → Application → Infrastructure → Presentation). TileSet-driven ItemShape with custom encoding (custom:x,y;x,y), rotation support, collision detection via OccupiedCells iteration. Comprehensive testing (359 total, 45 L-shape specific). Found and fixed BR_003 & BR_004 during validation. Feature fully operational - ray_gun (L-shape) + dagger placement working correctly. ✅ (2025-10-03 22:48)
