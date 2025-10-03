@@ -178,7 +178,9 @@ public partial class SpatialInventoryContainerNode : Control
 
             // PHASE 3: Mouse scroll during drag to rotate item
             // WHY: Rotate while dragging (Tetris/Diablo UX pattern)
-            if (_isDragging && (mouseButton.ButtonIndex == MouseButton.WheelDown || mouseButton.ButtonIndex == MouseButton.WheelUp))
+            // CRITICAL: Only handle when Pressed == true to avoid double-firing
+            if (_isDragging && mouseButton.Pressed &&
+                (mouseButton.ButtonIndex == MouseButton.WheelDown || mouseButton.ButtonIndex == MouseButton.WheelUp))
             {
                 // Calculate new rotation (scroll DOWN = clockwise, scroll UP = counter-clockwise)
                 var newRotation = mouseButton.ButtonIndex == MouseButton.WheelDown
