@@ -24,6 +24,56 @@
 - Use `[Trait("Category", "PhaseX")]` for phase-specific runs
 - Phase 1 tests must run <10ms (pure domain)
 
+### User Testing Protocol (CRITICAL)
+**ALWAYS add temporary info messages during user testing, remove when confirmed!**
+
+**Why This Matters**:
+- User can't see internal logs during Godot testing
+- Need confirmation that operations actually executed
+- Silent success feels like silent failure to users
+- Helps identify WHEN bugs occur (before/after which step)
+
+**Pattern - Temporary GD.Print Messages**:
+```csharp
+// Add during user testing phase
+_logger.LogInformation("Swap initiated...");
+GD.Print("🔄 SWAP: Starting swap operation");  // ← USER SEES THIS
+
+// ... operation code ...
+
+GD.Print("✅ SWAP: Completed successfully");  // ← CONFIRMATION
+_logger.LogInformation("Swap completed");
+
+// Remove after testing confirms feature works
+```
+
+**When to Add Info Messages**:
+- ✅ Complex operations (swap, multi-step transactions)
+- ✅ Silent operations (no visual feedback yet)
+- ✅ Critical data operations (prevent data loss)
+- ✅ During bug investigation (trace execution flow)
+- ✅ New feature validation (confirm it actually runs)
+
+**When to Remove Info Messages**:
+- ✅ After user confirms feature works correctly
+- ✅ Before PR/merge (keep codebase clean)
+- ✅ Keep logger statements (for debugging), remove GD.Print
+
+**Example - VS_018 Swap Testing**:
+```csharp
+// TEMPORARY: User testing confirmation messages
+GD.Print($"🔄 Removing {sourceItemId} from source...");
+var removeSourceResult = await _mediator.Send(removeSourceCmd);
+if (removeSourceResult.IsSuccess)
+    GD.Print($"✅ Source item removed");
+else
+    GD.Print($"❌ FAILED to remove source: {removeSourceResult.Error}");
+
+// After testing confirms swap works → Delete GD.Print lines, keep _logger
+```
+
+**Red Flag**: User says "I tried it but nothing happened" → Add info messages to show execution
+
 ### Regression Tests (CRITICAL)
 **ALWAYS create regression tests for bug fixes!**
 
