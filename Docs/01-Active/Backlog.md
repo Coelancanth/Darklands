@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-03 14:00 (Dev Engineer: VS_018 Phase 2 - Sprite/Inventory separation complete, rendering verified)
+**Last Updated**: 2025-10-03 17:30 (Dev Engineer: VS_018 Phase 3 - Rotation implemented, z-order/occupation bugs documented for next session)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -142,12 +142,12 @@
 
 
 
-### VS_018: Spatial Inventory System (Multi-Phase) ✅ **PHASE 2 COMPLETE**
+### VS_018: Spatial Inventory System (Multi-Phase) ⚠️ **PHASE 3 IN PROGRESS - BUGS**
 
-**Status**: Phase 1 ✅ + Phase 2 ✅ Complete (including Phase 2.4 drag highlights) - Ready for PR
-**Owner**: Dev Engineer (Phase 2 done, self-collision polish optional, Phase 3 ready)
-**Size**: XL (12-16h across 4 phases, Phase 1 = 4-5h)
-**Priority**: Important (Phase 2 foundation - enhances VS_008 slot-based inventory)
+**Status**: Phase 1 ✅ + Phase 2 ✅ + Phase 3 🔧 (Rotation implemented but z-order/occupation bugs)
+**Owner**: Dev Engineer (Phase 3 rotation bugs need fixing next session)
+**Size**: XL (12-16h across 4 phases, Phase 1 = 4-5h, Phase 3 = 3-4h)
+**Priority**: Important (Phase 3 rotation UX - blocked by rendering bugs)
 **Depends On**: VS_008 (Slot-Based Inventory ✅), VS_009 (Item Definitions ✅)
 **Markers**: [ARCHITECTURE] [UX-CRITICAL] [BACKWARD-COMPATIBLE]
 
@@ -194,12 +194,24 @@
 - **NO rotation yet** (sword is always 2×1, cannot become 1×2)
 - **Tests**: 15-20 additional tests (multi-cell collision, boundary checks)
 
-**Phase 3: Rotation Support** (2-3h)
+**Phase 3: Rotation Support** (2-3h) ⚠️ **IN PROGRESS - BUGS TO FIX**
 - **Goal**: Rotate items 90° (2×1 sword → 1×2 sword)
-- **Domain**: Add `Rotation` enum (Degrees0, Degrees90, Degrees180, Degrees270), swap Width↔Height logic
-- **Application**: `RotateItemCommand`, rotation state persistence
-- **Presentation**: Right-click or R key to rotate, visual rotation animation
-- **Tests**: 10-15 tests (rotation state, dimension swapping, collision after rotation)
+- **Domain**: ✅ `Rotation` enum, `RotationHelper`, dimension swapping, collision validation
+- **Application**: ✅ `RotateItemCommand`, `MoveItemBetweenContainersCommand` with rotation
+- **Presentation**: ✅ Mouse scroll during drag, sprite rotation, highlight updates
+- **Tests**: ✅ 13 new rotation tests (335/335 passing)
+- **BUGS IDENTIFIED** (2025-10-03):
+  1. ❌ **Z-Order Rendering**: Item sprites render BELOW green highlights (should be above)
+     - Tried: Container ZIndex swap (no effect), Individual sprite ZIndex (highlights still on top)
+     - Root Cause: Godot rendering order not respecting ZIndex=-1 (highlights) vs ZIndex=1 (items)
+     - Next: Investigate Godot CanvasLayer separation or use modulate blending instead of overlay
+  2. ❌ **Logical Occupation Bug**: Rotated items occupy WRONG grid cells
+     - Symptom: 2×1 item rotated 90° occupies cells as if still 2×1 horizontal (not 1×2 vertical)
+     - Root Cause: `PlaceItemAt()` receives rotation but collision uses base dimensions
+     - Impact: Can place items in invalid positions, overlapping after rotation
+     - Fix: Verify effective dimensions used in both `_CanDropData` AND `PlaceItemAt`
+  3. ✅ **Double Rotation**: FIXED (one scroll = one 90° rotation, `Pressed` check added)
+  4. ✅ **Ghost Highlights**: FIXED (`Free()` instead of `QueueFree()` for immediate cleanup)
 
 **Phase 4: Complex Shapes** (3-4h)
 - **Goal**: L-shapes, T-shapes via bool[] masks (Tetris-style)
