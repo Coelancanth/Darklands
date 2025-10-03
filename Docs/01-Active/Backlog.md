@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-03 02:29 (Dev Engineer: VS_018 Phase 1 - Critical bug fixed, weapon swap pending design decision)
+**Last Updated**: 2025-10-03 13:25 (Dev Engineer: VS_018 Phase 2 - Multi-cell rendering complete, drag highlight next)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -402,6 +402,35 @@
   - ✅ 261 Core tests passing (1 regression test added for type validation data loss)
   - ✅ Backward compatibility maintained (VS_008 tests still pass)
 - 🎯 **Phase 1 Complete** - Ready for PR to main
+
+**Dev Engineer Session** (2025-10-03 13:25 - Phase 2 Multi-Cell Rendering):
+- ✅ **Phase 2.3: Multi-Cell TextureRect Rendering** (rendering-first approach):
+  - **Architecture**: Overlay layer for multi-cell sprites on top of grid cells
+    - Grid cells (Panel): Hit-testing and structure (unchanged from Phase 1)
+    - Overlay container (Control): Z-index 10, renders TextureRect sprites spanning multiple cells
+    - Item dimensions cached: Dictionary<ItemId, (Width, Height)> from ItemDto
+  - **VS_009 Pattern Reuse**: AtlasTexture wrapper for sprite region extraction
+    - `atlasSource.GetTileTextureRegion(tileCoords)` auto-calculates region
+    - TextureRect with ExpandMode.IgnoreSize + StretchMode.KeepAspectCentered
+    - Pixel-perfect rendering: TextureFilter.Nearest for crisp sprites
+  - **Multi-Cell Calculation**: Account for 2px grid separation
+    - pixelWidth = width × CellSize + (width - 1) × separationX
+    - Items positioned at origin.X × (CellSize + separationX)
+  - **TileSet Scene Assignment**: Fixed missing ItemTileSet in SpatialInventoryTestScene.tscn
+    - Added external resource: `uid://bmiw87gmm1wvp` (correct UID)
+    - Property injection: Controller → Container nodes via `ItemTileSet = ItemTileSet`
+  - **Rendering Results** (user-confirmed):
+    - ✅ ray_gun (4×4) renders spanning 4×4 grid cells with sprite
+    - ✅ dagger (4×2) renders horizontally across 2 rows
+    - ✅ gadget (2×4) renders vertically across 4 rows
+    - ✅ red_vial, green_vial (2×2) render as 2×2 sprites
+    - ✅ Pixel-perfect, centered, grid cells visible underneath
+  - **Fallback Support**: ColorRect rendering when TileSet not assigned (backward compat)
+  - **Files Modified**:
+    - SpatialInventoryContainerNode.cs: Overlay architecture, RenderMultiCellItemSprite()
+    - SpatialInventoryTestScene.tscn: TileSet resource assignment
+- 🎯 **Phase 2.3 Complete** - Rendering verified working
+- ⏭️ **Next**: Phase 2.4 (green/red drag highlight), then Domain/Application collision
 
 ---
 

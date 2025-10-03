@@ -80,10 +80,12 @@ public partial class SpatialInventoryContainerNode : Control
     private Dictionary<GridPosition, ItemId> _itemsAtPositions = new();
     private Dictionary<ItemId, string> _itemTypes = new(); // Cache item types for color coding
     private Dictionary<ItemId, string> _itemNames = new(); // Cache item names for tooltips
+    private Dictionary<ItemId, (int Width, int Height)> _itemDimensions = new(); // Cache item dimensions (Phase 2)
 
     // UI nodes
     private Label? _titleLabel;
     private GridContainer? _gridContainer;
+    private Control? _itemOverlayContainer; // Container for multi-cell item sprites (Phase 2)
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // GODOT LIFECYCLE
@@ -357,7 +359,15 @@ public partial class SpatialInventoryContainerNode : Control
         };
         vbox.AddChild(_titleLabel);
 
-        // Grid container (will be populated after loading inventory data)
+        // Grid container with overlay for multi-cell items
+        // WHY: Grid cells provide hit-testing, overlay renders sprites on top
+        var gridWrapper = new Control
+        {
+            MouseFilter = MouseFilterEnum.Pass
+        };
+        vbox.AddChild(gridWrapper);
+
+        // Background grid (Panel cells for hit-testing)
         _gridContainer = new GridContainer
         {
             CustomMinimumSize = new Vector2(CellSize, CellSize),
@@ -366,7 +376,16 @@ public partial class SpatialInventoryContainerNode : Control
         };
         _gridContainer.AddThemeConstantOverride("h_separation", 2);
         _gridContainer.AddThemeConstantOverride("v_separation", 2);
-        vbox.AddChild(_gridContainer);
+        gridWrapper.AddChild(_gridContainer);
+
+        // Overlay container for multi-cell item sprites (Phase 2)
+        // WHY: Items rendered on separate layer so they can span multiple cells freely
+        _itemOverlayContainer = new Control
+        {
+            MouseFilter = MouseFilterEnum.Ignore, // Let grid cells handle input
+            ZIndex = 10 // Render above grid cells
+        };
+        gridWrapper.AddChild(_itemOverlayContainer);
     }
 
     private async void LoadInventoryAsync()
@@ -428,7 +447,7 @@ public partial class SpatialInventoryContainerNode : Control
 
     private async Task LoadItemTypes()
     {
-        // Query item details to determine types (weapon, item, etc.) and names (for tooltips)
+        // Query item details to determine types (weapon, item, etc.), names (for tooltips), and dimensions (Phase 2)
         foreach (var itemId in _itemsAtPositions.Values.Distinct())
         {
             var query = new GetItemByIdQuery(itemId);
@@ -438,7 +457,9 @@ public partial class SpatialInventoryContainerNode : Control
             {
                 _itemTypes[itemId] = result.Value.Type;
                 _itemNames[itemId] = result.Value.Name;
-                _logger.LogDebug("Item {ItemId}: {Name} ({Type})", itemId, result.Value.Name, result.Value.Type);
+                _itemDimensions[itemId] = (result.Value.Width, result.Value.Height); // Phase 2: Cache dimensions
+                _logger.LogDebug("Item {ItemId}: {Name} ({Type}) {Width}×{Height}",
+                    itemId, result.Value.Name, result.Value.Type, result.Value.Width, result.Value.Height);
             }
         }
     }
@@ -467,92 +488,152 @@ public partial class SpatialInventoryContainerNode : Control
 
     private void RefreshGridDisplay()
     {
-        // WHY: Phase 1 visual feedback - highlight occupied cells (no sprites yet)
-        if (_gridContainer == null)
+        // WHY: Phase 2 - Render multi-cell items with TextureRect sprites
+        if (_gridContainer == null || _itemOverlayContainer == null)
             return;
 
-        // Update each grid cell's visual state and tooltip
+        // STEP 1: Clear previous item sprites from overlay
+        ClearAllItemSprites();
+
+        // STEP 2: Update grid cell tooltips (cells remain for hit-testing)
+        var processedItems = new HashSet<ItemId>(); // Track which items we've rendered
+
         for (int i = 0; i < _gridContainer.GetChildCount(); i++)
         {
             if (_gridContainer.GetChild(i) is Panel cell)
             {
-                // Calculate grid position for this cell index
                 int x = i % _gridWidth;
                 int y = i / _gridWidth;
                 var gridPos = new GridPosition(x, y);
 
-                // Update tooltip based on cell contents
+                // Update tooltip (show which item occupies this cell, if any)
                 if (_itemsAtPositions.TryGetValue(gridPos, out var itemId))
                 {
-                    // Occupied cell: Show item name and type
                     string itemName = _itemNames.GetValueOrDefault(itemId, "Unknown");
                     string itemType = _itemTypes.GetValueOrDefault(itemId, "unknown");
                     cell.TooltipText = $"{itemName} ({itemType})";
 
-                    // Render colored icon INSIDE cell (Phase 1 placeholder for sprites)
-                    // WHY: Each item gets unique color for visual distinction
-                    RenderItemIcon(cell, itemName);
+                    // Render item sprite ONCE at its origin position (not per-cell)
+                    if (!processedItems.Contains(itemId))
+                    {
+                        RenderMultiCellItemSprite(itemId, gridPos);
+                        processedItems.Add(itemId);
+                    }
                 }
                 else
                 {
-                    // Empty cell: Show grid position, clear any existing icon
                     cell.TooltipText = $"Empty ({gridPos.X}, {gridPos.Y})";
-                    ClearItemIcon(cell);
                 }
             }
         }
 
         _logger.LogDebug("{ContainerTitle}: {ItemCount} items displayed",
-            ContainerTitle, _itemsAtPositions.Count);
+            ContainerTitle, processedItems.Count);
     }
 
     /// <summary>
-    /// Renders a colored icon inside a cell to represent an item (Phase 1 sprite placeholder).
-    /// Each item gets a unique color based on its name.
+    /// Clears all item sprites from the overlay container.
+    /// WHY: Called before re-rendering to avoid duplicate sprites.
     /// </summary>
-    private void RenderItemIcon(Panel cell, string itemName)
+    private void ClearAllItemSprites()
     {
-        // Check if icon already exists
-        var existingIcon = cell.GetNodeOrNull<ColorRect>("ItemIcon");
-        if (existingIcon != null)
+        if (_itemOverlayContainer == null)
+            return;
+
+        foreach (Node child in _itemOverlayContainer.GetChildren())
         {
-            // Update existing icon color
-            existingIcon.Color = GetItemColor(itemName);
+            child.QueueFree();
+        }
+    }
+
+    /// <summary>
+    /// Renders a multi-cell item sprite using TextureRect (Phase 2).
+    /// WHY: Items can span Width×Height cells, matching reference image visual style.
+    /// </summary>
+    /// <param name="itemId">Item to render</param>
+    /// <param name="origin">Top-left grid position of the item</param>
+    private async void RenderMultiCellItemSprite(ItemId itemId, GridPosition origin)
+    {
+        // Query item data for atlas coordinates
+        var itemQuery = new GetItemByIdQuery(itemId);
+        var itemResult = await _mediator.Send(itemQuery);
+
+        if (itemResult.IsFailure)
+        {
+            _logger.LogWarning("Failed to query item {ItemId} for rendering: {Error}",
+                itemId, itemResult.Error);
             return;
         }
 
-        // Create new icon (centered ColorRect)
-        var icon = new ColorRect
-        {
-            Name = "ItemIcon",
-            Color = GetItemColor(itemName),
-            CustomMinimumSize = new Vector2(CellSize * 0.7f, CellSize * 0.7f),
-            Position = new Vector2(CellSize * 0.15f, CellSize * 0.15f), // Center with 15% margin
-            MouseFilter = MouseFilterEnum.Ignore // Let parent cell handle mouse events
-        };
+        var item = itemResult.Value;
 
-        cell.AddChild(icon);
-    }
+        // Get dimensions (fallback to 1×1 if not cached)
+        var (width, height) = _itemDimensions.GetValueOrDefault(itemId, (1, 1));
 
-    /// <summary>
-    /// Clears the item icon from a cell (when cell becomes empty).
-    /// </summary>
-    private void ClearItemIcon(Panel cell)
-    {
-        var icon = cell.GetNodeOrNull<ColorRect>("ItemIcon");
-        if (icon != null)
+        // PHASE 2: Render TextureRect sprite if TileSet available
+        if (_itemTileSet != null)
         {
-            icon.QueueFree();
+            var atlasSource = _itemTileSet.GetSource(0) as TileSetAtlasSource;
+            if (atlasSource != null)
+            {
+                // Calculate pixel position and size
+                // WHY: Grid has 2px separation, account for gaps
+                int separationX = 2;
+                int separationY = 2;
+                float pixelX = origin.X * (CellSize + separationX);
+                float pixelY = origin.Y * (CellSize + separationY);
+                float pixelWidth = width * CellSize + (width - 1) * separationX;
+                float pixelHeight = height * CellSize + (height - 1) * separationY;
+
+                // Create AtlasTexture for this specific tile (VS_009 pattern)
+                var tileCoords = new Vector2I(item.AtlasX, item.AtlasY);
+                var region = atlasSource.GetTileTextureRegion(tileCoords);
+
+                var atlasTexture = new AtlasTexture
+                {
+                    Atlas = atlasSource.Texture,
+                    Region = region
+                };
+
+                var textureRect = new TextureRect
+                {
+                    Name = $"Item_{itemId.Value}",
+                    Texture = atlasTexture, // Use AtlasTexture wrapper
+                    TextureFilter = CanvasItem.TextureFilterEnum.Nearest, // Pixel-perfect rendering
+                    StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
+                    ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+                    CustomMinimumSize = new Vector2(pixelWidth, pixelHeight),
+                    Position = new Vector2(pixelX, pixelY),
+                    MouseFilter = MouseFilterEnum.Ignore // Grid cells handle input
+                };
+
+                _itemOverlayContainer?.AddChild(textureRect);
+
+                _logger.LogDebug("Rendered {ItemName} at ({X},{Y}) with size {W}×{H}",
+                    item.Name, origin.X, origin.Y, width, height);
+            }
+        }
+        else
+        {
+            // FALLBACK: Phase 1 ColorRect rendering (no TileSet assigned)
+            var colorRect = new ColorRect
+            {
+                Name = $"Item_{itemId.Value}_Fallback",
+                Color = GetItemColorFallback(item.Name),
+                CustomMinimumSize = new Vector2(width * CellSize * 0.9f, height * CellSize * 0.9f),
+                Position = new Vector2(origin.X * CellSize + CellSize * 0.05f, origin.Y * CellSize + CellSize * 0.05f),
+                MouseFilter = MouseFilterEnum.Ignore
+            };
+
+            _itemOverlayContainer?.AddChild(colorRect);
         }
     }
 
     /// <summary>
-    /// Assigns a unique color to each item based on its name.
-    /// WHY: Visual distinction - dagger vs ray_gun get different colors.
+    /// Fallback color coding when TileSet not available (Phase 1 compatibility).
     /// </summary>
-    private Color GetItemColor(string itemName)
+    private Color GetItemColorFallback(string itemName)
     {
-        // Per-item color assignment (unique color for each item, not type)
         return itemName switch
         {
             "dagger" => new Color(0.4f, 0.6f, 1.0f),      // Light blue
