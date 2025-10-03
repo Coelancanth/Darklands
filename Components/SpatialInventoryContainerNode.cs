@@ -84,6 +84,11 @@ public partial class SpatialInventoryContainerNode : Control
     private Dictionary<ItemId, (int Width, int Height)> _itemDimensions = new(); // Cache item dimensions (Phase 2)
     private Dictionary<ItemId, Rotation> _itemRotations = new(); // Cache item rotations (Phase 3)
 
+    // PHASE 3: Drag-time rotation state
+    private Rotation _currentDragRotation = default(Darklands.Core.Domain.Common.Rotation); // Rotation during active drag
+    private bool _isDragging = false; // Track if drag is active
+    private ItemId? _draggingItemId = null; // Track which item is being dragged
+
     // TileSet atlas coordinates for drag highlight sprites
     private static readonly Vector2I HIGHLIGHT_GREEN_COORDS = new(1, 6);
     private static readonly Vector2I HIGHLIGHT_RED_COORDS = new(1, 7);
@@ -165,35 +170,27 @@ public partial class SpatialInventoryContainerNode : Control
             {
                 // Left mouse button released - drag ended (successful or rejected)
                 ClearDragHighlights();
+                _isDragging = false; // Reset drag state
+                _draggingItemId = null;
             }
 
-            // PHASE 3: Mouse scroll to rotate items
-            // WHY: Scroll up = clockwise, scroll down = counter-clockwise
-            if (mouseButton.ButtonIndex == MouseButton.WheelUp || mouseButton.ButtonIndex == MouseButton.WheelDown)
+            // PHASE 3: Mouse scroll during drag to rotate item
+            // WHY: Rotate while dragging (Tetris/Diablo UX pattern)
+            if (_isDragging && (mouseButton.ButtonIndex == MouseButton.WheelDown || mouseButton.ButtonIndex == MouseButton.WheelUp))
             {
-                // Get mouse position relative to this container
-                var localMousePos = GetLocalMousePosition();
-                var gridPos = PixelToGridPosition(localMousePos);
+                // Calculate new rotation (scroll DOWN = clockwise, scroll UP = counter-clockwise)
+                var newRotation = mouseButton.ButtonIndex == MouseButton.WheelDown
+                    ? RotationHelper.RotateClockwise(_currentDragRotation)
+                    : RotationHelper.RotateCounterClockwise(_currentDragRotation);
 
-                if (gridPos != null && _itemsAtPositions.TryGetValue(gridPos.Value, out var itemId))
-                {
-                    // Get current rotation
-                    var currentRotation = _itemRotations.TryGetValue(itemId, out var rot) ? rot : default(Darklands.Core.Domain.Common.Rotation);
+                _logger.LogInformation("🔄 Rotating drag preview: {OldRotation} → {NewRotation} (scroll {Direction})",
+                    _currentDragRotation, newRotation,
+                    mouseButton.ButtonIndex == MouseButton.WheelDown ? "DOWN" : "UP");
 
-                    // Calculate new rotation (scroll up = clockwise, scroll down = counter-clockwise)
-                    var newRotation = mouseButton.ButtonIndex == MouseButton.WheelUp
-                        ? RotationHelper.RotateClockwise(currentRotation)
-                        : RotationHelper.RotateCounterClockwise(currentRotation);
+                _currentDragRotation = newRotation;
 
-                    _logger.LogInformation("Rotating item {ItemId} from {OldRotation} to {NewRotation}",
-                        itemId, currentRotation, newRotation);
-
-                    // Send rotation command
-                    RotateItemAsync(itemId, newRotation);
-
-                    // Consume the event to prevent scrolling the container
-                    GetViewport().SetInputAsHandled();
-                }
+                // Consume the event to prevent scrolling the container
+                GetViewport().SetInputAsHandled();
             }
         }
     }
@@ -223,8 +220,16 @@ public partial class SpatialInventoryContainerNode : Control
         // Get item origin position (top-left) for drag data
         // WHY: Commands operate on origin positions, not clicked cell positions
         var origin = _itemOrigins[itemId];
-        _logger.LogInformation("Starting drag: Item {ItemId} from {Container} at origin ({X}, {Y}) (clicked cell: {ClickX}, {ClickY})",
-            itemId, ContainerTitle, origin.X, origin.Y, gridPos.Value.X, gridPos.Value.Y);
+
+        // PHASE 3: Initialize drag rotation from item's current rotation
+        _currentDragRotation = _itemRotations.TryGetValue(itemId, out var currentRot)
+            ? currentRot
+            : default(Darklands.Core.Domain.Common.Rotation);
+        _isDragging = true;
+        _draggingItemId = itemId;
+
+        _logger.LogInformation("🎯 Starting drag: Item {ItemId} from {Container} at origin ({X}, {Y}) with rotation {Rotation}",
+            itemId, ContainerTitle, origin.X, origin.Y, _currentDragRotation);
 
         // Create drag preview with item name (visual feedback)
         string itemName = _itemNames.GetValueOrDefault(itemId, "Item");
@@ -305,11 +310,11 @@ public partial class SpatialInventoryContainerNode : Control
 
         var itemId = new ItemId(itemIdGuid);
 
-        // Get dimensions - check cache first, query if not found (cross-container drag)
-        int itemWidth, itemHeight;
+        // Get BASE dimensions - check cache first, query if not found (cross-container drag)
+        int baseItemWidth, baseItemHeight;
         if (_itemDimensions.TryGetValue(itemId, out var cachedDimensions))
         {
-            (itemWidth, itemHeight) = cachedDimensions;
+            (baseItemWidth, baseItemHeight) = cachedDimensions;
         }
         else
         {
@@ -320,15 +325,21 @@ public partial class SpatialInventoryContainerNode : Control
 
             if (itemResult.IsSuccess)
             {
-                itemWidth = itemResult.Value.InventoryWidth;
-                itemHeight = itemResult.Value.InventoryHeight;
+                baseItemWidth = itemResult.Value.InventoryWidth;
+                baseItemHeight = itemResult.Value.InventoryHeight;
             }
             else
             {
                 // Fallback if query fails
-                (itemWidth, itemHeight) = (1, 1);
+                (baseItemWidth, baseItemHeight) = (1, 1);
             }
         }
+
+        // PHASE 3: Calculate effective dimensions after rotation
+        var (itemWidth, itemHeight) = RotationHelper.GetRotatedDimensions(baseItemWidth, baseItemHeight, _currentDragRotation);
+
+        _logger.LogDebug("🔄 Item dimensions: base {BaseW}×{BaseH}, rotated ({Rotation}°) = {W}×{H}",
+            baseItemWidth, baseItemHeight, (int)_currentDragRotation, itemWidth, itemHeight);
 
         // Override dimensions for equipment slots (matches placement handler logic)
         bool isEquipmentSlot = _containerType == ContainerType.WeaponOnly;
@@ -422,10 +433,18 @@ public partial class SpatialInventoryContainerNode : Control
 
     public override void _DropData(Vector2 atPosition, Variant data)
     {
-        _logger.LogInformation("_DropData called at position ({X}, {Y})", atPosition.X, atPosition.Y);
+        _logger.LogInformation("_DropData called at position ({X}, {Y}) with rotation {Rotation}",
+            atPosition.X, atPosition.Y, _currentDragRotation);
 
         // Phase 2.4: Clear highlights after drop (will be refreshed after move completes)
         ClearDragHighlights();
+
+        // PHASE 3: Capture rotation before resetting drag state
+        var dropRotation = _currentDragRotation;
+
+        // Reset drag state
+        _isDragging = false;
+        _draggingItemId = null;
 
         var dragData = data.AsGodotDictionary();
         var itemIdGuidStr = dragData["itemIdGuid"].AsString();
@@ -463,18 +482,18 @@ public partial class SpatialInventoryContainerNode : Control
             var sourceY = dragData["sourceY"].AsInt32();
             var sourcePos = new GridPosition(sourceX, sourceY);
 
-            _logger.LogInformation("Initiating safe swap: {ItemA} ↔ {ItemB}",
-                itemId, targetItemId);
+            _logger.LogInformation("Initiating safe swap: {ItemA} ↔ {ItemB} with rotation {Rotation}",
+                itemId, targetItemId, dropRotation);
 
-            SwapItemsSafeAsync(sourceActorId, itemId, sourcePos, OwnerActorId!.Value, targetItemId, targetPos.Value);
+            SwapItemsSafeAsync(sourceActorId, itemId, sourcePos, OwnerActorId!.Value, targetItemId, targetPos.Value, dropRotation);
         }
         else
         {
             // REGULAR MOVE: Position is free
-            _logger.LogInformation("Drop confirmed: Moving item {ItemId} to ({X}, {Y})",
-                itemId, targetPos.Value.X, targetPos.Value.Y);
+            _logger.LogInformation("Drop confirmed: Moving item {ItemId} to ({X}, {Y}) with rotation {Rotation}",
+                itemId, targetPos.Value.X, targetPos.Value.Y, dropRotation);
 
-            MoveItemAsync(sourceActorId, itemId, targetPos.Value);
+            MoveItemAsync(sourceActorId, itemId, targetPos.Value, dropRotation);
         }
     }
 
@@ -953,11 +972,12 @@ public partial class SpatialInventoryContainerNode : Control
         GridPosition sourcePos,
         ActorId targetActorId,
         ItemId targetItemId,
-        GridPosition targetPos)
+        GridPosition targetPos,
+        Rotation rotation) // PHASE 3: Rotation for dragged item
     {
-        _logger.LogInformation("SAFE SWAP: {SourceItem} @ ({SourceX},{SourceY}) ↔ {TargetItem} @ ({TargetX},{TargetY})",
+        _logger.LogInformation("SAFE SWAP: {SourceItem} @ ({SourceX},{SourceY}) ↔ {TargetItem} @ ({TargetX},{TargetY}) with rotation {Rotation}",
             sourceItemId, sourcePos.X, sourcePos.Y,
-            targetItemId, targetPos.X, targetPos.Y);
+            targetItemId, targetPos.X, targetPos.Y, rotation);
 
         // STEP 1: Remove both items (hold in memory for rollback)
         var removeSourceCmd = new RemoveItemCommand(sourceActorId, sourceItemId);
@@ -1010,7 +1030,7 @@ public partial class SpatialInventoryContainerNode : Control
         EmitSignal(SignalName.InventoryChanged);
     }
 
-    private async void MoveItemAsync(ActorId sourceActorId, ItemId itemId, GridPosition targetPos)
+    private async void MoveItemAsync(ActorId sourceActorId, ItemId itemId, GridPosition targetPos, Rotation rotation)
     {
         if (OwnerActorId == null)
             return;
@@ -1019,7 +1039,8 @@ public partial class SpatialInventoryContainerNode : Control
             sourceActorId,
             OwnerActorId.Value,
             itemId,
-            targetPos);
+            targetPos,
+            rotation); // PHASE 3: Pass rotation from drag-drop
 
         var result = await _mediator.Send(command);
 

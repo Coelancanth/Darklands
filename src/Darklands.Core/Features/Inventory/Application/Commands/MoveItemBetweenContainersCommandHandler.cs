@@ -157,7 +157,8 @@ public sealed class MoveItemBetweenContainersCommandHandler
                 command.ItemId,
                 command.TargetPosition,
                 placementWidth,
-                placementHeight);
+                placementHeight,
+                command.Rotation); // PHASE 3: Apply rotation from command
 
             if (placeResult.IsFailure)
                 return placeResult;
