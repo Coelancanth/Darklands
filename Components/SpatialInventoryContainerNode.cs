@@ -1152,13 +1152,10 @@ public partial class SpatialInventoryContainerNode : Control
                     CustomMinimumSize = new Vector2(CellSize, CellSize),
                     Position = new Vector2(pixelX, pixelY),
                     MouseFilter = MouseFilterEnum.Ignore,
-                    // PHASE 3 FIX: More transparent highlights (0.4 = 40% opacity) so items show through clearly
-                    Modulate = new Color(1, 1, 1, 0.4f),
-                    // Use Show Behind Parent to force rendering behind
-                    ShowBehindParent = true,
-                    // Absolute Z below items
-                    ZAsRelative = false,
-                    ZIndex = -1  // Negative Z to force background rendering
+                    // PHASE 3 FIX: Semi-transparent (0.5 = 50% opacity) for subtle glow
+                    // NOTE: Removed ShowBehindParent (made highlights invisible!) and ZIndex tweaks
+                    // Container sibling order handles layering (highlight overlay added before item overlay)
+                    Modulate = new Color(1, 1, 1, 0.5f)
                 };
 
                 _highlightOverlayContainer.AddChild(highlight);
