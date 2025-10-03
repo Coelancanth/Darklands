@@ -993,28 +993,34 @@ public partial class SpatialInventoryContainerNode : Control
         ItemShape rotatedShape;
         if (_itemShapes.TryGetValue(itemId, out var baseShape))
         {
-            // Apply rotation to shape (L-shapes rotate correctly!)
+            // Shape in cache: Use it directly
             rotatedShape = baseShape;
-            for (int i = 0; i < ((int)rotation / 90); i++)
-            {
-                var rotResult = rotatedShape.RotateClockwise();
-                if (rotResult.IsSuccess)
-                    rotatedShape = rotResult.Value;
-            }
         }
         else
         {
-            // Fallback: Create rectangle from cached dimensions
-            var (width, height) = _itemDimensions.GetValueOrDefault(itemId, (1, 1));
-            rotatedShape = ItemShape.CreateRectangle(width, height).Value;
+            // Cross-container drag: Item not in cache, fetch from repository
+            var itemQuery = new GetItemByIdQuery(itemId);
+            var itemResult = _mediator.Send(itemQuery).Result; // Blocking OK for highlight rendering
 
-            // Apply rotation
-            for (int i = 0; i < ((int)rotation / 90); i++)
+            if (itemResult.IsSuccess)
             {
-                var rotResult = rotatedShape.RotateClockwise();
-                if (rotResult.IsSuccess)
-                    rotatedShape = rotResult.Value;
+                // PHASE 4: ItemDto now exposes Shape - use it for accurate L/T-shape highlighting!
+                rotatedShape = itemResult.Value.Shape;
             }
+            else
+            {
+                // Ultimate fallback if query fails
+                rotatedShape = ItemShape.CreateRectangle(1, 1).Value;
+                _logger.LogWarning("Failed to fetch item {ItemId} for highlight rendering, using 1×1 fallback", itemId);
+            }
+        }
+
+        // Apply rotation to shape
+        for (int i = 0; i < ((int)rotation / 90); i++)
+        {
+            var rotResult = rotatedShape.RotateClockwise();
+            if (rotResult.IsSuccess)
+                rotatedShape = rotResult.Value;
         }
 
         // Render highlight sprite for ONLY occupied cells (not bounding box!)

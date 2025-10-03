@@ -38,7 +38,8 @@ public class GetAllItemsQueryHandler : IRequestHandler<GetAllItemsQuery, Result<
                     item.InventoryWidth,
                     item.InventoryHeight,
                     item.MaxStackSize,
-                    item.IsStackable))
+                    item.IsStackable,
+                    item.Shape)) // PHASE 4: Include shape
                 .ToList());
 
         if (result.IsSuccess)
