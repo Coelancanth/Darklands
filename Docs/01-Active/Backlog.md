@@ -134,113 +134,143 @@
 
 ---
 
-### TD_003: Separate Equipment Slots from Spatial Inventory Container
+### TD_003: Separate Equipment Slots from Spatial Inventory Container 🔄
 
-**Status**: ✅ APPROVED (2025-10-04) - Ready for Dev Engineer
+**Status**: ✅ APPROVED (2025-10-04, **REFINED POST-TD_004**) - Ready for Dev Engineer
 **Owner**: Tech Lead → Dev Engineer
-**Size**: L (12-16h realistic estimate)
-**Priority**: Important (Component Reusability + Complexity Reduction)
+**Size**: M (8-12h realistic estimate, **REDUCED** from 12-16h after TD_004)
+**Priority**: Important (Component Reusability + Single Responsibility)
 **Depends On**: None (can start immediately)
-**Markers**: [ARCHITECTURE] [SEPARATION-OF-CONCERNS] [COMPONENT-DESIGN]
+**Markers**: [ARCHITECTURE] [SEPARATION-OF-CONCERNS] [COMPONENT-DESIGN] [POST-TD_004-REFINED]
 
 **What**: Refactor `SpatialInventoryContainerNode` into two separate components: `InventoryContainerNode` (Tetris grid) and `EquipmentSlotNode` (single-item swap)
 
-**Why** (Component Reusability - VALID):
-- **Reusability**: Character sheet needs 6 equipment slots - current design forces each to carry 800 lines of dead Tetris code
-- **Single Responsibility Violation**: One class handles TWO different UI patterns (Tetris grid + Diablo 2 swap)
-- **Future Features Blocked**: Cannot add helmet/chest/ring slots without instantiating 1372-line God Class
-- **Complexity**: Equipment slot special cases scattered (4 `if (isEquipmentSlot)` branches in different methods)
+**Why** (JUSTIFICATION UPDATED after TD_004 analysis):
 
-**How** (Implementation Plan):
-- **EquipmentSlotNode** (Single-item swap, ~400 lines) - **Build FIRST**:
-  - Always 1×1 logical placement (ignores item's actual shape)
-  - Swap-only UX (no collision check, always valid if type matches)
-  - Centered sprite rendering (items appear centered regardless of size)
-  - Single-cell highlight (always green 1×1, never red)
-  - Simpler drag-drop (no rotation, no cross-container complexity)
+**🔍 CRITICAL DISCOVERY**: TD_004 already moved 500+ lines of business logic to Core!
+- Presentation now has ONLY 3 equipment-specific conditionals (lines 482, 870-893, 927)
+- Business logic (1×1 override, swap, centering) already in Core queries/commands
+- **Separation justification shifted from "remove complexity" to "reusability + focused components"**
 
-- **InventoryContainerNode** (Tetris grid, ~800 lines) - **Extract SECOND**:
-  - Multi-cell placement with L-shape collision
-  - Rotation support via scroll wheel
-  - Cross-container drag-drop
-  - Highlight rendering (full shape, green/red validation)
-  - Remove ALL `if (isEquipmentSlot)` branches (grep returns 0)
+**PRIMARY: Component Reusability** (Character Sheet Requirement)
+- Character sheet needs 6 equipment slots (helmet, chest, weapon, shield, ring×2)
+- Current: 6 instances × 1293 lines = **7758 lines loaded** for simple swap UX
+- After: 6 instances × ~400 lines = **2400 lines** (saves **5358 lines** of dead code!)
+- Equipment slots are core roguelike feature (NOT YAGNI - required for MVP)
 
-- **Shared Base Class** (Optional, evaluate during implementation):
-  - Drag preview creation (atlas texture loading)
-  - Common properties (CellSize, ItemTileSet, Mediator)
-  - Decision: Only extract if duplication >100 lines
+**SECONDARY: Single Responsibility Principle**
+- **Equipment Slot** (Diablo 2 pattern): Swap-only UX, type filter, centered display, NO rotation
+- **Inventory Grid** (Tetris pattern): Multi-cell placement, rotation, L-shape collision, cross-container drag
+- These are fundamentally different interaction patterns (like Button vs LineEdit)
 
-**Tech Lead Decision** (2025-10-04): **APPROVED - Component Design Pattern**
+**How** (REFINED Implementation - Avoids Duplication):
 
-**Approval Rationale** (Reversed from initial rejection):
+**Phase 1: Create EquipmentSlotNode from Scratch (3-4h)**
+- Build NEW component (don't copy-delete from existing - cleaner approach!)
+- Features:
+  - Simplified drag-drop (no rotation handling, no cross-container mouse warp hack)
+  - Swap detection → `SwapItemsCommand` (Core handles ALL business logic)
+  - Centered sprite scaling → `GetItemRenderPositionQuery` (Core provides centering rule)
+  - 1×1 highlight → `CalculateHighlightCellsQuery` (Core provides cells)
+- Result: ~400 lines, swap-focused
 
-1. **Reusability is the Real Justification** ✅
-   - Character sheet needs 6 equipment slots (helmet, chest, weapon, shield, ring×2)
-   - Current approach: 6 instances × 1372 lines = 8232 lines loaded for simple swap UX
-   - After separation: 6 instances × 400 lines = 2400 lines (saves 5832 lines of dead code)
-   - **This isn't premature optimization - it's proper component design**
+**Phase 2: Extract InventoryRenderHelper (2-3h)** ⭐ NEW STEP
+- Create static helper class: `Components/Inventory/InventoryRenderHelper.cs`
+- Extract shared rendering methods (~200 lines):
+  - `RenderItemSprite(item, position, cellSize, shouldCenter)` - Sprite scaling + rotation
+  - `CreateDragPreview(item, rotation)` - AtlasTexture setup
+  - `RenderHighlight(cells, isValid, cellSize)` - Green/red highlights
+- **BOTH components call helper** → ZERO duplication!
 
-2. **Single Responsibility Principle** ✅
-   - Equipment Slot: Type validation, swap, centered display
-   - Inventory Grid: Spatial placement, rotation, L-shape collision
-   - These are as different as `Button` vs `LineEdit` - don't unify them!
+**Phase 3: Clean InventoryContainerNode (1-2h)**
+- Remove equipment slot conditionals (lines 482, 870-893, 927 - only 3!)
+- Rename: `SpatialInventoryContainerNode.cs` → `InventoryContainerNode.cs`
+- Update rendering to use `InventoryRenderHelper`
+- Result: ~800 lines, Tetris-focused
 
-3. **Testing Benefits** ✅
-   - Equipment tests: Swap rollback, type filtering, centering (simple, focused)
-   - Inventory tests: Multi-cell placement, rotation, cross-container drag (complex, isolated)
-   - Current: Every test runs through BOTH code paths (confusing, slow)
+**Phase 4: Documentation & Testing (2-3h)**
+- Update test scene: weapon slot uses `EquipmentSlotNode`
+- Regression: All 359 tests GREEN + manual drag-drop validation
+- Documentation: Update component selection guide
 
-4. **Cost is Justified** 💰
-   - Realistic estimate: 12-16h (includes test scene updates, regression testing, docs)
-   - Benefit: Future character sheet feature becomes trivial (drop 6 EquipmentSlotNodes in scene)
-   - ROI: Every future equipment feature gets simpler, faster to test
+**Tech Lead Decision** (2025-10-04, POST-TD_004): **APPROVED - Reusability Justification**
 
-5. **Initial Rejection Was Wrong** 🙏
-   - I focused on "bug fixing" instead of "component design"
-   - User's challenge was correct: These should be separate reusable nodes
-   - **Lesson learned**: YAGNI doesn't apply when designing reusable UI components
+**Ultra-Refined Approval Rationale**:
 
-**Implementation Approach** (Recommended Order):
+1. **TD_004 Changed the Landscape** 🔍
+   - Business logic moved to Core: `CalculateHighlightCellsQuery`, `SwapItemsCommand`, `GetItemRenderPositionQuery`
+   - Presentation has ONLY 3 equipment-specific paths (down from 7+ before TD_004!)
+   - **Separation no longer about complexity** - it's about **reusability + focused components**
 
-**Phase 1: Extract EquipmentSlotNode (4-6h)**
-1. Copy SpatialInventoryContainerNode → EquipmentSlotNode.cs
-2. Delete ALL Tetris-specific code (rotation, multi-cell, highlights)
-3. Simplify to: 1×1 swap, centered sprite, type validation only
-4. Update test scene: Replace weapon slot with new EquipmentSlotNode
-5. Manual test: Swap dagger ↔ ray_gun
-6. Commit: `refactor(inventory): Extract EquipmentSlotNode for reusability [TD_003 Phase 1/2]`
+2. **Reusability is CRITICAL** ✅
+   - 6 equipment slots × 1293 lines = 7758 lines (current design - wasteful!)
+   - 6 equipment slots × 400 lines = 2400 lines (after separation - efficient!)
+   - **Saves 5358 lines of dead Tetris code** in character sheet
+   - Equipment is core roguelike feature (not speculative future work)
 
-**Phase 2: Clean InventoryContainerNode (4-6h)**
-1. Delete ALL equipment slot special cases from SpatialInventoryContainerNode
-2. Rename file: SpatialInventoryContainerNode.cs → InventoryContainerNode.cs
-3. Update backpack test scene: Use new InventoryContainerNode name
-4. Verify: `grep -r "isEquipmentSlot" Components/` returns 0 results
-5. Commit: `refactor(inventory): Remove equipment logic from InventoryContainerNode [TD_003 Phase 2/2]`
+3. **Single Responsibility Still Valid** ✅
+   - Equipment slots don't need: rotation, multi-cell collision, cross-container drag hacks
+   - Inventory grids don't need: swap logic, centering rules, 96px cells
+   - Currently: BOTH paths in same 1293-line file (confusing for maintenance)
 
-**Phase 3: Documentation & Cleanup (2-4h)**
-1. Update ADR-002 (or create ADR-006): "Equipment Slot vs Inventory Grid Component Separation"
-2. Update HANDBOOK: Component selection guide (when to use which)
-3. Update Memory Bank (dev-engineer.md): Reusability pattern example
-4. Regression test ALL inventory features (manual + 359 automated tests)
+4. **Duplication Risk MITIGATED** 🛡️
+   - `InventoryRenderHelper` shares ~200 lines of rendering logic
+   - No base class needed (static helper simpler than inheritance)
+   - Equipment and Inventory call same helper methods (DRY maintained)
+
+5. **Estimate REDUCED** 💰
+   - **Before TD_004**: 12-16h (included extracting business logic)
+   - **After TD_004**: 8-12h (business logic already in Core!)
+   - Benefit: Character sheet becomes trivial, testing simplified
+
+**Implementation Checklist** (Dev Engineer):
+
+**✅ Phase 1: Create EquipmentSlotNode (3-4h)**
+- [ ] Create `Components/Inventory/EquipmentSlotNode.cs` (~400 lines, build from scratch)
+- [ ] Implement: Drag-drop (swap-only), centered rendering, type validation
+- [ ] Call Core queries: `CalculateHighlightCellsQuery`, `SwapItemsCommand`, `GetItemRenderPositionQuery`
+- [ ] NO rotation, NO multi-cell, NO cross-container complexity
+- [ ] Commit: `refactor(inventory): Create EquipmentSlotNode for reusability [TD_003 Phase 1/4]`
+
+**✅ Phase 2: Extract InventoryRenderHelper (2-3h)**
+- [ ] Create `Components/Inventory/InventoryRenderHelper.cs` (static class, ~200 lines)
+- [ ] Extract methods: `RenderItemSprite`, `CreateDragPreview`, `RenderHighlight`
+- [ ] Update `EquipmentSlotNode` to use helper
+- [ ] Commit: `refactor(inventory): Extract InventoryRenderHelper for DRY [TD_003 Phase 2/4]`
+
+**✅ Phase 3: Clean InventoryContainerNode (1-2h)**
+- [ ] Delete equipment conditionals (lines 482, 870-893, 927)
+- [ ] Update rendering to use `InventoryRenderHelper`
+- [ ] Rename: `SpatialInventoryContainerNode.cs` → `InventoryContainerNode.cs`
+- [ ] Verify: `grep "isEquipmentSlot" Components/Inventory/InventoryContainerNode.cs` returns 0
+- [ ] Commit: `refactor(inventory): Remove equipment logic from InventoryContainerNode [TD_003 Phase 3/4]`
+
+**✅ Phase 4: Documentation & Testing (2-3h)**
+- [ ] Update test scene: weapon slot uses `EquipmentSlotNode`
+- [ ] Manual test: Swap dagger ↔ ray_gun, drag across containers
+- [ ] Regression: `./scripts/core/build.ps1 test` (all 359 tests GREEN)
+- [ ] Update component selection guide (when to use EquipmentSlotNode vs InventoryContainerNode)
+- [ ] Commit: `docs(inventory): Update component selection guide [TD_003 Phase 4/4]`
 
 **Done When**:
-- ✅ EquipmentSlotNode exists (~400 lines, focused on swap UX)
-- ✅ InventoryContainerNode cleaned (~800 lines, zero equipment special cases)
-- ✅ All 359 tests GREEN (backward compatibility)
-- ✅ Test scene uses EquipmentSlotNode for weapon slot (manual test passes)
-- ✅ Grep for "isEquipmentSlot" in Components/ returns 0 results
-- ✅ Documentation updated (ADR + HANDBOOK + Memory Bank)
+- ✅ `EquipmentSlotNode` exists (~400 lines, swap-focused)
+- ✅ `InventoryRenderHelper` exists (~200 lines, shared rendering)
+- ✅ `InventoryContainerNode` cleaned (~800 lines, Tetris-focused)
+- ✅ Test scene uses `EquipmentSlotNode` for weapon slot
+- ✅ All 359 tests GREEN + manual drag-drop validation passes
+- ✅ `grep "isEquipmentSlot" InventoryContainerNode.cs` returns 0
+- ✅ Documentation updated (component selection guide)
 
 **Risk Mitigation**:
-- ⚠️ Test scene breakage: Update scenes incrementally (weapon slot first, then backpack)
-- ⚠️ Drag-drop regression: Extensive manual testing after each phase
-- ⚠️ Shared code duplication: Only extract base class if >100 lines duplicated
+- ⚠️ Duplication: `InventoryRenderHelper` shares rendering logic (DRY maintained)
+- ⚠️ Test scene breakage: Update incrementally (weapon slot first, verify, then backpacks)
+- ⚠️ Regression: Extensive manual testing + 359 automated tests
 
 **Success Metrics**:
-- Character sheet feature becomes trivial (drop EquipmentSlotNodes in scene editor)
-- Equipment slot bugs isolated to 400-line file (not 1372-line God Class)
-- Each component testable independently (faster test cycles)
+- Character sheet becomes trivial (drop 6 `EquipmentSlotNode`s in scene editor)
+- Memory footprint reduced (5358 lines saved for equipment-heavy UIs)
+- Component responsibilities clear (swap vs Tetris placement)
+- Testing simplified (equipment tests isolated from inventory tests)
 
 ## 💡 Ideas (Future Work)
 *Future features, nice-to-haves, deferred work*
