@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-04 16:31 (Dev Engineer: VS_007 Phase 2 complete - Application layer (Commands, Queries, Events, EventHandlers) with 13 tests)
+**Last Updated**: 2025-10-04 17:08 (Dev Engineer: VS_007 Phase 3 complete - Infrastructure (TurnQueueRepository, PlayerContext) + DI registration, 359 tests GREEN)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -83,7 +83,7 @@
 
 ### VS_007: Time-Unit Turn Queue System ⭐ **IN PROGRESS**
 
-**Status**: Phase 2 Complete (Application) - Commands, Queries, Events + 49 total tests
+**Status**: Phase 3 Complete (Infrastructure) - TurnQueueRepository, PlayerContext + DI registration, 359 tests GREEN
 **Owner**: Dev Engineer (implementing phases)
 **Size**: L (2-3 days, all 4 phases)
 **Priority**: Critical (foundation for combat system)
@@ -311,6 +311,53 @@ Exploration → Combat Detection → Reinforcement → Victory
 - Tests: 3 test classes + 2 test infrastructure classes
 
 **Next**: Phase 3 (Infrastructure) - TurnQueueRepository implementation, DI registration
+
+**Phase 3 Progress** (2025-10-04 17:08):
+
+✅ **Infrastructure Layer Complete** (359 tests GREEN, zero regressions):
+
+**Repository Pattern** (Following InMemoryInventoryRepository pattern):
+- `InMemoryTurnQueueRepository`: Singleton with lazy initialization
+- `InitializeWithPlayer(ActorId)`: Explicit player ID injection (test scenes call in _Ready())
+- Auto-creates TurnQueue on first `GetAsync()` with player pre-scheduled at time=0
+- Thread-safe locks for future-proofing (single-threaded game for MVP)
+- `Reset()` method for test cleanup (internal)
+
+**Player Context Service** (NEW - Solves dependency problem):
+- **Problem**: EnemyDetectionEventHandler needs player ID to filter FOV events (only respond to player's vision)
+- **Solution**: `IPlayerContext` / `PlayerContext` provides "who is the player?" globally
+- `SetPlayerId(ActorId)`: Explicit initialization (test scenes call in _Ready())
+- `GetPlayerId()`: Returns Result<ActorId> (fail-fast if not initialized)
+- `IsPlayer(ActorId)`: Convenience method for filtering
+- Future-proof: Can extend to support party-based gameplay
+
+**DI Registration** (GameStrapper):
+- `ITurnQueueRepository` → `InMemoryTurnQueueRepository` (singleton)
+- `IPlayerContext` → `PlayerContext` (singleton)
+- MediatR assembly scan auto-registers `EnemyDetectionEventHandler` (zero manual wiring)
+
+**Event Handler Integration**:
+- `EnemyDetectionEventHandler`: Injected `IPlayerContext`, removed TODO placeholder
+- Now properly filters FOV events: `if (!_playerContext.IsPlayer(notification.ActorId)) return;`
+- FOVCalculatedEvent → EnemyDetectionEventHandler works automatically (MediatR bridge)
+
+**Design Principles**:
+- Single Source of Truth: TurnQueue/PlayerContext are SSOT (no state duplication)
+- Explicit Dependencies: Initialization required, fail-fast if missing
+- Repository Pattern: Consistent with existing InMemoryInventoryRepository
+- Clean Architecture: Zero business logic in Infrastructure (delegates to Domain)
+- Future-Proof: Ready for SQLite/JSON persistence (just swap implementation)
+
+**Files Created** (3 files):
+- `src/Darklands.Core/Features/Combat/Infrastructure/InMemoryTurnQueueRepository.cs`
+- `src/Darklands.Core/Application/IPlayerContext.cs`
+- `src/Darklands.Core/Infrastructure/PlayerContext.cs`
+
+**Files Modified** (2 files):
+- `GameStrapper.cs`: Added DI registrations
+- `EnemyDetectionEventHandler.cs`: Injected IPlayerContext
+
+**Next**: Phase 4 (Presentation) - Input routing based on combat mode, test scene initialization
 
 ---
 
