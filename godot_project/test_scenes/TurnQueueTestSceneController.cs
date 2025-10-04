@@ -618,7 +618,7 @@ public partial class TurnQueueTestSceneController : Node2D
             // COMBAT MODE: Single-step movement toward target (tactical)
             _logger.LogInformation("⚔️ Combat mode active - single-step movement toward ({TargetX}, {TargetY})", target.X, target.Y);
 
-            // Calculate single step toward target (A* with depth=1)
+            // Calculate single step toward target (A* pathfinding)
             var pathResult = _pathfindingService.FindPath(currentPos, target, pos => IsPassable(pos), pos => 1);
             if (pathResult.IsFailure || pathResult.Value.Count == 0)
             {
@@ -626,8 +626,15 @@ public partial class TurnQueueTestSceneController : Node2D
                 return;
             }
 
-            // Take only first step
-            var nextStep = pathResult.Value[0];
+            // Path includes current position at [0], so take [1] for next step
+            // If path.Count == 1, we're already at target (shouldn't happen, checked above)
+            if (pathResult.Value.Count < 2)
+            {
+                _logger.LogDebug("Already at target position in combat mode");
+                return;
+            }
+
+            var nextStep = pathResult.Value[1]; // Skip current position
             _logger.LogInformation("Moving to ({NextX}, {NextY}) [1 step]", nextStep.X, nextStep.Y);
 
             var moveResult = await _mediator.Send(new MoveActorCommand(actorId, nextStep));

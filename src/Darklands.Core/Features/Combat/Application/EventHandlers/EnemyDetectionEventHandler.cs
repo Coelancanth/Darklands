@@ -64,11 +64,10 @@ public class EnemyDetectionEventHandler : INotificationHandler<FOVCalculatedEven
             "Processing FOV event for player: {VisibleCount} positions visible",
             notification.VisiblePositions.Count);
 
-        // GetVisibleActorsQuery recalculates FOV, but FOVCalculatedEvent already contains visible positions
-        // For MVP, use a large radius to ensure we catch all actors the player can see
-        // TODO Phase 3: Optimize by using FOVCalculatedEvent.VisiblePositions directly
-        const int defaultVisionRadius = 20; // Large enough for MVP
-        var visibleActorsQuery = new GetVisibleActorsQuery(notification.ActorId, defaultVisionRadius);
+        // Use the SAME vision radius as FOV calculation (8 tiles per MoveActorCommandHandler)
+        // TODO: Make vision radius configurable per actor, then both can use the same constant
+        const int visionRadius = 8; // Must match MoveActorCommandHandler FOV radius
+        var visibleActorsQuery = new GetVisibleActorsQuery(notification.ActorId, visionRadius);
         var visibleActorsResult = await _mediator.Send(visibleActorsQuery, cancellationToken);
 
         if (visibleActorsResult.IsFailure)
