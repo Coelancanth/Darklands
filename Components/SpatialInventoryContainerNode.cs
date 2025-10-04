@@ -822,30 +822,33 @@ public partial class SpatialInventoryContainerNode : Control
             var atlasSource = _itemTileSet.GetSource(0) as TileSetAtlasSource;
             if (atlasSource != null)
             {
-                // Calculate pixel position from origin (Domain already accounts for rotation!)
+                // TD_004 Phase 2: Delegate render positioning to Core
+                // Core handles: equipment slot detection + centering rule
+                var renderPosQuery = new GetItemRenderPositionQuery(OwnerActorId!.Value, itemId);
+                var renderPosResult = await _mediator.Send(renderPosQuery);
+
                 int separationX = 2;
                 int separationY = 2;
-                float pixelX = origin.X * (CellSize + separationX);
-                float pixelY = origin.Y * (CellSize + separationY);
+                float pixelX, pixelY;
 
-                // EQUIPMENT SLOT FIX: Center items in 1×1 equipment slots (Diablo 2 pattern)
-                // WHY: Equipment slots show items centered regardless of size
-                bool isEquipmentSlot = _containerType == ContainerType.WeaponOnly && _gridWidth == 1 && _gridHeight == 1;
-                if (isEquipmentSlot)
+                if (renderPosResult.IsSuccess)
                 {
-                    // Center item within the single cell (96px)
-                    // Available space: CellSize × CellSize
-                    // Item sprite: effectiveSpriteWidth × effectiveSpriteHeight (after rotation)
-                    var (effectiveWidth, effectiveHeight) = RotationHelper.GetRotatedDimensions(baseInvWidth, baseInvHeight, rotation);
-                    float effectiveW = effectiveWidth * CellSize;
-                    float effectiveH = effectiveHeight * CellSize;
+                    var renderPosition = renderPosResult.Value;
+                    var gridOffset = renderPosition.GridOffset;
 
-                    // Center horizontally and vertically
-                    pixelX = (CellSize - effectiveW) / 2f;
-                    pixelY = (CellSize - effectiveH) / 2f;
+                    // Apply grid offset from Core (equipment slots get GridOffset.Center for centering)
+                    pixelX = (origin.X + gridOffset.X) * (CellSize + separationX);
+                    pixelY = (origin.Y + gridOffset.Y) * (CellSize + separationY);
 
-                    _logger.LogDebug("Equipment slot centering: item {ItemId} centered at ({X},{Y}), size {W}×{H}",
-                        itemId, pixelX, pixelY, effectiveW, effectiveH);
+                    _logger.LogDebug("Item {ItemId} render offset: ({OffsetX},{OffsetY}) → pixel ({X},{Y})",
+                        itemId, gridOffset.X, gridOffset.Y, pixelX, pixelY);
+                }
+                else
+                {
+                    // Fallback: No offset (top-left alignment)
+                    pixelX = origin.X * (CellSize + separationX);
+                    pixelY = origin.Y * (CellSize + separationY);
+                    _logger.LogWarning("Failed to get render position for item {ItemId}: {Error}, using default", itemId, renderPosResult.Error);
                 }
 
                 // PHASE 3 FIX: Calculate sizes for BOTH base and effective dimensions
