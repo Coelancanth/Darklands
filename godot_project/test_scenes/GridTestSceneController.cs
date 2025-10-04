@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -40,6 +41,7 @@ public partial class GridTestSceneController : Node2D
 
     // Movement state (VS_006 Phase 4)
     private CancellationTokenSource? _movementCancellation;
+    private Task? _activeMovementTask; // Track active movement task for proper cancellation
     private Position? _lastHoveredPosition; // Track last hovered position for path preview
 
     private const int GridSize = 30;
@@ -542,8 +544,8 @@ public partial class GridTestSceneController : Node2D
     /// </summary>
     private async void ClickToMove(ActorId actorId, Position target)
     {
-        // Cancel any active movement first
-        CancelMovement();
+        // Cancel any active movement first AND wait for it to complete
+        await CancelMovementAsync();
 
         // Get current position
         var currentPosResult = await _mediator.Send(new GetActorPositionQuery(actorId));
@@ -586,10 +588,24 @@ public partial class GridTestSceneController : Node2D
         // Create cancellation token for this movement
         _movementCancellation = new CancellationTokenSource();
 
-        // Execute movement along path
+        // Execute movement along path and track the task
+        _activeMovementTask = ExecuteMovementAsync(actorId, path, target);
+        await _activeMovementTask;
+
+        // Clean up
+        _activeMovementTask = null;
+        _movementCancellation?.Dispose();
+        _movementCancellation = null;
+    }
+
+    /// <summary>
+    /// Execute movement along path (separated for proper task tracking).
+    /// </summary>
+    private async Task ExecuteMovementAsync(ActorId actorId, IReadOnlyList<Position> path, Position target)
+    {
         var moveResult = await _mediator.Send(
             new MoveAlongPathCommand(actorId, path),
-            _movementCancellation.Token);
+            _movementCancellation!.Token);
 
         // Clear path preview after movement completes/fails/cancels
         ClearPathPreview();
@@ -602,27 +618,48 @@ public partial class GridTestSceneController : Node2D
         {
             _logger.LogInformation("Movement completed to ({TargetX}, {TargetY})", target.X, target.Y);
         }
-
-        // Clean up cancellation token
-        _movementCancellation?.Dispose();
-        _movementCancellation = null;
     }
 
     /// <summary>
-    /// Cancel active movement (right-click).
+    /// Cancel active movement (right-click) - ASYNC version for proper awaiting.
     /// </summary>
-    private void CancelMovement()
+    private async Task CancelMovementAsync()
     {
-        if (_movementCancellation != null)
+        if (_movementCancellation != null && _activeMovementTask != null)
         {
             _logger.LogInformation("Movement cancelled!");
             _movementCancellation.Cancel();
+
+            // CRITICAL: Wait for the movement task to complete cancellation
+            // This prevents race conditions where new movement starts before old one finishes
+            try
+            {
+                await _activeMovementTask;
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected when cancellation occurs - suppress
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during movement cancellation");
+            }
+
             _movementCancellation.Dispose();
             _movementCancellation = null;
+            _activeMovementTask = null;
 
             // Clear path preview when cancelling
             ClearPathPreview();
         }
+    }
+
+    /// <summary>
+    /// Cancel active movement (right-click) - synchronous wrapper for event handlers.
+    /// </summary>
+    private async void CancelMovement()
+    {
+        await CancelMovementAsync();
     }
 
     /// <summary>
