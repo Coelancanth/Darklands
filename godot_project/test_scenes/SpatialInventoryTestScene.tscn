@@ -37,7 +37,7 @@ layout_mode = 2
 text = "📋 Testing drag-drop inventory with 3 containers:
 • Backpack A (10×6 grid) - General container (accepts all items)
 • Backpack B (8×8 grid) - General container (accepts all items)
-• Weapon Slot (1×4 grid) - WeaponOnly (rejects non-weapon items)
+• Weapon Slot (1×1 equipment slot) - WeaponOnly (rejects non-weapon items, swap-focused UX)
 
 🎯 Manual Tests:
 1. Items should appear in containers (auto-loaded from repository)

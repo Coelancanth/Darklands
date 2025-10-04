@@ -225,12 +225,23 @@
 
 **Implementation Checklist** (Dev Engineer):
 
-**✅ Phase 1: Create EquipmentSlotNode (3-4h)**
-- [ ] Create `Components/Inventory/EquipmentSlotNode.cs` (~400 lines, build from scratch)
-- [ ] Implement: Drag-drop (swap-only), centered rendering, type validation
-- [ ] Call Core queries: `CalculateHighlightCellsQuery`, `SwapItemsCommand`, `GetItemRenderPositionQuery`
-- [ ] NO rotation, NO multi-cell, NO cross-container complexity
+**✅ Phase 1: Create EquipmentSlotNode (3-4h)** - COMPLETED 2025-10-04 13:27
+- [x] Create `Components/Inventory/EquipmentSlotNode.cs` (646 lines, built from scratch)
+- [x] Implement: Drag-drop, centered rendering, type validation (delegates to Core)
+- [x] Call Core queries: `CanPlaceItemAtQuery`, `SwapItemsCommand`, `MoveItemBetweenContainersCommand`
+- [x] NO rotation, NO multi-cell complexity (equipment-specific UX)
+- [x] Update test scene: `SpatialInventoryTestController.cs` uses EquipmentSlotNode for weapon slot
+- [x] Build verified: All projects compile (0 warnings, 0 errors)
+- [x] E2E tested: Drag-drop works, type validation works, centered sprite scaling works
+- [ ] **KNOWN ISSUE**: Weapon swap not working yet (BR to be created)
 - [ ] Commit: `refactor(inventory): Create EquipmentSlotNode for reusability [TD_003 Phase 1/4]`
+
+**Dev Engineer Progress** (2025-10-04 13:27):
+- Created EquipmentSlotNode (646 lines vs original 1293 lines - 50% reduction)
+- Simplified drag-drop: No GridContainer, no rotation handling, no cross-container mouse warp hack
+- Core integration works: Type validation (weapons only), move to empty slot
+- **Bug discovered**: Swap operation needs fix (weapon-to-weapon swap fails)
+- Next: Fix swap bug, then proceed to Phase 2 (InventoryRenderHelper extraction)
 
 **✅ Phase 2: Extract InventoryRenderHelper (2-3h)**
 - [ ] Create `Components/Inventory/InventoryRenderHelper.cs` (static class, ~200 lines)

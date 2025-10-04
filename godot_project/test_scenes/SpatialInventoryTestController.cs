@@ -55,7 +55,7 @@ public partial class SpatialInventoryTestController : Control
     // Container references (for cross-container refresh)
     private Components.SpatialInventoryContainerNode? _backpackANode;
     private Components.SpatialInventoryContainerNode? _backpackBNode;
-    private Components.SpatialInventoryContainerNode? _weaponSlotNode;
+    private Components.Inventory.EquipmentSlotNode? _weaponSlotNode; // TD_003 Phase 1: Use dedicated equipment slot component
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // GODOT LIFECYCLE
@@ -287,12 +287,12 @@ public partial class SpatialInventoryTestController : Control
         _backpackBNode.InventoryChanged += OnInventoryChanged;
         backpackBPlaceholder.AddChild(_backpackBNode);
 
-        // Create and attach Weapon Slot (1×1 spatial grid with type filter)
-        // WHY: Reuse working SpatialInventoryContainerNode instead of debugging EquipmentSlotNode
-        _weaponSlotNode = new Components.SpatialInventoryContainerNode
+        // Create and attach Weapon Slot (TD_003 Phase 1: dedicated EquipmentSlotNode)
+        // WHY: Equipment slots have different UX (swap-focused, no rotation, centered scaling)
+        _weaponSlotNode = new Components.Inventory.EquipmentSlotNode
         {
             OwnerActorId = _weaponSlotActorId,
-            ContainerTitle = "Weapon Slot",
+            SlotTitle = "Weapon Slot", // Note: SlotTitle instead of ContainerTitle
             CellSize = 96, // Larger cell for weapon display
             Mediator = _mediator,
             ItemTileSet = ItemTileSet
