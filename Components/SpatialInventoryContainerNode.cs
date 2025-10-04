@@ -144,8 +144,8 @@ public partial class SpatialInventoryContainerNode : Control
         // Build UI
         BuildUI();
 
-        // Load inventory data
-        LoadInventoryAsync();
+        // Load inventory data (fire-and-forget is OK for initial load)
+        _ = LoadInventoryAsync();
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -187,8 +187,8 @@ public partial class SpatialInventoryContainerNode : Control
                 // If drag was cancelled (not dropped), refresh to restore sprite
                 if (wasDragging)
                 {
-                    _logger.LogInformation("🔄 Drag cancelled, refreshing to restore hidden sprite");
-                    LoadInventoryAsync(); // Full reload to recreate sprite nodes
+                    _logger.LogInformation("Drag cancelled, refreshing to restore hidden sprite");
+                    _ = LoadInventoryAsync(); // Full reload to recreate sprite nodes (fire-and-forget OK)
                 }
             }
 
@@ -203,13 +203,13 @@ public partial class SpatialInventoryContainerNode : Control
                     ? RotationHelper.RotateClockwise(_sharedDragRotation)
                     : RotationHelper.RotateCounterClockwise(_sharedDragRotation);
 
-                _logger.LogInformation("🔄 ROTATION: {OldRotation} → {NewRotation} (scroll {Direction})",
+                _logger.LogInformation("ROTATION: {OldRotation} → {NewRotation} (scroll {Direction})",
                     _sharedDragRotation, newRotation,
                     mouseButton.ButtonIndex == MouseButton.WheelDown ? "DOWN" : "UP");
 
                 _sharedDragRotation = newRotation;
 
-                _logger.LogInformation("✅ ROTATION STATE: _sharedDragRotation = {SharedRotation}, _dragPreviewSprite exists: {PreviewExists}",
+                _logger.LogInformation("ROTATION STATE: _sharedDragRotation = {SharedRotation}, _dragPreviewSprite exists: {PreviewExists}",
                     _sharedDragRotation, _dragPreviewSprite != null);
 
                 // PHASE 3 FIX: Update sprite preview - ONLY rotation changes (single-layer approach)
@@ -220,7 +220,7 @@ public partial class SpatialInventoryContainerNode : Control
                     var radians = RotationHelper.ToRadians(_sharedDragRotation);
                     _dragPreviewSprite.Rotation = radians;
 
-                    _logger.LogInformation("🎭 DRAG PREVIEW updated: rotation = {Rotation} ({Radians} rad)",
+                    _logger.LogInformation("DRAG PREVIEW updated: rotation = {Rotation} ({Radians} rad)",
                         _sharedDragRotation, radians);
 
                     // No need to update container size or texture position
@@ -228,7 +228,7 @@ public partial class SpatialInventoryContainerNode : Control
                 }
                 else
                 {
-                    _logger.LogWarning("❌ DRAG PREVIEW is null - cannot update rotation!");
+                    _logger.LogWarning("DRAG PREVIEW is null - cannot update rotation!");
                 }
 
                 // PHASE 3 BUG FIX: Update highlights immediately after rotation
@@ -243,7 +243,7 @@ public partial class SpatialInventoryContainerNode : Control
                 Input.WarpMouse(currentMousePos + new Vector2(0.1f, 0));
                 Input.WarpMouse(currentMousePos); // Restore original position
 
-                _logger.LogInformation("🔄 Forced highlight refresh after rotation to {Rotation}", _sharedDragRotation);
+                _logger.LogInformation("Forced highlight refresh after rotation to {Rotation}", _sharedDragRotation);
 
                 // Consume the event to prevent scrolling the container
                 GetViewport().SetInputAsHandled();
@@ -285,7 +285,7 @@ public partial class SpatialInventoryContainerNode : Control
         _isDragging = true;
         _draggingItemId = itemId;
 
-        _logger.LogInformation("🎯 Starting drag: Item {ItemId} from {Container} at origin ({X}, {Y}) with rotation {Rotation}",
+        _logger.LogInformation("Starting drag: Item {ItemId} from {Container} at origin ({X}, {Y}) with rotation {Rotation}",
             itemId, ContainerTitle, origin.X, origin.Y, _sharedDragRotation);
 
         // PHASE 3: Immediately hide source sprite (remove from overlay)
@@ -554,7 +554,7 @@ public partial class SpatialInventoryContainerNode : Control
         gridWrapper.AddChild(_itemOverlayContainer);
     }
 
-    private async void LoadInventoryAsync()
+    private async Task LoadInventoryAsync()
     {
         if (OwnerActorId == null)
             return;
@@ -777,13 +777,13 @@ public partial class SpatialInventoryContainerNode : Control
         // Direct dictionary lookup using ItemId (no string name matching!)
         if (_itemSpriteNodes.TryGetValue(itemId, out var spriteNode))
         {
-            _logger.LogInformation("✅ Hiding sprite for item {ItemId} (direct reference)", itemId);
+            _logger.LogInformation("Hiding sprite for item {ItemId} (direct reference)", itemId);
             spriteNode.Free(); // Immediate removal from scene tree
             _itemSpriteNodes.Remove(itemId); // Clear reference
         }
         else
         {
-            _logger.LogWarning("❌ Item {ItemId} sprite node not found in cache", itemId);
+            _logger.LogWarning("Item {ItemId} sprite node not found in cache", itemId);
         }
     }
 
@@ -838,24 +838,10 @@ public partial class SpatialInventoryContainerNode : Control
                     // Option B: Pixel-perfect centering based on sprite size
                     // Core provides: ShouldCenter (rule) + EffectiveDimensions (data)
                     // Presentation applies: pixel math for centering
-                    if (renderPosition.ShouldCenterInSlot)
-                    {
-                        // Equipment slot centering: center sprite within cell
-                        float centeredSpriteWidth = renderPosition.EffectiveWidth * CellSize;
-                        float centeredSpriteHeight = renderPosition.EffectiveHeight * CellSize;
-
-                        pixelX = (CellSize - centeredSpriteWidth) / 2f;
-                        pixelY = (CellSize - centeredSpriteHeight) / 2f;
-
-                        _logger.LogDebug("Item {ItemId} centered in equipment slot: sprite {W}×{H} → pixel ({X},{Y})",
-                            itemId, centeredSpriteWidth, centeredSpriteHeight, pixelX, pixelY);
-                    }
-                    else
-                    {
-                        // Regular inventory: top-left alignment
-                        pixelX = origin.X * (CellSize + separationX);
-                        pixelY = origin.Y * (CellSize + separationY);
-                    }
+                    // Equipment slots and regular inventory use same positioning
+                    // Scaling for equipment slots happens later in TextureRect setup
+                    pixelX = origin.X * (CellSize + separationX);
+                    pixelY = origin.Y * (CellSize + separationY);
                 }
                 else
                 {
@@ -884,16 +870,53 @@ public partial class SpatialInventoryContainerNode : Control
                     Region = region
                 };
 
-                // PHASE 3 FIX: Create WRAPPER container at effective size, texture inside at base size
-                // WHY: Container occupies rotated cells, texture preserves aspect ratio and rotates
+                // Equipment slot scaling: Scale sprite to fit 1×1 cell
+                float containerWidth, containerHeight;
+                float textureWidth, textureHeight;
+                float texturePosX, texturePosY;
+
+                if (renderPosResult.IsSuccess && renderPosResult.Value.ShouldCenterInSlot)
+                {
+                    // EQUIPMENT SLOT: Scale sprite to fit cell, preserve aspect ratio
+                    // Get actual texture dimensions from atlas region
+                    float actualTextureWidth = region.Size.X;
+                    float actualTextureHeight = region.Size.Y;
+
+                    // Calculate scale to fit in CellSize (preserve aspect ratio)
+                    float scale = Math.Min(CellSize / actualTextureWidth, CellSize / actualTextureHeight);
+
+                    textureWidth = actualTextureWidth * scale;
+                    textureHeight = actualTextureHeight * scale;
+
+                    // Container is 1×1 cell
+                    containerWidth = CellSize;
+                    containerHeight = CellSize;
+
+                    // Center texture in container
+                    texturePosX = (CellSize - textureWidth) / 2f;
+                    texturePosY = (CellSize - textureHeight) / 2f;
+
+                    _logger.LogDebug("Equipment slot {ItemId}: texture {TW}×{TH} scaled to {SW}×{SH} (scale: {Scale:F2})",
+                        itemId, actualTextureWidth, actualTextureHeight, textureWidth, textureHeight, scale);
+                }
+                else
+                {
+                    // REGULAR INVENTORY: Use effective dimensions (no scaling)
+                    containerWidth = effectiveSpriteWidth;
+                    containerHeight = effectiveSpriteHeight;
+                    textureWidth = baseSpriteWidth;
+                    textureHeight = baseSpriteHeight;
+                    texturePosX = (effectiveSpriteWidth - baseSpriteWidth) / 2f;
+                    texturePosY = (effectiveSpriteHeight - baseSpriteHeight) / 2f;
+                }
+
                 var textureContainer = new Control
                 {
                     Name = $"ItemContainer_{itemId.Value}",
-                    CustomMinimumSize = new Vector2(effectiveSpriteWidth, effectiveSpriteHeight),
-                    Size = new Vector2(effectiveSpriteWidth, effectiveSpriteHeight),
+                    CustomMinimumSize = new Vector2(containerWidth, containerHeight),
+                    Size = new Vector2(containerWidth, containerHeight),
                     Position = new Vector2(pixelX, pixelY),
                     MouseFilter = MouseFilterEnum.Ignore,
-                    // Ensure item layer is absolute above highlight layer
                     ZAsRelative = false,
                     ZIndex = 200
                 };
@@ -905,19 +928,12 @@ public partial class SpatialInventoryContainerNode : Control
                     TextureFilter = CanvasItem.TextureFilterEnum.Nearest,
                     StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
                     ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
-                    // Texture size is ALWAYS base dimensions (aspect ratio preserved)
-                    CustomMinimumSize = new Vector2(baseSpriteWidth, baseSpriteHeight),
-                    Size = new Vector2(baseSpriteWidth, baseSpriteHeight),
-                    // Position inside container (rotate around center of BASE dimensions)
-                    Position = new Vector2(
-                        (effectiveSpriteWidth - baseSpriteWidth) / 2f,
-                        (effectiveSpriteHeight - baseSpriteHeight) / 2f
-                    ),
+                    CustomMinimumSize = new Vector2(textureWidth, textureHeight),
+                    Size = new Vector2(textureWidth, textureHeight),
+                    Position = new Vector2(texturePosX, texturePosY),
                     MouseFilter = MouseFilterEnum.Ignore,
-                    // Rotate texture around its own center
-                    Rotation = RotationHelper.ToRadians(rotation),
-                    PivotOffset = new Vector2(baseSpriteWidth / 2f, baseSpriteHeight / 2f),
-                    // Ensure sprites render above highlights
+                    Rotation = renderPosResult.IsSuccess && renderPosResult.Value.ShouldCenterInSlot ? 0 : RotationHelper.ToRadians(rotation),
+                    PivotOffset = new Vector2(textureWidth / 2f, textureHeight / 2f),
                     ZIndex = 100
                 };
 
@@ -1099,7 +1115,7 @@ public partial class SpatialInventoryContainerNode : Control
         GridPosition targetPos,
         Rotation rotation) // PHASE 3: Rotation for dragged item
     {
-        _logger.LogInformation("🔄 SWAP: Starting swap {SourceItem} @ ({SourceX},{SourceY}) ↔ {TargetItem} @ ({TargetX},{TargetY}) with rotation {Rotation}",
+        _logger.LogInformation("SWAP: Starting swap {SourceItem} @ ({SourceX},{SourceY}) ↔ {TargetItem} @ ({TargetX},{TargetY}) with rotation {Rotation}",
             sourceItemId, sourcePos.X, sourcePos.Y,
             targetItemId, targetPos.X, targetPos.Y, rotation);
 
@@ -1107,45 +1123,46 @@ public partial class SpatialInventoryContainerNode : Control
         var removeSourceCmd = new RemoveItemCommand(sourceActorId, sourceItemId);
         var removeTargetCmd = new RemoveItemCommand(targetActorId, targetItemId);
 
-        _logger.LogInformation("🔄 SWAP STEP 1a: Removing source item {SourceItem} from ({SX},{SY})",
+        _logger.LogInformation("SWAP STEP 1a: Removing source item {SourceItem} from ({SX},{SY})",
             sourceItemId, sourcePos.X, sourcePos.Y);
 
         var removeSourceResult = await _mediator.Send(removeSourceCmd);
         if (removeSourceResult.IsFailure)
         {
-            _logger.LogError("❌ SWAP ABORTED: Failed to remove source item: {Error}", removeSourceResult.Error);
+            _logger.LogError("SWAP ABORTED: Failed to remove source item: {Error}", removeSourceResult.Error);
             return; // Nothing removed yet, safe to abort
         }
 
-        _logger.LogInformation("✅ SWAP STEP 1a: Source item removed successfully");
-        _logger.LogInformation("🔄 SWAP STEP 1b: Removing target item {TargetItem} from ({TX},{TY})",
+        _logger.LogInformation("SWAP STEP 1a: Source item removed successfully");
+        _logger.LogInformation("SWAP STEP 1b: Removing target item {TargetItem} from ({TX},{TY})",
             targetItemId, targetPos.X, targetPos.Y);
 
         var removeTargetResult = await _mediator.Send(removeTargetCmd);
         if (removeTargetResult.IsFailure)
         {
-            _logger.LogError("❌ SWAP ABORTED: Failed to remove target item: {Error}", removeTargetResult.Error);
+            _logger.LogError("SWAP ABORTED: Failed to remove target item: {Error}", removeTargetResult.Error);
             // Rollback: Put source item back
-            _logger.LogInformation("🔄 SWAP ROLLBACK: Restoring source item to original position");
+            _logger.LogInformation("SWAP ROLLBACK: Restoring source item to original position");
             await _mediator.Send(new PlaceItemAtPositionCommand(sourceActorId, sourceItemId, sourcePos));
             return;
         }
 
-        _logger.LogInformation("✅ SWAP STEP 1b: Target item removed successfully");
+        _logger.LogInformation("SWAP STEP 1b: Target item removed successfully");
 
         // STEP 2: Place both items at swapped positions
-        var placeSourceCmd = new PlaceItemAtPositionCommand(targetActorId, sourceItemId, targetPos);
+        // NOTE: Using MoveItemBetweenContainersCommand for source (with rotation support)
+        var moveSourceCmd = new MoveItemBetweenContainersCommand(sourceActorId, targetActorId, sourceItemId, targetPos, rotation);
         var placeTargetCmd = new PlaceItemAtPositionCommand(sourceActorId, targetItemId, sourcePos);
 
-        _logger.LogInformation("🔄 SWAP STEP 2a: Placing source item {SourceItem} at target position ({TX},{TY})",
+        _logger.LogInformation("SWAP STEP 2a: Placing source item {SourceItem} at target position ({TX},{TY})",
             sourceItemId, targetPos.X, targetPos.Y);
 
-        var placeSourceResult = await _mediator.Send(placeSourceCmd);
+        var placeSourceResult = await _mediator.Send(moveSourceCmd);
         if (placeSourceResult.IsFailure)
         {
-            _logger.LogError("❌ SWAP FAILED: Could not place source item at target: {Error}", placeSourceResult.Error);
+            _logger.LogError("SWAP FAILED: Could not place source item at target: {Error}", placeSourceResult.Error);
             // Rollback: Put both items back at original positions
-            _logger.LogInformation("🔄 SWAP ROLLBACK: Restoring both items to original positions");
+            _logger.LogInformation("SWAP ROLLBACK: Restoring both items to original positions");
             await _mediator.Send(new PlaceItemAtPositionCommand(sourceActorId, sourceItemId, sourcePos));
             await _mediator.Send(new PlaceItemAtPositionCommand(targetActorId, targetItemId, targetPos));
             EmitSignal(SignalName.InventoryChanged); // Refresh to show rollback
@@ -1206,7 +1223,7 @@ public partial class SpatialInventoryContainerNode : Control
     /// </summary>
     public void RefreshDisplay()
     {
-        LoadInventoryAsync();
+        _ = LoadInventoryAsync(); // Fire-and-forget OK for external refresh trigger
     }
 
     /// <summary>
@@ -1250,7 +1267,7 @@ public partial class SpatialInventoryContainerNode : Control
         if (itemResult.IsFailure || _itemTileSet == null)
         {
             // Fallback: Create simple label preview
-            _dragPreviewNode = new Label { Text = $"📦 {_itemNames.GetValueOrDefault(itemId, "Item")}" };
+            _dragPreviewNode = new Label { Text = $"{_itemNames.GetValueOrDefault(itemId, "Item")}" };
             return;
         }
 
@@ -1258,7 +1275,7 @@ public partial class SpatialInventoryContainerNode : Control
         var atlasSource = _itemTileSet.GetSource(0) as TileSetAtlasSource;
         if (atlasSource == null)
         {
-            _dragPreviewNode = new Label { Text = $"📦 {item.Name}" };
+            _dragPreviewNode = new Label { Text = $"{item.Name}" };
             return;
         }
 
