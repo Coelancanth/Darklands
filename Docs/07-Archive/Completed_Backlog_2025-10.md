@@ -799,3 +799,86 @@ itemTextureRect.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
 
 ---
 
+### TD_005: Persona & Protocol Updates
+**Extraction Status**: NOT EXTRACTED ⚠️
+**Completed**: 2025-10-04
+**Archive Note**: Updated dev-engineer.md with Root Cause First Principle, UX Pattern Recognition, and Requirement Clarification Protocol. Added 222 lines of guidance on distinguishing workarounds from root cause fixes, preventing SRP violations, and clarifying requirements before implementation. Protocol update approach approved over adding UI/UX Designer persona (lighter process, same outcome).
+
+---
+
+**Status**: ✅ COMPLETE (2025-10-04)
+**Owner**: Product Owner → Dev Engineer (implementation complete)
+**Size**: S (2h actual)
+**Priority**: Important (Process improvement)
+**Depends On**: None
+**Markers**: [PROCESS] [PERSONA]
+
+**What**: Update persona system and protocols based on BR_006/007 lessons
+
+**Why**:
+- **Root Cause Gap**: Recent bugs (rotation highlights, equipment visuals) were workarounds/patches, not root cause fixes
+- **UX Blind Spot**: No persona owns user experience validation (UI/UX designer missing)
+- **Requirement Clarity**: Need protocol: "Repeat user requirement back" before implementation
+
+**How** (Implemented):
+
+1. **✅ Updated Dev Engineer Protocol** (`.claude/memory-bank/active/dev-engineer.md`):
+   - **Before coding**: Repeat requirement back to user in own words (Requirement Clarification Protocol)
+   - **During investigation**: Always ask "What's the root cause?" (Root Cause First Principle)
+   - **Pattern**: Workaround → Document as TD → Schedule proper fix (Implementation Protocol)
+
+2. **✅ Updated Memory Bank** (`dev-engineer.md`):
+   - Added: "Root Cause First Principle" section (159 lines)
+     - Workaround vs Root Cause Fix distinction
+     - BR_006/BR_007 case study (tactical fixes vs architectural solution)
+     - Implementation protocol (when to patch vs when to fix)
+     - Code comment patterns for workarounds
+   - Added: "UX Pattern Recognition" section (25 lines)
+     - Red flags: Combining incompatible patterns, business logic in Presentation, special case accumulation
+     - Pattern: 2+ special cases = architectural smell
+     - References TD_003 (component separation) and TD_004 (logic to Core)
+   - Added: "Requirement Clarification Protocol" section (38 lines)
+     - Always repeat requirement back before implementation
+     - When to ask clarifying questions
+     - Examples of good clarifying questions
+
+**Done When**: ✅ **ALL CRITERIA MET**
+- ✅ **No UI/UX Designer persona created** (Decision: Protocol update sufficient - UX validation already Product Owner's responsibility)
+- ✅ Dev Engineer protocol includes "repeat requirement" step (Requirement Clarification Protocol)
+- ✅ Memory Bank updated with "Root Cause First" principle (comprehensive 222-line addition)
+- ✅ Ready for test run: Next UI bug → persona will ask "root cause?" before implementing patch
+
+**Product Owner Decision** (2025-10-04): **APPROVED - Protocol Update Approach**
+
+**Rationale**:
+- UI/UX Designer persona adds process overhead without clear value
+- UX validation is already Product Owner's responsibility (defines user value, approves features)
+- Dev Engineer protocol updates address the actual gap (workaround vs root cause awareness)
+- TD_003/TD_004 already planned as proper architectural fixes for BR_006/BR_007
+- **Result**: Leaner process, same outcome (Dev Engineer now equipped to question workarounds)
+
+**Impact**:
+- Dev Engineer will now distinguish workarounds (tactical) from root cause fixes (architectural)
+- UX pattern recognition prevents SRP violations (combining incompatible UI patterns)
+- Requirement clarification prevents misunderstandings before implementation
+- Workarounds explicitly documented with references to proper fix TDs
+
+**Files Modified**:
+- `.claude/memory-bank/active/dev-engineer.md` (+222 lines, timestamp updated)
+
+**Lessons Learned**:
+- **Process > Personas**: Protocol updates can be more effective than adding personas
+- **Lightweight > Heavy**: Updating existing personas beats creating new ones (less context switching)
+- **Document Workarounds**: Explicit `// WORKAROUND (BR_XXX)` comments make technical debt visible
+
+---
+
+**Extraction Targets**:
+- [ ] ADR needed for: Persona protocol update pattern (when to add protocols vs new personas)
+- [ ] HANDBOOK update: Root Cause First Principle (workaround vs fix decision framework)
+- [ ] HANDBOOK update: UX Pattern Recognition (SRP violations in UI layer)
+- [ ] HANDBOOK update: Requirement Clarification Protocol (preventing misunderstandings)
+- [ ] Reference implementation: dev-engineer.md as template for protocol-driven persona updates
+
+---
+
