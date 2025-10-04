@@ -510,18 +510,79 @@ Time to mastery ≈ 50-70 attacks (5-10 fights)
 - Angband-style itemization (situational value)
 - Constrained randomization (minor stat variance)
 
-**VS_018: Spatial Inventory L-Shapes ✅ COMPLETE**
+**VS_018: Spatial Inventory System ⚙️ IN PROGRESS**
 
-**Status**: Complete (2025-10-04) | **Size**: XL (17h across 4 phases + bug fixes) | **Tests**: 359 passing
+**Status**: Phase 1 Complete (2025-10-04) | **Size**: XL (ongoing) | **Tests**: 359 passing
 **Owner**: Dev Engineer
 
-**Delivered**: Tetris-style spatial inventory with drag-drop, multi-cell items with L/T-shape support, 90° rotation, type filtering (equipment slots), TileSet-driven ItemShape encoding, OccupiedCells collision detection
+**Phase 1 Delivered** (TD_003, TD_004):
+- Tetris-style spatial inventory with **drag-drop** interaction
+- Multi-cell items with L/T-shape support (coordinate-based masks)
+- 90° rotation during drag (scroll wheel)
+- Type filtering (equipment slots reject wrong item types)
+- Component separation: `EquipmentSlotNode` (swap-focused) vs `InventoryContainerNode` (Tetris grid)
+- TileSet-driven ItemShape encoding ("custom:0,0;1,0;1,1")
+- Cell-by-cell collision detection (supports complex shapes)
 
-**Key Achievement**: Replaced AABB rectangle collision with cell-by-cell iteration - supports complex shapes (L-shapes occupy 3 cells in 2×2 bounding box, leaving 1 cell free for other items)
+**Architecture Achievements**:
+- ItemShape value object with coordinate masks
+- InventoryRenderHelper (DRY rendering across components)
+- Zero business logic in Presentation (SSOT in Core)
+- All 359 tests GREEN ✅
 
-**Architecture**: ItemShape value object with coordinate-based masks ("custom:0,0;1,0;1,1"), visual editor plugin (checkbox grid), backward-compatible with VS_008 slot-based inventory
+**Archive**: [Completed_Backlog_2025-10.md](../../07-Archive/Completed_Backlog_2025-10.md#vs_018-spatial-inventory-l-shapes) (Phase 1 documentation)
 
-**Archive**: [Completed_Backlog_2025-10.md](../../07-Archive/Completed_Backlog_2025-10.md#vs_018-spatial-inventory-l-shapes) (comprehensive 4-phase documentation preserved)
+---
+
+**Phase 2 TODO - UX & Interaction Improvements**:
+
+1. **Click-to-Pick Interaction** (replace drag-drop)
+   - Click item → pick up (highlight follows cursor)
+   - Click destination → drop item
+   - More tactile than drag-drop, easier on trackpads
+
+2. **1v1 Swap Support**
+   - Click occupied slot with picked item → swap items (no intermediate drop needed)
+   - Example: Swap weapon in hand directly with weapon in inventory
+   - Preserves shapes, validates types
+
+3. **Item Interaction System** (may become VS_019)
+   - Right-click item → context menu (Use, Split, Examine, Drop)
+   - Use consumables (potions, food) from inventory
+   - Examine for detailed stats/lore
+
+4. **Nested Containers**
+   - Items can BE containers (bags, pouches, quivers)
+   - Double-click bag → open container view (nested inventory grid)
+   - Type filtering (quiver accepts arrows only)
+   - Reference: NeoScavenger aCapacities
+
+5. **Stack Support**
+   - Stackable items (arrows ×20, branches ×5)
+   - Stack count overlay on sprites
+   - Split/merge stack operations
+   - Links to VS_010 (Item Stacking System)
+
+6. **Auto-Sort**
+   - Sort by type (weapons, consumables, tools)
+   - Sort by size (fill gaps efficiently)
+   - Sort by value/weight
+
+7. **Container Preview**
+   - Hover over bag → tooltip shows contents preview (mini grid)
+   - Quick view without opening full container
+
+8. **Ground Item Interaction**
+   - Pick up items from environment (dungeon loot)
+   - Visual indicators on tiles with items
+   - Links to VS_012 (Ground Loot System)
+
+9. **Rich Tooltips**
+   - Item stats (damage, weight, durability)
+   - Comparison tooltips (equipped vs inventory item)
+   - Lore/description text
+
+**Next Steps**: Prioritize TODOs after Phase 1 playtesting feedback
 
 **VS_019: Crafting System (NeoScavenger-Style)**
 - Grid-based crafting interface (drag items to recipe slots)

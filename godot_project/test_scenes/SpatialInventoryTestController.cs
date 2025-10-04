@@ -53,9 +53,10 @@ public partial class SpatialInventoryTestController : Control
     private ActorId _weaponSlotActorId = ActorId.NewId();
 
     // Container references (for cross-container refresh)
-    private Components.SpatialInventoryContainerNode? _backpackANode;
-    private Components.SpatialInventoryContainerNode? _backpackBNode;
-    private Components.SpatialInventoryContainerNode? _weaponSlotNode;
+    // TD_003 Phase 3: Use renamed InventoryContainerNode for Tetris grids
+    private Components.Inventory.InventoryContainerNode? _backpackANode;
+    private Components.Inventory.InventoryContainerNode? _backpackBNode;
+    private Components.Inventory.EquipmentSlotNode? _weaponSlotNode; // TD_003 Phase 1: Use dedicated equipment slot component
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // GODOT LIFECYCLE
@@ -263,8 +264,8 @@ public partial class SpatialInventoryTestController : Control
         var backpackBPlaceholder = GetNode<Control>("VBoxContainer/ContainersRow/BackpackB");
         var weaponSlotPlaceholder = GetNode<Control>("VBoxContainer/ContainersRow/WeaponSlot");
 
-        // Create and attach Backpack A container
-        _backpackANode = new Components.SpatialInventoryContainerNode
+        // Create and attach Backpack A container (TD_003 Phase 3: InventoryContainerNode for Tetris grids)
+        _backpackANode = new Components.Inventory.InventoryContainerNode
         {
             OwnerActorId = _backpackAActorId,
             ContainerTitle = "Backpack A",
@@ -275,8 +276,8 @@ public partial class SpatialInventoryTestController : Control
         _backpackANode.InventoryChanged += OnInventoryChanged;
         backpackAPlaceholder.AddChild(_backpackANode);
 
-        // Create and attach Backpack B container
-        _backpackBNode = new Components.SpatialInventoryContainerNode
+        // Create and attach Backpack B container (TD_003 Phase 3: InventoryContainerNode for Tetris grids)
+        _backpackBNode = new Components.Inventory.InventoryContainerNode
         {
             OwnerActorId = _backpackBActorId,
             ContainerTitle = "Backpack B",
@@ -287,12 +288,12 @@ public partial class SpatialInventoryTestController : Control
         _backpackBNode.InventoryChanged += OnInventoryChanged;
         backpackBPlaceholder.AddChild(_backpackBNode);
 
-        // Create and attach Weapon Slot (1×1 spatial grid with type filter)
-        // WHY: Reuse working SpatialInventoryContainerNode instead of debugging EquipmentSlotNode
-        _weaponSlotNode = new Components.SpatialInventoryContainerNode
+        // Create and attach Weapon Slot (TD_003 Phase 1: dedicated EquipmentSlotNode)
+        // WHY: Equipment slots have different UX (swap-focused, no rotation, centered scaling)
+        _weaponSlotNode = new Components.Inventory.EquipmentSlotNode
         {
             OwnerActorId = _weaponSlotActorId,
-            ContainerTitle = "Weapon Slot",
+            SlotTitle = "Weapon Slot", // Note: SlotTitle instead of ContainerTitle
             CellSize = 96, // Larger cell for weapon display
             Mediator = _mediator,
             ItemTileSet = ItemTileSet
