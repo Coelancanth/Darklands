@@ -669,10 +669,14 @@ public partial class TurnQueueTestSceneController : Node2D
         _activeMovementTask = ExecuteMovementAsync(actorId, path, target);
         await _activeMovementTask;
 
-        // Clean up
+        // Clean up (only if not already cancelled)
+        // NOTE: CancelMovementAsync already handles disposal, so check before disposing
+        if (_movementCancellation != null)
+        {
+            _movementCancellation.Dispose();
+            _movementCancellation = null;
+        }
         _activeMovementTask = null;
-        _movementCancellation?.Dispose();
-        _movementCancellation = null;
     }
 
     /// <summary>
