@@ -245,12 +245,21 @@
 
 ### TD_004: Move ALL Shape Calculation Logic to Core (SSOT) - **EXPANDED SCOPE**
 
-**Status**: ✅ APPROVED - Option A (Query-Based) - **SCOPE EXPANDED 2025-10-04**
-**Owner**: Tech Lead → Dev Engineer
+**Status**: 🚧 IN PROGRESS (Dev Engineer - 2025-10-04)
+**Owner**: Dev Engineer
 **Size**: L (12-16h realistic - **expanded from M after full file analysis**)
 **Priority**: Critical (Architectural compliance + **7 logic leaks found**)
 **Depends On**: None (but **SHOULD DO BEFORE TD_003** - see sequencing note)
 **Markers**: [ARCHITECTURE] [ADR-002] [SSOT] [SYSTEMIC-VIOLATION]
+
+**Progress** (2025-10-04):
+- ✅ Leak #1: CalculateHighlightCellsQuery implemented + all tests GREEN (5/5)
+- ✅ GridOffset value object created
+- 🚧 Leak #2-4, #7: GetItemRenderDataQuery (next)
+- ⏳ Leak #5: SwapOrMoveItemCommand (pending)
+- ⏳ Leak #6: Remove CanAcceptItemType dead code (pending)
+- ⏳ Phase 2: Replace Presentation logic (pending)
+- ⏳ Phase 3: Documentation + regression tests (pending)
 
 **What**: Move **ALL shape calculation and business logic** from Presentation to Core (not just highlights!)
 
