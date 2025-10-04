@@ -1,5 +1,7 @@
 using Darklands.Core.Domain.Common;
+using Darklands.Core.Features.Grid.Application;
 using Darklands.Core.Features.Grid.Domain;
+using Darklands.Core.Features.Grid.Infrastructure.Repositories;
 using Darklands.Core.Features.Grid.Infrastructure.Services;
 using FluentAssertions;
 using Xunit;
@@ -14,11 +16,23 @@ namespace Darklands.Core.Tests.Features.Grid.Infrastructure;
 [Trait("Category", "Unit")]
 public sealed class ShadowcastingFOVServiceTests
 {
+    private readonly ITerrainRepository _terrainRepo;
+    private readonly TerrainDefinition _floorTerrain;
+    private readonly TerrainDefinition _wallTerrain;
+    private readonly TerrainDefinition _smokeTerrain;
+
+    public ShadowcastingFOVServiceTests()
+    {
+        _terrainRepo = new StubTerrainRepository();
+        _floorTerrain = _terrainRepo.GetDefault().Value;
+        _wallTerrain = _terrainRepo.GetByName("wall").Value;
+        _smokeTerrain = _terrainRepo.GetByName("smoke").Value;
+    }
     [Fact]
     public void CalculateFOV_EmptyGrid_AllTilesWithinRadiusVisible()
     {
         // Arrange: 30x30 grid, all Floor (transparent)
-        var map = new GridMap();
+        var map = new GridMap(_floorTerrain);
         var fov = new ShadowcastingFOVService();
         var observer = new Position(15, 15); // Center of grid
         int radius = 8;
@@ -49,11 +63,11 @@ public sealed class ShadowcastingFOVServiceTests
     public void CalculateFOV_WallBlocksVision_TilesBehindWallNotVisible()
     {
         // Arrange: Place wall directly east of observer
-        var map = new GridMap();
+        var map = new GridMap(_floorTerrain);
         var observer = new Position(5, 5);
         var wallPos = new Position(10, 5); // 5 tiles east
 
-        map.SetTerrain(wallPos, TerrainType.Wall);
+        map.SetTerrain(wallPos, _wallTerrain);
         var fov = new ShadowcastingFOVService();
 
         // Act
@@ -78,11 +92,11 @@ public sealed class ShadowcastingFOVServiceTests
     public void CalculateFOV_SmokeBlocksVision_ButIsPassable()
     {
         // Arrange: Place smoke between observer and target
-        var map = new GridMap();
+        var map = new GridMap(_floorTerrain);
         var observer = new Position(5, 5);
         var smokePos = new Position(10, 10); // Diagonal from observer
 
-        map.SetTerrain(smokePos, TerrainType.Smoke);
+        map.SetTerrain(smokePos, _smokeTerrain);
         var fov = new ShadowcastingFOVService();
 
         // Act
@@ -109,7 +123,7 @@ public sealed class ShadowcastingFOVServiceTests
     public void CalculateFOV_InvalidRadius_ShouldReturnFailure()
     {
         // Arrange
-        var map = new GridMap();
+        var map = new GridMap(_floorTerrain);
         var fov = new ShadowcastingFOVService();
         var observer = new Position(15, 15);
 
@@ -129,7 +143,7 @@ public sealed class ShadowcastingFOVServiceTests
     public void CalculateFOV_ObserverOutOfBounds_ShouldReturnFailure()
     {
         // Arrange
-        var map = new GridMap(); // 30x30 grid
+        var map = new GridMap(_floorTerrain); // 30x30 grid
         var fov = new ShadowcastingFOVService();
 
         // Act: Observer positions outside grid bounds
@@ -148,7 +162,7 @@ public sealed class ShadowcastingFOVServiceTests
     public void CalculateFOV_ObserverAlwaysVisible_RegardlessOfRadius()
     {
         // Arrange
-        var map = new GridMap();
+        var map = new GridMap(_floorTerrain);
         var fov = new ShadowcastingFOVService();
         var observer = new Position(15, 15);
 
@@ -165,13 +179,13 @@ public sealed class ShadowcastingFOVServiceTests
     public void CalculateFOV_30x30Grid_CompletesInUnder10Milliseconds()
     {
         // PERFORMANCE: FOV recalculates every actor move, must be fast for smooth gameplay
-        var map = new GridMap();
+        var map = new GridMap(_floorTerrain);
 
         // Add realistic obstacle pattern (walls scattered across grid)
         for (int i = 5; i < 25; i += 3)
         {
-            map.SetTerrain(new Position(i, 15), TerrainType.Wall);
-            map.SetTerrain(new Position(15, i), TerrainType.Wall);
+            map.SetTerrain(new Position(i, 15), _wallTerrain);
+            map.SetTerrain(new Position(15, i), _wallTerrain);
         }
 
         var fov = new ShadowcastingFOVService();
@@ -198,7 +212,7 @@ public sealed class ShadowcastingFOVServiceTests
     public void CalculateFOV_AllEightOctants_ProvideFullCircularCoverage()
     {
         // ALGORITHM VERIFICATION: Test that all 8 octants are correctly implemented
-        var map = new GridMap();
+        var map = new GridMap(_floorTerrain);
         var observer = new Position(15, 15); // Center
         var fov = new ShadowcastingFOVService();
 

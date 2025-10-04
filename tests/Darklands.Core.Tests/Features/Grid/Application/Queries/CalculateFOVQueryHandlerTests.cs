@@ -1,8 +1,10 @@
 using CSharpFunctionalExtensions;
 using Darklands.Core.Domain.Common;
+using Darklands.Core.Features.Grid.Application;
 using Darklands.Core.Features.Grid.Application.Queries;
 using Darklands.Core.Features.Grid.Application.Services;
 using Darklands.Core.Features.Grid.Domain;
+using Darklands.Core.Features.Grid.Infrastructure.Repositories;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -14,6 +16,8 @@ namespace Darklands.Core.Tests.Features.Grid.Application.Queries;
 [Trait("Category", "Unit")]
 public class CalculateFOVQueryHandlerTests
 {
+    private readonly ITerrainRepository _terrainRepo;
+    private readonly TerrainDefinition _floorTerrain;
     private readonly GridMap _gridMap;
     private readonly IFOVService _mockFOVService;
     private readonly ILogger<CalculateFOVQueryHandler> _mockLogger;
@@ -21,7 +25,9 @@ public class CalculateFOVQueryHandlerTests
 
     public CalculateFOVQueryHandlerTests()
     {
-        _gridMap = new GridMap();
+        _terrainRepo = new StubTerrainRepository();
+        _floorTerrain = _terrainRepo.GetDefault().Value;
+        _gridMap = new GridMap(_floorTerrain);
         _mockFOVService = Substitute.For<IFOVService>();
         _mockLogger = Substitute.For<ILogger<CalculateFOVQueryHandler>>();
         _handler = new CalculateFOVQueryHandler(_gridMap, _mockFOVService, _mockLogger);

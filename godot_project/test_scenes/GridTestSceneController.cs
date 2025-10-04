@@ -7,7 +7,6 @@ using CSharpFunctionalExtensions;
 using Darklands.Core.Domain.Common;
 using Darklands.Core.Features.Grid.Application.Commands;
 using Darklands.Core.Features.Grid.Application.Queries;
-using Darklands.Core.Features.Grid.Domain;
 using Darklands.Core.Features.Grid.Domain.Events;
 using Darklands.Core.Features.Movement.Application.Commands;
 using Darklands.Core.Features.Movement.Application.Queries;
@@ -34,6 +33,7 @@ public partial class GridTestSceneController : Node2D
     private IGodotEventBus _eventBus = null!;
     private IPathfindingService _pathfindingService = null!;
     private ILogger<GridTestSceneController> _logger = null!;
+    private Darklands.Core.Features.Grid.Application.ITerrainRepository _terrainRepo = null!; // VS_019 Phase 3
 
     private ActorId _playerId;
     private ActorId _dummyId;
@@ -45,12 +45,18 @@ public partial class GridTestSceneController : Node2D
     private Position? _lastHoveredPosition; // Track last hovered position for path preview
 
     private const int GridSize = 30;
-    private const int CellSize = 48; // 48x48 pixels per cell
+    private const int CellSize = 48; // 48x48 pixels per cell (ColorRect legacy)
+    private const int TileSize = 8; // TileSet tile size (VS_019 Phase 3)
 
-    // Grid cells: [x, y] = ColorRect node
-    private readonly ColorRect[,] _gridCells = new ColorRect[GridSize, GridSize];
+    // VS_019 Phase 3: TileMapLayer for terrain rendering
+    private TileMapLayer _terrainLayer = null!;
+
+    // VS_019 Phase 4: Sprite2D actors
+    private Sprite2D _playerSprite = null!;
+    private Sprite2D _dummySprite = null!;
+
+    // VS_019 Phase 4: Only FOV overlay needed (terrain = TileMapLayer, actors = Sprite2D)
     private readonly ColorRect[,] _fovCells = new ColorRect[GridSize, GridSize];
-    private readonly ColorRect[,] _actorCells = new ColorRect[GridSize, GridSize]; // Actor overlay above fog
 
     // Fog of War state: [x, y] = has this cell been explored?
     private readonly bool[,] _exploredCells = new bool[GridSize, GridSize];
@@ -58,19 +64,13 @@ public partial class GridTestSceneController : Node2D
     // VS_006 Phase 4: Path visualization
     private readonly List<ColorRect> _pathOverlayNodes = new();
 
-    // Colors for terrain
-    private static readonly Color WallColor = Colors.Black;
-    private static readonly Color FloorColor = Colors.White;
-    private static readonly Color SmokeColor = new Color(0f, 0.6f, 0f); // Green (bushes)
-    private static readonly Color PlayerColor = Colors.Blue; // Changed from green
-    private static readonly Color DummyColor = Colors.Red;
-    private static readonly Color FOVColor = new Color(1f, 1f, 0f, 0.3f); // Semi-transparent yellow
+    // VS_019 Phase 4: Path preview color (actor/terrain colors removed, Sprite2D/TileMapLayer handle rendering)
     private static readonly Color PathPreviewColor = new Color(1f, 0.65f, 0f, 0.6f); // Semi-transparent orange (VS_006)
 
-    // Fog of War overlay colors
-    private static readonly Color UnexploredFog = new Color(0, 0, 0, 0.9f); // Nearly opaque black
-    private static readonly Color ExploredFog = new Color(0, 0, 0, 0.6f); // Semi-transparent black
-    private static readonly Color VisibleFog = new Color(0, 0, 0, 0); // Transparent (no fog)
+    // Fog of War overlay colors (VS_019: Adjusted for dark floor tiles)
+    private static readonly Color UnexploredFog = new Color(0, 0, 0, 1.0f); // Opaque black (unexplored = fully hidden)
+    private static readonly Color ExploredFog = new Color(0, 0, 0, 0.4f); // Light fog (can see terrain but dimmed)
+    private static readonly Color VisibleFog = new Color(0, 0, 0, 0); // Transparent (fully visible)
 
     public override void _Ready()
     {
@@ -79,8 +79,28 @@ public partial class GridTestSceneController : Node2D
         _eventBus = ServiceLocator.Get<IGodotEventBus>();
         _pathfindingService = ServiceLocator.Get<IPathfindingService>(); // VS_006 Phase 4
         _logger = ServiceLocator.Get<ILogger<GridTestSceneController>>(); // ADR-001: Use ILogger<T>, not GD.Print
+        _terrainRepo = ServiceLocator.Get<Darklands.Core.Features.Grid.Application.ITerrainRepository>(); // VS_019 Phase 3
 
-        // Create grid visualization
+        // Get TileMapLayer from scene (VS_019 Phase 3)
+        _terrainLayer = GetNode<TileMapLayer>("TerrainLayer");
+
+        // VS_019 Phase 4: Get Sprite2D actor nodes
+        _playerSprite = GetNode<Sprite2D>("Player");
+        _dummySprite = GetNode<Sprite2D>("Dummy");
+
+        // VS_019 Phase 3: Verify terrain repository loaded
+        var allTerrainsResult = _terrainRepo.GetAll();
+        if (allTerrainsResult.IsSuccess)
+        {
+            _logger.LogDebug("Terrain repository loaded: {Count} terrains available",
+                allTerrainsResult.Value.Count);
+        }
+        else
+        {
+            _logger.LogError("Terrain repository FAILED: {Error}", allTerrainsResult.Error);
+        }
+
+        // Create grid visualization (LEGACY ColorRect - will be removed)
         CreateGridCells();
 
         // Subscribe to events (ADR-004: Terminal subscriber)
@@ -106,8 +126,8 @@ public partial class GridTestSceneController : Node2D
     }
 
     /// <summary>
-    /// Creates ColorRect nodes for each grid cell (terrain + FOV + actor layers).
-    /// Layer ordering: Terrain (Z=0) → FOV (Z=10) → Actors (Z=20) → Path Preview (Z=15 in ShowPathPreview)
+    /// Creates ColorRect nodes for FOV overlay (VS_019 Phase 4: terrain + actors removed).
+    /// Layer ordering: TileMapLayer (Z=5) → FOV (Z=10) → Sprite2D Actors (Z=20) → Path Preview (Z=15)
     /// </summary>
     private void CreateGridCells()
     {
@@ -115,47 +135,110 @@ public partial class GridTestSceneController : Node2D
         {
             for (int y = 0; y < GridSize; y++)
             {
-                // Terrain layer (bottom, Z=0) - starts as pure black (unexplored)
-                var terrainCell = new ColorRect
-                {
-                    Position = new Vector2(x * CellSize, y * CellSize),
-                    Size = new Vector2(CellSize, CellSize),
-                    Color = Colors.Black, // Unexplored = pure black
-                    MouseFilter = Control.MouseFilterEnum.Stop // VS_006: Capture mouse input
-                };
-                AddChild(terrainCell);
-                _gridCells[x, y] = terrainCell;
-
-                // FOV overlay layer (middle, Z=10) - starts as unexplored (black fog)
+                // FOV overlay layer (Z=10) - starts as unexplored (black fog)
                 var fovCell = new ColorRect
                 {
                     Position = new Vector2(x * CellSize, y * CellSize),
                     Size = new Vector2(CellSize, CellSize),
                     Color = UnexploredFog, // Start with unexplored fog
-                    ZIndex = 10, // Above terrain
-                    MouseFilter = Control.MouseFilterEnum.Ignore // VS_006: Let clicks pass through to terrain
+                    ZIndex = 10, // Above TileMapLayer (Z=5), below Sprite2D actors (Z=20)
+                    MouseFilter = Control.MouseFilterEnum.Stop // VS_006: Capture mouse input
                 };
                 AddChild(fovCell);
                 _fovCells[x, y] = fovCell;
-
-                // Actor overlay layer (top, Z=20) - starts transparent
-                var actorCell = new ColorRect
-                {
-                    Position = new Vector2(x * CellSize, y * CellSize),
-                    Size = new Vector2(CellSize, CellSize),
-                    Color = Colors.Transparent, // Transparent by default
-                    ZIndex = 20, // Above FOV (fog of war doesn't hide actors)
-                    MouseFilter = Control.MouseFilterEnum.Ignore // Let clicks pass through
-                };
-                AddChild(actorCell);
-                _actorCells[x, y] = actorCell;
 
                 // Mark all cells as unexplored initially
                 _exploredCells[x, y] = false;
             }
         }
 
-        _logger.LogInformation("Created {GridSize}x{GridSize} grid cells (3 layers: terrain, FOV, actors)", GridSize, GridSize);
+        _logger.LogInformation("Created {GridSize}x{GridSize} FOV overlay grid", GridSize, GridSize);
+    }
+
+    /// <summary>
+    /// Renders a terrain to the TileMapLayer (VS_019_FOLLOWUP: Direct SetCell for non-autotiled terrains).
+    /// For wall_stone, use RenderWallsWithAutotiling batch method instead.
+    /// </summary>
+    private void RenderTerrainToTileMap(Position pos, string terrainName)
+    {
+        var terrainResult = _terrainRepo.GetByName(terrainName);
+        if (terrainResult.IsFailure)
+        {
+            _logger.LogError("Failed to render terrain '{TerrainName}' at ({X},{Y}): {Error}",
+                terrainName, pos.X, pos.Y, terrainResult.Error);
+            return;
+        }
+
+        var terrain = terrainResult.Value;
+        var cellPos = new Vector2I(pos.X, pos.Y);
+        var atlasCoords = new Vector2I(terrain.AtlasX, terrain.AtlasY);
+
+        // Direct tile placement for non-autotiled terrains (floor, grass, trees)
+        _terrainLayer.SetCell(cellPos, sourceId: 4, atlasCoords);
+    }
+
+    /// <summary>
+    /// Renders wall tiles with manual edge/corner assignment (VS_019_FOLLOWUP).
+    /// Note: Godot terrain autotiling fails for symmetric bitmasks - both left and right edges
+    /// have identical neighbor patterns, causing autotiling to arbitrarily pick one variant.
+    /// Manual position-based assignment ensures correct tiles for each edge/corner.
+    /// </summary>
+    private void RenderWallsWithAutotiling(List<Position> wallPositions)
+    {
+        if (wallPositions.Count == 0) return;
+
+        _logger.LogDebug("Rendering {WallCount} wall cells with manual edge/corner assignment...", wallPositions.Count);
+
+        foreach (var pos in wallPositions)
+        {
+            var cellPos = new Vector2I(pos.X, pos.Y);
+            Vector2I atlasCoords;
+
+            // Manually determine tile variant based on position
+            // Corners
+            if (pos.X == 0 && pos.Y == 0)
+            {
+                atlasCoords = new Vector2I(0, 0); // Top-left corner
+            }
+            else if (pos.X == GridSize - 1 && pos.Y == 0)
+            {
+                atlasCoords = new Vector2I(3, 0); // Top-right corner
+            }
+            else if (pos.X == 0 && pos.Y == GridSize - 1)
+            {
+                atlasCoords = new Vector2I(0, 2); // Bottom-left corner
+            }
+            else if (pos.X == GridSize - 1 && pos.Y == GridSize - 1)
+            {
+                atlasCoords = new Vector2I(3, 2); // Bottom-right corner
+            }
+            // Edges
+            else if (pos.Y == 0)
+            {
+                atlasCoords = new Vector2I(1, 0); // Top edge
+            }
+            else if (pos.Y == GridSize - 1)
+            {
+                atlasCoords = new Vector2I(2, 4); // Bottom edge
+            }
+            else if (pos.X == 0)
+            {
+                atlasCoords = new Vector2I(0, 1); // Left edge (wall_middle_left)
+            }
+            else if (pos.X == GridSize - 1)
+            {
+                atlasCoords = new Vector2I(3, 1); // Right edge (wall_middle_right)
+            }
+            else
+            {
+                // Interior wall (shouldn't happen in our test case, use generic)
+                atlasCoords = new Vector2I(0, 0);
+            }
+
+            _terrainLayer.SetCell(cellPos, sourceId: 4, atlasCoords);
+        }
+
+        _logger.LogDebug("Manual wall tiling complete (4 corners + top/bottom/left/right edges)");
     }
 
     private async void InitializeGameState()
@@ -166,27 +249,65 @@ public partial class GridTestSceneController : Node2D
         _activeActorId = _playerId; // Start with player's FOV
 
         // Initialize test terrain: Walls around edges, smoke patches
+        // VS_019_FOLLOWUP: Batch wall autotiling - collect positions first, render later
+
+        // FIRST: Fill entire grid with floor tiles (default terrain)
         for (int x = 0; x < GridSize; x++)
         {
-            await _mediator.Send(new SetTerrainCommand(new Position(x, 0), TerrainType.Wall));
-            await _mediator.Send(new SetTerrainCommand(new Position(x, GridSize - 1), TerrainType.Wall));
+            for (int y = 0; y < GridSize; y++)
+            {
+                await _mediator.Send(new SetTerrainCommand(new Position(x, y), "floor"));
+                RenderTerrainToTileMap(new Position(x, y), "floor");
+            }
         }
 
-        for (int y = 0; y < GridSize; y++)
+        // SECOND: Register walls in Core AND collect positions for autotiling
+        var wallPositions = new List<Position>();
+
+        // Top and bottom edges
+        for (int x = 0; x < GridSize; x++)
         {
-            await _mediator.Send(new SetTerrainCommand(new Position(0, y), TerrainType.Wall));
-            await _mediator.Send(new SetTerrainCommand(new Position(GridSize - 1, y), TerrainType.Wall));
+            var topPos = new Position(x, 0);
+            var bottomPos = new Position(x, GridSize - 1);
+
+            await _mediator.Send(new SetTerrainCommand(topPos, "wall_stone"));
+            wallPositions.Add(topPos);
+
+            await _mediator.Send(new SetTerrainCommand(bottomPos, "wall_stone"));
+            wallPositions.Add(bottomPos);
         }
 
-        // Add some smoke patches for testing vision blocking
-        await _mediator.Send(new SetTerrainCommand(new Position(10, 10), TerrainType.Smoke));
-        await _mediator.Send(new SetTerrainCommand(new Position(10, 11), TerrainType.Smoke));
-        await _mediator.Send(new SetTerrainCommand(new Position(11, 10), TerrainType.Smoke));
+        // Left and right edges (skip corners - already added)
+        for (int y = 1; y < GridSize - 1; y++)
+        {
+            var leftPos = new Position(0, y);
+            var rightPos = new Position(GridSize - 1, y);
 
-        // Add some interior walls
+            await _mediator.Send(new SetTerrainCommand(leftPos, "wall_stone"));
+            wallPositions.Add(leftPos);
+
+            await _mediator.Send(new SetTerrainCommand(rightPos, "wall_stone"));
+            wallPositions.Add(rightPos);
+        }
+
+        // THIRD: Apply autotiling to ALL walls at once (batch processing for neighbor analysis)
+        RenderWallsWithAutotiling(wallPositions);
+
+        // FOURTH: Add grass patches (non-autotiled, direct placement)
+        await _mediator.Send(new SetTerrainCommand(new Position(10, 10), "grass"));
+        RenderTerrainToTileMap(new Position(10, 10), "grass");
+
+        await _mediator.Send(new SetTerrainCommand(new Position(10, 11), "grass"));
+        RenderTerrainToTileMap(new Position(10, 11), "grass");
+
+        await _mediator.Send(new SetTerrainCommand(new Position(11, 10), "grass"));
+        RenderTerrainToTileMap(new Position(11, 10), "grass");
+
+        // FIFTH: Add tree terrain (non-autotiled, direct placement)
         for (int x = 5; x < 10; x++)
         {
-            await _mediator.Send(new SetTerrainCommand(new Position(x, 15), TerrainType.Wall));
+            await _mediator.Send(new SetTerrainCommand(new Position(x, 15), "tree"));
+            RenderTerrainToTileMap(new Position(x, 15), "tree");
         }
 
         // Register actors at starting positions
@@ -196,12 +317,9 @@ public partial class GridTestSceneController : Node2D
         await _mediator.Send(new RegisterActorCommand(_playerId, playerStartPos));
         await _mediator.Send(new RegisterActorCommand(_dummyId, dummyStartPos));
 
-        // DON'T render terrain - it will be revealed through FOV exploration
-        // Terrain stays pure black until explored
-
-        // Set initial actor colors
-        SetCellColor(playerStartPos.X, playerStartPos.Y, PlayerColor);
-        SetCellColor(dummyStartPos.X, dummyStartPos.Y, DummyColor);
+        // VS_019 Phase 4: Position Sprite2D actors (already positioned in scene, this is redundant but explicit)
+        _playerSprite.Position = GridToPixelCenter(playerStartPos);
+        _dummySprite.Position = GridToPixelCenter(dummyStartPos);
 
         // Calculate initial FOV for player (this will reveal starting area)
         await _mediator.Send(new MoveActorCommand(_playerId, playerStartPos));
@@ -327,21 +445,16 @@ public partial class GridTestSceneController : Node2D
     }
 
     /// <summary>
-    /// Event handler: Actor moved - update cell colors.
-    /// Event contains complete information (old + new positions) - no state tracking needed!
+    /// Event handler: Actor moved - tween Sprite2D to new position (VS_019 Phase 4).
     /// </summary>
-    private async void OnActorMoved(ActorMovedEvent evt)
+    private void OnActorMoved(ActorMovedEvent evt)
     {
-        // Restore old cell to terrain color (event tells us the old position!)
-        if (evt.OldPosition.X != evt.NewPosition.X || evt.OldPosition.Y != evt.NewPosition.Y)
-        {
-            // Check if another actor is still at the old position
-            await RestoreCellColor(evt.OldPosition);
-        }
+        // Determine which sprite to move
+        var sprite = evt.ActorId.Equals(_playerId) ? _playerSprite : _dummySprite;
 
-        // Set new cell to actor color
-        var actorColor = evt.ActorId.Equals(_playerId) ? PlayerColor : DummyColor;
-        SetCellColor(evt.NewPosition.X, evt.NewPosition.Y, actorColor);
+        // Create smooth tween animation to new position
+        var tween = CreateTween();
+        tween.TweenProperty(sprite, "position", GridToPixelCenter(evt.NewPosition), 0.1); // 100ms smooth movement
 
         _logger.LogDebug("Actor moved from ({OldX},{OldY}) to ({NewX},{NewY})",
             evt.OldPosition.X, evt.OldPosition.Y, evt.NewPosition.X, evt.NewPosition.Y);
@@ -378,33 +491,20 @@ public partial class GridTestSceneController : Node2D
                     // Currently visible (FOV): No fog, mark as explored
                     _fovCells[x, y].Color = VisibleFog;
                     _exploredCells[x, y] = true;
-
-                    // Reveal terrain when first explored
-                    if (_gridCells[x, y].Color == Colors.Black)
-                    {
-                        RestoreTerrainColor(x, y); // Paint actual terrain color
-                    }
-
-                    // Show actors ONLY in currently visible areas (real-time)
-                    UpdateActorVisibility(pos, playerPosResult, dummyPosResult, true);
                 }
                 else if (_exploredCells[x, y])
                 {
                     // Previously explored but not currently visible: Dim fog
                     _fovCells[x, y].Color = ExploredFog;
-
-                    // HIDE actors in explored areas (they may have moved - no memory of enemies)
-                    UpdateActorVisibility(pos, playerPosResult, dummyPosResult, false);
                 }
                 else
                 {
-                    // Never explored: Pure black (hide terrain completely)
-                    _fovCells[x, y].Color = Colors.Transparent; // No fog overlay needed
-                    _gridCells[x, y].Color = Colors.Black; // Terrain layer is pure black
-
-                    // HIDE actors in unexplored areas (true fog of war)
-                    UpdateActorVisibility(pos, playerPosResult, dummyPosResult, false);
+                    // Never explored: Opaque black fog (hide terrain completely)
+                    _fovCells[x, y].Color = UnexploredFog;
                 }
+
+                // VS_019 Phase 4: Sprite2D actors render at Z=20 (above fog), visibility handled separately
+                UpdateActorVisibility(pos, playerPosResult, dummyPosResult, visibleSet.Contains(pos));
             }
         }
 
@@ -412,7 +512,7 @@ public partial class GridTestSceneController : Node2D
     }
 
     /// <summary>
-    /// Updates actor visibility based on exploration state.
+    /// Updates actor visibility based on exploration state (VS_019 Phase 4: Sprite2D visibility).
     /// </summary>
     private void UpdateActorVisibility(
         Position pos,
@@ -423,19 +523,16 @@ public partial class GridTestSceneController : Node2D
         // Check if player is at this position
         if (playerPosResult.IsSuccess && playerPosResult.Value.Equals(pos))
         {
-            _actorCells[pos.X, pos.Y].Color = shouldBeVisible ? PlayerColor : Colors.Transparent;
+            _playerSprite.Visible = shouldBeVisible;
             return;
         }
 
         // Check if dummy is at this position
         if (dummyPosResult.IsSuccess && dummyPosResult.Value.Equals(pos))
         {
-            _actorCells[pos.X, pos.Y].Color = shouldBeVisible ? DummyColor : Colors.Transparent;
+            _dummySprite.Visible = shouldBeVisible;
             return;
         }
-
-        // No actor here
-        _actorCells[pos.X, pos.Y].Color = Colors.Transparent;
     }
 
     /// <summary>
@@ -452,71 +549,14 @@ public partial class GridTestSceneController : Node2D
     }
 
     /// <summary>
-    /// Sets a grid cell to a specific actor color (on actor overlay layer, above fog).
+    /// Converts grid position to pixel coordinates (centered in cell) for Sprite2D positioning.
     /// </summary>
-    private void SetCellColor(int x, int y, Color color)
+    private Vector2 GridToPixelCenter(Position gridPos)
     {
-        if (x >= 0 && x < GridSize && y >= 0 && y < GridSize)
-        {
-            _actorCells[x, y].Color = color; // Paint on actor layer (Z=20) not terrain
-        }
-    }
-
-    /// <summary>
-    /// Restores a cell's actor layer to transparent, or keeps actor color if another actor is there.
-    /// </summary>
-    private async Task RestoreCellColor(Position pos)
-    {
-        if (pos.X < 0 || pos.X >= GridSize || pos.Y < 0 || pos.Y >= GridSize) return;
-
-        // Check if player is at this position
-        var playerPosResult = await _mediator.Send(new GetActorPositionQuery(_playerId));
-        if (playerPosResult.IsSuccess && playerPosResult.Value.Equals(pos))
-        {
-            _actorCells[pos.X, pos.Y].Color = PlayerColor;
-            return;
-        }
-
-        // Check if dummy is at this position
-        var dummyPosResult = await _mediator.Send(new GetActorPositionQuery(_dummyId));
-        if (dummyPosResult.IsSuccess && dummyPosResult.Value.Equals(pos))
-        {
-            _actorCells[pos.X, pos.Y].Color = DummyColor;
-            return;
-        }
-
-        // No actor here, make actor layer transparent
-        _actorCells[pos.X, pos.Y].Color = Colors.Transparent;
-    }
-
-    /// <summary>
-    /// Restores a cell to its terrain color when revealed by FOV.
-    /// </summary>
-    private void RestoreTerrainColor(int x, int y)
-    {
-        if (x < 0 || x >= GridSize || y < 0 || y >= GridSize) return;
-
-        // Determine terrain color based on position
-        Color color;
-
-        if (x == 0 || x == GridSize - 1 || y == 0 || y == GridSize - 1)
-        {
-            color = WallColor;
-        }
-        else if ((x == 10 && y == 10) || (x == 10 && y == 11) || (x == 11 && y == 10))
-        {
-            color = SmokeColor;
-        }
-        else if (y == 15 && x >= 5 && x < 10)
-        {
-            color = WallColor;
-        }
-        else
-        {
-            color = FloorColor;
-        }
-
-        _gridCells[x, y].Color = color;
+        // Center of cell = (grid * cellSize) + (cellSize / 2)
+        return new Vector2(
+            gridPos.X * CellSize + CellSize / 2f,
+            gridPos.Y * CellSize + CellSize / 2f);
     }
 
     // ===== VS_006 Phase 4: Click-to-Move Pathfinding =====

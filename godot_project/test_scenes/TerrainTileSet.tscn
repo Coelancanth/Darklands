@@ -1,0 +1,9 @@
+[gd_scene load_steps=2 format=4 uid="uid://b2s62k065r27s"]
+
+[ext_resource type="TileSet" uid="uid://ctg8p3ufnuc2d" path="res://assets/micro-roguelike/test_terrain_tileset.tres" id="1_43th3"]
+
+[node name="TerrainTileSet" type="Node2D"]
+
+[node name="TileMapLayer" type="TileMapLayer" parent="."]
+tile_map_data = PackedByteArray("AAB8AEEABAADAAAAAAB7AEEABAACAAQAAAB6AEEABAACAAQAAAB5AEEABAACAAQAAAB4AEEABAAAAAAAAAB8AEMABAADAAIAAAB8AEIABAADAAEAAAB4AEMABAAAAAIAAAB5AEMABAACAAQAAAB6AEMABAACAAQAAAB7AEMABAACAAQAAAB4AEIABAAAAAEAAAA=")
+tile_set = ExtResource("1_43th3")

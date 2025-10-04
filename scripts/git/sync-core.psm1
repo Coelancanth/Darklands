@@ -344,13 +344,29 @@ function Sync-GitBranch {
         
         "fast-forward" {
             Write-Status "Fast-forwarding to latest..."
-            
+
             if ($PreviewOnly) {
                 Write-Info "[Preview] Would fast-forward to origin/main"
             } else {
+                # BUGFIX: Check if index is dirty (staged files from stash pop)
+                $stagedChanges = git diff --cached --quiet 2>$null
+                $indexDirty = $LASTEXITCODE -ne 0
+
+                if ($indexDirty) {
+                    # Temporarily unstage to allow fast-forward
+                    Write-Status "Temporarily unstaging changes for fast-forward..."
+                    git reset HEAD --quiet 2>$null
+                }
+
                 git merge origin/main --ff-only
                 if ($LASTEXITCODE -eq 0) {
                     Write-Success "Fast-forward complete"
+
+                    # Re-stage if we had unstaged
+                    if ($indexDirty) {
+                        Write-Status "Re-staging your changes..."
+                        git add -A --quiet 2>$null
+                    }
                 } else {
                     Write-Error "Fast-forward failed"
                     $success = $false
@@ -439,19 +455,22 @@ function Sync-GitBranch {
     - Leaves you on main ready for next task
 .PARAMETER CurrentBranch
     The current branch to check
+.PARAMETER AlreadyStashed
+    If true, caller has already stashed changes (don't stash again)
 .OUTPUTS
     Boolean indicating if a merged PR was handled
 #>
 function Handle-MergedPR {
     param(
-        [string]$CurrentBranch = (git branch --show-current)
+        [string]$CurrentBranch = (git branch --show-current),
+        [bool]$AlreadyStashed = $false
     )
-    
+
     # Don't process if already on main
     if ($CurrentBranch -eq "main") {
         return $false
     }
-    
+
     # Check if PR was merged using GitHub API
     $prMerged = $false
     if (Get-Command gh -ErrorAction SilentlyContinue) {
@@ -465,39 +484,41 @@ function Handle-MergedPR {
             # Silent fallback to other detection methods
         }
     }
-    
+
     # If no merged PR detected, return
     if (-not $prMerged) {
         return $false
     }
-    
-    # Save any uncommitted work
+
+    # Save any uncommitted work (only if not already stashed by caller)
     $hasChanges = (git status --porcelain)
-    if ($hasChanges) {
+    $shouldStash = $hasChanges -and -not $AlreadyStashed
+
+    if ($shouldStash) {
         Write-Status "Saving uncommitted changes..."
         git stash push -m "Auto-stash: PR merged for $CurrentBranch" *>$null
     }
-    
+
     # Switch to main and hard reset (safe after PR merge)
     Write-Status "Switching to main and syncing with remote..."
     git checkout main *>$null
     git reset --hard origin/main *>$null
-    
+
     # Delete old branch
     Write-Status "Removing merged branch: $CurrentBranch"
     git branch -D $CurrentBranch *>$null
-    
-    # Restore stashed changes if any
-    if ($hasChanges) {
+
+    # Restore stashed changes if we stashed them (caller handles their own stash)
+    if ($shouldStash) {
         Write-Status "Restoring uncommitted changes..."
         git stash pop *>$null
     }
-    
+
     # Provide clear status message
     Write-Success "Switched to main after PR merge!"
     Write-Info "Your PR for '$CurrentBranch' was merged and branch deleted"
     Write-Info "Ready for next task - create new branch when needed"
-    
+
     return $true
 }
 

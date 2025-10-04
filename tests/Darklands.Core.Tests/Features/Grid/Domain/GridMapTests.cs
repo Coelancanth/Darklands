@@ -1,5 +1,7 @@
 using Darklands.Core.Domain.Common;
+using Darklands.Core.Features.Grid.Application;
 using Darklands.Core.Features.Grid.Domain;
+using Darklands.Core.Features.Grid.Infrastructure.Repositories;
 using FluentAssertions;
 using Xunit;
 
@@ -9,15 +11,31 @@ namespace Darklands.Core.Tests.Features.Grid.Domain;
 [Trait("Category", "Unit")]
 public class GridMapTests
 {
+    private readonly ITerrainRepository _terrainRepo;
+    private readonly TerrainDefinition _floorTerrain;
+    private readonly TerrainDefinition _wallTerrain;
+    private readonly TerrainDefinition _smokeTerrain;
+
+    public GridMapTests()
+    {
+        _terrainRepo = new StubTerrainRepository();
+        _floorTerrain = _terrainRepo.GetByName("floor").Value;
+        _wallTerrain = _terrainRepo.GetByName("wall").Value;
+        _smokeTerrain = _terrainRepo.GetByName("smoke").Value;
+    }
+
     #region Construction Tests
 
     [Fact]
-    public void Constructor_ShouldInitializeWithAllFloorTerrain()
+    public void Constructor_ShouldInitializeWithAllDefaultTerrain()
     {
-        // WHY: Default map should be fully walkable (all Floor)
+        // WHY: Default map should be fully walkable (all floor terrain)
+
+        // Arrange
+        var defaultTerrain = _terrainRepo.GetDefault().Value;
 
         // Act
-        var map = new GridMap();
+        var map = new GridMap(defaultTerrain);
 
         // Assert
         for (int x = 0; x < GridMap.Width; x++)
@@ -28,7 +46,8 @@ public class GridMapTests
                 var result = map.GetTerrain(position);
 
                 result.IsSuccess.Should().BeTrue();
-                result.Value.Should().Be(TerrainType.Floor);
+                result.Value.Should().Be(_floorTerrain);
+                result.Value.Name.Should().Be("floor");
             }
         }
     }
@@ -56,7 +75,7 @@ public class GridMapTests
     public void IsValidPosition_InsideBounds_ShouldReturnTrue(int x, int y, bool expected)
     {
         // Arrange
-        var map = new GridMap();
+        var map = new GridMap(_floorTerrain);
         var position = new Position(x, y);
 
         // Act
@@ -77,7 +96,7 @@ public class GridMapTests
     public void IsValidPosition_OutsideBounds_ShouldReturnFalse(int x, int y, bool expected)
     {
         // Arrange
-        var map = new GridMap();
+        var map = new GridMap(_floorTerrain);
         var position = new Position(x, y);
 
         // Act
@@ -95,7 +114,7 @@ public class GridMapTests
     public void GetTerrain_ValidPosition_ShouldReturnSuccess()
     {
         // Arrange
-        var map = new GridMap();
+        var map = new GridMap(_floorTerrain);
         var position = new Position(10, 10);
 
         // Act
@@ -103,7 +122,8 @@ public class GridMapTests
 
         // Assert
         result.IsSuccess.Should().BeTrue();
-        result.Value.Should().Be(TerrainType.Floor);
+        result.Value.Should().Be(_floorTerrain);
+        result.Value.Name.Should().Be("floor");
     }
 
     [Fact]
@@ -112,7 +132,7 @@ public class GridMapTests
         // DOMAIN ERROR: Out-of-bounds access is a business rule violation
 
         // Arrange
-        var map = new GridMap();
+        var map = new GridMap(_floorTerrain);
         var position = new Position(-1, 5);
 
         // Act
@@ -133,17 +153,18 @@ public class GridMapTests
     public void SetTerrain_ValidPosition_ShouldUpdateTerrain()
     {
         // Arrange
-        var map = new GridMap();
+        var map = new GridMap(_floorTerrain);
         var position = new Position(5, 5);
 
         // Act
-        var setResult = map.SetTerrain(position, TerrainType.Wall);
+        var setResult = map.SetTerrain(position, _wallTerrain);
         var getResult = map.GetTerrain(position);
 
         // Assert
         setResult.IsSuccess.Should().BeTrue();
         getResult.IsSuccess.Should().BeTrue();
-        getResult.Value.Should().Be(TerrainType.Wall);
+        getResult.Value.Should().Be(_wallTerrain);
+        getResult.Value.Name.Should().Be("wall");
     }
 
     [Fact]
@@ -152,11 +173,11 @@ public class GridMapTests
         // DOMAIN ERROR: Cannot modify terrain outside grid bounds
 
         // Arrange
-        var map = new GridMap();
+        var map = new GridMap(_floorTerrain);
         var position = new Position(30, 30);
 
         // Act
-        var result = map.SetTerrain(position, TerrainType.Wall);
+        var result = map.SetTerrain(position, _wallTerrain);
 
         // Assert
         result.IsFailure.Should().BeTrue();
@@ -170,16 +191,17 @@ public class GridMapTests
         // WHY: Validate Smoke terrain type (tactical depth)
 
         // Arrange
-        var map = new GridMap();
+        var map = new GridMap(_floorTerrain);
         var position = new Position(10, 10);
 
         // Act
-        var setResult = map.SetTerrain(position, TerrainType.Smoke);
+        var setResult = map.SetTerrain(position, _smokeTerrain);
         var getResult = map.GetTerrain(position);
 
         // Assert
         setResult.IsSuccess.Should().BeTrue();
-        getResult.Value.Should().Be(TerrainType.Smoke);
+        getResult.Value.Should().Be(_smokeTerrain);
+        getResult.Value.Name.Should().Be("smoke");
     }
 
     #endregion
@@ -190,9 +212,9 @@ public class GridMapTests
     public void IsPassable_FloorTerrain_ShouldReturnTrue()
     {
         // Arrange
-        var map = new GridMap();
+        var map = new GridMap(_floorTerrain);
         var position = new Position(5, 5);
-        map.SetTerrain(position, TerrainType.Floor);
+        map.SetTerrain(position, _floorTerrain);
 
         // Act
         var result = map.IsPassable(position);
@@ -206,9 +228,9 @@ public class GridMapTests
     public void IsPassable_WallTerrain_ShouldReturnFalse()
     {
         // Arrange
-        var map = new GridMap();
+        var map = new GridMap(_floorTerrain);
         var position = new Position(5, 5);
-        map.SetTerrain(position, TerrainType.Wall);
+        map.SetTerrain(position, _wallTerrain);
 
         // Act
         var result = map.IsPassable(position);
@@ -224,9 +246,9 @@ public class GridMapTests
         // WHY: Smoke is passable (can walk through) but opaque (blocks vision)
 
         // Arrange
-        var map = new GridMap();
+        var map = new GridMap(_floorTerrain);
         var position = new Position(5, 5);
-        map.SetTerrain(position, TerrainType.Smoke);
+        map.SetTerrain(position, _smokeTerrain);
 
         // Act
         var result = map.IsPassable(position);
@@ -242,7 +264,7 @@ public class GridMapTests
         // RAILWAY-ORIENTED: Failure propagates from GetTerrain
 
         // Arrange
-        var map = new GridMap();
+        var map = new GridMap(_floorTerrain);
         var position = new Position(-1, -1);
 
         // Act
@@ -261,9 +283,9 @@ public class GridMapTests
     public void IsOpaque_FloorTerrain_ShouldReturnFalse()
     {
         // Arrange
-        var map = new GridMap();
+        var map = new GridMap(_floorTerrain);
         var position = new Position(5, 5);
-        map.SetTerrain(position, TerrainType.Floor);
+        map.SetTerrain(position, _floorTerrain);
 
         // Act
         var result = map.IsOpaque(position);
@@ -277,9 +299,9 @@ public class GridMapTests
     public void IsOpaque_WallTerrain_ShouldReturnTrue()
     {
         // Arrange
-        var map = new GridMap();
+        var map = new GridMap(_floorTerrain);
         var position = new Position(5, 5);
-        map.SetTerrain(position, TerrainType.Wall);
+        map.SetTerrain(position, _wallTerrain);
 
         // Act
         var result = map.IsOpaque(position);
@@ -295,9 +317,9 @@ public class GridMapTests
         // WHY: Smoke blocks vision (opaque) but allows movement (passable)
 
         // Arrange
-        var map = new GridMap();
+        var map = new GridMap(_floorTerrain);
         var position = new Position(5, 5);
-        map.SetTerrain(position, TerrainType.Smoke);
+        map.SetTerrain(position, _smokeTerrain);
 
         // Act
         var result = map.IsOpaque(position);
@@ -313,7 +335,7 @@ public class GridMapTests
         // RAILWAY-ORIENTED: Failure propagates from GetTerrain
 
         // Arrange
-        var map = new GridMap();
+        var map = new GridMap(_floorTerrain);
         var position = new Position(50, 50);
 
         // Act
@@ -334,20 +356,20 @@ public class GridMapTests
         // EDGE CASE: Setting terrain at one position shouldn't affect others
 
         // Arrange
-        var map = new GridMap();
+        var map = new GridMap(_floorTerrain);
         var wallPos = new Position(5, 5);
         var smokePos = new Position(10, 10);
         var floorPos = new Position(15, 15);
 
         // Act
-        map.SetTerrain(wallPos, TerrainType.Wall);
-        map.SetTerrain(smokePos, TerrainType.Smoke);
-        // floorPos stays default (Floor)
+        map.SetTerrain(wallPos, _wallTerrain);
+        map.SetTerrain(smokePos, _smokeTerrain);
+        // floorPos stays default (floor terrain)
 
         // Assert
-        map.GetTerrain(wallPos).Value.Should().Be(TerrainType.Wall);
-        map.GetTerrain(smokePos).Value.Should().Be(TerrainType.Smoke);
-        map.GetTerrain(floorPos).Value.Should().Be(TerrainType.Floor);
+        map.GetTerrain(wallPos).Value.Should().Be(_wallTerrain);
+        map.GetTerrain(smokePos).Value.Should().Be(_smokeTerrain);
+        map.GetTerrain(floorPos).Value.Should().Be(_floorTerrain);
 
         map.IsPassable(wallPos).Value.Should().BeFalse();
         map.IsPassable(smokePos).Value.Should().BeTrue();

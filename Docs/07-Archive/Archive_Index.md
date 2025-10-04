@@ -1,20 +1,22 @@
 # Backlog Archive Index
 
-**Last Updated**: 2025-10-04 19:35
-**Current Active Archive**: Completed_Backlog_2025-10_Part2.md (Lines: 704/1000)
+**Last Updated**: 2025-10-05 02:31
+**Current Active Archive**: Completed_Backlog_2025-10_Part2.md (Lines: 972/1000)
 
 ## Archive Files (Newest First)
 
 ### Completed_Backlog_2025-10_Part2.md (✅ ACTIVE - October 2025 Part 3)
 - **Created**: 2025-10-04 14:15 (after rotation)
-- **Line Count**: 704/1000
-- **Date Range**: 2025-10-04 to 2025-10-04
+- **Line Count**: 972/1000
+- **Date Range**: 2025-10-04 to 2025-10-05
 - **Status**: ✅ Active (accepting new items)
-- **Extraction Status**: 0/2 extracted (2 NOT EXTRACTED ⚠️)
+- **Extraction Status**: 0/4 extracted (4 NOT EXTRACTED ⚠️)
 
 **Items**:
 - **TD_003**: Separate Equipment Slots from Spatial Inventory Container (EquipmentSlotNode 646 lines, InventoryRenderHelper 256 lines, renamed InventoryContainerNode, 359 tests GREEN) [NOT EXTRACTED ⚠️]
 - **VS_007**: Time-Unit Turn Queue System (4-phase implementation, 49 new tests, 6 follow-ups complete: vision constants, FOV-based combat exit, movement cost 10 units, production log formatting) [NOT EXTRACTED ⚠️]
+- **VS_019**: TileSet-Based Visual Scene + TileSet as Terrain Catalog (SSOT) (4 phases complete, TileMapLayer rendering, Sprite2D actors, fog system, 300+ line cleanup, commits: f64c7de, 59159e5, d9d9a4d, 27b62b2, 896f6d5) [NOT EXTRACTED ⚠️]
+- **VS_019_FOLLOWUP**: Fix Wall Autotiling (Manual Edge Assignment) (Manual tile assignment for symmetric bitmasks, position-based logic, visual symmetry achieved, commit: 0885cbd) [NOT EXTRACTED ⚠️]
 
 ### Completed_Backlog_2025-10.md (🔒 SEALED - October 2025 Part 2)
 - **Created**: 2025-10-02 12:17 (after rotation)

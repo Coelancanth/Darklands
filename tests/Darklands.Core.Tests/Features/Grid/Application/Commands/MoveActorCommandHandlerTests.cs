@@ -3,10 +3,12 @@ using Darklands.Core.Domain.Common;
 using Darklands.Core.Features.Combat.Application;
 using Darklands.Core.Features.Combat.Application.Queries;
 using Darklands.Core.Features.Combat.Domain;
+using Darklands.Core.Features.Grid.Application;
 using Darklands.Core.Features.Grid.Application.Commands;
 using Darklands.Core.Features.Grid.Application.Queries;
 using Darklands.Core.Features.Grid.Application.Services;
 using Darklands.Core.Features.Grid.Domain;
+using Darklands.Core.Features.Grid.Infrastructure.Repositories;
 using Darklands.Core.Infrastructure.Events;
 using FluentAssertions;
 using MediatR;
@@ -20,6 +22,10 @@ namespace Darklands.Core.Tests.Features.Grid.Application.Commands;
 [Trait("Category", "Unit")]
 public class MoveActorCommandHandlerTests
 {
+    private readonly ITerrainRepository _terrainRepo;
+    private readonly TerrainDefinition _floorTerrain;
+    private readonly TerrainDefinition _wallTerrain;
+    private readonly TerrainDefinition _smokeTerrain;
     private readonly GridMap _gridMap;
     private readonly IActorPositionService _mockPositionService;
     private readonly IMediator _mockMediator;
@@ -30,7 +36,11 @@ public class MoveActorCommandHandlerTests
 
     public MoveActorCommandHandlerTests()
     {
-        _gridMap = new GridMap(); // Real GridMap (pure domain, no mocking needed)
+        _terrainRepo = new StubTerrainRepository();
+        _floorTerrain = _terrainRepo.GetDefault().Value;
+        _wallTerrain = _terrainRepo.GetByName("wall").Value;
+        _smokeTerrain = _terrainRepo.GetByName("smoke").Value;
+        _gridMap = new GridMap(_floorTerrain); // Real GridMap (pure domain, no mocking needed)
         _mockPositionService = Substitute.For<IActorPositionService>();
         _mockMediator = Substitute.For<IMediator>();
         _mockEventBus = Substitute.For<IGodotEventBus>();
@@ -78,7 +88,7 @@ public class MoveActorCommandHandlerTests
         // Arrange
         var actorId = ActorId.NewId();
         var smokePos = new Position(5, 5);
-        _gridMap.SetTerrain(smokePos, TerrainType.Smoke);
+        _gridMap.SetTerrain(smokePos, _smokeTerrain);
         var command = new MoveActorCommand(actorId, smokePos);
 
         _mockPositionService.SetPosition(actorId, smokePos).Returns(Result.Success());
@@ -103,7 +113,7 @@ public class MoveActorCommandHandlerTests
         // Arrange
         var actorId = ActorId.NewId();
         var wallPos = new Position(5, 5);
-        _gridMap.SetTerrain(wallPos, TerrainType.Wall);
+        _gridMap.SetTerrain(wallPos, _wallTerrain);
         var command = new MoveActorCommand(actorId, wallPos);
 
         // Act

@@ -86,12 +86,18 @@ public static class GameStrapper
         services.AddSingleton<Features.Health.Application.IHealthComponentRegistry,
             Features.Health.Infrastructure.HealthComponentRegistry>();
 
-        // Grid System (VS_005 Phase 3+4) - FOV service, position service, and domain
+        // Grid System (VS_005 Phase 3+4, VS_019 Phase 2) - GridMap factory, FOV service, position service
+        // NOTE: ITerrainRepository is registered in Main.cs (Presentation layer loads TileSet)
+        services.AddSingleton<Features.Grid.Domain.GridMap>(provider =>
+        {
+            var terrainRepo = provider.GetRequiredService<Features.Grid.Application.ITerrainRepository>();
+            var defaultTerrain = terrainRepo.GetDefault().Value;  // "floor" terrain from TileSet
+            return new Features.Grid.Domain.GridMap(defaultTerrain);
+        });
         services.AddSingleton<Features.Grid.Application.Services.IFOVService,
             Features.Grid.Infrastructure.Services.ShadowcastingFOVService>();
         services.AddSingleton<Features.Grid.Application.Services.IActorPositionService,
             Features.Grid.Infrastructure.Services.ActorPositionService>();
-        services.AddSingleton<Features.Grid.Domain.GridMap>();
 
         // Movement System (VS_006 Phase 3+4) - Pathfinding service
         services.AddSingleton<Features.Movement.Application.Services.IPathfindingService,

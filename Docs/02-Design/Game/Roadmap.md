@@ -90,24 +90,26 @@ Phase 4: Emergent Narrative (3-4 months)
 
 ---
 
-### VS_007: Time-Unit Turn Queue System ⭐ **PLANNED**
+### VS_007: Time-Unit Turn Queue System ✅ **COMPLETE**
 
-**Status**: Proposed | **Size**: L (2-3 days) | **Owner**: Product Owner → Tech Lead
-**Depends On**: VS_005 (FOV events), VS_006 (Movement cancellation)
+**Status**: Complete (2025-10-04) | **Size**: L (3 days, all 4 phases) | **Tests**: 359 passing (49 new)
+**Owner**: Dev Engineer
 
-**What**: Time-unit turn scheduling that distinguishes exploration (auto-movement) from combat (single-step tactical movement)
+**Delivered**: Time-unit combat system with natural exploration/combat mode detection via turn queue size, FOV-based symmetric enter/exit transitions, movement costs (10 units/move), production-ready logging with Gruvbox semantic highlighting
 
-**Why**: Core Vision.md pillar (weapon speed, armor penalties, action costs). Turn queue size = combat state. Enemy detection → schedule enemy → queue grows → auto-movement cancels.
+**What Was Built**:
+- **Phase 1 (Domain)**: `TimeUnits` value object, `TurnQueue` aggregate with priority queue + player-first tie-breaking, `ScheduledActor` record
+- **Phase 2 (Application)**: `ScheduleActorCommand`, `RemoveActorFromQueueCommand`, `IsInCombatQuery`, `IsActorScheduledQuery`, `EnemyDetectionEventHandler` (FOV→schedule enemies), `CombatEndDetectionEventHandler` (FOV cleared→exit combat)
+- **Phase 3 (Infrastructure)**: `InMemoryTurnQueueRepository`, `PlayerContext` service, DI registration in GameStrapper
+- **Phase 4 (Presentation)**: Input routing (combat=single-step, exploration=auto-path), test scene with player/enemies, bug fixes (async race conditions, path preview)
 
-**How**:
-- **Phase 1**: `TurnQueue` aggregate, `TimeUnits` value object, `ScheduledActor` record
-- **Phase 2**: `ScheduleActorCommand`, `IsInCombatQuery`, `EnemyDetectionEventHandler` (FOV→queue), `CombatModeDetectedEventHandler` (cancel movement)
-- **Phase 3**: `TurnQueueService` (in-memory queue + cancellation tokens)
-- **Phase 4**: Input routing (`IsInCombat()` → auto-path OR single-step)
-
-**Scope**:
-- ✅ Priority queue by time, relative time model (resets per combat), player-first ties, duplicate prevention, dynamic reinforcements
-- ❌ Enemy AI (just schedule), variable action costs (all 100 units), turn UI visualization
+**Key Design Decisions**:
+- Turn queue size = combat state (no separate state machine)
+- Relative time model (resets to 0 per combat session)
+- Player permanently in queue (never fully removed)
+- FOV events drive both combat enter AND exit (symmetric pattern)
+- Movement costs: 10 units in combat, instant in exploration
+- Player-centric FOV only (enemies don't detect player—deferred to VS_011)
 
 **Example Scenario** (Exploration → Combat → Reinforcement → Victory):
 ```
