@@ -1028,64 +1028,36 @@ public partial class SpatialInventoryContainerNode : Control
             Region = region
         };
 
-        // PHASE 4: Get item's BASE shape (unrotated) from cache or query
-        ItemShape baseShape;
-        if (_itemShapes.TryGetValue(itemId, out var cachedShape))
-        {
-            // Shape in cache: This is the BASE shape (as stored in TileSet)
-            baseShape = cachedShape;
-        }
-        else
-        {
-            // Cross-container drag: Item not in cache, fetch from repository
-            var itemQuery = new GetItemByIdQuery(itemId);
-            var itemResult = _mediator.Send(itemQuery).Result; // Blocking OK for highlight rendering
+        // TD_004 Phase 2: Delegate to Core for highlight cell calculation
+        // Core handles: shape rotation, equipment slot override, L-shape support
+        var highlightQuery = new CalculateHighlightCellsQuery(
+            OwnerActorId!.Value,
+            itemId,
+            origin,
+            rotation);
 
-            if (itemResult.IsSuccess)
-            {
-                // PHASE 4: ItemDto now exposes Shape - use it for accurate L/T-shape highlighting!
-                baseShape = itemResult.Value.Shape;
-            }
-            else
-            {
-                // Ultimate fallback if query fails
-                baseShape = ItemShape.CreateRectangle(1, 1).Value;
-                _logger.LogWarning("Failed to fetch item {ItemId} for highlight rendering, using 1×1 fallback", itemId);
-            }
+        var highlightResult = _mediator.Send(highlightQuery).Result; // Blocking OK for UI rendering
+
+        if (highlightResult.IsFailure)
+        {
+            _logger.LogWarning("Failed to calculate highlight cells for item {ItemId}: {Error}", itemId, highlightResult.Error);
+            return; // Cannot render highlights without cell data
         }
 
-        // Apply rotation parameter to BASE shape (rotates correctly for both same-container and cross-container drags)
-        var rotatedShape = baseShape;
-        for (int i = 0; i < ((int)rotation / 90); i++)
-        {
-            var rotResult = rotatedShape.RotateClockwise();
-            if (rotResult.IsSuccess)
-                rotatedShape = rotResult.Value;
-        }
+        var highlightCells = highlightResult.Value;
 
-        // EQUIPMENT SLOT FIX: Override shape to 1×1 for equipment slots (Diablo 2 pattern)
-        // WHY: Equipment slots display items as 1×1 regardless of actual shape
-        // Visual feedback: Single cell highlight, not the item's multi-cell L-shape
-        bool isEquipmentSlot = _containerType == ContainerType.WeaponOnly && _gridWidth == 1 && _gridHeight == 1;
-        if (isEquipmentSlot)
-        {
-            // Force 1×1 highlight for equipment slots (ignore item's actual shape)
-            rotatedShape = ItemShape.CreateRectangle(1, 1).Value;
-            _logger.LogDebug("Equipment slot: Overriding highlight to 1×1 (item shape ignored)");
-        }
-
-        // Render highlight sprite for ONLY occupied cells (not bounding box!)
+        // Render highlight sprite for ONLY occupied cells (Core provides absolute positions)
         int separationX = 2;
         int separationY = 2;
 
-        foreach (var offset in rotatedShape.OccupiedCells)
+        foreach (var cellPos in highlightCells)
         {
-            float pixelX = (origin.X + offset.X) * (CellSize + separationX);
-            float pixelY = (origin.Y + offset.Y) * (CellSize + separationY);
+            float pixelX = cellPos.X * (CellSize + separationX);
+            float pixelY = cellPos.Y * (CellSize + separationY);
 
             var highlight = new TextureRect
             {
-                Name = $"Highlight_{origin.X + offset.X}_{origin.Y + offset.Y}",
+                Name = $"Highlight_{cellPos.X}_{cellPos.Y}",
                 Texture = atlasTexture,
                 TextureFilter = CanvasItem.TextureFilterEnum.Nearest,
                 StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
