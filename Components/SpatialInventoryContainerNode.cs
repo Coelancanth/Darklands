@@ -629,56 +629,34 @@ public partial class SpatialInventoryContainerNode : Control
         // STEP 2: Load item metadata (types, names) - needs item IDs from origins
         await LoadItemTypes();
 
-        // STEP 3: Build reverse lookup: ALL occupied cells → ItemId (multi-cell support)
+        // STEP 3: Build reverse lookup: ALL occupied cells → ItemId (TD_004: Use Core query)
         foreach (var (itemId, origin) in _itemOrigins)
         {
-            var (baseWidth, baseHeight) = _itemDimensions[itemId]; // Base dimensions from Domain
-            var rotation = _itemRotations[itemId]; // Rotation from Domain
+            // TD_004 Phase 2: Delegate occupied cell calculation to Core
+            // Core handles: shape rotation, L-shape OccupiedCells iteration, rectangle fallback
+            var occupiedCellsQuery = new GetOccupiedCellsQuery(OwnerActorId.Value, itemId);
+            var occupiedCellsResult = await _mediator.Send(occupiedCellsQuery);
 
-            // PHASE 4: Use ItemShape.OccupiedCells for accurate L-shape collision
-            // CRITICAL: Don't iterate bounding box - that fills empty cells in L-shapes!
-            if (_itemShapes.TryGetValue(itemId, out var shape))
+            if (occupiedCellsResult.IsSuccess)
             {
-                // L-shape support: Rotate shape, then iterate ONLY actual occupied cells
-                var rotatedShape = shape;
-                for (int i = 0; i < (int)rotation; i++)
-                {
-                    rotatedShape = rotatedShape.RotateClockwise().Value; // Safe: rotation always succeeds for valid shapes
-                }
+                var occupiedCells = occupiedCellsResult.Value;
 
-                foreach (var offset in rotatedShape.OccupiedCells)
+                // Populate reverse lookup (cell → itemId)
+                foreach (var cellPos in occupiedCells)
                 {
-                    var occupiedCell = new GridPosition(origin.X + offset.X, origin.Y + offset.Y);
-                    _itemsAtPositions[occupiedCell] = itemId;
+                    _itemsAtPositions[cellPos] = itemId;
                 }
 
                 // Get item metadata for enhanced logging
                 var itemName = _itemNames.GetValueOrDefault(itemId, "Unknown");
                 var itemType = _itemTypes.GetValueOrDefault(itemId, "unknown");
 
-                _logger.LogDebug("Item '{ItemName}' ({ItemType}) [{ItemId}] at ({X},{Y}) occupies {OccupiedCount} cells (shape: {ShapeWidth}×{ShapeHeight}, rotation: {Rotation})",
-                    itemName, itemType, itemId, origin.X, origin.Y, rotatedShape.OccupiedCells.Count, rotatedShape.Width, rotatedShape.Height, rotation);
+                _logger.LogDebug("Item '{ItemName}' ({ItemType}) [{ItemId}] at ({X},{Y}) occupies {OccupiedCount} cells",
+                    itemName, itemType, itemId, origin.X, origin.Y, occupiedCells.Count);
             }
             else
             {
-                // Fallback for items without shape data (legacy rectangle mode)
-                var (effectiveWidth, effectiveHeight) = RotationHelper.GetRotatedDimensions(baseWidth, baseHeight, rotation);
-
-                for (int dy = 0; dy < effectiveHeight; dy++)
-                {
-                    for (int dx = 0; dx < effectiveWidth; dx++)
-                    {
-                        var occupiedCell = new GridPosition(origin.X + dx, origin.Y + dy);
-                        _itemsAtPositions[occupiedCell] = itemId;
-                    }
-                }
-
-                // Get item metadata for enhanced logging
-                var itemName = _itemNames.GetValueOrDefault(itemId, "Unknown");
-                var itemType = _itemTypes.GetValueOrDefault(itemId, "unknown");
-
-                _logger.LogInformation("Item '{ItemName}' ({ItemType}) [{ItemId}] at ({X},{Y}) occupies {Width}×{Height} cells (base: {BaseWidth}×{BaseHeight}, rotation: {Rotation})",
-                    itemName, itemType, itemId, origin.X, origin.Y, effectiveWidth, effectiveHeight, baseWidth, baseHeight, rotation);
+                _logger.LogWarning("Failed to get occupied cells for item {ItemId}: {Error}", itemId, occupiedCellsResult.Error);
             }
         }
 
