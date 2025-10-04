@@ -153,13 +153,13 @@ public class TimeUnitsTests
     }
 
     [Fact]
-    public void ToString_ShouldIncludeValueAndUnits()
+    public void ToString_ShouldReturnNumericValue()
     {
+        // WHY: Clean log output (no verbose "time units" suffix)
         var time = TimeUnits.Create(150).Value;
 
         var result = time.ToString();
 
-        result.Should().Contain("150");
-        result.Should().Contain("time units");
+        result.Should().Be("150");
     }
 }

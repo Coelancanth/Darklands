@@ -88,7 +88,7 @@ public class EnemyDetectionEventHandler : INotificationHandler<FOVCalculatedEven
         }
 
         _logger.LogInformation(
-            "👁️ FOV Detection: {HostileCount} hostile actor(s) visible → Initiating combat mode",
+            "FOV Detection: {HostileCount} hostile actor(s) visible - initiating combat mode",
             hostileActors.Count);
 
         _logger.LogDebug(
@@ -122,14 +122,14 @@ public class EnemyDetectionEventHandler : INotificationHandler<FOVCalculatedEven
             if (scheduleResult.IsFailure)
             {
                 _logger.LogError(
-                    "❌ Failed to schedule enemy {ActorId}: {Error}",
+                    "Failed to schedule enemy {ActorId}: {Error}",
                     enemyId,
                     scheduleResult.Error);
             }
             else
             {
                 _logger.LogInformation(
-                    "🚶 Exploration → ⚔️ Combat: Enemy {ActorId} scheduled at time={Time} (immediate action)",
+                    "Exploration -> Combat: Enemy {ActorId} scheduled at time={Time} (immediate action)",
                     enemyId,
                     initialActionTime);
             }

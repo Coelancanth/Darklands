@@ -103,8 +103,8 @@ public class CombatEndDetectionEventHandler : INotificationHandler<FOVCalculated
             return;
         }
 
-        // FOV cleared! No enemies visible → Exit combat
-        _logger.LogInformation("🏃 FOV cleared - no enemies visible, initiating combat exit");
+        // FOV cleared! No enemies visible - Exit combat
+        _logger.LogInformation("FOV cleared - no enemies visible, initiating combat exit");
 
         // Get ALL scheduled actors (to remove enemies)
         var turnQueueQuery = new GetTurnQueueStateQuery();
@@ -127,7 +127,7 @@ public class CombatEndDetectionEventHandler : INotificationHandler<FOVCalculated
             .ToList();
 
         _logger.LogInformation(
-            "⚔️ Combat → 🚶 Exploration transition: Removing {EnemyCount} enemy(ies) from turn queue (all out of view), current queue size: {QueueSize}",
+            "Combat -> Exploration transition: Removing {EnemyCount} enemy(ies) from turn queue (all out of view), queue size: {QueueSize}",
             enemiesToRemove.Count,
             queueState.QueueSize);
 
@@ -153,6 +153,6 @@ public class CombatEndDetectionEventHandler : INotificationHandler<FOVCalculated
         }
 
         _logger.LogInformation(
-            "✅ Combat ended - Exploration mode resumed (turn queue reset, all enemies escaped)");
+            "Combat ended - Exploration mode resumed (turn queue reset, all enemies escaped)");
     }
 }

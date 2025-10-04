@@ -75,5 +75,8 @@ public readonly record struct TimeUnits : IComparable<TimeUnits>
     public static bool operator <=(TimeUnits left, TimeUnits right) => left.Value <= right.Value;
     public static bool operator >=(TimeUnits left, TimeUnits right) => left.Value >= right.Value;
 
-    public override string ToString() => $"{Value} time units";
+    /// <summary>
+    /// Returns just the numeric value (clean log output).
+    /// </summary>
+    public override string ToString() => Value.ToString();
 }
