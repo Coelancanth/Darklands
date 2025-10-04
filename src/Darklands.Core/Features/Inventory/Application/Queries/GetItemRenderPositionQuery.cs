@@ -32,13 +32,21 @@ public sealed record GetItemRenderPositionQuery(
 /// Response DTO containing item's render positioning data.
 /// </summary>
 /// <param name="Position">Item's grid origin position</param>
-/// <param name="GridOffset">Centering offset in grid units (0.5 = half-cell for centering)</param>
+/// <param name="ShouldCenterInSlot">True if item should be centered (equipment slots)</param>
+/// <param name="EffectiveWidth">Item width after rotation (for centering calculation)</param>
+/// <param name="EffectiveHeight">Item height after rotation (for centering calculation)</param>
 /// <remarks>
-/// Presentation formula: pixelPosition = (Position + GridOffset) * CellSize
-/// - Regular items: Offset = (0, 0) → top-left aligned
-/// - Equipment slots: Offset = (0.5, 0.5) → centered in cell
+/// PIXEL-PERFECT CENTERING (Option B):
+/// Core provides: Rule (ShouldCenter) + Sprite dimensions (EffectiveWidth/Height)
+/// Presentation applies: pixelX = ShouldCenter ? (CellSize - spriteWidth)/2 : position.X * CellSize
+///
+/// This maintains clean separation:
+/// - Core: Business rule "equipment slots center items" + sprite dimensions
+/// - Presentation: Pixel math for centering
 /// </remarks>
 public sealed record ItemRenderPosition(
     GridPosition Position,
-    GridOffset GridOffset
+    bool ShouldCenterInSlot,
+    int EffectiveWidth,
+    int EffectiveHeight
 );

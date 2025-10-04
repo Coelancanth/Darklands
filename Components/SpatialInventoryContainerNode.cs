@@ -834,14 +834,28 @@ public partial class SpatialInventoryContainerNode : Control
                 if (renderPosResult.IsSuccess)
                 {
                     var renderPosition = renderPosResult.Value;
-                    var gridOffset = renderPosition.GridOffset;
 
-                    // Apply grid offset from Core (equipment slots get GridOffset.Center for centering)
-                    pixelX = (origin.X + gridOffset.X) * (CellSize + separationX);
-                    pixelY = (origin.Y + gridOffset.Y) * (CellSize + separationY);
+                    // Option B: Pixel-perfect centering based on sprite size
+                    // Core provides: ShouldCenter (rule) + EffectiveDimensions (data)
+                    // Presentation applies: pixel math for centering
+                    if (renderPosition.ShouldCenterInSlot)
+                    {
+                        // Equipment slot centering: center sprite within cell
+                        float centeredSpriteWidth = renderPosition.EffectiveWidth * CellSize;
+                        float centeredSpriteHeight = renderPosition.EffectiveHeight * CellSize;
 
-                    _logger.LogDebug("Item {ItemId} render offset: ({OffsetX},{OffsetY}) → pixel ({X},{Y})",
-                        itemId, gridOffset.X, gridOffset.Y, pixelX, pixelY);
+                        pixelX = (CellSize - centeredSpriteWidth) / 2f;
+                        pixelY = (CellSize - centeredSpriteHeight) / 2f;
+
+                        _logger.LogDebug("Item {ItemId} centered in equipment slot: sprite {W}×{H} → pixel ({X},{Y})",
+                            itemId, centeredSpriteWidth, centeredSpriteHeight, pixelX, pixelY);
+                    }
+                    else
+                    {
+                        // Regular inventory: top-left alignment
+                        pixelX = origin.X * (CellSize + separationX);
+                        pixelY = origin.Y * (CellSize + separationY);
+                    }
                 }
                 else
                 {

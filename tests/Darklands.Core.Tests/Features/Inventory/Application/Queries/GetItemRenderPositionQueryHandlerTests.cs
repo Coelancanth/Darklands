@@ -37,7 +37,7 @@ public class GetItemRenderPositionQueryHandlerTests
         inventory.PlaceItemAt(itemId, position, item.Shape, Rotation.Degrees0);
         inventoryRepo.RegisterInventoryForActor(actorId, inventory);
 
-        var handler = new GetItemRenderPositionQueryHandler(inventoryRepo, NullLogger<GetItemRenderPositionQueryHandler>.Instance);
+        var handler = new GetItemRenderPositionQueryHandler(inventoryRepo, itemRepo, NullLogger<GetItemRenderPositionQueryHandler>.Instance);
         var query = new GetItemRenderPositionQuery(actorId, itemId);
 
         // Act
@@ -45,8 +45,10 @@ public class GetItemRenderPositionQueryHandlerTests
 
         // Assert
         result.IsSuccess.Should().BeTrue();
-        result.Value.GridOffset.Should().Be(GridOffset.Zero); // No centering - top-left aligned
+        result.Value.ShouldCenterInSlot.Should().BeFalse(); // Regular inventory - no centering
         result.Value.Position.Should().Be(new GridPosition(1, 1));
+        result.Value.EffectiveWidth.Should().Be(2); // 2×3 item, no rotation
+        result.Value.EffectiveHeight.Should().Be(3);
     }
 
     [Fact]
@@ -71,7 +73,7 @@ public class GetItemRenderPositionQueryHandlerTests
         inventory.PlaceItemAt(itemId, position, item.Shape, Rotation.Degrees0); // Should succeed
         inventoryRepo.RegisterInventoryForActor(actorId, inventory);
 
-        var handler = new GetItemRenderPositionQueryHandler(inventoryRepo, NullLogger<GetItemRenderPositionQueryHandler>.Instance);
+        var handler = new GetItemRenderPositionQueryHandler(inventoryRepo, itemRepo, NullLogger<GetItemRenderPositionQueryHandler>.Instance);
         var query = new GetItemRenderPositionQuery(actorId, itemId);
 
         // Act
@@ -79,8 +81,10 @@ public class GetItemRenderPositionQueryHandlerTests
 
         // Assert
         result.IsSuccess.Should().BeTrue();
-        result.Value.GridOffset.Should().Be(GridOffset.Center); // Equipment slot = centered
+        result.Value.ShouldCenterInSlot.Should().BeTrue(); // Equipment slot = centered!
         result.Value.Position.Should().Be(new GridPosition(0, 0));
+        result.Value.EffectiveWidth.Should().Be(1); // 1×1 weapon, no rotation
+        result.Value.EffectiveHeight.Should().Be(1);
     }
 
     [Fact]
@@ -90,9 +94,10 @@ public class GetItemRenderPositionQueryHandlerTests
         var actorId = ActorId.NewId();
         var itemId = ItemId.NewId();
 
+        var itemRepo = new StubItemRepository(); // Empty
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
-        var handler = new GetItemRenderPositionQueryHandler(inventoryRepo, NullLogger<GetItemRenderPositionQueryHandler>.Instance);
+        var handler = new GetItemRenderPositionQueryHandler(inventoryRepo, itemRepo, NullLogger<GetItemRenderPositionQueryHandler>.Instance);
         var query = new GetItemRenderPositionQuery(actorId, itemId);
 
         // Act

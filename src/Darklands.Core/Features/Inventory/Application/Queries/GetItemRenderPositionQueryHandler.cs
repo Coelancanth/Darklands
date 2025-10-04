@@ -1,5 +1,6 @@
 using CSharpFunctionalExtensions;
 using Darklands.Core.Domain.Common;
+using Darklands.Core.Features.Item.Application;
 using MediatR;
 using Microsoft.Extensions.Logging;
 
@@ -23,13 +24,16 @@ public sealed class GetItemRenderPositionQueryHandler
     : IRequestHandler<GetItemRenderPositionQuery, Result<ItemRenderPosition>>
 {
     private readonly IInventoryRepository _inventories;
+    private readonly IItemRepository _items;
     private readonly ILogger<GetItemRenderPositionQueryHandler> _logger;
 
     public GetItemRenderPositionQueryHandler(
         IInventoryRepository inventories,
+        IItemRepository items,
         ILogger<GetItemRenderPositionQueryHandler> logger)
     {
         _inventories = inventories ?? throw new ArgumentNullException(nameof(inventories));
+        _items = items ?? throw new ArgumentNullException(nameof(items));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -51,17 +55,46 @@ public sealed class GetItemRenderPositionQueryHandler
 
         var position = positionResult.Value;
 
+        // Get item for dimensions
+        var itemResult = await _items.GetByIdAsync(query.ItemId, cancellationToken);
+        if (itemResult.IsFailure)
+            return Result.Failure<ItemRenderPosition>(itemResult.Error);
+
+        var item = itemResult.Value;
+
+        // Get rotation from inventory
+        var rotationResult = inventory.GetItemRotation(query.ItemId);
+        if (rotationResult.IsFailure)
+            return Result.Failure<ItemRenderPosition>(rotationResult.Error);
+
+        var rotation = rotationResult.Value;
+
+        // Calculate effective dimensions (after rotation)
+        int effectiveWidth, effectiveHeight;
+        int rotationDegrees = (int)rotation;
+
+        if (rotationDegrees == 90 || rotationDegrees == 270)
+        {
+            // 90° or 270° rotation: swap dimensions
+            effectiveWidth = item.InventoryHeight;
+            effectiveHeight = item.InventoryWidth;
+        }
+        else
+        {
+            // 0° or 180° rotation: keep dimensions
+            effectiveWidth = item.InventoryWidth;
+            effectiveHeight = item.InventoryHeight;
+        }
+
         // BUSINESS RULE: Equipment slots center items
         // Detection: WeaponOnly container with 1×1 grid (Diablo 2 pattern)
-        bool isEquipmentSlot = inventory.ContainerType == ContainerType.WeaponOnly &&
-                               inventory.GridWidth == 1 &&
-                               inventory.GridHeight == 1;
+        bool shouldCenterInSlot = inventory.ContainerType == ContainerType.WeaponOnly &&
+                                  inventory.GridWidth == 1 &&
+                                  inventory.GridHeight == 1;
 
-        var gridOffset = isEquipmentSlot ? GridOffset.Center : GridOffset.Zero;
+        _logger.LogDebug("Item {ItemId} at ({X},{Y}) - Equipment slot: {ShouldCenter}, EffectiveDims: {W}×{H}",
+            query.ItemId, position.X, position.Y, shouldCenterInSlot, effectiveWidth, effectiveHeight);
 
-        _logger.LogDebug("Item {ItemId} at ({X},{Y}) - Equipment slot: {IsEquipment}, Offset: ({OffsetX},{OffsetY})",
-            query.ItemId, position.X, position.Y, isEquipmentSlot, gridOffset.X, gridOffset.Y);
-
-        return Result.Success(new ItemRenderPosition(position, gridOffset));
+        return Result.Success(new ItemRenderPosition(position, shouldCenterInSlot, effectiveWidth, effectiveHeight));
     }
 }
