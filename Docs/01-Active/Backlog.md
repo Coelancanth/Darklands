@@ -265,12 +265,22 @@
 
 **Total Impact**: **151+ lines** of business logic moved from Presentation → Core
 
-**🚧 PHASE 2 NEXT**: Replace Presentation Logic
-- ⏳ Update SpatialInventoryContainerNode.cs to use Core queries/commands
-- ⏳ Delete all duplicated business logic (lines 476-491, 640-683, 853-871, 1057-1075, 1122-1202, 1248-1258)
-- ⏳ Result: Presentation shrinks from 1372 → ~800 lines (pure rendering)
+**🚧 PHASE 2 IN PROGRESS**: Replace Presentation Logic (3/6 leaks replaced)
+- ✅ Leak #1 Replaced: Lines 1057-1075 → CalculateHighlightCellsQuery (-27 lines)
+- ✅ Leak #2 Replaced: Lines 640-683 → GetOccupiedCellsQuery (-21 lines)
+- ✅ Leak #3 Replaced: Lines 853-871 → GetItemRenderPositionQuery (Option B attempted)
+  - ⚠️ **BUG**: Equipment slot centering still incorrect in UI
+  - **Issue**: Option B implementation (ShouldCenterInSlot + EffectiveDimensions) not working as expected
+  - **Next Session**: Debug centering logic, may need Option C or revert to original approach
+- ⏳ Leak #5 NOT STARTED: Lines 476-491, 1122-1202 → SwapItemsCommand (78 lines)
+- ⏳ Leak #6 NOT STARTED: Lines 1248-1258 → Delete CanAcceptItemType dead code
+- ⏳ Cache dictionaries NOT STARTED: Delete _itemShapes, _itemRotations, _itemDimensions
 
-**⏳ PHASE 3 PENDING**: Documentation + Regression Tests
+**Progress**: ~50 lines eliminated, 3/6 replacements attempted, **1 regression to fix**
+**Builds**: ✅ All compilations successful
+**Tests**: ✅ 14/14 Core tests passing
+
+**⏳ PHASE 3 PENDING**: Documentation + Regression Tests (after Phase 2 complete)
 
 **What**: Move **ALL shape calculation and business logic** from Presentation to Core (not just highlights!)
 
