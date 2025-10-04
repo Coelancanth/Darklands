@@ -167,14 +167,14 @@ public partial class GridTestSceneController : Node2D
         // Initialize test terrain: Walls around edges, smoke patches
         for (int x = 0; x < GridSize; x++)
         {
-            await _mediator.Send(new SetTerrainCommand(new Position(x, 0), "wall"));
-            await _mediator.Send(new SetTerrainCommand(new Position(x, GridSize - 1), "wall"));
+            await _mediator.Send(new SetTerrainCommand(new Position(x, 0), "wall_stone"));
+            await _mediator.Send(new SetTerrainCommand(new Position(x, GridSize - 1), "wall_stone"));
         }
 
         for (int y = 0; y < GridSize; y++)
         {
-            await _mediator.Send(new SetTerrainCommand(new Position(0, y), "wall"));
-            await _mediator.Send(new SetTerrainCommand(new Position(GridSize - 1, y), "wall"));
+            await _mediator.Send(new SetTerrainCommand(new Position(0, y), "wall_stone"));
+            await _mediator.Send(new SetTerrainCommand(new Position(GridSize - 1, y), "wall_stone"));
         }
 
         // Add some smoke patches for testing vision blocking
@@ -185,7 +185,7 @@ public partial class GridTestSceneController : Node2D
         // Add some interior walls
         for (int x = 5; x < 10; x++)
         {
-            await _mediator.Send(new SetTerrainCommand(new Position(x, 15), "wall"));
+            await _mediator.Send(new SetTerrainCommand(new Position(x, 15), "wall_stone"));
         }
 
         // Register actors at starting positions
