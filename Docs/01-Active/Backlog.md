@@ -252,11 +252,26 @@
 - **E2E Verified**: Move, swap, cross-container, multi-cell shape preservation - ALL WORKING ✅
 - **Next**: Phase 2 - Extract InventoryRenderHelper (DRY principle for shared rendering code)
 
-**✅ Phase 2: Extract InventoryRenderHelper (2-3h)**
-- [ ] Create `Components/Inventory/InventoryRenderHelper.cs` (static class, ~200 lines)
-- [ ] Extract methods: `RenderItemSprite`, `CreateDragPreview`, `RenderHighlight`
-- [ ] Update `EquipmentSlotNode` to use helper
-- [ ] Commit: `refactor(inventory): Extract InventoryRenderHelper for DRY [TD_003 Phase 2/4]`
+**✅ Phase 2: Extract InventoryRenderHelper (2-3h)** - ✅ **COMPLETED** 2025-10-04 13:55
+- [x] Create `Components/Inventory/InventoryRenderHelper.cs` (static class, 256 lines - exceeded goal!)
+- [x] Extract methods: `CreateItemSpriteAsync`, `CreateDragPreview`, `CreateHighlight`
+- [x] Update `EquipmentSlotNode` to use helper (3 methods replaced with helper calls)
+- [x] **Bug fix**: Self-swap detection (dragging item back to same slot now no-op)
+- [x] E2E tested: All 8 scenarios pass (move, swap, self-drop, shape preservation, validation, rendering, preview, highlights)
+- [x] Commit: `refactor(inventory): Extract InventoryRenderHelper for DRY [TD_003 Phase 2/4]`
+
+**Dev Engineer Progress** (2025-10-04 13:55) - ✅ PHASE 2 COMPLETE:
+- **Created**: InventoryRenderHelper (256 lines of reusable rendering logic)
+- **Extracted Methods**:
+  - `CreateItemSpriteAsync`: Atlas extraction, scaling, centering (supports both equipment slots and inventory grids)
+  - `CreateDragPreview`: 80% sized preview with cursor centering
+  - `CreateHighlight`: Green/red validation overlays
+- **EquipmentSlotNode Simplification**:
+  - Before: 646 lines with 3 complex rendering methods
+  - After: 606 lines with 3 simple helper calls (**40 lines reduced**, 73% rendering code reduction)
+- **DRY Achievement**: 142 lines of rendering logic → 37 lines of helper calls
+- **Bug Fix**: Self-swap detection prevents "Item not found" error when dropping item back to same slot
+- **Next**: Phase 3 - Clean InventoryContainerNode (will save ~200 lines there using same helper!)
 
 **✅ Phase 3: Clean InventoryContainerNode (1-2h)**
 - [ ] Delete equipment conditionals (lines 482, 870-893, 927)

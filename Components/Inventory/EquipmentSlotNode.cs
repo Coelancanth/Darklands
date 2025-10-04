@@ -90,10 +90,6 @@ public partial class EquipmentSlotNode : Control
     private Control? _itemOverlayContainer;
     private Control? _highlightOverlayContainer;
 
-    // TileSet atlas coordinates for drag highlight sprites
-    private static readonly Vector2I HIGHLIGHT_GREEN_COORDS = new(1, 6);
-    private static readonly Vector2I HIGHLIGHT_RED_COORDS = new(1, 7);
-
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // GODOT LIFECYCLE
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -343,6 +339,13 @@ public partial class EquipmentSlotNode : Control
             _logger.LogInformation("MOVE: Item {ItemId} to empty {SlotTitle}", itemId, SlotTitle);
             MoveItemAsync(sourceActorId, itemId);
         }
+        else if (targetItemId.Value.Equals(itemId))
+        {
+            // Self-swap detected: dragging item back to its own slot
+            // WHY: This is a no-op (user dropped item back where it started)
+            _logger.LogDebug("Self-swap detected for {ItemId} - ignoring", itemId);
+            EmitSignal(SignalName.InventoryChanged); // Refresh display to restore sprite
+        }
         else
         {
             _logger.LogInformation("SWAP: {ItemA} ↔ {ItemB} in {SlotTitle}",
@@ -472,64 +475,20 @@ public partial class EquipmentSlotNode : Control
 
     private async void RenderItemSprite(ItemId itemId)
     {
-        var itemQuery = new GetItemByIdQuery(itemId);
-        var itemResult = await _mediator.Send(itemQuery);
+        // TD_003 Phase 2: Use InventoryRenderHelper (DRY)
+        var sprite = await InventoryRenderHelper.CreateItemSpriteAsync(
+            itemId,
+            _mediator,
+            _itemTileSet,
+            CellSize,
+            shouldCenter: true,  // Equipment slots center sprites
+            rotation: 0f,        // Equipment slots never rotate
+            _logger);
 
-        if (itemResult.IsFailure || _itemTileSet == null)
+        if (sprite != null && _itemOverlayContainer != null)
         {
-            _logger.LogWarning("Failed to render item sprite: {Error}",
-                itemResult.IsFailure ? itemResult.Error : "No TileSet");
-            return;
+            _itemOverlayContainer.AddChild(sprite);
         }
-
-        var item = itemResult.Value;
-        var atlasSource = _itemTileSet.GetSource(0) as TileSetAtlasSource;
-        if (atlasSource == null)
-            return;
-
-        // Extract sprite from atlas
-        var tileCoords = new Vector2I(item.AtlasX, item.AtlasY);
-        var region = atlasSource.GetTileTextureRegion(tileCoords);
-
-        var atlasTexture = new AtlasTexture
-        {
-            Atlas = atlasSource.Texture,
-            Region = region
-        };
-
-        // Equipment slots ALWAYS scale to fit cell (centered, preserve aspect ratio)
-        // WHY: Same behavior as SpatialInventoryContainerNode lines 870-893
-        float actualTextureWidth = region.Size.X;
-        float actualTextureHeight = region.Size.Y;
-
-        // Scale to fit in CellSize (preserve aspect ratio)
-        float scale = Math.Min(CellSize / actualTextureWidth, CellSize / actualTextureHeight);
-        float textureWidth = actualTextureWidth * scale;
-        float textureHeight = actualTextureHeight * scale;
-
-        // Center in cell
-        float texturePosX = (CellSize - textureWidth) / 2f;
-        float texturePosY = (CellSize - textureHeight) / 2f;
-
-        var textureRect = new TextureRect
-        {
-            Name = $"Item_{itemId.Value}",
-            Texture = atlasTexture,
-            TextureFilter = CanvasItem.TextureFilterEnum.Nearest,
-            StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
-            ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
-            CustomMinimumSize = new Vector2(textureWidth, textureHeight),
-            Size = new Vector2(textureWidth, textureHeight),
-            Position = new Vector2(texturePosX, texturePosY),
-            MouseFilter = MouseFilterEnum.Ignore,
-            Rotation = 0, // Equipment slots never rotate (line 927 from original)
-            ZIndex = 100
-        };
-
-        _itemOverlayContainer?.AddChild(textureRect);
-
-        _logger.LogDebug("Rendered item {ItemId} in {SlotTitle}: {TW}×{TH} scaled to {SW}×{SH}",
-            itemId, SlotTitle, actualTextureWidth, actualTextureHeight, textureWidth, textureHeight);
     }
 
     private void ClearItemSprite()
@@ -545,38 +504,22 @@ public partial class EquipmentSlotNode : Control
 
     private void RenderHighlight(bool isValid)
     {
-        if (_highlightOverlayContainer == null || _itemTileSet == null)
+        if (_highlightOverlayContainer == null)
             return;
 
         ClearHighlights();
 
-        var atlasSource = _itemTileSet.GetSource(0) as TileSetAtlasSource;
-        if (atlasSource == null)
-            return;
+        // TD_003 Phase 2: Use InventoryRenderHelper (DRY)
+        var highlight = InventoryRenderHelper.CreateHighlight(
+            isValid,
+            _itemTileSet,
+            CellSize,
+            opacity: 0.4f);
 
-        var highlightCoords = isValid ? HIGHLIGHT_GREEN_COORDS : HIGHLIGHT_RED_COORDS;
-        var region = atlasSource.GetTileTextureRegion(highlightCoords);
-
-        var atlasTexture = new AtlasTexture
+        if (highlight != null)
         {
-            Atlas = atlasSource.Texture,
-            Region = region
-        };
-
-        var highlight = new TextureRect
-        {
-            Name = "Highlight",
-            Texture = atlasTexture,
-            TextureFilter = CanvasItem.TextureFilterEnum.Nearest,
-            StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
-            ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
-            CustomMinimumSize = new Vector2(CellSize, CellSize),
-            Position = Vector2.Zero,
-            MouseFilter = MouseFilterEnum.Ignore,
-            Modulate = new Color(1, 1, 1, 0.4f) // Slightly more visible than inventory highlights
-        };
-
-        _highlightOverlayContainer.AddChild(highlight);
+            _highlightOverlayContainer.AddChild(highlight);
+        }
     }
 
     private void ClearHighlights()
@@ -592,56 +535,13 @@ public partial class EquipmentSlotNode : Control
 
     private Control? CreateDragPreview(ItemId itemId)
     {
-        var itemQuery = new GetItemByIdQuery(itemId);
-        var itemResult = _mediator.Send(itemQuery).Result;
-
-        if (itemResult.IsFailure || _itemTileSet == null)
-        {
-            return new Label { Text = _currentItemName ?? "Item" };
-        }
-
-        var item = itemResult.Value;
-        var atlasSource = _itemTileSet.GetSource(0) as TileSetAtlasSource;
-        if (atlasSource == null)
-        {
-            return new Label { Text = item.Name };
-        }
-
-        // Extract sprite
-        var tileCoords = new Vector2I(item.AtlasX, item.AtlasY);
-        var region = atlasSource.GetTileTextureRegion(tileCoords);
-
-        var atlasTexture = new AtlasTexture
-        {
-            Atlas = atlasSource.Texture,
-            Region = region
-        };
-
-        // Drag preview size (slightly smaller for visual clarity)
-        float previewSize = CellSize * 0.8f;
-
-        var sprite = new TextureRect
-        {
-            Texture = atlasTexture,
-            TextureFilter = CanvasItem.TextureFilterEnum.Nearest,
-            StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
-            ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
-            CustomMinimumSize = new Vector2(previewSize, previewSize),
-            Size = new Vector2(previewSize, previewSize),
-            Modulate = new Color(1, 1, 1, 0.8f)
-        };
-
-        // Center at cursor
-        var previewRoot = new Control { MouseFilter = MouseFilterEnum.Ignore };
-        var offsetContainer = new Control
-        {
-            Position = new Vector2(-previewSize / 2f, -previewSize / 2f),
-            CustomMinimumSize = new Vector2(previewSize, previewSize)
-        };
-        offsetContainer.AddChild(sprite);
-        previewRoot.AddChild(offsetContainer);
-
-        return previewRoot;
+        // TD_003 Phase 2: Use InventoryRenderHelper (DRY)
+        return InventoryRenderHelper.CreateDragPreview(
+            itemId,
+            _currentItemName ?? "Item",
+            _mediator,
+            _itemTileSet,
+            CellSize);
     }
 
     private async void SwapItemsAsync(
