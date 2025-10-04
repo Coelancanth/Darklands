@@ -53,7 +53,7 @@ public class RemoveActorFromQueueCommandHandler : IRequestHandler<RemoveActorFro
                         wasLastEnemy);
 
                     // Publish event: combat mode may have changed (combat → exploration)
-                    _eventBus.Publish(new TurnQueueChangedEvent(
+                    await _eventBus.PublishAsync(new TurnQueueChangedEvent(
                         ActorId: request.ActorId,
                         ChangeType: TurnQueueChangeType.ActorRemoved,
                         IsInCombat: queue.IsInCombat,

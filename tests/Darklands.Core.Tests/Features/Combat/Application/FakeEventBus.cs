@@ -11,9 +11,28 @@ public class FakeEventBus : IGodotEventBus
 {
     private readonly List<INotification> _publishedEvents = new();
 
-    public void Publish<T>(T domainEvent) where T : INotification
+    public void Subscribe<TEvent>(object subscriber, Action<TEvent> handler) where TEvent : INotification
     {
-        _publishedEvents.Add(domainEvent);
+        // Not needed for handler tests
+        throw new NotImplementedException("Fake does not support Subscribe");
+    }
+
+    public void Unsubscribe<TEvent>(object subscriber) where TEvent : INotification
+    {
+        // Not needed for handler tests
+        throw new NotImplementedException("Fake does not support Unsubscribe");
+    }
+
+    public void UnsubscribeAll(object subscriber)
+    {
+        // Not needed for handler tests
+        throw new NotImplementedException("Fake does not support UnsubscribeAll");
+    }
+
+    public Task PublishAsync<TEvent>(TEvent eventData) where TEvent : INotification
+    {
+        _publishedEvents.Add(eventData);
+        return Task.CompletedTask;
     }
 
     /// <summary>

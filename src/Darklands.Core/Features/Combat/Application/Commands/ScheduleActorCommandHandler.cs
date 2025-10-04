@@ -51,7 +51,7 @@ public class ScheduleActorCommandHandler : IRequestHandler<ScheduleActorCommand,
                         queue.Count);
 
                     // Publish event: combat mode may have changed (exploration → combat)
-                    _eventBus.Publish(new TurnQueueChangedEvent(
+                    await _eventBus.PublishAsync(new TurnQueueChangedEvent(
                         ActorId: request.ActorId,
                         ChangeType: TurnQueueChangeType.ActorScheduled,
                         IsInCombat: queue.IsInCombat,

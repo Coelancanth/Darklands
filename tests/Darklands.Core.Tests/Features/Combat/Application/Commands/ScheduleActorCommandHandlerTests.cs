@@ -9,6 +9,7 @@ using Xunit;
 namespace Darklands.Core.Tests.Features.Combat.Application.Commands;
 
 [Trait("Category", "Phase2")]
+[Trait("Category", "Unit")]
 public class ScheduleActorCommandHandlerTests
 {
     private readonly ActorId _playerId = ActorId.NewId();
