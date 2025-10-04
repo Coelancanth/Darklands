@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-04 19:25 (Dev Engineer: VS_007 follow-ups COMPLETE ✅ - Vision constant, combat exit, movement cost, log formatting all done)
+**Last Updated**: 2025-10-04 20:15 (Product Owner: Refined VS_019 with research-first approach, scene duplication, Godot terrain system embrace, optional PCG)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -81,7 +81,148 @@
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*
 
-**No items in Important section!** ✅
+### VS_019: TileSet-Based Visual Scene (Research-Driven) 🎨
+**Status**: Approved | **Owner**: Dev Engineer | **Size**: M (1.5-2 days) | **Priority**: Important
+**Markers**: [VISUAL-POLISH] [MOTIVATION] [RESEARCH-FIRST]
+
+**What**: Create new TileMap-based test scene using Godot native terrain system, duplicating (not modifying) GridTestScene.tscn as foundation
+
+**Why**:
+- Visual progress after infrastructure-heavy VS_007 (restore motivation)
+- Professional appearance vs prototype ColorRect
+- Learn Godot's native terrain/metadata features (like VS_009's TileSet metadata success)
+- Foundation for future PCG work (optional stretch goal)
+- **NOT blocking Phase 1 validation** (acknowledged polish work)
+
+**How**:
+- **Phase 0 (Research)**: Study Godot terrain system, TileSet metadata, TileMapLayer features, PCG integration points
+  - Review VS_009 approach (TileSet custom data layers for items)
+  - Research: Terrain sets, physics layers, navigation integration
+  - Identify: What can be data-driven vs hardcoded?
+- **Phase 1**: Duplicate GridTestScene.tscn → TileMapTestScene.tscn (preserve working prototype)
+- **Phase 2**: Configure `colored_tilemap.png` with Godot terrain system (metadata-driven terrain types: wall, floor, smoke)
+- **Phase 3**: Replace terrain rendering (ColorRect → TileMapLayer with terrain sets), coordinate mapping (Core Position → TileMap cells)
+- **Phase 4**: Replace actor sprites (Sprite2D using tileset atlas regions)
+- **Phase 5 (Optional)**: Basic PCG if research reveals easy integration (timebox to 4 hours max)
+
+**Scope**:
+- ✅ Research Godot native features (terrain system, metadata, TileMapLayer)
+- ✅ Duplicate GridTestScene.tscn (preserve original)
+- ✅ TileSet with terrain sets (not just atlas coords)
+- ✅ **Autotiling via terrain sets** (Godot handles edge/corner matching automatically)
+- ✅ Metadata-driven terrain properties (like VS_009 items)
+- ✅ TileMapLayer rendering with terrain awareness
+- ✅ Sprite2D actors using tileset texture regions
+- ✅ Coordinate mapping (Core Position ↔ TileMap cells)
+- ⚠️ **OPTIONAL**: Basic PCG (cellular automata or simple BSP) if time permits
+- ❌ Animations (static sprites only)
+- ❌ Advanced PCG (multi-room dungeons, BSP trees—defer to future VS)
+- ❌ Navigation mesh integration (defer to movement/pathfinding work)
+
+**Done When**:
+- New TileMapTestScene.tscn exists (GridTestScene.tscn unchanged)
+- Scene uses Godot terrain system (not manual tile placement)
+- **Autotiling works**: Walls connect seamlessly (edge/corner matching automatic)
+- Terrain metadata defines properties (walkable, blocks vision, etc.)
+- Player/enemies are recognizable pixel art sprites
+- FOV overlay still works visually
+- All 359 tests still GREEN (zero Core changes)
+- Scene looks "game-like" instead of prototype
+- **OPTIONAL**: If PCG implemented, can generate simple random map on scene load
+
+**Dependencies**: None (Presentation-only changes)
+**Risks**:
+- Research reveals terrain system is complex (fallback: simple atlas coords like original plan)
+- PCG scope creep (strict 4-hour timebox, cut if not making progress)
+
+**Research Questions** (answer before implementation):
+1. How does Godot terrain system map to our TerrainType enum (Wall, Floor, Smoke)?
+2. Can terrain metadata drive Core logic (like TileSet item metadata in VS_009)?
+3. How to configure autotiling terrain sets (bit masks for edges/corners)?
+4. What's the simplest PCG algorithm that integrates with TileMapLayer?
+5. Do we need custom data layers, or is terrain set system sufficient?
+
+---
+
+### VS_020: Basic Combat System (Attacks & Damage)
+**Status**: Approved | **Owner**: Tech Lead → Dev Engineer | **Size**: M (1-2 days) | **Priority**: Important
+**Markers**: [PHASE-1-CRITICAL] [BLOCKING]
+
+**What**: Attack commands (melee + ranged), damage application, range validation, manual dummy enemy combat testing
+
+**Why**:
+- **BLOCKS Phase 1 validation** - cannot prove "time-unit combat is fun" without attacks
+- Completes core combat loop: Movement → FOV → Turn Queue → **Attacks** → Health/Death
+- Foundation for Enemy AI (VS_011)
+
+**How**:
+- **Phase 1 (Domain)**: `Weapon` value object (damage, time cost, range, weapon type enum)
+- **Phase 2 (Application)**: `ExecuteAttackCommand` (attacker, target, weapon), range validation (melee=adjacent, ranged=FOV line-of-sight), integrates with existing `TakeDamageCommand` from VS_001
+- **Phase 3 (Infrastructure)**: Attack validation service (checks adjacency for melee, FOV visibility for ranged)
+- **Phase 4 (Presentation)**: Attack button UI (enabled when valid target in range), manual dummy control (WASD for enemy, Arrow keys for player)
+
+**Scope**:
+- ✅ Melee attacks (adjacent tiles only, 8-directional)
+- ✅ Ranged attacks (FOV line-of-sight validation, max range)
+- ✅ Weapon time costs (integrate with TurnQueue from VS_007)
+- ✅ Death handling (actor reaches 0 health → removed from queue)
+- ❌ Enemy AI (dummy is manually controlled for testing)
+- ❌ Multiple weapon types (just "sword" and "bow" for testing)
+- ❌ Attack animations (instant damage for now)
+
+**Done When**:
+- Player can attack dummy enemy (melee when adjacent, ranged when visible)
+- Dummy can attack player (manual WASD control)
+- Health reduces on hit, actor dies at 0 HP
+- Combat feels tactical (positioning matters for range/line-of-sight)
+- Time costs advance turn queue correctly
+- Can complete full combat: engage → attack → victory/defeat
+
+**Dependencies**: VS_007 (Turn Queue - ✅ complete)
+**Next Step**: After combat feels fun → VS_011 (Enemy AI uses these attack commands)
+
+---
+
+### VS_021: Internationalization (i18n) Infrastructure
+**Status**: Approved | **Owner**: Tech Lead → Dev Engineer | **Size**: S-M (4-8 hours) | **Priority**: Important
+**Markers**: [ARCHITECTURE] [TECHNICAL-DEBT-PREVENTION]
+
+**What**: Godot i18n infrastructure with translation key discipline (architecture only, English translations only for now)
+
+**Why**:
+- Prevents catastrophic late-stage refactoring (10x cost if deferred)
+- Aligns perfectly with Clean Architecture (Domain returns keys, Presentation calls `tr()`)
+- Near-zero ongoing cost (just habit like using `Result<T>`)
+- **Defers actual translation work** until Phase 1 validated (smart risk management)
+
+**How**:
+- **Phase 1**: Create `translations/` folder, configure Godot Project Settings → Localization, create `en.csv` with English keys
+- **Phase 2**: Refactor existing UI text to use `tr("UI_*")` keys (buttons, labels in test scenes)
+- **Phase 3**: Add `name_key` to Actor entity (e.g., `"ACTOR_PLAYER"`, `"ACTOR_GOBLIN"`), update logging to use `tr(actor.name_key)`
+- **Phase 4**: Document pattern in CLAUDE.md (all new UI must use keys, Domain returns keys not strings)
+
+**Scope**:
+- ✅ Translation file structure (`translations/en.csv`)
+- ✅ Godot localization configuration
+- ✅ Refactor existing UI to use keys
+- ✅ Actor display names use keys (fixes "random code" in logs)
+- ✅ Architectural pattern documented
+- ❌ Chinese/Japanese translations (deferred until Phase 1 validated)
+- ❌ Pluralization support (`tr_n()` - add when needed)
+- ❌ Cultural adaptation (future work)
+
+**Done When**:
+- All UI text uses `tr("UI_KEY")` pattern
+- Logs show `"Player attacks Goblin"` instead of `"Actor_a3f attacks Actor_b7d"`
+- `en.csv` contains all current keys
+- CLAUDE.md documents i18n discipline for future work
+- Zero hardcoded user-facing strings in codebase
+- Adding Chinese later = just create `zh_CN.csv` (no code changes)
+
+**Dependencies**: None (can be done parallel with VS_019/020)
+**Integration**: Works with VS_020 (attack messages use keys)
+
+---
 
 *Recently completed and archived (2025-10-04 19:35):*
 - **VS_007**: Time-Unit Turn Queue System - Complete 4-phase implementation with natural mode detection, 49 new tests GREEN, 6 follow-ups complete. ✅ (2025-10-04 17:38)
