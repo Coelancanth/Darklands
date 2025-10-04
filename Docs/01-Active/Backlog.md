@@ -70,19 +70,18 @@
 
 ---
 
-*Recently completed and archived (2025-10-04):*
+*Recently completed and archived (2025-10-05):*
+- **VS_019**: TileSet-Based Visual Scene + TileSet as Terrain Catalog (SSOT) - All 4 phases complete! TileMapLayer pixel art rendering (terrain), Sprite2D actors with smooth tweening, fog overlay system, 300+ line cleanup. Commits: f64c7de, 59159e5, d9d9a4d, 27b62b2, 896f6d5. Follow-up: Wall autotiling (VS_019_FOLLOWUP). ✅ (2025-10-05)
 - **TD_003**: Separate Equipment Slots from Spatial Inventory Container - Created EquipmentSlotNode (646 lines), extracted InventoryRenderHelper (256 lines), cleaned InventoryContainerNode. All 3 phases complete, 359 tests GREEN. ✅ (2025-10-04)
 - **TD_004**: Move ALL Shape Logic to Core (SSOT) - Eliminated all 7 business logic leaks from Presentation (164 lines removed, 12% complexity reduction). Fixed SwapItemsCommand double-save bug, eliminated cache-driven anti-pattern. Commits: 4cd1dbe, 49c06e6. ✅ (2025-10-04)
-- **TD_005**: Persona & Protocol Updates - Updated dev-engineer.md with Root Cause First Principle, UX Pattern Recognition, Requirement Clarification Protocol. ✅ (2025-10-04)
-- **BR_007**: Equipment Slot Visual Issues - Fixed 1×1 highlight override and sprite centering for equipment slots. ✅ (2025-10-04)
 - *See: [Completed_Backlog_2025-10_Part2.md](../07-Archive/Completed_Backlog_2025-10_Part2.md) for full archive*
 
 ---
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*
 
-### VS_019: TileSet-Based Visual Scene + TileSet as Terrain Catalog (SSOT) 🎨
-**Status**: In Progress (Phase 1 ✅ Complete, Phase 2 Starting) | **Owner**: Dev Engineer | **Size**: M (1-2 days) | **Priority**: Important
+### VS_019: TileSet-Based Visual Scene + TileSet as Terrain Catalog (SSOT) 🎨 ✅
+**Status**: Done | **Owner**: Dev Engineer | **Size**: M (1-2 days) | **Priority**: Important
 **Markers**: [VISUAL-POLISH] [MOTIVATION] [ARCHITECTURE] [REFACTORING]
 
 **What**: Replace GridTestScene's ColorRect rendering with TileMapLayer, refactor terrain to use TileSet as SSOT (like VS_009 items catalog), maintain existing test scene layout
