@@ -13,8 +13,8 @@ using HealthValue = Darklands.Core.Domain.Common.Health;
 
 namespace Darklands.Core.Tests.Features.Health.Application;
 
-[Trait("Category", "Phase2")]
-[Trait("Category", "Handlers")]
+[Trait("Category", "Health")]
+[Trait("Category", "Unit")]
 public class TakeDamageCommandHandlerTests
 {
     private readonly IHealthComponentRegistry _mockRegistry;

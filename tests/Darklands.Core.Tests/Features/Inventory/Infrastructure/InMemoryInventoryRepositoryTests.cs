@@ -6,7 +6,7 @@ using Xunit;
 
 namespace Darklands.Core.Tests.Features.Inventory.Infrastructure;
 
-[Trait("Category", "Phase3")]
+[Trait("Category", "Inventory")]
 [Trait("Category", "Integration")]
 public class InMemoryInventoryRepositoryTests
 {

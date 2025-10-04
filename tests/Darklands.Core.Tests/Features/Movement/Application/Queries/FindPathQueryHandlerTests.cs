@@ -9,7 +9,7 @@ using Xunit;
 
 namespace Darklands.Core.Tests.Features.Movement.Application.Queries;
 
-[Trait("Category", "Phase2")]
+[Trait("Category", "Movement")]
 [Trait("Category", "Unit")]
 public class FindPathQueryHandlerTests
 {

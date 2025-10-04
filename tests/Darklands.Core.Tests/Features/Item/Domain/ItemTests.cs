@@ -5,7 +5,7 @@ using ItemEntity = Darklands.Core.Features.Item.Domain.Item;
 
 namespace Darklands.Core.Tests.Features.Item.Domain;
 
-[Trait("Category", "Phase1")]
+[Trait("Category", "Item")]
 [Trait("Category", "Unit")]
 public class ItemTests
 {

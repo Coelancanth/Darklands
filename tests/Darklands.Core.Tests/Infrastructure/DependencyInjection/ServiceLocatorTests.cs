@@ -11,7 +11,7 @@ namespace Darklands.Core.Tests.Infrastructure.DependencyInjection;
 /// Category: Phase2 for VS_002 implementation gates.
 /// Collection: GameStrapperCollection prevents parallel execution (shared static state)
 /// </summary>
-[Trait("Category", "Phase2")]
+[Trait("Category", "Infrastructure")]
 [Collection("GameStrapperCollection")]
 public class ServiceLocatorTests
 {

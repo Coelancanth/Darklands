@@ -8,7 +8,8 @@ using Xunit;
 
 namespace Darklands.Core.Tests.Features.Combat.Application.Queries;
 
-[Trait("Category", "Phase2")]
+[Trait("Category", "Combat")]
+[Trait("Category", "Unit")]
 public class QueryHandlerTests
 {
     private readonly ActorId _playerId = ActorId.NewId();

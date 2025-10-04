@@ -8,7 +8,7 @@ using Xunit;
 
 namespace Darklands.Core.Tests.Features.Combat.Application.Commands;
 
-[Trait("Category", "Phase2")]
+[Trait("Category", "Combat")]
 [Trait("Category", "Unit")]
 public class ScheduleActorCommandHandlerTests
 {

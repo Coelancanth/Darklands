@@ -4,7 +4,8 @@ using Xunit;
 
 namespace Darklands.Core.Tests.Features.Combat.Domain;
 
-[Trait("Category", "Phase1")]
+[Trait("Category", "Combat")]
+[Trait("Category", "Unit")]
 public class TimeUnitsTests
 {
     [Fact]

@@ -10,7 +10,7 @@ using ItemEntity = Darklands.Core.Features.Item.Domain.Item;
 
 namespace Darklands.Core.Tests.Features.Item.Application.Queries;
 
-[Trait("Category", "Phase2")]
+[Trait("Category", "Item")]
 [Trait("Category", "Unit")]
 public class GetItemByIdQueryHandlerTests
 {

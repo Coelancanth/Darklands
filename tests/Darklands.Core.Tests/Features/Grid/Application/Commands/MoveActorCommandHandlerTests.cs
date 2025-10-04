@@ -13,7 +13,7 @@ using Xunit;
 
 namespace Darklands.Core.Tests.Features.Grid.Application.Commands;
 
-[Trait("Category", "Phase2")]
+[Trait("Category", "Grid")]
 [Trait("Category", "Unit")]
 public class MoveActorCommandHandlerTests
 {

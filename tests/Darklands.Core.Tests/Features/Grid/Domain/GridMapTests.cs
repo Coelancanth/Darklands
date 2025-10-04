@@ -5,7 +5,7 @@ using Xunit;
 
 namespace Darklands.Core.Tests.Features.Grid.Domain;
 
-[Trait("Category", "Phase1")]
+[Trait("Category", "Grid")]
 [Trait("Category", "Unit")]
 public class GridMapTests
 {

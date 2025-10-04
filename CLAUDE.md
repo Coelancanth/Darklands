@@ -304,35 +304,6 @@ Examples:
 
 **Decision Rule**: Will a developer 6 months from now understand WHY this test exists? If no → add comment.
 
-## 🔄 MANDATORY: Phased Implementation Protocol
-
-**YOU MUST implement all features in strict phases:**
-
-### Phase Progression (NO EXCEPTIONS)
-```
-Phase 1: Domain → Phase 2: Application → Phase 3: Infrastructure → Phase 4: Presentation
-(Core Logic)       (Commands/Handlers)     (State/Services)         (UI/Views)
-```
-
-### Enforcement Rules
-**NEVER:**
-- Skip phases for "simple" features
-- Start with UI for "quick demos"
-- Combine phases to "save time"
-- Proceed without GREEN tests
-
-**ALWAYS:**
-- Complete each phase before starting next
-- Run tests: `./scripts/core/build.ps1 test --filter "Category=Phase1"` (or Phase2/3/4)
-- Commit with phase markers: `feat(X): description [Phase X/4]`
-- Follow reference implementations
-
-### Phase Testing
-- **Phase 1**: Unit tests (must pass in <100ms)
-- **Phase 2**: Handler tests (<500ms)
-- **Phase 3**: Integration tests (<2s)
-- **Phase 4**: Manual testing in UI
-
 ## 📅 IMPORTANT: Date-Sensitive Documents
 
 **ALWAYS run `date` command first when creating or updating:**
@@ -363,9 +334,10 @@ date  # Get current date/time before creating/updating dated documents
 # MANDATORY before committing (build + all tests)
 ./scripts/core/build.ps1 test
 
-# Phase-specific testing (for phased implementation)
-./scripts/core/build.ps1 test --filter "Category=Phase1"
-./scripts/core/build.ps1 test --filter "Category=Phase2"
+# Feature-specific testing
+./scripts/core/build.ps1 test --filter "Category=Combat"
+./scripts/core/build.ps1 test --filter "Category=Health"
+./scripts/core/build.ps1 test --filter "Category=Inventory"
 
 # Alternative: Run tests directly (skip Godot build validation)
 dotnet test tests/Darklands.Core.Tests/Darklands.Core.Tests.csproj
