@@ -316,6 +316,100 @@ TileSet (Godot)                  Infrastructure (Bridge)           Core (Pure C#
 
 ---
 
+### TD_006: Fix Godot Terrain Autotiling - Investigate Symmetric Bitmask Bug
+**Status**: Proposed | **Owner**: Dev Engineer | **Size**: M (4-8h) | **Priority**: Nice-to-Have (Quality)
+**Markers**: [TECHNICAL-DEBT] [TESTING] [ROOT-CAUSE-ANALYSIS] [GODOT-ENGINE]
+
+**What**: Investigate and fix root cause of Godot terrain autotiling failure for symmetric wall bitmasks, replacing manual tile assignment workaround with proper data-driven autotiling
+
+**Current State** (VS_019_FOLLOWUP workaround):
+- Manual position-based tile assignment in `RenderWallsWithAutotiling()` (lines 180-242)
+- Works correctly but hardcodes edge/corner logic (not data-driven)
+- Problem: Godot's `SetCellsTerrainConnect()` picks wrong tile variants for left/right edges
+
+**Symptom**:
+- Left edge (X=0) and right edge (X=29) both rendered with atlas (3,1) "wall_middle_right"
+- Expected: Left edge should use (0,1) "wall_middle_left", right edge uses (3,1)
+- Visual result: Asymmetric appearance (seam/gap on left wall)
+
+**Hypothesis** (needs testing):
+- **Symmetric bitmask patterns** cause ambiguity in Godot's terrain matching algorithm
+- Both edges have identical neighbor counts (3 walls, 1 floor) but different directional patterns
+- Godot terrain system may require **asymmetric bitmask hints** to distinguish mirrored edges
+- Alternative: TileSet configuration might be missing directional metadata
+
+**Root Cause Investigation Plan**:
+
+**Phase 1: Understand Godot Terrain System** (2h)
+- [ ] Read Godot 4.x terrain autotiling documentation (official docs + community resources)
+- [ ] Study peering bit semantics: Does `right_side` mean "connects to terrain on right" or "is edge facing right"?
+- [ ] Test simple case: 2×2 grid with one terrain type, observe which tiles Godot picks
+- [ ] Document expected behavior vs actual behavior with diagrams
+
+**Phase 2: Isolate Minimal Reproduction** (1-2h)
+- [ ] Create isolated test scene with ONLY walls (no floor/grass/trees)
+- [ ] Test with single edge: Does left-only wall pick correct tile?
+- [ ] Test with two edges: Do symmetric edges both fail?
+- [ ] Compare to working example: Right edge renders correctly - why?
+- [ ] Document exact conditions that trigger wrong tile selection
+
+**Phase 3: Test TileSet Configuration Variations** (2h)
+- [ ] **Test 1**: Remove peering bits from one edge tile → does autotiling fail gracefully?
+- [ ] **Test 2**: Add directional custom data (e.g., `edge_direction: "left"`) → does Godot use it?
+- [ ] **Test 3**: Create asymmetric bitmasks (left has 3 bits, right has 4) → does this fix selection?
+- [ ] **Test 4**: Try `SetCellsTerrainPath()` instead of `SetCellsTerrainConnect()` → different algorithm?
+- [ ] Document which configurations produce correct results
+
+**Phase 4: Root Cause Identification** (1h)
+- [ ] Analyze test results to pinpoint exact failure mode
+- [ ] Possible root causes to validate:
+  - **Godot bug**: Terrain matching algorithm has edge case for symmetric patterns
+  - **Bitmask design**: Our configuration is valid but Godot needs additional hints
+  - **API misuse**: We're calling SetCellsTerrainConnect incorrectly (wrong params/order)
+  - **TileSet limitation**: Godot terrain system doesn't support symmetric edge tiles
+- [ ] Write detailed root cause analysis with evidence from tests
+
+**Phase 5: Implement Proper Fix** (2h)
+- [ ] **If TileSet config fix**: Update test_terrain_tileset.tres with correct bitmask patterns
+- [ ] **If API usage fix**: Refactor RenderWallsWithAutotiling() to use proper Godot API
+- [ ] **If Godot limitation**: Document limitation, keep manual assignment (accept tech debt)
+- [ ] **If Godot bug**: File upstream bug report with minimal reproduction, use workaround
+- [ ] Remove manual tile assignment code if autotiling works
+- [ ] Update documentation with findings and solution
+
+**Success Criteria**:
+- Root cause fully understood and documented with test evidence
+- One of these outcomes:
+  1. **Best**: Autotiling works correctly via TileSet/API fix, manual code deleted
+  2. **Good**: Confirmed Godot limitation, manual workaround justified with explanation
+  3. **Acceptable**: Godot bug filed upstream, workaround documented as temporary
+- Knowledge captured for future terrain autotiling work
+
+**Non-Goals**:
+- Supporting complex interior wall autotiling (out of scope - border walls only)
+- Performance optimization (manual assignment is already fast)
+- Visual improvements beyond fixing symmetry
+
+**Benefits**:
+- **Data-driven**: Designers can add new terrain edges without C# code changes
+- **Maintainable**: Autotiling handles edge cases automatically (T-junctions, corners, etc.)
+- **Extensible**: Solution applies to future terrain types (ice walls, lava edges, etc.)
+- **Educational**: Deep understanding of Godot terrain system benefits team
+
+**Risks**:
+- **MEDIUM**: May discover Godot terrain system has fundamental limitations
+- **LOW**: Significant time investment for polish feature (not blocking core gameplay)
+- **MITIGATION**: Timebox investigation to 8 hours, accept workaround if no solution found
+
+**Dependencies**: None (VS_019 + VS_019_FOLLOWUP complete, walls functional)
+
+**Defer Conditions** (when to skip):
+- Phase 1 validation reveals this is critical path work (move to VS_020 Combat instead)
+- Investigation exceeds 8 hour timebox without clear solution
+- Godot terrain system fundamentally can't handle symmetric edges (accept tech debt)
+
+---
+
 ### VS_020: Basic Combat System (Attacks & Damage)
 **Status**: Approved | **Owner**: Tech Lead → Dev Engineer | **Size**: M (1-2 days) | **Priority**: Important
 **Markers**: [PHASE-1-CRITICAL] [BLOCKING]
