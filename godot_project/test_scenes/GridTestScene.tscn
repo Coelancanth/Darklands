@@ -17,17 +17,17 @@ modulate = Color(1, 1, 0.501961, 0.501961)
 tile_set = ExtResource("2_kyx3r")
 
 [node name="Player" type="Sprite2D" parent="."]
-modulate = Color(0, 1, 0, 1)
-position = Vector2(40, 40)
+z_index = 20
+position = Vector2(240, 240)
 scale = Vector2(6, 6)
 texture = ExtResource("2_tilemap")
 region_enabled = true
-region_rect = Rect2(0, 0, 8, 8)
+region_rect = Rect2(45, 0, 8, 8)
 
 [node name="Dummy" type="Sprite2D" parent="."]
-modulate = Color(1, 0, 0, 1)
-position = Vector2(160, 160)
+z_index = 20
+position = Vector2(960, 960)
 scale = Vector2(6, 6)
 texture = ExtResource("2_tilemap")
 region_enabled = true
-region_rect = Rect2(0, 0, 8, 8)
+region_rect = Rect2(36, 0, 8, 8)

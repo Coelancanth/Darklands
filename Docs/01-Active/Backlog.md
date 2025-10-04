@@ -87,19 +87,25 @@
 
 **What**: Replace GridTestScene's ColorRect rendering with TileMapLayer, refactor terrain to use TileSet as SSOT (like VS_009 items catalog), maintain existing test scene layout
 
-**Latest Progress** (2025-10-05 02:02):
+**Latest Progress** (2025-10-05 02:13):
 - ✅ **Phase 1 COMPLETE** [f64c7de] - Core refactoring, TerrainType enum deleted
 - ✅ **Phase 2 COMPLETE** [59159e5, d9d9a4d] - TileSetTerrainRepository, wall_stone configured
-- ✅ **Phase 3 COMPLETE** (2025-10-05 02:02) - TileMapLayer pixel art rendering + fog fixes
+- ✅ **Phase 3 COMPLETE** [27b62b2] - TileMapLayer pixel art rendering + fog fixes
   - GridTestSceneController renders via TileMapLayer.SetCell() with 6× scale
   - Fixed rendering bugs: Z-index layering, scale mismatch (8px tiles → 48px grid)
   - Replaced smoke → grass terrain (atlas 5:4), added to TileSet custom data
   - Fixed FOV/fog overlay for dark floor tiles (ColorRect transparent, fog alpha 0.4)
   - Tree terrain configured (impassable + opaque), 5 trees at Y=15
   - All 415 tests GREEN - Presentation changes don't affect Core
-  - **KNOWN ISSUE**: Wall autotiling not working (SetCellsTerrainConnect API needs batch processing)
-- **Status**: Phase 3 functionally complete! TileSet is SSOT, pixel art works, fog readable
-- **Next**: Phase 4 (delete ColorRect terrain layer) + fix autotiling (deferred - polish work)
+- ✅ **Phase 4 COMPLETE** (2025-10-05 02:13) - Actor Sprite2D rendering with smooth movement
+  - Replaced ColorRect actors with pixel art Sprite2D nodes (Player atlas 5:0, Dummy atlas 4:0)
+  - Implemented smooth movement tweening (100ms Godot Tween animation)
+  - Actors render at Z=20 (above fog overlay), visibility controlled by FOV
+  - Deleted deprecated ColorRect actor layer (_actorCells array, 900 nodes eliminated)
+  - Code cleanup: 150 lines net reduction (deleted SetCellColor, RestoreCellColor, color constants)
+  - Pixel art rendering: terrain (TileMapLayer) + actors (Sprite2D) + fog (ColorRect overlay)
+- **Status**: ✅ VS_019 COMPLETE! TileSet SSOT working, pixel art rendering polished, fog readable
+- **Follow-up Work**: Wall autotiling fix (SetCellsTerrainConnect batch processing - see VS_019_FOLLOWUP below)
 
 **Why**:
 - Visual progress after infrastructure-heavy VS_007 (restore motivation)
@@ -267,6 +273,45 @@ TileSet (Godot)                  Infrastructure (Bridge)           Core (Pure C#
 - **Benefits**: Professional pixel-art look, designer-editable terrain, consistent VS_009 architecture, no dead code maintenance
 - **PCG deferred**: Can add as future VS after visual foundation established
 - **Next steps**: Dev Engineer reviews VS_009 GodotItemRepository, implements Phases 1-4 with incremental commits
+
+---
+
+### VS_019_FOLLOWUP: Fix Wall Autotiling (Godot Terrain API)
+**Status**: Proposed | **Owner**: Dev Engineer | **Size**: S (<4h) | **Priority**: Important (Polish)
+**Markers**: [VISUAL-POLISH] [TECHNICAL-DEBT]
+
+**What**: Implement proper wall autotiling using Godot's SetCellsTerrainConnect API for seamless corner rendering
+
+**Why**:
+- Current walls show individual brick tiles at corners instead of seamless connected walls
+- TileSet terrain_set_0 is already configured with bitmask patterns (9 variants validated)
+- VS_019 uses SetCell() which bypasses terrain system autotiling logic
+
+**How**:
+- **Problem**: SetCell(pos, sourceId, atlasCoords) places tiles manually, ignoring terrain bitmask
+- **Solution**: Collect all wall positions FIRST, then call SetCellsTerrainConnect(allWallCells, terrainSet: 0, terrain: 0)
+- **Pattern**: Batch processing required - Godot analyzes neighbors for entire set, not individual cells
+- **Implementation**:
+  ```csharp
+  // Collect all wall positions during initialization
+  var wallPositions = new Godot.Collections.Array<Vector2I>();
+  for (edges...) {
+      await _mediator.Send(new SetTerrainCommand(pos, "wall_stone"));
+      wallPositions.Add(new Vector2I(pos.X, pos.Y));
+  }
+  // THEN apply autotiling to entire set
+  _terrainLayer.SetCellsTerrainConnect(wallPositions, terrainSet: 0, terrain: 0);
+  ```
+
+**Done When**:
+- Wall corners render seamlessly (L-shaped corners, T-junctions, etc.)
+- Border walls connect properly at all 4 corners
+- Interior tree obstacles (Y=15) still render correctly
+- Floor, grass, trees unaffected (direct SetCell still used)
+
+**Dependencies**: None (VS_019 complete, autotiling is polish)
+
+**Effort**: 2-3 hours (refactor InitializeGameState terrain loop, test corner rendering)
 
 ---
 
