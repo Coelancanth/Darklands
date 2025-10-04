@@ -98,9 +98,14 @@ public sealed class SwapItemsCommandHandler : IRequestHandler<SwapItemsCommand, 
         // Check if same-container swap (to avoid double-save bug)
         bool isSameContainer = sourceInventory == targetInventory;
 
-        // Get target item shape for rollback
-        if (!targetInventory.ItemShapes.TryGetValue(targetItemId, out var targetItemShape))
-            return Result.Failure("Target item has no shape data");
+        // Get target item ORIGINAL shape from repository (not from inventory storage!)
+        // WHY: Equipment slots store items as 1×1, but we need the actual L/T-shape when swapping back to inventory
+        var targetItemResult = await _items.GetByIdAsync(targetItemId, cancellationToken);
+        if (targetItemResult.IsFailure)
+            return Result.Failure(targetItemResult.Error);
+
+        var targetItem = targetItemResult.Value;
+        var targetItemShape = targetItem.Shape; // ORIGINAL shape from catalog, not 1×1 override
 
         var targetItemRotation = targetInventory.GetItemRotation(targetItemId);
         if (targetItemRotation.IsFailure)

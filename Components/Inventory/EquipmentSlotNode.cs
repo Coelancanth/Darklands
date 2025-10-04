@@ -229,20 +229,63 @@ public partial class EquipmentSlotNode : Control
             return false;
         }
 
-        // Delegate validation to Core (checks type compatibility, bounds)
-        var canPlaceQuery = new CanPlaceItemAtQuery(
-            OwnerActorId.Value,
-            itemId,
-            new GridPosition(0, 0), // Equipment slots always at origin
-            default(Rotation)); // Equipment slots don't rotate (Rotation.None)
+        // Equipment slots support BOTH move and swap operations
+        // WHY: When slot is occupied, CanPlaceItemAtQuery returns false (collision detected)
+        //      But we WANT to allow drops to trigger swaps!
+        // SOLUTION: Check if slot is occupied → allow drop for swap
+        //           If slot is empty → validate via CanPlaceItemAtQuery (type check)
 
-        var validationResult = _mediator.Send(canPlaceQuery).Result; // Blocking OK for UI validation
-        bool isValid = validationResult.IsSuccess && validationResult.Value;
+        // Query inventory to check if slot is occupied
+        var inventoryQuery = new GetInventoryQuery(OwnerActorId.Value);
+        var inventoryResult = _mediator.Send(inventoryQuery).Result; // Blocking OK for UI validation
+
+        if (inventoryResult.IsFailure)
+        {
+            ClearHighlights();
+            return false;
+        }
+
+        var inventory = inventoryResult.Value;
+        var slotPos = new GridPosition(0, 0);
+        bool slotIsOccupied = inventory.ItemPlacements
+            .Any(kvp => kvp.Value.Equals(slotPos));
+
+        bool isValid;
+
+        if (slotIsOccupied)
+        {
+            // Slot occupied → Allow drop for SWAP (type validation will happen in SwapItemsCommand)
+            // Just check item type matches container type
+            var itemQuery = new GetItemByIdQuery(itemId);
+            var itemResult = _mediator.Send(itemQuery).Result;
+
+            if (itemResult.IsFailure)
+            {
+                isValid = false;
+            }
+            else
+            {
+                var item = itemResult.Value;
+                // Equipment slots only accept weapons
+                isValid = item.Type == "weapon";
+            }
+        }
+        else
+        {
+            // Slot empty → Use standard placement validation
+            var canPlaceQuery = new CanPlaceItemAtQuery(
+                OwnerActorId.Value,
+                itemId,
+                new GridPosition(0, 0),
+                default(Rotation));
+
+            var validationResult = _mediator.Send(canPlaceQuery).Result;
+            isValid = validationResult.IsSuccess && validationResult.Value;
+        }
 
         // Render highlight (green = valid, red = invalid)
         RenderHighlight(isValid);
 
-        _logger.LogDebug("Can drop in {SlotTitle}: {IsValid}", SlotTitle, isValid);
         return isValid;
     }
 
@@ -270,8 +313,8 @@ public partial class EquipmentSlotNode : Control
         var sourceY = dragData["sourceY"].AsInt32();
         var sourcePos = new GridPosition(sourceX, sourceY);
 
-        // Query inventory to check if slot is occupied (instead of relying on cached _currentItemId)
-        // WHY: LoadSlotAsync() might not have completed yet, causing _currentItemId to be null
+        // Query inventory to check if slot is occupied
+        // WHY: Can't rely on cached _currentItemId (async LoadSlotAsync may not have completed)
         if (OwnerActorId == null)
         {
             _logger.LogError("OwnerActorId is null - cannot determine swap vs move");
