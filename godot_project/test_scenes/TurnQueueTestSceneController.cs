@@ -706,16 +706,21 @@ public partial class TurnQueueTestSceneController : Node2D
     /// </summary>
     private async Task CancelMovementAsync()
     {
-        if (_movementCancellation != null && _activeMovementTask != null)
+        // Cache references before await to prevent race conditions
+        // (another continuation could null these out during the await)
+        var cancellationToDispose = _movementCancellation;
+        var taskToAwait = _activeMovementTask;
+
+        if (cancellationToDispose != null && taskToAwait != null)
         {
             _logger.LogInformation("Movement cancelled!");
-            _movementCancellation.Cancel();
+            cancellationToDispose.Cancel();
 
             // CRITICAL: Wait for the movement task to complete cancellation
             // This prevents race conditions where new movement starts before old one finishes
             try
             {
-                await _activeMovementTask;
+                await taskToAwait;
             }
             catch (OperationCanceledException)
             {
@@ -726,9 +731,19 @@ public partial class TurnQueueTestSceneController : Node2D
                 _logger.LogError(ex, "Error during movement cancellation");
             }
 
-            _movementCancellation.Dispose();
-            _movementCancellation = null;
-            _activeMovementTask = null;
+            // Dispose our cached reference (safe even if field was already nulled)
+            cancellationToDispose.Dispose();
+
+            // Only null out fields if they still point to what we cancelled
+            // (defensive: another operation might have started meanwhile)
+            if (_movementCancellation == cancellationToDispose)
+            {
+                _movementCancellation = null;
+            }
+            if (_activeMovementTask == taskToAwait)
+            {
+                _activeMovementTask = null;
+            }
 
             // Clear path preview when cancelling
             ClearPathPreview();
