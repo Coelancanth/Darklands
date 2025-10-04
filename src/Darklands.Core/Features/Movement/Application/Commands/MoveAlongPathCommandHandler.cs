@@ -112,7 +112,7 @@ public class MoveAlongPathCommandHandler : IRequestHandler<MoveAlongPathCommand,
             if (isInCombatResult.IsSuccess && isInCombatResult.Value)
             {
                 _logger.LogInformation(
-                    "⚔️ Combat detected! Auto-cancelling exploration movement for actor {ActorId} at step {Step}/{Total}",
+                    "Combat detected! Auto-cancelling exploration movement for actor {ActorId} at step {Step}/{Total}",
                     request.ActorId,
                     i,
                     request.Path.Count);

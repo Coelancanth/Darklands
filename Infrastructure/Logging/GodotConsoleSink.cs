@@ -57,7 +57,7 @@ public class GodotConsoleSink : ILogEventSink
     /// <summary>
     /// Apply BBCode color tags to different parts of the log message.
     /// Colors: Level, Timestamp, and Message all share the same level-specific color. Category is cyan.
-    /// This ensures visual consistency across the entire log line.
+    /// Special highlighting for combat transitions and time progression (Gruvbox semantic colors).
     /// </summary>
     private static string ApplyColors(string formatted, LogEventLevel level)
     {
@@ -82,10 +82,52 @@ public class GodotConsoleSink : ILogEventSink
         var coloredTime = $"[color={levelColor}]{timePart}[/color]";  // Same color as level
         var coloredCategory = $"[color=#8ec07c]{categoryPart}[/color]";  // Gruvbox aqua (bright cyan)
 
-        // Message always inherits level color for consistency
-        var coloredMessage = $"[color={levelColor}]{messagePart}[/color]";
+        // Apply semantic highlighting to combat messages
+        var coloredMessage = ApplySemanticColors(messagePart, levelColor);
 
         return coloredLevel + coloredTime + coloredCategory + coloredMessage;
+    }
+
+    /// <summary>
+    /// Apply semantic color highlighting to specific patterns in messages (Gruvbox palette).
+    /// Highlights: Combat transitions, time progression, actor IDs, mode changes.
+    /// </summary>
+    private static string ApplySemanticColors(string message, string defaultColor)
+    {
+        // Gruvbox semantic colors
+        const string GruvboxGreen = "#b8bb26";       // Bright green (combat enter)
+        const string GruvboxYellow = "#fabd2f";      // Bright yellow (exploration/mode)
+        const string GruvboxOrange = "#fe8019";      // Bright orange (time/numbers)
+
+        // Combat state transitions
+        message = message.Replace("Exploration -> Combat:", $"[color={GruvboxGreen}]Exploration -> Combat:[/color]");
+        message = message.Replace("Combat -> Exploration transition:", $"[color={GruvboxYellow}]Combat -> Exploration:[/color]");
+        message = message.Replace("FOV Detection:", $"[color={GruvboxGreen}]FOV Detection:[/color]");
+        message = message.Replace("Combat ended", $"[color={GruvboxYellow}]Combat ended[/color]");
+        message = message.Replace("Combat detected!", $"[color={GruvboxGreen}]Combat detected![/color]");
+        message = message.Replace("FOV cleared", $"[color={GruvboxYellow}]FOV cleared[/color]");
+
+        // Time progression highlighting (time: X -> Y)
+        if (message.Contains("time:"))
+        {
+            message = System.Text.RegularExpressions.Regex.Replace(
+                message,
+                @"time: (\d+) -> (\d+)",
+                $"time: [color={GruvboxOrange}]$1[/color] -> [color={GruvboxOrange}]$2[/color]"
+            );
+            message = System.Text.RegularExpressions.Regex.Replace(
+                message,
+                @"cost: (\d+)",
+                $"cost: [color={GruvboxOrange}]$1[/color]"
+            );
+        }
+
+        // Mode indicators
+        message = message.Replace("Combat mode active", $"[color={GruvboxGreen}]Combat mode active[/color]");
+        message = message.Replace("Exploration mode", $"[color={GruvboxYellow}]Exploration mode[/color]");
+
+        // Default color for remaining text
+        return $"[color={defaultColor}]{message}[/color]";
     }
 
     /// <summary>

@@ -185,7 +185,7 @@ public partial class TurnQueueTestSceneController : Node2D
         (turnQueueRepo as Darklands.Core.Features.Combat.Infrastructure.InMemoryTurnQueueRepository)?
             .InitializeWithPlayer(_playerId);
 
-        _logger.LogInformation("✅ VS_007: Player context and turn queue initialized with player {PlayerId}", _playerId);
+        _logger.LogInformation("VS_007: Player context and turn queue initialized with player {PlayerId}", _playerId);
 
         // Initialize test terrain: Walls around edges, smoke patches
         for (int x = 0; x < GridSize; x++)
@@ -616,7 +616,7 @@ public partial class TurnQueueTestSceneController : Node2D
         if (isInCombat)
         {
             // COMBAT MODE: Single-step movement toward target (tactical)
-            _logger.LogInformation("⚔️ Combat mode active - single-step movement toward ({TargetX}, {TargetY})", target.X, target.Y);
+            _logger.LogInformation("Combat mode active - single-step movement toward ({TargetX}, {TargetY})", target.X, target.Y);
 
             // Calculate single step toward target (A* pathfinding)
             var pathResult = _pathfindingService.FindPath(currentPos, target, pos => IsPassable(pos), pos => 1);
