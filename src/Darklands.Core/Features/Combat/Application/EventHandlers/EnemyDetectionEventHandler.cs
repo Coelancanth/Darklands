@@ -11,11 +11,15 @@ using Microsoft.Extensions.Logging;
 namespace Darklands.Core.Features.Combat.Application.EventHandlers;
 
 /// <summary>
-/// Event handler that subscribes to FOVCalculatedEvent.
+/// Event handler that subscribes to FOVCalculatedEvent via MediatR.
 /// When player sees new enemies, schedules them in the turn queue (triggers combat mode).
 /// </summary>
 /// <remarks>
 /// BRIDGE: FOV System (VS_005) → Combat System (VS_007)
+///
+/// EVENT BUS: Receives FOVCalculatedEvent via MediatR (dual publishing pattern).
+/// MoveActorCommandHandler publishes to BOTH GodotEventBus (UI) and MediatR (Application).
+/// This handler auto-registers via MediatR assembly scan.
 ///
 /// KEY BEHAVIOR:
 /// - Only processes PLAYER'S FOV events (VS_007 MVP scope)

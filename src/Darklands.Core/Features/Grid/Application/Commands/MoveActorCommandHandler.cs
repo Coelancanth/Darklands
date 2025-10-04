@@ -119,7 +119,13 @@ public class MoveActorCommandHandler : IRequestHandler<MoveActorCommand, Result>
 
         if (fovResult.IsSuccess)
         {
+            // Dual publishing: FOVCalculatedEvent goes to BOTH buses
+            // GodotEventBus → Presentation layer (UI subscribers: FOV overlay, test scenes)
             await _eventBus.PublishAsync(new FOVCalculatedEvent(request.ActorId, fovResult.Value));
+
+            // MediatR → Application layer (business logic: EnemyDetectionEventHandler)
+            await _mediator.Publish(new FOVCalculatedEvent(request.ActorId, fovResult.Value));
+
             _logger.LogDebug(
                 "FOV calculated for actor {ActorId}: {VisibleCount} positions visible",
                 request.ActorId,
