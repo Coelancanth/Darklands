@@ -44,11 +44,12 @@ public class TimeUnitsTests
     }
 
     [Fact]
-    public void MovementCost_ShouldReturn100TimeUnits()
+    public void MovementCost_ShouldReturn10TimeUnits()
     {
+        // WHY 10: Changed from 100 for easier mental math (3 moves = 30 time vs 300)
         var movementCost = TimeUnits.MovementCost;
 
-        movementCost.Value.Should().Be(100);
+        movementCost.Value.Should().Be(10);
     }
 
     [Fact]

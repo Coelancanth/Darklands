@@ -28,9 +28,17 @@ public readonly record struct TimeUnits : IComparable<TimeUnits>
     public static TimeUnits Zero => new(0);
 
     /// <summary>
-    /// Standard movement cost (100 time units).
+    /// Standard movement cost (10 time units per tile).
     /// </summary>
-    public static TimeUnits MovementCost => new(100);
+    /// <remarks>
+    /// WHY 10: Smaller numbers are easier to reason about mentally (3 moves = 30 time).
+    ///
+    /// FUTURE: Diagonal movement cost consideration
+    /// - Current: Uniform cost (orthogonal and diagonal both cost 10)
+    /// - Realistic option: Diagonal = 14 (approximates √2 ≈ 1.41× distance)
+    /// - Design decision: Start simple (uniform), add differential cost if tactical AI needs it
+    /// </remarks>
+    public static TimeUnits MovementCost => new(10);
 
     /// <summary>
     /// Creates a TimeUnits from a non-negative integer.
