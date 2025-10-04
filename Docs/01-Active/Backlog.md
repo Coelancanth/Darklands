@@ -273,12 +273,24 @@
 - **Bug Fix**: Self-swap detection prevents "Item not found" error when dropping item back to same slot
 - **Next**: Phase 3 - Clean InventoryContainerNode (will save ~200 lines there using same helper!)
 
-**✅ Phase 3: Clean InventoryContainerNode (1-2h)**
-- [ ] Delete equipment conditionals (lines 482, 870-893, 927)
-- [ ] Update rendering to use `InventoryRenderHelper`
-- [ ] Rename: `SpatialInventoryContainerNode.cs` → `InventoryContainerNode.cs`
-- [ ] Verify: `grep "isEquipmentSlot" Components/Inventory/InventoryContainerNode.cs` returns 0
-- [ ] Commit: `refactor(inventory): Remove equipment logic from InventoryContainerNode [TD_003 Phase 3/4]`
+**✅ Phase 3: Clean InventoryContainerNode (1-2h)** - ✅ **COMPLETED** 2025-10-04 14:05
+- [x] Delete equipment conditionals (lines 482, 870-893, 927)
+- [x] Update rendering to use `InventoryRenderHelper.CreateHighlight()`
+- [x] Rename: `SpatialInventoryContainerNode.cs` → `InventoryContainerNode.cs`
+- [x] Update namespace: `Darklands.Components` → `Darklands.Components.Inventory`
+- [x] Update test controller to use renamed component
+- [x] Verify: `grep "isEquipmentSlot" Components/Inventory/InventoryContainerNode.cs` returns 0 ✅
+- [x] Build: All 359 tests GREEN ✅
+- [x] Commit: `2715540` - `refactor(inventory): Remove equipment logic from InventoryContainerNode [TD_003 Phase 3/4]`
+
+**Dev Engineer Progress** (2025-10-04 14:05) - ✅ PHASE 3 COMPLETE:
+- **Removed**: All 3 equipment-specific conditionals (swap detection, scaling, rotation suppression)
+- **Simplified**: `SwapItemsSafeAsync` deleted (swap logic now in EquipmentSlotNode)
+- **DRY Applied**: `InventoryRenderHelper.CreateHighlight()` used for rendering
+- **Renamed**: `SpatialInventoryContainerNode` → `InventoryContainerNode` (clearer naming)
+- **Lines Removed**: 103 lines deleted (1293 → ~1190 after equipment logic extraction)
+- **Verification**: grep confirms zero equipment logic remains ✅
+- **Next**: Phase 4 - Documentation & manual testing
 
 **✅ Phase 4: Documentation & Testing (2-3h)**
 - [ ] Update test scene: weapon slot uses `EquipmentSlotNode`
