@@ -77,9 +77,10 @@ function Resolve-EmbodyGitState {
     
     # Store original branch name before potential switch
     $originalBranch = $branch
-    
+
     # First check if PR was merged and handle automatic branch switch
-    $prHandled = Handle-MergedPR -CurrentBranch $branch
+    # Tell Handle-MergedPR that we already stashed to avoid double-stashing
+    $prHandled = Handle-MergedPR -CurrentBranch $branch -AlreadyStashed $hasUncommitted
     
     if ($prHandled) {
         # Branch was switched to main, update our reference
