@@ -179,7 +179,7 @@ public sealed class TileSetItemRepository : IItemRepository
         if (shapeResult.IsFailure)
         {
             return Result.Failure<ItemEntity>(
-                $"Failed to parse item shape: {shapeResult.Error}");
+                $"Item '{name}' (type: {type}): Failed to parse shape - {shapeResult.Error}");
         }
 
         // PHASE 4: Use CreateWithShape (explicit ItemShape parameter)

@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-04 00:23 (Dev Engineer: Added TD_003-005 based on VS_018 lessons learned)
+**Last Updated**: 2025-10-04 12:47 (Backlog Assistant: TD_004 archived - 7 leaks eliminated, 164 lines removed, architectural compliance achieved)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 008
-- **Next TD**: 006
+- **Next TD**: 006 (TD_005 complete, counter unchanged)
 - **Next VS**: 019
 
 
@@ -71,9 +71,10 @@
 ---
 
 *Recently completed and archived (2025-10-04):*
-- **BR_007**: Equipment Slot Visual Issues - Equipment slots showed L-shape highlights (3 cells) instead of 1×1. Fixed by overriding rotatedShape to ItemShape.CreateRectangle(1,1) for equipment slots. Also fixed sprite centering. ✅ (2025-10-04)
-- **BR_006**: Cross-Container Rotation Highlights - Highlights didn't rotate during cross-container drag. Fixed with mouse warp hack (0.1px movement triggers _CanDropData). ✅ (2025-10-04)
-- **BR_005**: Cross-Container L-Shape Highlight Inaccuracy - ItemDto evolved to Phase 4 (added ItemShape property). Pixel-perfect L-shape highlighting achieved. ✅ (2025-10-03)
+- **TD_004**: Move ALL Shape Logic to Core (SSOT) - Eliminated all 7 business logic leaks from Presentation (164 lines removed, 12% complexity reduction). Fixed SwapItemsCommand double-save bug, eliminated cache-driven anti-pattern. Commits: 4cd1dbe, 49c06e6. ✅ (2025-10-04)
+- **TD_005**: Persona & Protocol Updates - Updated dev-engineer.md with Root Cause First Principle, UX Pattern Recognition, Requirement Clarification Protocol. ✅ (2025-10-04)
+- **BR_007**: Equipment Slot Visual Issues - Fixed 1×1 highlight override and sprite centering for equipment slots. ✅ (2025-10-04)
+- **BR_006**: Cross-Container Rotation Highlights - Fixed with mouse warp hack for cross-container drag updates. ✅ (2025-10-04)
 - *See: [Completed_Backlog_2025-10.md](../07-Archive/Completed_Backlog_2025-10.md) for full archive*
 
 ---
@@ -135,123 +136,111 @@
 
 ### TD_003: Separate Equipment Slots from Spatial Inventory Container
 
-**Status**: Proposed (needs Tech Lead approval)
-**Owner**: Tech Lead → Dev Engineer (after approval)
-**Size**: M (6-8h)
-**Priority**: Important (Reduces complexity, fixes swap bugs)
+**Status**: ✅ APPROVED (2025-10-04) - Ready for Dev Engineer
+**Owner**: Tech Lead → Dev Engineer
+**Size**: L (12-16h realistic estimate)
+**Priority**: Important (Component Reusability + Complexity Reduction)
 **Depends On**: None (can start immediately)
-**Markers**: [ARCHITECTURE] [SEPARATION-OF-CONCERNS]
+**Markers**: [ARCHITECTURE] [SEPARATION-OF-CONCERNS] [COMPONENT-DESIGN]
 
 **What**: Refactor `SpatialInventoryContainerNode` into two separate components: `InventoryContainerNode` (Tetris grid) and `EquipmentSlotNode` (single-item swap)
 
-**Why**:
-- **Bug Source**: Current unified approach causes equipment slot swap failures (BR_008 - items overlapping)
-- **Complexity**: Equipment slot special cases scattered throughout 1372-line file (centering, 1×1 override, collision skip)
-- **SSOT Violation**: Two different UX patterns (Tetris vs Diablo 2 swap) in one component
-- **Maintainability**: Each component simpler, easier to test independently
+**Why** (Component Reusability - VALID):
+- **Reusability**: Character sheet needs 6 equipment slots - current design forces each to carry 800 lines of dead Tetris code
+- **Single Responsibility Violation**: One class handles TWO different UI patterns (Tetris grid + Diablo 2 swap)
+- **Future Features Blocked**: Cannot add helmet/chest/ring slots without instantiating 1372-line God Class
+- **Complexity**: Equipment slot special cases scattered (4 `if (isEquipmentSlot)` branches in different methods)
 
-**How**:
-- **InventoryContainerNode** (Tetris grid, ~800 lines):
+**How** (Implementation Plan):
+- **EquipmentSlotNode** (Single-item swap, ~400 lines) - **Build FIRST**:
+  - Always 1×1 logical placement (ignores item's actual shape)
+  - Swap-only UX (no collision check, always valid if type matches)
+  - Centered sprite rendering (items appear centered regardless of size)
+  - Single-cell highlight (always green 1×1, never red)
+  - Simpler drag-drop (no rotation, no cross-container complexity)
+
+- **InventoryContainerNode** (Tetris grid, ~800 lines) - **Extract SECOND**:
   - Multi-cell placement with L-shape collision
   - Rotation support via scroll wheel
   - Cross-container drag-drop
-  - Highlight rendering (full shape)
-- **EquipmentSlotNode** (Single-item swap, ~400 lines):
-  - Always 1×1 logical placement
-  - Swap-only UX (no collision check, always valid if type matches)
-  - Centered sprite rendering
-  - Single-cell highlight (always)
-- **Shared**: Reuse drag preview creation, atlas texture loading
+  - Highlight rendering (full shape, green/red validation)
+  - Remove ALL `if (isEquipmentSlot)` branches (grep returns 0)
+
+- **Shared Base Class** (Optional, evaluate during implementation):
+  - Drag preview creation (atlas texture loading)
+  - Common properties (CellSize, ItemTileSet, Mediator)
+  - Decision: Only extract if duplication >100 lines
+
+**Tech Lead Decision** (2025-10-04): **APPROVED - Component Design Pattern**
+
+**Approval Rationale** (Reversed from initial rejection):
+
+1. **Reusability is the Real Justification** ✅
+   - Character sheet needs 6 equipment slots (helmet, chest, weapon, shield, ring×2)
+   - Current approach: 6 instances × 1372 lines = 8232 lines loaded for simple swap UX
+   - After separation: 6 instances × 400 lines = 2400 lines (saves 5832 lines of dead code)
+   - **This isn't premature optimization - it's proper component design**
+
+2. **Single Responsibility Principle** ✅
+   - Equipment Slot: Type validation, swap, centered display
+   - Inventory Grid: Spatial placement, rotation, L-shape collision
+   - These are as different as `Button` vs `LineEdit` - don't unify them!
+
+3. **Testing Benefits** ✅
+   - Equipment tests: Swap rollback, type filtering, centering (simple, focused)
+   - Inventory tests: Multi-cell placement, rotation, cross-container drag (complex, isolated)
+   - Current: Every test runs through BOTH code paths (confusing, slow)
+
+4. **Cost is Justified** 💰
+   - Realistic estimate: 12-16h (includes test scene updates, regression testing, docs)
+   - Benefit: Future character sheet feature becomes trivial (drop 6 EquipmentSlotNodes in scene)
+   - ROI: Every future equipment feature gets simpler, faster to test
+
+5. **Initial Rejection Was Wrong** 🙏
+   - I focused on "bug fixing" instead of "component design"
+   - User's challenge was correct: These should be separate reusable nodes
+   - **Lesson learned**: YAGNI doesn't apply when designing reusable UI components
+
+**Implementation Approach** (Recommended Order):
+
+**Phase 1: Extract EquipmentSlotNode (4-6h)**
+1. Copy SpatialInventoryContainerNode → EquipmentSlotNode.cs
+2. Delete ALL Tetris-specific code (rotation, multi-cell, highlights)
+3. Simplify to: 1×1 swap, centered sprite, type validation only
+4. Update test scene: Replace weapon slot with new EquipmentSlotNode
+5. Manual test: Swap dagger ↔ ray_gun
+6. Commit: `refactor(inventory): Extract EquipmentSlotNode for reusability [TD_003 Phase 1/2]`
+
+**Phase 2: Clean InventoryContainerNode (4-6h)**
+1. Delete ALL equipment slot special cases from SpatialInventoryContainerNode
+2. Rename file: SpatialInventoryContainerNode.cs → InventoryContainerNode.cs
+3. Update backpack test scene: Use new InventoryContainerNode name
+4. Verify: `grep -r "isEquipmentSlot" Components/` returns 0 results
+5. Commit: `refactor(inventory): Remove equipment logic from InventoryContainerNode [TD_003 Phase 2/2]`
+
+**Phase 3: Documentation & Cleanup (2-4h)**
+1. Update ADR-002 (or create ADR-006): "Equipment Slot vs Inventory Grid Component Separation"
+2. Update HANDBOOK: Component selection guide (when to use which)
+3. Update Memory Bank (dev-engineer.md): Reusability pattern example
+4. Regression test ALL inventory features (manual + 359 automated tests)
 
 **Done When**:
-- ✅ Equipment slot swap works (dagger ↔ ray_gun with no overlap)
-- ✅ Each component <500 lines (separation achieved)
-- ✅ All 359 tests still GREEN (backward compatibility)
-- ✅ No equipment slot special cases in InventoryContainerNode (grep for "isEquipmentSlot" returns 0)
+- ✅ EquipmentSlotNode exists (~400 lines, focused on swap UX)
+- ✅ InventoryContainerNode cleaned (~800 lines, zero equipment special cases)
+- ✅ All 359 tests GREEN (backward compatibility)
+- ✅ Test scene uses EquipmentSlotNode for weapon slot (manual test passes)
+- ✅ Grep for "isEquipmentSlot" in Components/ returns 0 results
+- ✅ Documentation updated (ADR + HANDBOOK + Memory Bank)
 
-**Tech Lead Decision** (date): [Pending]
+**Risk Mitigation**:
+- ⚠️ Test scene breakage: Update scenes incrementally (weapon slot first, then backpack)
+- ⚠️ Drag-drop regression: Extensive manual testing after each phase
+- ⚠️ Shared code duplication: Only extract base class if >100 lines duplicated
 
----
-
-### TD_004: Move Highlight Logic to Core (SSOT)
-
-**Status**: Proposed (needs Tech Lead discussion)
-**Owner**: Tech Lead → Dev Engineer (after approval)
-**Size**: M (4-6h)
-**Priority**: Important (Architectural compliance)
-**Depends On**: None
-**Markers**: [ARCHITECTURE] [ADR-002]
-
-**What**: Move highlight shape calculation from Presentation to Core, create `CalculateHighlightShapeQuery`
-
-**Why**:
-- **Business Logic Leak**: RenderDragHighlight (lines 1009-1104) duplicates shape rotation math from Core
-- **SSOT Violation**: Equipment slot 1×1 override exists in BOTH Presentation AND Core
-- **ADR-002**: Presentation should only render, not calculate (thin display layer)
-- **Future Risk**: Highlight logic can diverge from placement logic
-
-**How** (Discussion Needed):
-- **Option A**: Query returns `List<GridPosition>` of cells to highlight
-  - Core: `CalculateHighlightCellsQuery(itemId, position, rotation, containerType)` → cells
-  - Presentation: Render TextureRect at each returned cell (dumb rendering)
-  - Pro: Zero business logic in Presentation
-  - Con: Extra round-trip for every mouse move
-- **Option B**: Keep highlight rendering in Presentation (pragmatic)
-  - Accept thin violation: Highlight is UI concern (visual feedback only)
-  - Ensure: Use same rotation math as Core (shared RotationHelper)
-  - Pro: No performance cost
-  - Con: Duplication risk
-
-**Done When** (if Option A approved):
-- ✅ `CalculateHighlightCellsQuery` in Core returns cell positions
-- ✅ Presentation removes rotation math (uses query result only)
-- ✅ Equipment slot logic ONLY in Core (Presentation agnostic)
-- ✅ All 359 tests GREEN
-
-**Tech Lead Decision** (date): [Pending - requires architectural discussion]
-
----
-
-### TD_005: Persona & Protocol Updates
-
-**Status**: Proposed (needs Product Owner approval)
-**Owner**: Product Owner
-**Size**: S (2-3h)
-**Priority**: Important (Process improvement)
-**Depends On**: None
-**Markers**: [PROCESS] [PERSONA]
-
-**What**: Update persona system and protocols based on BR_006/007 lessons
-
-**Why**:
-- **Root Cause Gap**: Recent bugs (rotation highlights, equipment visuals) were workarounds/patches, not root cause fixes
-- **UX Blind Spot**: No persona owns user experience validation (UI/UX designer missing)
-- **Requirement Clarity**: Need protocol: "Repeat user requirement back" before implementation
-
-**How**:
-1. **Create UI/UX Designer Persona** (optional):
-   - Responsibilities: Validate UX patterns, suggest simplifications, challenge complexity
-   - When invoked: Before implementing UI features (VS_018 would have benefited)
-   - Example: "Equipment slots + Tetris grid = different UX, should separate" (earlier detection)
-
-2. **Update Dev Engineer Protocol**:
-   - **Before coding**: Repeat requirement back to user in own words
-   - **During investigation**: Always ask "What's the root cause?" (not just "What's the quick fix?")
-   - **Pattern**: Workaround → Document as TD → Schedule proper fix
-
-3. **Update Memory Bank** (`dev-engineer.md`):
-   - Add: "Root Cause First" principle (BR_006 mouse warp = workaround, separation = fix)
-   - Add: "UX Pattern Recognition" (detect when combining incompatible patterns)
-
-**Done When**:
-- ✅ UI/UX Designer persona created (if approved) OR protocol updated to include UX validation
-- ✅ Dev Engineer protocol includes "repeat requirement" step
-- ✅ Memory Bank updated with "Root Cause First" principle
-- ✅ Test run: Next UI bug → persona asks "root cause?" before patch
-
-**Product Owner Decision** (date): [Pending]
-
----
+**Success Metrics**:
+- Character sheet feature becomes trivial (drop EquipmentSlotNodes in scene editor)
+- Equipment slot bugs isolated to 400-line file (not 1372-line God Class)
+- Each component testable independently (faster test cycles)
 
 ## 💡 Ideas (Future Work)
 *Future features, nice-to-haves, deferred work*

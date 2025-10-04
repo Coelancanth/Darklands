@@ -81,9 +81,12 @@ public partial class SpatialInventoryContainerNode : Control
     private Dictionary<ItemId, GridPosition> _itemOrigins = new(); // Phase 2: Maps ItemId → origin (from Domain)
     private Dictionary<ItemId, string> _itemTypes = new(); // Cache item types for color coding
     private Dictionary<ItemId, string> _itemNames = new(); // Cache item names for tooltips
-    private Dictionary<ItemId, (int Width, int Height)> _itemDimensions = new(); // Cache item dimensions (Phase 2)
-    private Dictionary<ItemId, ItemShape> _itemShapes = new(); // Phase 4: Cache item shapes for L-shape rendering
-    private Dictionary<ItemId, Rotation> _itemRotations = new(); // Cache item rotations (Phase 3)
+
+    // TD_004 Phase 2: Store InventoryDto directly instead of copying to local caches (Leak #7 fix)
+    // WHY: Eliminates cache dictionaries (_itemDimensions, _itemShapes, _itemRotations)
+    // Access via: _currentInventory.ItemDimensions[itemId], _currentInventory.ItemShapes[itemId], etc.
+    private InventoryDto? _currentInventory = null;
+
     private Dictionary<ItemId, Node> _itemSpriteNodes = new(); // PHASE 3: Direct references to sprite nodes for hiding during drag
 
     // PHASE 3: Drag-time rotation state (SHARED across all container instances for cross-container drag support)
@@ -144,8 +147,8 @@ public partial class SpatialInventoryContainerNode : Control
         // Build UI
         BuildUI();
 
-        // Load inventory data
-        LoadInventoryAsync();
+        // Load inventory data (fire-and-forget is OK for initial load)
+        _ = LoadInventoryAsync();
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -187,8 +190,8 @@ public partial class SpatialInventoryContainerNode : Control
                 // If drag was cancelled (not dropped), refresh to restore sprite
                 if (wasDragging)
                 {
-                    _logger.LogInformation("🔄 Drag cancelled, refreshing to restore hidden sprite");
-                    LoadInventoryAsync(); // Full reload to recreate sprite nodes
+                    _logger.LogInformation("Drag cancelled, refreshing to restore hidden sprite");
+                    _ = LoadInventoryAsync(); // Full reload to recreate sprite nodes (fire-and-forget OK)
                 }
             }
 
@@ -203,13 +206,13 @@ public partial class SpatialInventoryContainerNode : Control
                     ? RotationHelper.RotateClockwise(_sharedDragRotation)
                     : RotationHelper.RotateCounterClockwise(_sharedDragRotation);
 
-                _logger.LogInformation("🔄 ROTATION: {OldRotation} → {NewRotation} (scroll {Direction})",
+                _logger.LogInformation("ROTATION: {OldRotation} → {NewRotation} (scroll {Direction})",
                     _sharedDragRotation, newRotation,
                     mouseButton.ButtonIndex == MouseButton.WheelDown ? "DOWN" : "UP");
 
                 _sharedDragRotation = newRotation;
 
-                _logger.LogInformation("✅ ROTATION STATE: _sharedDragRotation = {SharedRotation}, _dragPreviewSprite exists: {PreviewExists}",
+                _logger.LogInformation("ROTATION STATE: _sharedDragRotation = {SharedRotation}, _dragPreviewSprite exists: {PreviewExists}",
                     _sharedDragRotation, _dragPreviewSprite != null);
 
                 // PHASE 3 FIX: Update sprite preview - ONLY rotation changes (single-layer approach)
@@ -220,7 +223,7 @@ public partial class SpatialInventoryContainerNode : Control
                     var radians = RotationHelper.ToRadians(_sharedDragRotation);
                     _dragPreviewSprite.Rotation = radians;
 
-                    _logger.LogInformation("🎭 DRAG PREVIEW updated: rotation = {Rotation} ({Radians} rad)",
+                    _logger.LogInformation("DRAG PREVIEW updated: rotation = {Rotation} ({Radians} rad)",
                         _sharedDragRotation, radians);
 
                     // No need to update container size or texture position
@@ -228,7 +231,7 @@ public partial class SpatialInventoryContainerNode : Control
                 }
                 else
                 {
-                    _logger.LogWarning("❌ DRAG PREVIEW is null - cannot update rotation!");
+                    _logger.LogWarning("DRAG PREVIEW is null - cannot update rotation!");
                 }
 
                 // PHASE 3 BUG FIX: Update highlights immediately after rotation
@@ -243,7 +246,7 @@ public partial class SpatialInventoryContainerNode : Control
                 Input.WarpMouse(currentMousePos + new Vector2(0.1f, 0));
                 Input.WarpMouse(currentMousePos); // Restore original position
 
-                _logger.LogInformation("🔄 Forced highlight refresh after rotation to {Rotation}", _sharedDragRotation);
+                _logger.LogInformation("Forced highlight refresh after rotation to {Rotation}", _sharedDragRotation);
 
                 // Consume the event to prevent scrolling the container
                 GetViewport().SetInputAsHandled();
@@ -279,13 +282,14 @@ public partial class SpatialInventoryContainerNode : Control
 
         // PHASE 3: Initialize SHARED drag rotation from item's current rotation
         // WHY: Static variable allows target container to read rotation during cross-container drag
-        _sharedDragRotation = _itemRotations.TryGetValue(itemId, out var currentRot)
+        // TD_004 Phase 2 (Leak #7): Access rotation from InventoryDto instead of cache
+        _sharedDragRotation = _currentInventory?.ItemRotations.TryGetValue(itemId, out var currentRot) == true
             ? currentRot
             : default(Darklands.Core.Domain.Common.Rotation);
         _isDragging = true;
         _draggingItemId = itemId;
 
-        _logger.LogInformation("🎯 Starting drag: Item {ItemId} from {Container} at origin ({X}, {Y}) with rotation {Rotation}",
+        _logger.LogInformation("Starting drag: Item {ItemId} from {Container} at origin ({X}, {Y}) with rotation {Rotation}",
             itemId, ContainerTitle, origin.X, origin.Y, _sharedDragRotation);
 
         // PHASE 3: Immediately hide source sprite (remove from overlay)
@@ -554,7 +558,7 @@ public partial class SpatialInventoryContainerNode : Control
         gridWrapper.AddChild(_itemOverlayContainer);
     }
 
-    private async void LoadInventoryAsync()
+    private async Task LoadInventoryAsync()
     {
         if (OwnerActorId == null)
             return;
@@ -597,88 +601,52 @@ public partial class SpatialInventoryContainerNode : Control
                 _gridContainer.GetChildCount(), _gridWidth, _gridHeight);
         }
 
+        // TD_004 Phase 2 (Leak #7): Store InventoryDto directly instead of copying to cache
+        _currentInventory = inventory;
+
         // Populate items (Phase 2: Use dimensions from Domain; Phase 3: Use rotations from Domain)
         _itemsAtPositions.Clear();
         _itemOrigins.Clear();
         _itemTypes.Clear();
         _itemNames.Clear();
-        _itemDimensions.Clear();
-        _itemShapes.Clear(); // Phase 4: Clear shape cache
-        _itemRotations.Clear(); // Phase 3
 
-        // STEP 1: Store origins, dimensions, and rotations from Domain
+        // STEP 1: Store origins from Domain (dimensions/shapes/rotations accessed via _currentInventory)
         foreach (var (itemId, origin) in inventory.ItemPlacements)
         {
             _itemOrigins[itemId] = origin;
-
-            // Get dimensions from Domain (source of truth)
-            var (width, height) = inventory.ItemDimensions.GetValueOrDefault(itemId, (1, 1));
-            _itemDimensions[itemId] = (width, height); // Cache for rendering
-
-            // Get shape from Domain (Phase 4: L-shape support)
-            if (inventory.ItemShapes.TryGetValue(itemId, out var shape))
-            {
-                _itemShapes[itemId] = shape; // Cache for accurate highlight rendering
-            }
-
-            // Get rotation from Domain (Phase 3)
-            var rotation = inventory.ItemRotations.TryGetValue(itemId, out var rot1) ? rot1 : default(Darklands.Core.Domain.Common.Rotation);
-            _itemRotations[itemId] = rotation; // Cache for rendering
         }
 
         // STEP 2: Load item metadata (types, names) - needs item IDs from origins
         await LoadItemTypes();
 
-        // STEP 3: Build reverse lookup: ALL occupied cells → ItemId (multi-cell support)
+        // STEP 3: Build reverse lookup: ALL occupied cells → ItemId (TD_004: Use Core query)
         foreach (var (itemId, origin) in _itemOrigins)
         {
-            var (baseWidth, baseHeight) = _itemDimensions[itemId]; // Base dimensions from Domain
-            var rotation = _itemRotations[itemId]; // Rotation from Domain
+            // TD_004 Phase 2: Delegate occupied cell calculation to Core
+            // Core handles: shape rotation, L-shape OccupiedCells iteration, rectangle fallback
+            var occupiedCellsQuery = new GetOccupiedCellsQuery(OwnerActorId.Value, itemId);
+            var occupiedCellsResult = await _mediator.Send(occupiedCellsQuery);
 
-            // PHASE 4: Use ItemShape.OccupiedCells for accurate L-shape collision
-            // CRITICAL: Don't iterate bounding box - that fills empty cells in L-shapes!
-            if (_itemShapes.TryGetValue(itemId, out var shape))
+            if (occupiedCellsResult.IsSuccess)
             {
-                // L-shape support: Rotate shape, then iterate ONLY actual occupied cells
-                var rotatedShape = shape;
-                for (int i = 0; i < (int)rotation; i++)
-                {
-                    rotatedShape = rotatedShape.RotateClockwise().Value; // Safe: rotation always succeeds for valid shapes
-                }
+                var occupiedCells = occupiedCellsResult.Value;
 
-                foreach (var offset in rotatedShape.OccupiedCells)
+                // Populate reverse lookup (cell → itemId)
+                foreach (var cellPos in occupiedCells)
                 {
-                    var occupiedCell = new GridPosition(origin.X + offset.X, origin.Y + offset.Y);
-                    _itemsAtPositions[occupiedCell] = itemId;
+                    _itemsAtPositions[cellPos] = itemId;
                 }
 
                 // Get item metadata for enhanced logging
                 var itemName = _itemNames.GetValueOrDefault(itemId, "Unknown");
                 var itemType = _itemTypes.GetValueOrDefault(itemId, "unknown");
 
-                _logger.LogDebug("Item '{ItemName}' ({ItemType}) [{ItemId}] at ({X},{Y}) occupies {OccupiedCount} cells (shape: {ShapeWidth}×{ShapeHeight}, rotation: {Rotation})",
-                    itemName, itemType, itemId, origin.X, origin.Y, rotatedShape.OccupiedCells.Count, rotatedShape.Width, rotatedShape.Height, rotation);
+                _logger.LogDebug("Item '{ItemName}' ({ItemType}) [{ItemId}] at ({X},{Y}) occupies {OccupiedCount} cells",
+                    itemName, itemType, itemId, origin.X, origin.Y, occupiedCells.Count);
             }
             else
             {
-                // Fallback for items without shape data (legacy rectangle mode)
-                var (effectiveWidth, effectiveHeight) = RotationHelper.GetRotatedDimensions(baseWidth, baseHeight, rotation);
-
-                for (int dy = 0; dy < effectiveHeight; dy++)
-                {
-                    for (int dx = 0; dx < effectiveWidth; dx++)
-                    {
-                        var occupiedCell = new GridPosition(origin.X + dx, origin.Y + dy);
-                        _itemsAtPositions[occupiedCell] = itemId;
-                    }
-                }
-
-                // Get item metadata for enhanced logging
-                var itemName = _itemNames.GetValueOrDefault(itemId, "Unknown");
-                var itemType = _itemTypes.GetValueOrDefault(itemId, "unknown");
-
-                _logger.LogInformation("Item '{ItemName}' ({ItemType}) [{ItemId}] at ({X},{Y}) occupies {Width}×{Height} cells (base: {BaseWidth}×{BaseHeight}, rotation: {Rotation})",
-                    itemName, itemType, itemId, origin.X, origin.Y, effectiveWidth, effectiveHeight, baseWidth, baseHeight, rotation);
+                _logger.LogWarning("Failed to get occupied cells for item {ItemId}: {Error}", itemId, occupiedCellsResult.Error);
             }
         }
 
@@ -799,13 +767,13 @@ public partial class SpatialInventoryContainerNode : Control
         // Direct dictionary lookup using ItemId (no string name matching!)
         if (_itemSpriteNodes.TryGetValue(itemId, out var spriteNode))
         {
-            _logger.LogInformation("✅ Hiding sprite for item {ItemId} (direct reference)", itemId);
+            _logger.LogInformation("Hiding sprite for item {ItemId} (direct reference)", itemId);
             spriteNode.Free(); // Immediate removal from scene tree
             _itemSpriteNodes.Remove(itemId); // Clear reference
         }
         else
         {
-            _logger.LogWarning("❌ Item {ItemId} sprite node not found in cache", itemId);
+            _logger.LogWarning("Item {ItemId} sprite node not found in cache", itemId);
         }
     }
 
@@ -832,10 +800,12 @@ public partial class SpatialInventoryContainerNode : Control
 
         // Get INVENTORY dimensions for positioning/sizing (logical occupation)
         // WHY: Item occupies InventoryWidth×InventoryHeight grid cells
-        var (baseInvWidth, baseInvHeight) = _itemDimensions.GetValueOrDefault(itemId, (1, 1));
+        // TD_004 Phase 2 (Leak #7): Access from InventoryDto instead of cache
+        var (baseInvWidth, baseInvHeight) = _currentInventory?.ItemDimensions.GetValueOrDefault(itemId, (1, 1)) ?? (1, 1);
 
         // PHASE 3: Get rotation for sprite transform
-        var rotation = _itemRotations.TryGetValue(itemId, out var rot2) ? rot2 : default(Darklands.Core.Domain.Common.Rotation);
+        // TD_004 Phase 2 (Leak #7): Access from InventoryDto instead of cache
+        var rotation = _currentInventory?.ItemRotations.TryGetValue(itemId, out var rot2) == true ? rot2 : default(Darklands.Core.Domain.Common.Rotation);
         var (effectiveInvWidth, effectiveInvHeight) = RotationHelper.GetRotatedDimensions(baseInvWidth, baseInvHeight, rotation);
 
         // PHASE 2: Render TextureRect sprite if TileSet available
@@ -844,30 +814,33 @@ public partial class SpatialInventoryContainerNode : Control
             var atlasSource = _itemTileSet.GetSource(0) as TileSetAtlasSource;
             if (atlasSource != null)
             {
-                // Calculate pixel position from origin (Domain already accounts for rotation!)
+                // TD_004 Phase 2: Delegate render positioning to Core
+                // Core handles: equipment slot detection + centering rule
+                var renderPosQuery = new GetItemRenderPositionQuery(OwnerActorId!.Value, itemId);
+                var renderPosResult = await _mediator.Send(renderPosQuery);
+
                 int separationX = 2;
                 int separationY = 2;
-                float pixelX = origin.X * (CellSize + separationX);
-                float pixelY = origin.Y * (CellSize + separationY);
+                float pixelX, pixelY;
 
-                // EQUIPMENT SLOT FIX: Center items in 1×1 equipment slots (Diablo 2 pattern)
-                // WHY: Equipment slots show items centered regardless of size
-                bool isEquipmentSlot = _containerType == ContainerType.WeaponOnly && _gridWidth == 1 && _gridHeight == 1;
-                if (isEquipmentSlot)
+                if (renderPosResult.IsSuccess)
                 {
-                    // Center item within the single cell (96px)
-                    // Available space: CellSize × CellSize
-                    // Item sprite: effectiveSpriteWidth × effectiveSpriteHeight (after rotation)
-                    var (effectiveWidth, effectiveHeight) = RotationHelper.GetRotatedDimensions(baseInvWidth, baseInvHeight, rotation);
-                    float effectiveW = effectiveWidth * CellSize;
-                    float effectiveH = effectiveHeight * CellSize;
+                    var renderPosition = renderPosResult.Value;
 
-                    // Center horizontally and vertically
-                    pixelX = (CellSize - effectiveW) / 2f;
-                    pixelY = (CellSize - effectiveH) / 2f;
-
-                    _logger.LogDebug("Equipment slot centering: item {ItemId} centered at ({X},{Y}), size {W}×{H}",
-                        itemId, pixelX, pixelY, effectiveW, effectiveH);
+                    // Option B: Pixel-perfect centering based on sprite size
+                    // Core provides: ShouldCenter (rule) + EffectiveDimensions (data)
+                    // Presentation applies: pixel math for centering
+                    // Equipment slots and regular inventory use same positioning
+                    // Scaling for equipment slots happens later in TextureRect setup
+                    pixelX = origin.X * (CellSize + separationX);
+                    pixelY = origin.Y * (CellSize + separationY);
+                }
+                else
+                {
+                    // Fallback: No offset (top-left alignment)
+                    pixelX = origin.X * (CellSize + separationX);
+                    pixelY = origin.Y * (CellSize + separationY);
+                    _logger.LogWarning("Failed to get render position for item {ItemId}: {Error}, using default", itemId, renderPosResult.Error);
                 }
 
                 // PHASE 3 FIX: Calculate sizes for BOTH base and effective dimensions
@@ -889,16 +862,53 @@ public partial class SpatialInventoryContainerNode : Control
                     Region = region
                 };
 
-                // PHASE 3 FIX: Create WRAPPER container at effective size, texture inside at base size
-                // WHY: Container occupies rotated cells, texture preserves aspect ratio and rotates
+                // Equipment slot scaling: Scale sprite to fit 1×1 cell
+                float containerWidth, containerHeight;
+                float textureWidth, textureHeight;
+                float texturePosX, texturePosY;
+
+                if (renderPosResult.IsSuccess && renderPosResult.Value.ShouldCenterInSlot)
+                {
+                    // EQUIPMENT SLOT: Scale sprite to fit cell, preserve aspect ratio
+                    // Get actual texture dimensions from atlas region
+                    float actualTextureWidth = region.Size.X;
+                    float actualTextureHeight = region.Size.Y;
+
+                    // Calculate scale to fit in CellSize (preserve aspect ratio)
+                    float scale = Math.Min(CellSize / actualTextureWidth, CellSize / actualTextureHeight);
+
+                    textureWidth = actualTextureWidth * scale;
+                    textureHeight = actualTextureHeight * scale;
+
+                    // Container is 1×1 cell
+                    containerWidth = CellSize;
+                    containerHeight = CellSize;
+
+                    // Center texture in container
+                    texturePosX = (CellSize - textureWidth) / 2f;
+                    texturePosY = (CellSize - textureHeight) / 2f;
+
+                    _logger.LogDebug("Equipment slot {ItemId}: texture {TW}×{TH} scaled to {SW}×{SH} (scale: {Scale:F2})",
+                        itemId, actualTextureWidth, actualTextureHeight, textureWidth, textureHeight, scale);
+                }
+                else
+                {
+                    // REGULAR INVENTORY: Use effective dimensions (no scaling)
+                    containerWidth = effectiveSpriteWidth;
+                    containerHeight = effectiveSpriteHeight;
+                    textureWidth = baseSpriteWidth;
+                    textureHeight = baseSpriteHeight;
+                    texturePosX = (effectiveSpriteWidth - baseSpriteWidth) / 2f;
+                    texturePosY = (effectiveSpriteHeight - baseSpriteHeight) / 2f;
+                }
+
                 var textureContainer = new Control
                 {
                     Name = $"ItemContainer_{itemId.Value}",
-                    CustomMinimumSize = new Vector2(effectiveSpriteWidth, effectiveSpriteHeight),
-                    Size = new Vector2(effectiveSpriteWidth, effectiveSpriteHeight),
+                    CustomMinimumSize = new Vector2(containerWidth, containerHeight),
+                    Size = new Vector2(containerWidth, containerHeight),
                     Position = new Vector2(pixelX, pixelY),
                     MouseFilter = MouseFilterEnum.Ignore,
-                    // Ensure item layer is absolute above highlight layer
                     ZAsRelative = false,
                     ZIndex = 200
                 };
@@ -910,19 +920,12 @@ public partial class SpatialInventoryContainerNode : Control
                     TextureFilter = CanvasItem.TextureFilterEnum.Nearest,
                     StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
                     ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
-                    // Texture size is ALWAYS base dimensions (aspect ratio preserved)
-                    CustomMinimumSize = new Vector2(baseSpriteWidth, baseSpriteHeight),
-                    Size = new Vector2(baseSpriteWidth, baseSpriteHeight),
-                    // Position inside container (rotate around center of BASE dimensions)
-                    Position = new Vector2(
-                        (effectiveSpriteWidth - baseSpriteWidth) / 2f,
-                        (effectiveSpriteHeight - baseSpriteHeight) / 2f
-                    ),
+                    CustomMinimumSize = new Vector2(textureWidth, textureHeight),
+                    Size = new Vector2(textureWidth, textureHeight),
+                    Position = new Vector2(texturePosX, texturePosY),
                     MouseFilter = MouseFilterEnum.Ignore,
-                    // Rotate texture around its own center
-                    Rotation = RotationHelper.ToRadians(rotation),
-                    PivotOffset = new Vector2(baseSpriteWidth / 2f, baseSpriteHeight / 2f),
-                    // Ensure sprites render above highlights
+                    Rotation = renderPosResult.IsSuccess && renderPosResult.Value.ShouldCenterInSlot ? 0 : RotationHelper.ToRadians(rotation),
+                    PivotOffset = new Vector2(textureWidth / 2f, textureHeight / 2f),
                     ZIndex = 100
                 };
 
@@ -1028,64 +1031,36 @@ public partial class SpatialInventoryContainerNode : Control
             Region = region
         };
 
-        // PHASE 4: Get item's BASE shape (unrotated) from cache or query
-        ItemShape baseShape;
-        if (_itemShapes.TryGetValue(itemId, out var cachedShape))
-        {
-            // Shape in cache: This is the BASE shape (as stored in TileSet)
-            baseShape = cachedShape;
-        }
-        else
-        {
-            // Cross-container drag: Item not in cache, fetch from repository
-            var itemQuery = new GetItemByIdQuery(itemId);
-            var itemResult = _mediator.Send(itemQuery).Result; // Blocking OK for highlight rendering
+        // TD_004 Phase 2: Delegate to Core for highlight cell calculation
+        // Core handles: shape rotation, equipment slot override, L-shape support
+        var highlightQuery = new CalculateHighlightCellsQuery(
+            OwnerActorId!.Value,
+            itemId,
+            origin,
+            rotation);
 
-            if (itemResult.IsSuccess)
-            {
-                // PHASE 4: ItemDto now exposes Shape - use it for accurate L/T-shape highlighting!
-                baseShape = itemResult.Value.Shape;
-            }
-            else
-            {
-                // Ultimate fallback if query fails
-                baseShape = ItemShape.CreateRectangle(1, 1).Value;
-                _logger.LogWarning("Failed to fetch item {ItemId} for highlight rendering, using 1×1 fallback", itemId);
-            }
+        var highlightResult = _mediator.Send(highlightQuery).Result; // Blocking OK for UI rendering
+
+        if (highlightResult.IsFailure)
+        {
+            _logger.LogWarning("Failed to calculate highlight cells for item {ItemId}: {Error}", itemId, highlightResult.Error);
+            return; // Cannot render highlights without cell data
         }
 
-        // Apply rotation parameter to BASE shape (rotates correctly for both same-container and cross-container drags)
-        var rotatedShape = baseShape;
-        for (int i = 0; i < ((int)rotation / 90); i++)
-        {
-            var rotResult = rotatedShape.RotateClockwise();
-            if (rotResult.IsSuccess)
-                rotatedShape = rotResult.Value;
-        }
+        var highlightCells = highlightResult.Value;
 
-        // EQUIPMENT SLOT FIX: Override shape to 1×1 for equipment slots (Diablo 2 pattern)
-        // WHY: Equipment slots display items as 1×1 regardless of actual shape
-        // Visual feedback: Single cell highlight, not the item's multi-cell L-shape
-        bool isEquipmentSlot = _containerType == ContainerType.WeaponOnly && _gridWidth == 1 && _gridHeight == 1;
-        if (isEquipmentSlot)
-        {
-            // Force 1×1 highlight for equipment slots (ignore item's actual shape)
-            rotatedShape = ItemShape.CreateRectangle(1, 1).Value;
-            _logger.LogDebug("Equipment slot: Overriding highlight to 1×1 (item shape ignored)");
-        }
-
-        // Render highlight sprite for ONLY occupied cells (not bounding box!)
+        // Render highlight sprite for ONLY occupied cells (Core provides absolute positions)
         int separationX = 2;
         int separationY = 2;
 
-        foreach (var offset in rotatedShape.OccupiedCells)
+        foreach (var cellPos in highlightCells)
         {
-            float pixelX = (origin.X + offset.X) * (CellSize + separationX);
-            float pixelY = (origin.Y + offset.Y) * (CellSize + separationY);
+            float pixelX = cellPos.X * (CellSize + separationX);
+            float pixelY = cellPos.Y * (CellSize + separationY);
 
             var highlight = new TextureRect
             {
-                Name = $"Highlight_{origin.X + offset.X}_{origin.Y + offset.Y}",
+                Name = $"Highlight_{cellPos.X}_{cellPos.Y}",
                 Texture = atlasTexture,
                 TextureFilter = CanvasItem.TextureFilterEnum.Nearest,
                 StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
@@ -1120,9 +1095,13 @@ public partial class SpatialInventoryContainerNode : Control
     }
 
     /// <summary>
-    /// Safely swaps two items using Remove+Place pattern with full rollback on failure.
-    /// WHY: Equipment slots need swap for UX, but must prevent data loss at all costs.
+    /// Swaps two items atomically using Core's SwapItemsCommand.
+    /// WHY: Delegates business logic to Core (TD_004 Leak #5 - eliminates 78 lines of Presentation logic).
     /// </summary>
+    /// <remarks>
+    /// REPLACED BY CORE: SwapItemsCommand handles all swap logic with rollback safety.
+    /// Presentation just calls command and refreshes UI.
+    /// </remarks>
     private async void SwapItemsSafeAsync(
         ActorId sourceActorId,
         ItemId sourceItemId,
@@ -1132,72 +1111,28 @@ public partial class SpatialInventoryContainerNode : Control
         GridPosition targetPos,
         Rotation rotation) // PHASE 3: Rotation for dragged item
     {
-        _logger.LogInformation("🔄 SWAP: Starting swap {SourceItem} @ ({SourceX},{SourceY}) ↔ {TargetItem} @ ({TargetX},{TargetY}) with rotation {Rotation}",
-            sourceItemId, sourcePos.X, sourcePos.Y,
-            targetItemId, targetPos.X, targetPos.Y, rotation);
+        _logger.LogInformation("SWAP: Delegating to Core SwapItemsCommand");
 
-        // STEP 1: Remove both items (hold in memory for rollback)
-        var removeSourceCmd = new RemoveItemCommand(sourceActorId, sourceItemId);
-        var removeTargetCmd = new RemoveItemCommand(targetActorId, targetItemId);
+        var command = new SwapItemsCommand(
+            sourceActorId,
+            sourceItemId,
+            sourcePos,
+            targetActorId,
+            targetItemId, // Core command uses nullable ItemId, always provided for swap
+            targetPos,
+            rotation);
 
-        _logger.LogInformation("🔄 SWAP STEP 1a: Removing source item {SourceItem} from ({SX},{SY})",
-            sourceItemId, sourcePos.X, sourcePos.Y);
+        var result = await _mediator.Send(command);
 
-        var removeSourceResult = await _mediator.Send(removeSourceCmd);
-        if (removeSourceResult.IsFailure)
+        if (result.IsFailure)
         {
-            _logger.LogError("❌ SWAP ABORTED: Failed to remove source item: {Error}", removeSourceResult.Error);
-            return; // Nothing removed yet, safe to abort
-        }
-
-        _logger.LogInformation("✅ SWAP STEP 1a: Source item removed successfully");
-        _logger.LogInformation("🔄 SWAP STEP 1b: Removing target item {TargetItem} from ({TX},{TY})",
-            targetItemId, targetPos.X, targetPos.Y);
-
-        var removeTargetResult = await _mediator.Send(removeTargetCmd);
-        if (removeTargetResult.IsFailure)
-        {
-            _logger.LogError("❌ SWAP ABORTED: Failed to remove target item: {Error}", removeTargetResult.Error);
-            // Rollback: Put source item back
-            _logger.LogInformation("🔄 SWAP ROLLBACK: Restoring source item to original position");
-            await _mediator.Send(new PlaceItemAtPositionCommand(sourceActorId, sourceItemId, sourcePos));
+            _logger.LogError("SWAP FAILED: {Error}", result.Error);
+            // Core already rolled back, just refresh UI
+            EmitSignal(SignalName.InventoryChanged);
             return;
         }
 
-        _logger.LogInformation("✅ SWAP STEP 1b: Target item removed successfully");
-
-        // STEP 2: Place both items at swapped positions
-        var placeSourceCmd = new PlaceItemAtPositionCommand(targetActorId, sourceItemId, targetPos);
-        var placeTargetCmd = new PlaceItemAtPositionCommand(sourceActorId, targetItemId, sourcePos);
-
-        _logger.LogInformation("🔄 SWAP STEP 2a: Placing source item {SourceItem} at target position ({TX},{TY})",
-            sourceItemId, targetPos.X, targetPos.Y);
-
-        var placeSourceResult = await _mediator.Send(placeSourceCmd);
-        if (placeSourceResult.IsFailure)
-        {
-            _logger.LogError("❌ SWAP FAILED: Could not place source item at target: {Error}", placeSourceResult.Error);
-            // Rollback: Put both items back at original positions
-            _logger.LogInformation("🔄 SWAP ROLLBACK: Restoring both items to original positions");
-            await _mediator.Send(new PlaceItemAtPositionCommand(sourceActorId, sourceItemId, sourcePos));
-            await _mediator.Send(new PlaceItemAtPositionCommand(targetActorId, targetItemId, targetPos));
-            EmitSignal(SignalName.InventoryChanged); // Refresh to show rollback
-            return;
-        }
-
-        var placeTargetResult = await _mediator.Send(placeTargetCmd);
-        if (placeTargetResult.IsFailure)
-        {
-            _logger.LogError("Swap failed: Could not place target item at source: {Error}", placeTargetResult.Error);
-            // Rollback: Remove source item from wrong place, put both back
-            await _mediator.Send(new RemoveItemCommand(targetActorId, sourceItemId));
-            await _mediator.Send(new PlaceItemAtPositionCommand(sourceActorId, sourceItemId, sourcePos));
-            await _mediator.Send(new PlaceItemAtPositionCommand(targetActorId, targetItemId, targetPos));
-            EmitSignal(SignalName.InventoryChanged); // Refresh to show rollback
-            return;
-        }
-
-        _logger.LogInformation("Swap completed successfully");
+        _logger.LogInformation("SWAP COMPLETED");
         EmitSignal(SignalName.InventoryChanged);
     }
 
@@ -1239,22 +1174,7 @@ public partial class SpatialInventoryContainerNode : Control
     /// </summary>
     public void RefreshDisplay()
     {
-        LoadInventoryAsync();
-    }
-
-    /// <summary>
-    /// Checks if this container can accept the given item type based on ContainerType filter.
-    /// </summary>
-    private bool CanAcceptItemType(string itemType)
-    {
-        // WHY: Type filtering prevents invalid placements (e.g., potion in weapon slot)
-        if (_containerType == ContainerType.WeaponOnly)
-        {
-            return itemType == "weapon";
-        }
-
-        // General containers accept all types
-        return true;
+        _ = LoadInventoryAsync(); // Fire-and-forget OK for external refresh trigger
     }
 
     /// <summary>
@@ -1283,7 +1203,7 @@ public partial class SpatialInventoryContainerNode : Control
         if (itemResult.IsFailure || _itemTileSet == null)
         {
             // Fallback: Create simple label preview
-            _dragPreviewNode = new Label { Text = $"📦 {_itemNames.GetValueOrDefault(itemId, "Item")}" };
+            _dragPreviewNode = new Label { Text = $"{_itemNames.GetValueOrDefault(itemId, "Item")}" };
             return;
         }
 
@@ -1291,12 +1211,13 @@ public partial class SpatialInventoryContainerNode : Control
         var atlasSource = _itemTileSet.GetSource(0) as TileSetAtlasSource;
         if (atlasSource == null)
         {
-            _dragPreviewNode = new Label { Text = $"📦 {item.Name}" };
+            _dragPreviewNode = new Label { Text = $"{item.Name}" };
             return;
         }
 
         // Get base dimensions (UNROTATED)
-        var (baseWidth, baseHeight) = _itemDimensions.GetValueOrDefault(itemId, (1, 1));
+        // TD_004 Phase 2 (Leak #7): Access from InventoryDto instead of cache
+        var (baseWidth, baseHeight) = _currentInventory?.ItemDimensions.GetValueOrDefault(itemId, (1, 1)) ?? (1, 1);
 
         // PHASE 3 FIX: For drag preview, use BASE-sized container (simpler than two-layer)
         // WHY: Drag preview doesn't need to occupy cells - just needs to rotate naturally
