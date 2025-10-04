@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-04 17:08 (Dev Engineer: VS_007 Phase 3 complete - Infrastructure (TurnQueueRepository, PlayerContext) + DI registration, 359 tests GREEN)
+**Last Updated**: 2025-10-04 17:19 (Dev Engineer: VS_007 ALL PHASES COMPLETE + bug fixes - Turn queue system fully implemented, ready for manual testing)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -81,11 +81,11 @@
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*
 
-### VS_007: Time-Unit Turn Queue System ⭐ **IN PROGRESS**
+### VS_007: Time-Unit Turn Queue System ⭐ **COMPLETE - READY FOR MANUAL TESTING**
 
-**Status**: Phase 3 Complete (Infrastructure) - TurnQueueRepository, PlayerContext + DI registration, 359 tests GREEN
-**Owner**: Dev Engineer (implementing phases)
-**Size**: L (2-3 days, all 4 phases)
+**Status**: ✅ ALL 4 PHASES COMPLETE + Bug Fixes - Turn queue system fully implemented with test scene
+**Owner**: Dev Engineer (completed all phases)
+**Size**: L (2-3 days, all 4 phases) - **ACTUAL: 3 days**
 **Priority**: Critical (foundation for combat system)
 **Depends On**: VS_005 (FOV events), VS_006 (Movement cancellation)
 
@@ -357,7 +357,84 @@ Exploration → Combat Detection → Reinforcement → Victory
 - `GameStrapper.cs`: Added DI registrations
 - `EnemyDetectionEventHandler.cs`: Injected IPlayerContext
 
-**Next**: Phase 4 (Presentation) - Input routing based on combat mode, test scene initialization
+**Phase 4 Progress** (2025-10-04 17:19):
+
+✅ **Presentation Layer Complete** (359 tests GREEN) + **Bug Fixes**:
+
+**Test Scene Created**:
+- `TurnQueueTestScene.tscn` / `TurnQueueTestSceneController.cs`
+- Duplicated from GridTestScene with VS_007-specific setup
+- Player at (5,5), Goblin at (15,15), Orc at (20,20)
+- Designed for combat mode detection testing
+
+**Input Routing Implementation** (Combat Mode Detection):
+- `ClickToMove()`: Queries `IsInCombatQuery` before pathfinding decision
+- **Combat Mode**: Single-step movement (1 tile toward target, tactical positioning)
+- **Exploration Mode**: Auto-path movement (existing VS_006 behavior, cancellable)
+- Clean conditional branching (no complex state machines)
+- Logging: ⚔️ Combat mode vs 🚶 Exploration mode indicators
+
+**Test Scene Initialization**:
+- `InitializeGameState()`: Calls `PlayerContext.SetPlayerId()` and `TurnQueueRepository.InitializeWithPlayer()`
+- Explicit dependency injection (traceable initialization flow)
+- Auto-creates turn queue with player pre-scheduled at time=0
+
+**Design Elegance**:
+- ✅ Zero State Duplication: Combat state lives ONLY in TurnQueue (queue.Count > 1 = combat)
+- ✅ Query-Based Decision: Simple boolean check routes to correct movement type
+- ✅ Reuses Existing Commands: No new movement commands (uses MoveActorCommand for single-step)
+- ✅ VS_006 Compatibility: Auto-path unchanged (exploration mode preserves existing behavior)
+- ✅ Natural Mode Transitions: Enemy appears → auto-schedules → combat mode (zero manual transitions)
+
+**Bug Fixes** (3 commits):
+
+**Bug #1: Async Race Condition (NullReferenceException)**:
+- **Symptom**: Crash when clicking new destination during active movement
+- **Root Cause**: Classic async race—awaiting task allows another continuation to null out cancellation token before disposal
+- **Solution**: Cache references before await (local variables immune to concurrent modifications)
+- **Pattern**: Textbook "capture before await" defensive programming
+- **Commits**: b0b2bc4 (initial), f1e623b (complete fix)
+
+**Bug #2: Path Preview Disappearing**:
+- **Symptom**: Orange path visualization vanishes immediately when movement starts
+- **Root Cause**: `ClearPathPreview()` called too early (inside ExecuteMovementAsync before command completes)
+- **Solution**: Move cleanup to ClickToMove after await (path stays visible during entire multi-step movement)
+- **Pattern**: "Show before, clear after" flow control
+- **Commit**: 8d8396d
+
+**Files Modified** (1 file):
+- `TurnQueueTestSceneController.cs`:
+  - Added using statements for IPlayerContext, ITurnQueueRepository, IsInCombatQuery
+  - InitializeGameState(): PlayerContext.SetPlayerId() + TurnQueueRepository.InitializeWithPlayer()
+  - ClickToMove(): Combat mode check + conditional routing (combat = single-step, exploration = auto-path)
+  - CancelMovementAsync(): Cache references before await (race condition fix)
+  - ShowPathPreview() before movement, ClearPathPreview() after await (preview fix)
+
+**Files Created** (2 files):
+- `godot_project/test_scenes/TurnQueueTestScene.tscn`
+- `godot_project/test_scenes/TurnQueueTestSceneController.cs`
+
+---
+
+## ✅ VS_007 COMPLETION SUMMARY
+
+**All 4 Phases Complete**:
+- ✅ Phase 1: Domain (TimeUnits, TurnQueue, ScheduledActor) - 36 tests
+- ✅ Phase 2: Application (Commands, Queries, Events, Handlers) - 13 tests (49 total)
+- ✅ Phase 3: Infrastructure (TurnQueueRepository, PlayerContext, DI) - 359 total
+- ✅ Phase 4: Presentation (Input routing, test scene, bug fixes) - 359 total
+
+**Total Implementation**:
+- **Files Created**: 25 files (3 Domain, 17 Application, 3 Infrastructure, 2 Presentation)
+- **Files Modified**: 3 files (GameStrapper, EnemyDetectionEventHandler, TurnQueueTestSceneController)
+- **Tests**: 359/359 GREEN ✅ (49 new tests for VS_007, zero regressions)
+- **Commits**: 10 commits (7 feature, 3 bug fixes)
+
+**Ready for Manual Testing**: Open `TurnQueueTestScene.tscn` in Godot and verify end-to-end flow
+
+---
+
+**Next**: Manual testing validation, then archive to backlog archive
 
 ---
 
