@@ -82,10 +82,23 @@
 *Core features for current milestone, technical debt affecting velocity*
 
 ### VS_019: TileSet-Based Visual Scene + TileSet as Terrain Catalog (SSOT) 🎨
-**Status**: Approved | **Owner**: Dev Engineer | **Size**: M (1-2 days) | **Priority**: Important
+**Status**: In Progress (Phase 1 ✅ Complete, Phase 2 Starting) | **Owner**: Dev Engineer | **Size**: M (1-2 days) | **Priority**: Important
 **Markers**: [VISUAL-POLISH] [MOTIVATION] [ARCHITECTURE] [REFACTORING]
 
 **What**: Replace GridTestScene's ColorRect rendering with TileMapLayer, refactor terrain to use TileSet as SSOT (like VS_009 items catalog), maintain existing test scene layout
+
+**Latest Progress** (2025-10-05 01:21):
+- ✅ **Phase 1 COMPLETE** - Core refactoring finished, committed [f64c7de]
+  - TerrainDefinition domain model created (immutable record with CanPass/CanSeeThrough)
+  - ITerrainRepository interface + StubTerrainRepository implementation
+  - GridMap refactored to store TerrainDefinition objects (zero-cost property access)
+  - SetTerrainCommand updated to accept terrain name strings
+  - TerrainType enum DELETED (all 415 tests GREEN ✅)
+  - GameStrapper DI registration with factory pattern
+  - All test files updated (GridMapTests, MoveActorTests, FOVTests, ShadowcastingTests)
+  - Presentation layer updated (GridTestScene, TurnQueueTestScene)
+  - **Commit**: `feat(terrain): Refactor TerrainType enum to data-driven TerrainDefinition pattern [VS_019 Phase 1]`
+- **Next**: Phase 2 - Create TileSetTerrainRepository (Infrastructure/Godot bridge)
 
 **Why**:
 - Visual progress after infrastructure-heavy VS_007 (restore motivation)
@@ -122,30 +135,17 @@ TileSet (Godot)                  Infrastructure (Bridge)           Core (Pure C#
 - ✅ Tree tile needs `can_pass=false` and `can_see_through=false` configuration
 - **Next**: Review VS_009 GodotItemRepository pattern, then proceed to Phase 1
 
-**Phase 1: Core Refactoring - TerrainDefinition Domain Model (1-2 hours)**
-- Create `src/Darklands.Core/Features/Grid/Domain/TerrainDefinition.cs`:
-  ```csharp
-  public record TerrainDefinition(
-      TerrainId Id,        // Simple int wrapper (matches atlas source ID)
-      string Name,         // "floor", "wall_top_left", "smoke", "tree"
-      bool CanPass,        // Can actors walk through?
-      bool CanSeeThrough   // Transparent for vision?
-  );
-  ```
-- Create `TerrainId` value object (int wrapper)
-- Create `ITerrainRepository` interface in Application layer:
-  ```csharp
-  public interface ITerrainRepository
-  {
-      IReadOnlyDictionary<string, TerrainDefinition> LoadAllTerrains(); // Key = name
-      TerrainDefinition GetByName(string name);
-      Vector2I GetAtlasCoords(string terrainName); // For rendering
-  }
-  ```
-- **DELETE** `TerrainTypeExtensions.IsPassable()` and `.IsOpaque()` methods
-- Update `GridMap` to store terrain names (strings) instead of `TerrainType` enum
-- Update FOV/pathfinding to query repository: `_repo.GetByName(terrainName).CanSeeThrough`
-- **Done When**: Core compiles, TerrainType enum removed, all terrain logic data-driven via repository
+**Phase 1: Core Refactoring - TerrainDefinition Domain Model** - ✅ **COMPLETE** (2025-10-05 01:21, commit f64c7de)
+- ✅ Created `TerrainDefinition` immutable record with CanPass/CanSeeThrough properties
+- ✅ Created `ITerrainRepository` interface (Application layer, DIP)
+- ✅ Created `StubTerrainRepository` (hardcoded Floor/Wall/Smoke catalog for Phase 1)
+- ✅ Refactored `GridMap` to store `TerrainDefinition` objects (not strings - zero-cost access!)
+- ✅ Updated `SetTerrainCommand` to accept terrain name strings
+- ✅ **DELETED** `TerrainType` enum and `TerrainTypeExtensions`
+- ✅ Updated GameStrapper DI registration (factory pattern for GridMap)
+- ✅ Updated ALL tests (GridMapTests, MoveActorTests, FOVTests, ShadowcastingTests)
+- ✅ Updated Presentation layer (GridTestScene, TurnQueueTestScene)
+- ✅ **All 415 tests GREEN** - 100% behavioral compatibility maintained
 
 **Phase 2: Infrastructure - GodotTerrainRepository (1 hour)**
 - Create `src/Darklands.Core/Features/Grid/Infrastructure/Repositories/GodotTerrainRepository.cs`
