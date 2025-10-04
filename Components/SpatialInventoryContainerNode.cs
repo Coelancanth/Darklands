@@ -81,9 +81,12 @@ public partial class SpatialInventoryContainerNode : Control
     private Dictionary<ItemId, GridPosition> _itemOrigins = new(); // Phase 2: Maps ItemId → origin (from Domain)
     private Dictionary<ItemId, string> _itemTypes = new(); // Cache item types for color coding
     private Dictionary<ItemId, string> _itemNames = new(); // Cache item names for tooltips
-    private Dictionary<ItemId, (int Width, int Height)> _itemDimensions = new(); // Cache item dimensions (Phase 2)
-    private Dictionary<ItemId, ItemShape> _itemShapes = new(); // Phase 4: Cache item shapes for L-shape rendering
-    private Dictionary<ItemId, Rotation> _itemRotations = new(); // Cache item rotations (Phase 3)
+
+    // TD_004 Phase 2: Store InventoryDto directly instead of copying to local caches (Leak #7 fix)
+    // WHY: Eliminates cache dictionaries (_itemDimensions, _itemShapes, _itemRotations)
+    // Access via: _currentInventory.ItemDimensions[itemId], _currentInventory.ItemShapes[itemId], etc.
+    private InventoryDto? _currentInventory = null;
+
     private Dictionary<ItemId, Node> _itemSpriteNodes = new(); // PHASE 3: Direct references to sprite nodes for hiding during drag
 
     // PHASE 3: Drag-time rotation state (SHARED across all container instances for cross-container drag support)
@@ -279,7 +282,8 @@ public partial class SpatialInventoryContainerNode : Control
 
         // PHASE 3: Initialize SHARED drag rotation from item's current rotation
         // WHY: Static variable allows target container to read rotation during cross-container drag
-        _sharedDragRotation = _itemRotations.TryGetValue(itemId, out var currentRot)
+        // TD_004 Phase 2 (Leak #7): Access rotation from InventoryDto instead of cache
+        _sharedDragRotation = _currentInventory?.ItemRotations.TryGetValue(itemId, out var currentRot) == true
             ? currentRot
             : default(Darklands.Core.Domain.Common.Rotation);
         _isDragging = true;
@@ -597,33 +601,19 @@ public partial class SpatialInventoryContainerNode : Control
                 _gridContainer.GetChildCount(), _gridWidth, _gridHeight);
         }
 
+        // TD_004 Phase 2 (Leak #7): Store InventoryDto directly instead of copying to cache
+        _currentInventory = inventory;
+
         // Populate items (Phase 2: Use dimensions from Domain; Phase 3: Use rotations from Domain)
         _itemsAtPositions.Clear();
         _itemOrigins.Clear();
         _itemTypes.Clear();
         _itemNames.Clear();
-        _itemDimensions.Clear();
-        _itemShapes.Clear(); // Phase 4: Clear shape cache
-        _itemRotations.Clear(); // Phase 3
 
-        // STEP 1: Store origins, dimensions, and rotations from Domain
+        // STEP 1: Store origins from Domain (dimensions/shapes/rotations accessed via _currentInventory)
         foreach (var (itemId, origin) in inventory.ItemPlacements)
         {
             _itemOrigins[itemId] = origin;
-
-            // Get dimensions from Domain (source of truth)
-            var (width, height) = inventory.ItemDimensions.GetValueOrDefault(itemId, (1, 1));
-            _itemDimensions[itemId] = (width, height); // Cache for rendering
-
-            // Get shape from Domain (Phase 4: L-shape support)
-            if (inventory.ItemShapes.TryGetValue(itemId, out var shape))
-            {
-                _itemShapes[itemId] = shape; // Cache for accurate highlight rendering
-            }
-
-            // Get rotation from Domain (Phase 3)
-            var rotation = inventory.ItemRotations.TryGetValue(itemId, out var rot1) ? rot1 : default(Darklands.Core.Domain.Common.Rotation);
-            _itemRotations[itemId] = rotation; // Cache for rendering
         }
 
         // STEP 2: Load item metadata (types, names) - needs item IDs from origins
@@ -810,10 +800,12 @@ public partial class SpatialInventoryContainerNode : Control
 
         // Get INVENTORY dimensions for positioning/sizing (logical occupation)
         // WHY: Item occupies InventoryWidth×InventoryHeight grid cells
-        var (baseInvWidth, baseInvHeight) = _itemDimensions.GetValueOrDefault(itemId, (1, 1));
+        // TD_004 Phase 2 (Leak #7): Access from InventoryDto instead of cache
+        var (baseInvWidth, baseInvHeight) = _currentInventory?.ItemDimensions.GetValueOrDefault(itemId, (1, 1)) ?? (1, 1);
 
         // PHASE 3: Get rotation for sprite transform
-        var rotation = _itemRotations.TryGetValue(itemId, out var rot2) ? rot2 : default(Darklands.Core.Domain.Common.Rotation);
+        // TD_004 Phase 2 (Leak #7): Access from InventoryDto instead of cache
+        var rotation = _currentInventory?.ItemRotations.TryGetValue(itemId, out var rot2) == true ? rot2 : default(Darklands.Core.Domain.Common.Rotation);
         var (effectiveInvWidth, effectiveInvHeight) = RotationHelper.GetRotatedDimensions(baseInvWidth, baseInvHeight, rotation);
 
         // PHASE 2: Render TextureRect sprite if TileSet available
@@ -1186,21 +1178,6 @@ public partial class SpatialInventoryContainerNode : Control
     }
 
     /// <summary>
-    /// Checks if this container can accept the given item type based on ContainerType filter.
-    /// </summary>
-    private bool CanAcceptItemType(string itemType)
-    {
-        // WHY: Type filtering prevents invalid placements (e.g., potion in weapon slot)
-        if (_containerType == ContainerType.WeaponOnly)
-        {
-            return itemType == "weapon";
-        }
-
-        // General containers accept all types
-        return true;
-    }
-
-    /// <summary>
     /// Queries item type from repository (used when item not in cache).
     /// </summary>
     private async Task<Result<string>> GetItemTypeAsync(ItemId itemId)
@@ -1239,7 +1216,8 @@ public partial class SpatialInventoryContainerNode : Control
         }
 
         // Get base dimensions (UNROTATED)
-        var (baseWidth, baseHeight) = _itemDimensions.GetValueOrDefault(itemId, (1, 1));
+        // TD_004 Phase 2 (Leak #7): Access from InventoryDto instead of cache
+        var (baseWidth, baseHeight) = _currentInventory?.ItemDimensions.GetValueOrDefault(itemId, (1, 1)) ?? (1, 1);
 
         // PHASE 3 FIX: For drag preview, use BASE-sized container (simpler than two-layer)
         // WHY: Drag preview doesn't need to occupy cells - just needs to rotate naturally
