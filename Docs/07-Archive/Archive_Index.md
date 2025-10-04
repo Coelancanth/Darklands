@@ -1,16 +1,16 @@
 # Backlog Archive Index
 
-**Last Updated**: 2025-10-04 08:47
-**Current Active Archive**: Completed_Backlog_2025-10.md (Lines: 884/1000)
+**Last Updated**: 2025-10-04 12:47
+**Current Active Archive**: Completed_Backlog_2025-10.md (Lines: 1219/1000)
 
 ## Archive Files (Newest First)
 
 ### Completed_Backlog_2025-10.md (✅ ACTIVE - October 2025 Part 2)
 - **Created**: 2025-10-02 12:17 (after rotation)
-- **Line Count**: 884/1000
+- **Line Count**: 1219/1000 - ROTATION NEEDED ⚠️
 - **Date Range**: 2025-10-02 to 2025-10-04
-- **Status**: ✅ Active (accepting new items)
-- **Extraction Status**: 0/9 extracted (9 NOT EXTRACTED ⚠️)
+- **Status**: ✅ Active (accepting new items, rotation recommended)
+- **Extraction Status**: 0/10 extracted (10 NOT EXTRACTED ⚠️)
 
 **Items**:
 - **VS_008**: Slot-Based Inventory System (20 slots, ItemId pattern, 23 tests, PR #84 merged) [NOT EXTRACTED ⚠️]
@@ -21,6 +21,7 @@
 - **BR_005**: Cross-Container L-Shape Highlight Inaccuracy (ItemDto evolution to Phase 4) [NOT EXTRACTED ⚠️]
 - **BR_006**: Cross-Container Rotation Highlights (mouse warp hack for UI updates) [NOT EXTRACTED ⚠️]
 - **BR_007**: Equipment Slot Visual Issues (1×1 highlight override, sprite centering) [NOT EXTRACTED ⚠️]
+- **TD_004**: Move ALL Shape Logic to Core (SSOT) (7 leaks eliminated, 164 lines removed, cache anti-pattern fixed, ADR-002 updated) [NOT EXTRACTED ⚠️]
 - **TD_005**: Persona & Protocol Updates (Root Cause First, UX Pattern Recognition, Requirement Clarification added to dev-engineer.md) [NOT EXTRACTED ⚠️]
 
 ### Completed_Backlog_2025-10_Part1.md (🔒 SEALED - October 2025 Part 1)
@@ -59,5 +60,5 @@
 2. Open that specific archive file (newest first: Completed_Backlog_2025-10.md)
 3. Use Ctrl+F to search for item ID
 
-**Current Active Capacity**: 884/1000 lines (116 lines remaining)
-**Total Archived Items**: 20 (17 in Oct 2025, 3 in Sept 2025)
+**Current Active Capacity**: 1219/1000 lines (OVER CAPACITY - rotation needed)
+**Total Archived Items**: 21 (18 in Oct 2025, 3 in Sept 2025)

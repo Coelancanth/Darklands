@@ -356,6 +356,92 @@ center.AddChild(texture); // Centering works perfectly!
 **ADR-003**: Use `Result<T>` for failable operations
 **ADR-004**: Feature-based organization (Domain/Application/Infrastructure per feature)
 
+### 🎯 SSOT Principle - Single Source of Truth (CRITICAL)
+
+**Added**: 2025-10-04 (TD_004 - 7 logic leaks eliminated, 500+ lines of business logic moved from Presentation to Core)
+
+`✶ Core Principle ─────────────────────────────────`
+**Business logic must exist in EXACTLY ONE place - the Core layer.**
+
+If Presentation calculates business logic, it WILL diverge from Core over time.
+`─────────────────────────────────────────────────`
+
+**SSOT in Practice**:
+
+**❌ VIOLATION (Logic Duplication)**:
+```csharp
+// Core/Domain/Inventory.cs
+public Result PlaceItemAt(ItemId itemId, GridPosition pos, Rotation rotation)
+{
+    var rotatedShape = item.Shape.RotateClockwise(rotation);  // Business logic
+    foreach (var offset in rotatedShape.OccupiedCells) { ... }
+}
+
+// Components/InventoryNode.cs - DUPLICATE LOGIC!
+private void RenderHighlight(ItemId itemId, Rotation rotation)
+{
+    var rotatedShape = _itemShapes[itemId].RotateClockwise(rotation);  // ❌ DUPLICATED!
+    foreach (var offset in rotatedShape.OccupiedCells) { ... }         // ❌ DUPLICATED!
+}
+```
+
+**Problem**: Shape rotation logic exists in TWO places → Will diverge when Core changes!
+
+**✅ CORRECT (Core is SSOT)**:
+```csharp
+// Core/Application/Queries/CalculateHighlightCellsQuery.cs
+public class CalculateHighlightCellsQueryHandler
+{
+    public async Task<Result<List<GridPosition>>> Handle(...)
+    {
+        var item = await _items.GetByIdAsync(cmd.ItemId);
+
+        // SSOT: Shape rotation logic lives ONLY in Core
+        var rotatedShape = item.Shape.RotateClockwise(cmd.Rotation);
+
+        // Return RESULTS (what to render), not raw data
+        return rotatedShape.OccupiedCells
+            .Select(offset => new GridPosition(cmd.Position.X + offset.X, ...))
+            .ToList();
+    }
+}
+
+// Components/InventoryNode.cs - ZERO business logic
+private async void RenderHighlight(ItemId itemId, Rotation rotation)
+{
+    // Query Core for RESULTS
+    var query = new CalculateHighlightCellsQuery(itemId, position, rotation);
+    var cells = await _mediator.Send(query);
+
+    // ONLY rendering (pixel math + Godot APIs)
+    foreach (var cellPos in cells.Value)
+    {
+        var pixelX = cellPos.X * CellSize;
+        var pixelY = cellPos.Y * CellSize;
+        RenderSprite(pixelX, pixelY);
+    }
+}
+```
+
+**Benefits**:
+- ✅ Change shape rotation logic → Update ONE file (Core query handler)
+- ✅ Test shape rotation → Unit test (no Godot required)
+- ✅ Zero drift → Presentation always uses Core's current logic
+- ✅ Complexity reduction → Presentation shrinks (TD_004: 1372 → 1208 lines, -12%)
+
+**TD_004 Real-World Impact**:
+- **Before**: 500+ lines of business logic in Presentation (7 distinct leaks)
+- **After**: 164 lines eliminated, 3 Core queries created
+- **Lesson**: If Presentation calculates anything related to game rules → LEAK!
+
+**Enforcement Rule**:
+> **Before merging Presentation code**: Grep for business logic patterns
+> - `grep "RotateClockwise\|RotateCounterclockwise" Components/` → Must return 0
+> - `grep "OccupiedCells.*foreach" Components/` → Must return 0
+> - If found → Create Core query, delegate calculation
+
+**See**: [ADR-002: Presentation/Logic Boundary](../../Docs/03-Reference/ADR/ADR-002-godot-integration-architecture.md#presentationlogic-boundary---ssot-principle) for 7 real leak examples from TD_004
+
 ### Presentation Layer Architecture: "Dumb Rendering" Principle (CRITICAL)
 
 **CONSOLIDATED 2025-10-04**: Merged from analysis of SpatialInventoryContainerNode (1372 lines, 7 logic leaks, 500+ lines of business logic). This section codifies ALL lessons learned about Presentation/Core boundaries.
