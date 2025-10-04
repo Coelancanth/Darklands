@@ -95,6 +95,9 @@ public sealed class SwapItemsCommandHandler : IRequestHandler<SwapItemsCommand, 
         _logger.LogInformation("SWAP: {SourceItem} @ ({SX},{SY}) ↔ {TargetItem} @ ({TX},{TY}) with rotation {Rotation}",
             sourceItemId, sourcePos.X, sourcePos.Y, targetItemId, targetPos.X, targetPos.Y, rotation);
 
+        // Check if same-container swap (to avoid double-save bug)
+        bool isSameContainer = sourceInventory == targetInventory;
+
         // Get target item shape for rollback
         if (!targetInventory.ItemShapes.TryGetValue(targetItemId, out var targetItemShape))
             return Result.Failure("Target item has no shape data");
@@ -126,23 +129,50 @@ public sealed class SwapItemsCommandHandler : IRequestHandler<SwapItemsCommand, 
 
         _logger.LogDebug("SWAP STEP 2: Target item removed");
 
+        // Apply equipment slot override for source item placement
+        // WHY: Equipment slots (1×1) accept any weapon regardless of backpack Tetris size
+        bool isTargetEquipmentSlot = targetInventory.ContainerType == ContainerType.WeaponOnly;
+        var sourcePlacementShape = isTargetEquipmentSlot
+            ? ItemShape.CreateRectangle(1, 1).Value  // Override: Equipment slots force 1×1
+            : sourceItemShape;                        // Use actual L/T-shape
+        var sourcePlacementRotation = isTargetEquipmentSlot
+            ? Rotation.Degrees0                       // Equipment slots ignore rotation
+            : rotation;
+
         // STEP 3: Place source at target (ROLLBACK PATH 2: restore both if fails)
-        var placeSourceResult = targetInventory.PlaceItemAt(sourceItemId, targetPos, sourceItemShape, rotation);
+        var placeSourceResult = targetInventory.PlaceItemAt(sourceItemId, targetPos, sourcePlacementShape, sourcePlacementRotation);
         if (placeSourceResult.IsFailure)
         {
             _logger.LogError("SWAP FAILED: Could not place source at target: {Error}", placeSourceResult.Error);
             // Rollback: Restore both items
             sourceInventory.PlaceItemAt(sourceItemId, sourcePos, sourceItemShape, Rotation.Degrees0);
             targetInventory.PlaceItemAt(targetItemId, targetPos, targetItemShape, targetItemRotation.Value);
-            await _inventories.SaveAsync(sourceInventory, cancellationToken);
-            await _inventories.SaveAsync(targetInventory, cancellationToken);
+
+            // Save inventories (avoid double-save if same container)
+            if (isSameContainer)
+                await _inventories.SaveAsync(sourceInventory, cancellationToken);
+            else
+            {
+                await _inventories.SaveAsync(sourceInventory, cancellationToken);
+                await _inventories.SaveAsync(targetInventory, cancellationToken);
+            }
+
             return Result.Failure(placeSourceResult.Error);
         }
 
         _logger.LogDebug("SWAP STEP 3: Source placed at target");
 
+        // Apply equipment slot override for target item placement
+        bool isSourceEquipmentSlot = sourceInventory.ContainerType == ContainerType.WeaponOnly;
+        var targetPlacementShape = isSourceEquipmentSlot
+            ? ItemShape.CreateRectangle(1, 1).Value  // Override: Equipment slots force 1×1
+            : targetItemShape;                        // Use actual L/T-shape
+        var targetPlacementRotation = isSourceEquipmentSlot
+            ? Rotation.Degrees0                       // Equipment slots ignore rotation
+            : targetItemRotation.Value;
+
         // STEP 4: Place target at source (ROLLBACK PATH 3: restore both if fails)
-        var placeTargetResult = sourceInventory.PlaceItemAt(targetItemId, sourcePos, targetItemShape, targetItemRotation.Value);
+        var placeTargetResult = sourceInventory.PlaceItemAt(targetItemId, sourcePos, targetPlacementShape, targetPlacementRotation);
         if (placeTargetResult.IsFailure)
         {
             _logger.LogError("SWAP FAILED: Could not place target at source: {Error}", placeTargetResult.Error);
@@ -150,16 +180,33 @@ public sealed class SwapItemsCommandHandler : IRequestHandler<SwapItemsCommand, 
             targetInventory.RemoveItem(sourceItemId);
             sourceInventory.PlaceItemAt(sourceItemId, sourcePos, sourceItemShape, Rotation.Degrees0);
             targetInventory.PlaceItemAt(targetItemId, targetPos, targetItemShape, targetItemRotation.Value);
-            await _inventories.SaveAsync(sourceInventory, cancellationToken);
-            await _inventories.SaveAsync(targetInventory, cancellationToken);
+
+            // Save inventories (avoid double-save if same container)
+            if (isSameContainer)
+                await _inventories.SaveAsync(sourceInventory, cancellationToken);
+            else
+            {
+                await _inventories.SaveAsync(sourceInventory, cancellationToken);
+                await _inventories.SaveAsync(targetInventory, cancellationToken);
+            }
+
             return Result.Failure(placeTargetResult.Error);
         }
 
         _logger.LogInformation("SWAP COMPLETED: {SourceItem} ↔ {TargetItem}", sourceItemId, targetItemId);
 
-        // Persist both inventories
-        await _inventories.SaveAsync(sourceInventory, cancellationToken);
-        await _inventories.SaveAsync(targetInventory, cancellationToken);
+        // Persist inventories (check if same container to avoid double-save)
+        if (isSameContainer)
+        {
+            // Same-container swap: Save once
+            await _inventories.SaveAsync(sourceInventory, cancellationToken);
+        }
+        else
+        {
+            // Cross-container swap: Save both
+            await _inventories.SaveAsync(sourceInventory, cancellationToken);
+            await _inventories.SaveAsync(targetInventory, cancellationToken);
+        }
 
         return Result.Success();
     }
@@ -195,9 +242,20 @@ public sealed class SwapItemsCommandHandler : IRequestHandler<SwapItemsCommand, 
             return Result.Failure(placeResult.Error);
         }
 
-        // Persist both inventories
-        await _inventories.SaveAsync(sourceInventory, cancellationToken);
-        await _inventories.SaveAsync(targetInventory, cancellationToken);
+        // Persist inventories (check if same container to avoid double-save)
+        bool isSameContainer = sourceInventory == targetInventory;
+
+        if (isSameContainer)
+        {
+            // Same-container move: Save once
+            await _inventories.SaveAsync(sourceInventory, cancellationToken);
+        }
+        else
+        {
+            // Cross-container move: Save both
+            await _inventories.SaveAsync(sourceInventory, cancellationToken);
+            await _inventories.SaveAsync(targetInventory, cancellationToken);
+        }
 
         _logger.LogInformation("MOVE COMPLETED: {ItemId} moved successfully", itemId);
         return Result.Success();

@@ -111,28 +111,28 @@ public class SwapItemsCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_SwapFailureDueToInvalidPlacement_ShouldRollback()
+    public async Task Handle_SwapWithEquipmentSlot_ShouldApply1x1Override()
     {
-        // WHY: If swap fails (type mismatch, bounds, etc.), items must return to original positions
-        // TRANSACTION SAFETY: All-or-nothing operation
+        // WHY: Equipment slots accept any weapon with 1×1 override (industry standard - Diablo 2 pattern)
+        // BUSINESS RULE: Equipment slots force 1×1 placement regardless of item's backpack Tetris size
 
-        // Arrange: Try to swap items where target placement would fail
+        // Arrange: Swap between equipment slot and backpack
         var actorId = ActorId.NewId();
         var itemId1 = ItemId.NewId();
         var itemId2 = ItemId.NewId();
 
-        // Item1: 1×1, Item2: 2×2 (won't fit in 1×1 equipment slot)
+        // Item1: 1×1 Sword, Item2: 2×2 Shield (both weapons)
         var item1 = Darklands.Core.Features.Item.Domain.Item.Create(itemId1, 0, 0, "Sword", "weapon", 1, 1, 1, 1, 1).Value;
         var item2 = Darklands.Core.Features.Item.Domain.Item.Create(itemId2, 1, 0, "Shield", "weapon", 2, 2, 2, 2, 1).Value;
         var itemRepo = new StubItemRepository(item1, item2);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
-        // Equipment slot 1: 1×1 (has item1)
+        // Equipment slot: 1×1 (has item1)
         var inventoryId1 = new Darklands.Core.Features.Inventory.Domain.InventoryId(Guid.NewGuid());
         var inventory1 = Darklands.Core.Features.Inventory.Domain.Inventory.Create(inventoryId1, 1, 1, ContainerType.WeaponOnly).Value;
         inventory1.PlaceItemAt(itemId1, new GridPosition(0, 0), item1.Shape, Rotation.Degrees0);
 
-        // Regular inventory: 5×5 (has item2)
+        // Backpack: 5×5 (has item2 in its 2×2 shape)
         var inventoryId2 = new Darklands.Core.Features.Inventory.Domain.InventoryId(Guid.NewGuid());
         var inventory2 = Darklands.Core.Features.Inventory.Domain.Inventory.Create(inventoryId2, 5, 5, ContainerType.General).Value;
         inventory2.PlaceItemAt(itemId2, new GridPosition(0, 0), item2.Shape, Rotation.Degrees0);
@@ -151,11 +151,11 @@ public class SwapItemsCommandHandlerTests
         var result = await handler.Handle(command, CancellationToken.None);
 
         // Assert
-        // Swap should fail (2×2 item won't fit in 1×1 slot)
-        result.IsFailure.Should().BeTrue();
+        // Swap should SUCCEED (equipment slot forces 2×2 shield to be 1×1 for placement)
+        result.IsSuccess.Should().BeTrue();
 
-        // Verify rollback: Items should be at original positions
-        inventory1.GetItemPosition(itemId1).Value.Should().Be(new GridPosition(0, 0));
-        inventory2.GetItemPosition(itemId2).Value.Should().Be(new GridPosition(0, 0));
+        // Verify swap completed: Items at swapped positions
+        inventory1.GetItemPosition(itemId2).Value.Should().Be(new GridPosition(0, 0)); // Shield now in equipment slot (forced 1×1)
+        inventory2.GetItemPosition(itemId1).Value.Should().Be(new GridPosition(0, 0)); // Sword now in backpack
     }
 }

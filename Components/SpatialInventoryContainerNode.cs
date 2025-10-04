@@ -1103,9 +1103,13 @@ public partial class SpatialInventoryContainerNode : Control
     }
 
     /// <summary>
-    /// Safely swaps two items using Remove+Place pattern with full rollback on failure.
-    /// WHY: Equipment slots need swap for UX, but must prevent data loss at all costs.
+    /// Swaps two items atomically using Core's SwapItemsCommand.
+    /// WHY: Delegates business logic to Core (TD_004 Leak #5 - eliminates 78 lines of Presentation logic).
     /// </summary>
+    /// <remarks>
+    /// REPLACED BY CORE: SwapItemsCommand handles all swap logic with rollback safety.
+    /// Presentation just calls command and refreshes UI.
+    /// </remarks>
     private async void SwapItemsSafeAsync(
         ActorId sourceActorId,
         ItemId sourceItemId,
@@ -1115,73 +1119,28 @@ public partial class SpatialInventoryContainerNode : Control
         GridPosition targetPos,
         Rotation rotation) // PHASE 3: Rotation for dragged item
     {
-        _logger.LogInformation("SWAP: Starting swap {SourceItem} @ ({SourceX},{SourceY}) ↔ {TargetItem} @ ({TargetX},{TargetY}) with rotation {Rotation}",
-            sourceItemId, sourcePos.X, sourcePos.Y,
-            targetItemId, targetPos.X, targetPos.Y, rotation);
+        _logger.LogInformation("SWAP: Delegating to Core SwapItemsCommand");
 
-        // STEP 1: Remove both items (hold in memory for rollback)
-        var removeSourceCmd = new RemoveItemCommand(sourceActorId, sourceItemId);
-        var removeTargetCmd = new RemoveItemCommand(targetActorId, targetItemId);
+        var command = new SwapItemsCommand(
+            sourceActorId,
+            sourceItemId,
+            sourcePos,
+            targetActorId,
+            targetItemId, // Core command uses nullable ItemId, always provided for swap
+            targetPos,
+            rotation);
 
-        _logger.LogInformation("SWAP STEP 1a: Removing source item {SourceItem} from ({SX},{SY})",
-            sourceItemId, sourcePos.X, sourcePos.Y);
+        var result = await _mediator.Send(command);
 
-        var removeSourceResult = await _mediator.Send(removeSourceCmd);
-        if (removeSourceResult.IsFailure)
+        if (result.IsFailure)
         {
-            _logger.LogError("SWAP ABORTED: Failed to remove source item: {Error}", removeSourceResult.Error);
-            return; // Nothing removed yet, safe to abort
-        }
-
-        _logger.LogInformation("SWAP STEP 1a: Source item removed successfully");
-        _logger.LogInformation("SWAP STEP 1b: Removing target item {TargetItem} from ({TX},{TY})",
-            targetItemId, targetPos.X, targetPos.Y);
-
-        var removeTargetResult = await _mediator.Send(removeTargetCmd);
-        if (removeTargetResult.IsFailure)
-        {
-            _logger.LogError("SWAP ABORTED: Failed to remove target item: {Error}", removeTargetResult.Error);
-            // Rollback: Put source item back
-            _logger.LogInformation("SWAP ROLLBACK: Restoring source item to original position");
-            await _mediator.Send(new PlaceItemAtPositionCommand(sourceActorId, sourceItemId, sourcePos));
+            _logger.LogError("SWAP FAILED: {Error}", result.Error);
+            // Core already rolled back, just refresh UI
+            EmitSignal(SignalName.InventoryChanged);
             return;
         }
 
-        _logger.LogInformation("SWAP STEP 1b: Target item removed successfully");
-
-        // STEP 2: Place both items at swapped positions
-        // NOTE: Using MoveItemBetweenContainersCommand for source (with rotation support)
-        var moveSourceCmd = new MoveItemBetweenContainersCommand(sourceActorId, targetActorId, sourceItemId, targetPos, rotation);
-        var placeTargetCmd = new PlaceItemAtPositionCommand(sourceActorId, targetItemId, sourcePos);
-
-        _logger.LogInformation("SWAP STEP 2a: Placing source item {SourceItem} at target position ({TX},{TY})",
-            sourceItemId, targetPos.X, targetPos.Y);
-
-        var placeSourceResult = await _mediator.Send(moveSourceCmd);
-        if (placeSourceResult.IsFailure)
-        {
-            _logger.LogError("SWAP FAILED: Could not place source item at target: {Error}", placeSourceResult.Error);
-            // Rollback: Put both items back at original positions
-            _logger.LogInformation("SWAP ROLLBACK: Restoring both items to original positions");
-            await _mediator.Send(new PlaceItemAtPositionCommand(sourceActorId, sourceItemId, sourcePos));
-            await _mediator.Send(new PlaceItemAtPositionCommand(targetActorId, targetItemId, targetPos));
-            EmitSignal(SignalName.InventoryChanged); // Refresh to show rollback
-            return;
-        }
-
-        var placeTargetResult = await _mediator.Send(placeTargetCmd);
-        if (placeTargetResult.IsFailure)
-        {
-            _logger.LogError("Swap failed: Could not place target item at source: {Error}", placeTargetResult.Error);
-            // Rollback: Remove source item from wrong place, put both back
-            await _mediator.Send(new RemoveItemCommand(targetActorId, sourceItemId));
-            await _mediator.Send(new PlaceItemAtPositionCommand(sourceActorId, sourceItemId, sourcePos));
-            await _mediator.Send(new PlaceItemAtPositionCommand(targetActorId, targetItemId, targetPos));
-            EmitSignal(SignalName.InventoryChanged); // Refresh to show rollback
-            return;
-        }
-
-        _logger.LogInformation("Swap completed successfully");
+        _logger.LogInformation("SWAP COMPLETED");
         EmitSignal(SignalName.InventoryChanged);
     }
 
