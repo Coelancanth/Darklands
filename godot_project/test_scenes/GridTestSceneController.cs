@@ -7,7 +7,6 @@ using CSharpFunctionalExtensions;
 using Darklands.Core.Domain.Common;
 using Darklands.Core.Features.Grid.Application.Commands;
 using Darklands.Core.Features.Grid.Application.Queries;
-using Darklands.Core.Features.Grid.Domain;
 using Darklands.Core.Features.Grid.Domain.Events;
 using Darklands.Core.Features.Movement.Application.Commands;
 using Darklands.Core.Features.Movement.Application.Queries;
@@ -168,25 +167,25 @@ public partial class GridTestSceneController : Node2D
         // Initialize test terrain: Walls around edges, smoke patches
         for (int x = 0; x < GridSize; x++)
         {
-            await _mediator.Send(new SetTerrainCommand(new Position(x, 0), TerrainType.Wall));
-            await _mediator.Send(new SetTerrainCommand(new Position(x, GridSize - 1), TerrainType.Wall));
+            await _mediator.Send(new SetTerrainCommand(new Position(x, 0), "wall"));
+            await _mediator.Send(new SetTerrainCommand(new Position(x, GridSize - 1), "wall"));
         }
 
         for (int y = 0; y < GridSize; y++)
         {
-            await _mediator.Send(new SetTerrainCommand(new Position(0, y), TerrainType.Wall));
-            await _mediator.Send(new SetTerrainCommand(new Position(GridSize - 1, y), TerrainType.Wall));
+            await _mediator.Send(new SetTerrainCommand(new Position(0, y), "wall"));
+            await _mediator.Send(new SetTerrainCommand(new Position(GridSize - 1, y), "wall"));
         }
 
         // Add some smoke patches for testing vision blocking
-        await _mediator.Send(new SetTerrainCommand(new Position(10, 10), TerrainType.Smoke));
-        await _mediator.Send(new SetTerrainCommand(new Position(10, 11), TerrainType.Smoke));
-        await _mediator.Send(new SetTerrainCommand(new Position(11, 10), TerrainType.Smoke));
+        await _mediator.Send(new SetTerrainCommand(new Position(10, 10), "smoke"));
+        await _mediator.Send(new SetTerrainCommand(new Position(10, 11), "smoke"));
+        await _mediator.Send(new SetTerrainCommand(new Position(11, 10), "smoke"));
 
         // Add some interior walls
         for (int x = 5; x < 10; x++)
         {
-            await _mediator.Send(new SetTerrainCommand(new Position(x, 15), TerrainType.Wall));
+            await _mediator.Send(new SetTerrainCommand(new Position(x, 15), "wall"));
         }
 
         // Register actors at starting positions
