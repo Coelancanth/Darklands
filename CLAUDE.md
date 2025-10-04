@@ -334,13 +334,16 @@ date  # Get current date/time before creating/updating dated documents
 # MANDATORY before committing (build + all tests)
 ./scripts/core/build.ps1 test
 
-# Feature-specific testing
-./scripts/core/build.ps1 test --filter "Category=Combat"
-./scripts/core/build.ps1 test --filter "Category=Health"
-./scripts/core/build.ps1 test --filter "Category=Inventory"
+# Feature-specific testing (builds Core + Tests + Godot, then runs filtered tests)
+./scripts/core/build.ps1 test "Category=Combat"
+./scripts/core/build.ps1 test "Category=Health"
+./scripts/core/build.ps1 test "Category=Inventory"
+
+# Fast iteration (no rebuild, no Godot validation - for TDD loops)
+./scripts/core/build.ps1 test-only "Category=Combat"
 
 # Alternative: Run tests directly (skip Godot build validation)
-dotnet test tests/Darklands.Core.Tests/Darklands.Core.Tests.csproj
+dotnet test tests/Darklands.Core.Tests/Darklands.Core.Tests.csproj --filter "Category=Combat"
 ```
 
 ## 📖 Git Workflow with Smart Sync
