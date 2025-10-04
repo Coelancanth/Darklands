@@ -270,8 +270,32 @@ public partial class EquipmentSlotNode : Control
         var sourceY = dragData["sourceY"].AsInt32();
         var sourcePos = new GridPosition(sourceX, sourceY);
 
+        // Query inventory to check if slot is occupied (instead of relying on cached _currentItemId)
+        // WHY: LoadSlotAsync() might not have completed yet, causing _currentItemId to be null
+        if (OwnerActorId == null)
+        {
+            _logger.LogError("OwnerActorId is null - cannot determine swap vs move");
+            return;
+        }
+
+        var inventoryQuery = new GetInventoryQuery(OwnerActorId.Value);
+        var inventoryResult = _mediator.Send(inventoryQuery).Result; // Blocking OK for drop handler
+
+        if (inventoryResult.IsFailure)
+        {
+            _logger.LogError("Failed to query inventory: {Error}", inventoryResult.Error);
+            return;
+        }
+
+        var inventory = inventoryResult.Value;
+        var slotPos = new GridPosition(0, 0); // Equipment slots always at origin
+        var targetItemId = inventory.ItemPlacements
+            .Where(kvp => kvp.Value.Equals(slotPos))
+            .Select(kvp => (ItemId?)kvp.Key)
+            .FirstOrDefault();
+
         // Check if this is a swap (slot occupied) or move (slot empty)
-        if (_currentItemId == null)
+        if (targetItemId == null)
         {
             _logger.LogInformation("MOVE: Item {ItemId} to empty {SlotTitle}", itemId, SlotTitle);
             MoveItemAsync(sourceActorId, itemId);
@@ -279,8 +303,8 @@ public partial class EquipmentSlotNode : Control
         else
         {
             _logger.LogInformation("SWAP: {ItemA} ↔ {ItemB} in {SlotTitle}",
-                itemId, _currentItemId, SlotTitle);
-            SwapItemsAsync(sourceActorId, itemId, sourcePos, _currentItemId.Value);
+                itemId, targetItemId, SlotTitle);
+            SwapItemsAsync(sourceActorId, itemId, sourcePos, targetItemId.Value);
         }
     }
 
