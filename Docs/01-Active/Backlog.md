@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-04 17:19 (Dev Engineer: VS_007 ALL PHASES COMPLETE + bug fixes - Turn queue system fully implemented, ready for manual testing)
+**Last Updated**: 2025-10-04 17:38 (Dev Engineer: VS_007 COMPLETE ✅ - Turn queue system working end-to-end, follow-up issues captured)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -81,13 +81,14 @@
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*
 
-### VS_007: Time-Unit Turn Queue System ⭐ **COMPLETE - READY FOR MANUAL TESTING**
+### VS_007: Time-Unit Turn Queue System ⭐ **COMPLETE ✅**
 
-**Status**: ✅ ALL 4 PHASES COMPLETE + Bug Fixes - Turn queue system fully implemented with test scene
-**Owner**: Dev Engineer (completed all phases)
+**Status**: ✅ COMPLETE - All phases working end-to-end, tested in Godot, follow-up issues captured
+**Owner**: Dev Engineer (completed 2025-10-04)
 **Size**: L (2-3 days, all 4 phases) - **ACTUAL: 3 days**
 **Priority**: Critical (foundation for combat system)
 **Depends On**: VS_005 (FOV events), VS_006 (Movement cancellation)
+**Completed**: 2025-10-04 17:38
 
 **What**: Time-unit turn scheduling system that naturally distinguishes exploration mode (auto-movement) from combat mode (single-step tactical movement)
 
@@ -434,7 +435,49 @@ Exploration → Combat Detection → Reinforcement → Victory
 
 ---
 
-**Next**: Manual testing validation, then archive to backlog archive
+## ✅ **MANUAL TESTING COMPLETE** (2025-10-04 17:38)
+
+**Test Results**: ✅ ALL CORE FUNCTIONALITY WORKING
+
+**Verified Behaviors**:
+1. ✅ **Exploration Mode**: Auto-path movement with orange path preview
+2. ✅ **Combat Detection**: Movement auto-cancels when enemies appear in FOV (radius=8)
+3. ✅ **Combat Mode**: Single-step tactical movement (1 tile toward target)
+4. ✅ **Enemy Scheduling**: Goblin + Orc auto-scheduled when visible
+5. ✅ **Turn Queue**: IsInCombat correctly reflects queue state (queue.Count > 1)
+6. ✅ **Path Visualization**: Orange path stays visible during movement
+
+**Bug Fixes During Implementation** (3 critical bugs):
+- **Bug #1**: Async race condition (NullReferenceException when changing destination mid-movement)
+- **Bug #2**: Path preview disappearing during auto-movement
+- **Bug #3**: FOV radius mismatch (20 vs 8) + combat movement stuck at current position
+
+**Total Commits**: 14 commits (7 features, 4 bug fixes, 3 dual publishing + auto-cancel)
+
+---
+
+## 🔄 **FOLLOW-UP ISSUES** (Next Session)
+
+**Issue #1: Vision Radius Hardcoded (Magic Numbers)**
+- **Problem**: FOV radius=8 duplicated in MoveActorCommandHandler and EnemyDetectionEventHandler
+- **Impact**: If vision changes, must update 2+ locations (error-prone)
+- **Solution Options**:
+  - Option A: Create VisionRadius value object per actor (configurable)
+  - Option B: Add visionRadius field to ActorId or Position service
+  - Option C: Extract constant to shared config (simplest MVP)
+- **Priority**: Medium (technical debt, affects future racial/equipment vision bonuses)
+- **Estimate**: S (1-2 hours)
+
+**Issue #2: Combat → Exploration Transition Missing**
+- **Problem**: When last enemy defeated, turn queue shows IsInCombat=false BUT movement doesn't auto-switch back to exploration mode
+- **Impact**: Player stuck in single-step movement even after combat ends
+- **Root Cause**: ClickToMove only checks IsInCombat at START of click, not dynamically
+- **Solution**: After defeating last enemy, query IsInCombat → if false, resume auto-path
+- **Where**: Either in ClickToMove (query after each combat move) OR RemoveActorFromQueueCommandHandler (emit "CombatEndedEvent")
+- **Priority**: High (blocks natural gameplay flow)
+- **Estimate**: S (2-3 hours, includes event wiring)
+
+**Recommended Order**: Issue #2 first (gameplay-blocking), then Issue #1 (tech debt cleanup)
 
 ---
 
