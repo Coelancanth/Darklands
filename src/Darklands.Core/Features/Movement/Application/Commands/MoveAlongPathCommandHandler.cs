@@ -1,4 +1,5 @@
 using CSharpFunctionalExtensions;
+using Darklands.Core.Features.Combat.Application.Queries;
 using Darklands.Core.Features.Grid.Application.Commands;
 using MediatR;
 using Microsoft.Extensions.Logging;
@@ -104,6 +105,19 @@ public class MoveAlongPathCommandHandler : IRequestHandler<MoveAlongPathCommand,
 
             // Success: MoveActorCommand emitted ActorMovedEvent
             // Presentation layer will animate this step via event handler
+
+            // VS_007: Check if combat mode started (enemy detected) - auto-cancel exploration movement
+            var isInCombatQuery = new IsInCombatQuery();
+            var isInCombatResult = await _mediator.Send(isInCombatQuery, cancellationToken);
+            if (isInCombatResult.IsSuccess && isInCombatResult.Value)
+            {
+                _logger.LogInformation(
+                    "⚔️ Combat detected! Auto-cancelling exploration movement for actor {ActorId} at step {Step}/{Total}",
+                    request.ActorId,
+                    i,
+                    request.Path.Count);
+                return Result.Success(); // Graceful stop when combat starts
+            }
 
             // VS_006 Phase 4: Add delay between steps for visible movement
             // TODO: Replace with proper animation system in future iteration
