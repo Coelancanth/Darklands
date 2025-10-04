@@ -245,14 +245,14 @@
 
 ### TD_004: Move ALL Shape Calculation Logic to Core (SSOT) - **EXPANDED SCOPE**
 
-**Status**: 🚧 IN PROGRESS - **Phase 1 COMPLETE** → Starting Phase 2 (Dev Engineer - 2025-10-04)
+**Status**: 🚧 IN PROGRESS - **Phase 2 Partial** → 3/6 leaks replaced (Dev Engineer - 2025-10-04)
 **Owner**: Dev Engineer
 **Size**: L (12-16h realistic - **expanded from M after full file analysis**)
 **Priority**: Critical (Architectural compliance + **7 logic leaks found**)
 **Depends On**: None (but **SHOULD DO BEFORE TD_003** - see sequencing note)
 **Markers**: [ARCHITECTURE] [ADR-002] [SSOT] [SYSTEMIC-VIOLATION]
 
-**Progress** (2025-10-04):
+**Progress** (2025-10-04 12:17):
 
 **✅ PHASE 1 COMPLETE**: All Core Queries/Commands Created (14/14 tests passing)
 - ✅ Leak #1: `CalculateHighlightCellsQuery` (5/5 tests) - Highlight calculation with rotation + equipment override
@@ -265,20 +265,22 @@
 
 **Total Impact**: **151+ lines** of business logic moved from Presentation → Core
 
-**🚧 PHASE 2 IN PROGRESS**: Replace Presentation Logic (3/6 leaks replaced)
-- ✅ Leak #1 Replaced: Lines 1057-1075 → CalculateHighlightCellsQuery (-27 lines)
-- ✅ Leak #2 Replaced: Lines 640-683 → GetOccupiedCellsQuery (-21 lines)
-- ✅ Leak #3 Replaced: Lines 853-871 → GetItemRenderPositionQuery (Option B attempted)
-  - ⚠️ **BUG**: Equipment slot centering still incorrect in UI
-  - **Issue**: Option B implementation (ShouldCenterInSlot + EffectiveDimensions) not working as expected
-  - **Next Session**: Debug centering logic, may need Option C or revert to original approach
-- ⏳ Leak #5 NOT STARTED: Lines 476-491, 1122-1202 → SwapItemsCommand (78 lines)
-- ⏳ Leak #6 NOT STARTED: Lines 1248-1258 → Delete CanAcceptItemType dead code
-- ⏳ Cache dictionaries NOT STARTED: Delete _itemShapes, _itemRotations, _itemDimensions
+**🚧 PHASE 2 PARTIAL**: Replace Presentation Logic (3/7 leaks replaced)
+- ✅ Leak #1 REPLACED: Lines 1057-1075 → `CalculateHighlightCellsQuery` (-27 lines)
+- ✅ Leak #2 REPLACED: Lines 640-683 → `GetOccupiedCellsQuery` (-21 lines)
+- ✅ Leak #3 REPLACED: Lines 853-871 → `GetItemRenderPositionQuery` + sprite scaling (-19 lines)
+  - Equipment slot centering now uses **texture scaling** (user's approach - working!)
+- ✅ Leak #4 REPLACED: Equipment slot detection consolidated in query handlers (no separate query)
+- ❌ Leak #5 REVERTED: Lines 476-491, 1122-1202 → `SwapItemsCommand` integration caused bugs
+  - **Issues**: Item duplication, rotation failures, swap failures
+  - **Root Cause**: Handler bug - saves same inventory twice in same-container moves
+  - **Status**: POSTPONED - using proven Presentation logic (78 lines swap + 27 lines move)
+- ⏳ Leak #6 NOT STARTED: Lines 1248-1258 → Delete `CanAcceptItemType` dead code
+- ⏳ Leak #7 NOT STARTED: Cache dictionaries (_itemShapes, _itemRotations, _itemDimensions)
 
-**Progress**: ~50 lines eliminated, 3/6 replacements attempted, **1 regression to fix**
+**Progress**: ~70 lines eliminated (Leaks #1-3), Leak #5 reverted, 2 leaks pending
 **Builds**: ✅ All compilations successful
-**Tests**: ✅ 14/14 Core tests passing
+**Tests**: ✅ 14/14 Core tests passing (Phase 1 complete)
 
 **⏳ PHASE 3 PENDING**: Documentation + Regression Tests (after Phase 2 complete)
 
