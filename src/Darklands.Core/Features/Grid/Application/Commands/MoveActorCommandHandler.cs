@@ -98,9 +98,9 @@ public class MoveActorCommandHandler : IRequestHandler<MoveActorCommand, Result>
             request.TargetPosition.Y);
 
         // Calculate FOV for new position
-        const int visionRadius = 8; // TODO: Make this configurable per actor
+        // TODO: Replace with per-actor vision (VisionConstants → GetActorVisionRadiusQuery when implementing racial bonuses)
         var fovResult = await _mediator.Send(
-            new CalculateFOVQuery(request.TargetPosition, visionRadius),
+            new CalculateFOVQuery(request.TargetPosition, VisionConstants.DefaultVisionRadius),
             cancellationToken);
 
         if (fovResult.IsFailure)

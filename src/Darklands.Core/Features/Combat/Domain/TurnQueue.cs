@@ -62,6 +62,11 @@ public sealed class TurnQueue
     public IReadOnlyList<ScheduledActor> ScheduledActors => _actors.AsReadOnly();
 
     /// <summary>
+    /// Gets all scheduled actors (method form for query handlers).
+    /// </summary>
+    public IReadOnlyList<ScheduledActor> GetScheduledActors() => ScheduledActors;
+
+    /// <summary>
     /// Schedules an actor for action at the specified time.
     /// </summary>
     /// <param name="actorId">Actor to schedule</param>

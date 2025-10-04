@@ -206,7 +206,8 @@
       "Bash(curl -s \"https://docs.godotengine.org/en/stable/tutorials/2d/using_tilesets.html\")",
       "Bash(do)",
       "Bash(./scripts/git/pr.ps1 ready)",
-      "Bash(./scripts/core/build.ps1 test --filter \"*SwapItemsCommand*\")"
+      "Bash(./scripts/core/build.ps1 test --filter \"*SwapItemsCommand*\")",
+      "Bash(gh issue view:*)"
     ],
     "deny": [],
     "ask": [],

@@ -4,6 +4,7 @@ using Darklands.Core.Features.Combat.Application.Commands;
 using Darklands.Core.Features.Combat.Application.Queries;
 using Darklands.Core.Features.Combat.Domain;
 using Darklands.Core.Features.Grid.Application.Queries;
+using Darklands.Core.Features.Grid.Domain;
 using Darklands.Core.Features.Grid.Domain.Events;
 using MediatR;
 using Microsoft.Extensions.Logging;
@@ -64,10 +65,10 @@ public class EnemyDetectionEventHandler : INotificationHandler<FOVCalculatedEven
             "Processing FOV event for player: {VisibleCount} positions visible",
             notification.VisiblePositions.Count);
 
-        // Use the SAME vision radius as FOV calculation (8 tiles per MoveActorCommandHandler)
-        // TODO: Make vision radius configurable per actor, then both can use the same constant
-        const int visionRadius = 8; // Must match MoveActorCommandHandler FOV radius
-        var visibleActorsQuery = new GetVisibleActorsQuery(notification.ActorId, visionRadius);
+        // TODO: Replace with per-actor vision (VisionConstants → GetActorVisionRadiusQuery when implementing racial bonuses)
+        var visibleActorsQuery = new GetVisibleActorsQuery(
+            notification.ActorId,
+            VisionConstants.DefaultVisionRadius);
         var visibleActorsResult = await _mediator.Send(visibleActorsQuery, cancellationToken);
 
         if (visibleActorsResult.IsFailure)
@@ -87,8 +88,11 @@ public class EnemyDetectionEventHandler : INotificationHandler<FOVCalculatedEven
         }
 
         _logger.LogInformation(
-            "Detected {HostileCount} hostile actor(s) in FOV: {ActorIds}",
-            hostileActors.Count,
+            "👁️ FOV Detection: {HostileCount} hostile actor(s) visible → Initiating combat mode",
+            hostileActors.Count);
+
+        _logger.LogDebug(
+            "Enemy IDs detected: {ActorIds}",
             string.Join(", ", hostileActors));
 
         // Schedule each hostile actor (if not already scheduled)
@@ -100,11 +104,14 @@ public class EnemyDetectionEventHandler : INotificationHandler<FOVCalculatedEven
 
             if (isScheduledResult.IsSuccess && isScheduledResult.Value)
             {
-                _logger.LogDebug("Actor {ActorId} already scheduled, skipping", enemyId);
+                _logger.LogDebug(
+                    "Actor {ActorId} already in turn queue (reinforcement/already engaged), skipping",
+                    enemyId);
                 continue;
             }
 
             // Schedule enemy at time=0 (immediate action when first detected)
+            const int initialActionTime = 0; // Enemies enter combat ready to act
             var scheduleCommand = new ScheduleActorCommand(
                 ActorId: enemyId,
                 NextActionTime: TimeUnits.Zero,
@@ -115,15 +122,16 @@ public class EnemyDetectionEventHandler : INotificationHandler<FOVCalculatedEven
             if (scheduleResult.IsFailure)
             {
                 _logger.LogError(
-                    "Failed to schedule enemy {ActorId}: {Error}",
+                    "❌ Failed to schedule enemy {ActorId}: {Error}",
                     enemyId,
                     scheduleResult.Error);
             }
             else
             {
                 _logger.LogInformation(
-                    "🎯 Enemy {ActorId} detected and scheduled (combat initiated!)",
-                    enemyId);
+                    "🚶 Exploration → ⚔️ Combat: Enemy {ActorId} scheduled at time={Time} (immediate action)",
+                    enemyId,
+                    initialActionTime);
             }
         }
     }
