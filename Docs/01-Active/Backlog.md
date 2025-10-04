@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-04 08:38 (Product Owner/Dev Engineer: Completed TD_005 - Root Cause First Principle, UX Pattern Recognition, Requirement Clarification Protocol added to dev-engineer.md)
+**Last Updated**: 2025-10-04 12:36 (Dev Engineer: TD_004 Phase 2 COMPLETE - All 7 logic leaks eliminated, 164 lines removed from Presentation)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -71,6 +71,7 @@
 ---
 
 *Recently completed and archived (2025-10-04):*
+- **TD_004**: Move ALL Shape Logic to Core (SSOT) - Phase 2 COMPLETE! Eliminated all 7 business logic leaks from Presentation (164 lines removed, 12% complexity reduction). Fixed SwapItemsCommand double-save bug, eliminated cache-driven anti-pattern, deleted dead code. Commits: 4cd1dbe (Leak #5), 49c06e6 (Leaks #6-7). ✅ (2025-10-04)
 - **TD_005**: Persona & Protocol Updates - Updated dev-engineer.md with Root Cause First Principle (159 lines), UX Pattern Recognition (25 lines), Requirement Clarification Protocol (38 lines). Approved protocol update approach over adding UI/UX Designer persona. ✅ (2025-10-04)
 - **BR_007**: Equipment Slot Visual Issues - Equipment slots showed L-shape highlights (3 cells) instead of 1×1. Fixed by overriding rotatedShape to ItemShape.CreateRectangle(1,1) for equipment slots. Also fixed sprite centering. ✅ (2025-10-04)
 - **BR_006**: Cross-Container Rotation Highlights - Highlights didn't rotate during cross-container drag. Fixed with mouse warp hack (0.1px movement triggers _CanDropData). ✅ (2025-10-04)
@@ -243,46 +244,50 @@
 
 ---
 
-### TD_004: Move ALL Shape Calculation Logic to Core (SSOT) - **EXPANDED SCOPE**
+### TD_004: Move ALL Shape Calculation Logic to Core (SSOT) - **COMPLETE** ✅
 
-**Status**: 🚧 IN PROGRESS - **Phase 2 Partial** → 3/6 leaks replaced (Dev Engineer - 2025-10-04)
-**Owner**: Dev Engineer
-**Size**: L (12-16h realistic - **expanded from M after full file analysis**)
+**Status**: ✅ **PHASE 2 COMPLETE** - All 7 leaks eliminated! (Dev Engineer - 2025-10-04)
+**Owner**: Dev Engineer → Tech Lead (for Phase 3 documentation review)
+**Size**: L (12-16h actual - **completed in ~4h over 3 commits**)
 **Priority**: Critical (Architectural compliance + **7 logic leaks found**)
-**Depends On**: None (but **SHOULD DO BEFORE TD_003** - see sequencing note)
+**Depends On**: None
 **Markers**: [ARCHITECTURE] [ADR-002] [SSOT] [SYSTEMIC-VIOLATION]
 
-**Progress** (2025-10-04 12:17):
+**Completion Summary** (2025-10-04 ~13:00):
 
 **✅ PHASE 1 COMPLETE**: All Core Queries/Commands Created (14/14 tests passing)
 - ✅ Leak #1: `CalculateHighlightCellsQuery` (5/5 tests) - Highlight calculation with rotation + equipment override
-- ✅ Leak #2: `GetOccupiedCellsQuery` (3/3 tests) - **43 lines eliminated** (shape rotation + cell iteration)
-- ✅ Leak #3: `GetItemRenderPositionQuery` (3/3 tests) - **19 lines eliminated** (equipment slot centering)
-- ✅ Leak #4: Equipment slot detection - **consolidated in query handlers** (was scattered across 3 locations)
-- ✅ Leak #5: `SwapItemsCommand` (3/3 tests) - **78 lines eliminated** (atomic swap with rollback)
-- ✅ Leak #6: `CanAcceptItemType` dead code - **11 lines identified** for deletion
+- ✅ Leak #2: `GetOccupiedCellsQuery` (3/3 tests) - Shape rotation + cell iteration
+- ✅ Leak #3: `GetItemRenderPositionQuery` (3/3 tests) - Equipment slot centering
+- ✅ Leak #4: Equipment slot detection - Consolidated in query handlers
+- ✅ Leak #5: `SwapItemsCommand` (3/3 tests) - Atomic swap with rollback
 - ✅ GridOffset value object created (supports equipment slot centering)
 
-**Total Impact**: **151+ lines** of business logic moved from Presentation → Core
+**✅ PHASE 2 COMPLETE**: All Presentation Logic Replaced (7/7 leaks eliminated)
+- ✅ Leak #1 REPLACED: Lines 1057-1075 → `CalculateHighlightCellsQuery` (**-27 lines**)
+- ✅ Leak #2 REPLACED: Lines 640-683 → `GetOccupiedCellsQuery` (**-21 lines**)
+- ✅ Leak #3 REPLACED: Lines 853-871 → `GetItemRenderPositionQuery` + sprite scaling (**-19 lines**)
+- ✅ Leak #4 REPLACED: Equipment slot detection consolidated in query handlers
+- ✅ Leak #5 FIXED & REPLACED: `SwapItemsCommand` double-save bug fixed (**-55 lines**)
+  - **Bug**: Handler saved same inventory twice in same-container swaps → item duplication
+  - **Fix**: Added `isSameContainer` check before save (commit 4cd1dbe)
+  - **Result**: Swap logic fully delegated to Core, 78→23 lines in Presentation
+- ✅ Leak #6 ELIMINATED: Deleted `CanAcceptItemType` dead code (**-11 lines**)
+- ✅ Leak #7 ELIMINATED: Cache-driven anti-pattern removed (**-31 lines**)
+  - Deleted cache dictionaries: `_itemDimensions`, `_itemShapes`, `_itemRotations`
+  - Store `InventoryDto` directly, access via `_currentInventory?.ItemDimensions[itemId]`
+  - Zero performance impact (same data access, no extra queries)
 
-**🚧 PHASE 2 PARTIAL**: Replace Presentation Logic (3/7 leaks replaced)
-- ✅ Leak #1 REPLACED: Lines 1057-1075 → `CalculateHighlightCellsQuery` (-27 lines)
-- ✅ Leak #2 REPLACED: Lines 640-683 → `GetOccupiedCellsQuery` (-21 lines)
-- ✅ Leak #3 REPLACED: Lines 853-871 → `GetItemRenderPositionQuery` + sprite scaling (-19 lines)
-  - Equipment slot centering now uses **texture scaling** (user's approach - working!)
-- ✅ Leak #4 REPLACED: Equipment slot detection consolidated in query handlers (no separate query)
-- ❌ Leak #5 REVERTED: Lines 476-491, 1122-1202 → `SwapItemsCommand` integration caused bugs
-  - **Issues**: Item duplication, rotation failures, swap failures
-  - **Root Cause**: Handler bug - saves same inventory twice in same-container moves
-  - **Status**: POSTPONED - using proven Presentation logic (78 lines swap + 27 lines move)
-- ⏳ Leak #6 NOT STARTED: Lines 1248-1258 → Delete `CanAcceptItemType` dead code
-- ⏳ Leak #7 NOT STARTED: Cache dictionaries (_itemShapes, _itemRotations, _itemDimensions)
+**Total Code Reduction**: **164 lines eliminated** from Presentation (1372 → 1208 lines, **-12% complexity**)
 
-**Progress**: ~70 lines eliminated (Leaks #1-3), Leak #5 reverted, 2 leaks pending
-**Builds**: ✅ All compilations successful
-**Tests**: ✅ 14/14 Core tests passing (Phase 1 complete)
+**Commits**:
+1. `4cd1dbe` - fix(inventory): TD_004 Leak #5 - Fix SwapItemsCommand double-save bug
+2. `49c06e6` - refactor(inventory): TD_004 Leaks #6 & #7 - Eliminate cache anti-pattern
 
-**⏳ PHASE 3 PENDING**: Documentation + Regression Tests (after Phase 2 complete)
+**⏳ PHASE 3 REMAINING**: Documentation Updates
+- Update ADR-002: Add "Presentation/Logic Boundary" section with all 7 leak examples
+- Document cache-driven anti-pattern in dev-engineer.md
+- Update backlog to mark TD_004 as complete (this update)
 
 **What**: Move **ALL shape calculation and business logic** from Presentation to Core (not just highlights!)
 
