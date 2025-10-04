@@ -324,6 +324,46 @@ if (string.IsNullOrEmpty(name))
 - Downgrade to `LogDebug` after feature confirmed working
 - NEVER use `GD.Print` or `Console.WriteLine` - use ILogger always
 
+### Production Log Formatting (VS_007 Lessons)
+
+**ADDED**: 2025-10-04 19:15 (Combat system logging cleanup)
+
+**Clean Production Logs (Machine-Parseable)**:
+- ❌ **NO emojis** in log messages (grep-friendly, tool-parseable)
+- ❌ **NO Unicode arrows** (`→` breaks grep patterns)
+- ✅ **ASCII arrows** (`->` for transitions, easy to grep)
+- ✅ **Numeric values** (TimeUnits.ToString() returns "10" not "10 time units")
+- ✅ **Structured parameters** (capture separately, not embedded in strings)
+
+**Before (Development Logs)**:
+```csharp
+_logger.LogInformation("⏱️ Combat turn: {ActorId} moved (time: {OldTime} → {NewTime}, cost: {Cost})",
+    actorId, "10 time units", "20 time units", "10 time units"); // Verbose, emojis, Unicode
+```
+
+**After (Production Logs)**:
+```csharp
+_logger.LogInformation("Combat turn: {ActorId} moved (time: {OldTime} -> {NewTime}, cost: {Cost})",
+    actorId, oldTime, newTime, cost); // Clean, parseable, ASCII
+// Output: "Combat turn: Player moved (time: 10 -> 20, cost: 10)"
+```
+
+**Value Object ToString() Pattern**:
+```csharp
+// ✅ CORRECT - Clean output for logging
+public override string ToString() => Value.ToString(); // Returns "10" not "10 time units"
+```
+
+**Benefits**:
+- ✅ `grep "Combat turn.*moved"` works (no emoji noise)
+- ✅ `awk -F'time: ' '{print $2}'` extracts time values
+- ✅ Log parsers don't choke on Unicode
+- ✅ Professional production logs (easier for ops teams)
+
+**When to Use Emojis**: NEVER in production code. Demo/tutorial logs only (temporary).
+
+**Red Flag**: If your log message has `→`, `✅`, `🎯`, etc. → Replace with ASCII equivalent before merge.
+
 ### Node2D vs Control Hierarchy (CRITICAL)
 **Rule**: Control containers (CenterContainer, VBoxContainer, etc.) ONLY layout Control children!
 
@@ -820,4 +860,4 @@ git commit -m "feat(feature): Description [Phase X/4]"
 
 ---
 
-**Last Updated**: 2025-10-04 08:38 (TD_005: Added Root Cause First Principle, UX Pattern Recognition, and Requirement Clarification Protocol based on BR_006/BR_007 lessons learned - emphasizes workaround vs root cause fix distinction, architectural red flags, and requirement confirmation before implementation)
+**Last Updated**: 2025-10-04 19:15 (VS_007 follow-ups: Added Combat Log Formatting guidelines - clean production logs without emojis, TimeUnits.ToString() returns numeric values, ASCII arrows for machine-parseable output)
