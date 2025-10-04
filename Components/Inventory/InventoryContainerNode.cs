@@ -12,25 +12,30 @@ using Godot;
 using MediatR;
 using Microsoft.Extensions.Logging;
 
-namespace Darklands.Components;
+namespace Darklands.Components.Inventory;
 
 /// <summary>
-/// Spatial inventory container with drag-drop support (VS_018 Phase 1).
-/// Renders inventory as grid, handles drag-drop via Godot's built-in drag system.
+/// Inventory container for Tetris-style grid placement (multi-cell, rotation, L-shapes).
+/// TD_003 Phase 3: Separated from EquipmentSlotNode (swap-only, centered, single-item).
 /// </summary>
 /// <remarks>
 /// ARCHITECTURE:
 /// - Gets IMediator from parent SpatialInventoryTestController (avoids duplicate ServiceLocator)
 /// - Queries inventory state via GetInventoryQuery
-/// - Sends commands via PlaceItemAtPositionCommand, MoveItemBetweenContainersCommand
+/// - Sends commands via MoveItemBetweenContainersCommand (swap moved to EquipmentSlotNode)
 /// - Drag-drop uses Godot's `_GetDragData`, `_CanDropData`, `_DropData` pattern
+/// - Uses InventoryRenderHelper for shared rendering logic (DRY)
 ///
-/// PHASE 1 SCOPE:
-/// - All items treated as 1×1 (multi-cell in Phase 2)
-/// - Type filtering (weapon slots reject potions)
-/// - Visual feedback (green = valid, red = invalid)
+/// COMPONENT FOCUS (TD_003):
+/// - Multi-cell placement (L-shapes, T-shapes, rotation)
+/// - Collision detection (bounds + occupied cells)
+/// - Cross-container drag-drop
+/// - Scroll-to-rotate during drag
+///
+/// NOT FOR EQUIPMENT SLOTS:
+/// - Use EquipmentSlotNode for weapon/armor/ring slots (swap-only, centered sprites)
 /// </remarks>
-public partial class SpatialInventoryContainerNode : Control
+public partial class InventoryContainerNode : Control
 {
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // GODOT SIGNALS
@@ -70,7 +75,7 @@ public partial class SpatialInventoryContainerNode : Control
     public TileSet? ItemTileSet { get; set; }
 
     private IMediator _mediator = null!;
-    private ILogger<SpatialInventoryContainerNode> _logger = null!;
+    private ILogger<InventoryContainerNode> _logger = null!; // TD_003 Phase 3: Updated for renamed class
     private TileSet? _itemTileSet;
 
     // Grid state
@@ -98,9 +103,7 @@ public partial class SpatialInventoryContainerNode : Control
     private Control? _dragPreviewNode = null; // Custom drag preview that we can update
     private TextureRect? _dragPreviewSprite = null; // Sprite inside preview for rotation updates
 
-    // TileSet atlas coordinates for drag highlight sprites
-    private static readonly Vector2I HIGHLIGHT_GREEN_COORDS = new(1, 6);
-    private static readonly Vector2I HIGHLIGHT_RED_COORDS = new(1, 7);
+    // TD_003 Phase 3: Highlight constants moved to InventoryRenderHelper (DRY)
 
     // UI nodes
     private Label? _titleLabel;
@@ -118,11 +121,11 @@ public partial class SpatialInventoryContainerNode : Control
 
         // Resolve logger
         var loggerResult = Darklands.Core.Infrastructure.DependencyInjection.ServiceLocator
-            .GetService<ILogger<SpatialInventoryContainerNode>>();
+            .GetService<ILogger<InventoryContainerNode>>();
 
         if (loggerResult.IsFailure)
         {
-            GD.PrintErr("[SpatialInventoryContainerNode] Failed to resolve logger");
+            GD.PrintErr("[InventoryContainerNode] Failed to resolve logger");
             return;
         }
 
@@ -477,30 +480,11 @@ public partial class SpatialInventoryContainerNode : Control
         var itemId = new ItemId(itemIdGuid);
         var sourceActorId = new ActorId(sourceActorIdGuid);
 
-        // Check if this is a SWAP operation (equipment slot with occupied position)
-        bool isOccupied = _itemsAtPositions.TryGetValue(targetPos.Value, out var targetItemId);
-        bool isEquipmentSlot = _containerType == ContainerType.WeaponOnly;
+        // TD_003 Phase 3: Inventory containers always do regular moves (swap logic moved to EquipmentSlotNode)
+        _logger.LogInformation("Drop confirmed: Moving item {ItemId} to ({X}, {Y}) with rotation {Rotation}",
+            itemId, targetPos.Value.X, targetPos.Value.Y, dropRotation);
 
-        if (isOccupied && isEquipmentSlot)
-        {
-            // SAFE SWAP: Validate + Remove + Place with rollback on failure
-            var sourceX = dragData["sourceX"].AsInt32();
-            var sourceY = dragData["sourceY"].AsInt32();
-            var sourcePos = new GridPosition(sourceX, sourceY);
-
-            _logger.LogInformation("Initiating safe swap: {ItemA} ↔ {ItemB} with rotation {Rotation}",
-                itemId, targetItemId, dropRotation);
-
-            SwapItemsSafeAsync(sourceActorId, itemId, sourcePos, OwnerActorId!.Value, targetItemId, targetPos.Value, dropRotation);
-        }
-        else
-        {
-            // REGULAR MOVE: Position is free
-            _logger.LogInformation("Drop confirmed: Moving item {ItemId} to ({X}, {Y}) with rotation {Rotation}",
-                itemId, targetPos.Value.X, targetPos.Value.Y, dropRotation);
-
-            MoveItemAsync(sourceActorId, itemId, targetPos.Value, dropRotation);
-        }
+        MoveItemAsync(sourceActorId, itemId, targetPos.Value, dropRotation);
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -862,45 +846,14 @@ public partial class SpatialInventoryContainerNode : Control
                     Region = region
                 };
 
-                // Equipment slot scaling: Scale sprite to fit 1×1 cell
-                float containerWidth, containerHeight;
-                float textureWidth, textureHeight;
-                float texturePosX, texturePosY;
-
-                if (renderPosResult.IsSuccess && renderPosResult.Value.ShouldCenterInSlot)
-                {
-                    // EQUIPMENT SLOT: Scale sprite to fit cell, preserve aspect ratio
-                    // Get actual texture dimensions from atlas region
-                    float actualTextureWidth = region.Size.X;
-                    float actualTextureHeight = region.Size.Y;
-
-                    // Calculate scale to fit in CellSize (preserve aspect ratio)
-                    float scale = Math.Min(CellSize / actualTextureWidth, CellSize / actualTextureHeight);
-
-                    textureWidth = actualTextureWidth * scale;
-                    textureHeight = actualTextureHeight * scale;
-
-                    // Container is 1×1 cell
-                    containerWidth = CellSize;
-                    containerHeight = CellSize;
-
-                    // Center texture in container
-                    texturePosX = (CellSize - textureWidth) / 2f;
-                    texturePosY = (CellSize - textureHeight) / 2f;
-
-                    _logger.LogDebug("Equipment slot {ItemId}: texture {TW}×{TH} scaled to {SW}×{SH} (scale: {Scale:F2})",
-                        itemId, actualTextureWidth, actualTextureHeight, textureWidth, textureHeight, scale);
-                }
-                else
-                {
-                    // REGULAR INVENTORY: Use effective dimensions (no scaling)
-                    containerWidth = effectiveSpriteWidth;
-                    containerHeight = effectiveSpriteHeight;
-                    textureWidth = baseSpriteWidth;
-                    textureHeight = baseSpriteHeight;
-                    texturePosX = (effectiveSpriteWidth - baseSpriteWidth) / 2f;
-                    texturePosY = (effectiveSpriteHeight - baseSpriteHeight) / 2f;
-                }
+                // TD_003 Phase 3: Inventory grids use effective dimensions (no equipment slot scaling)
+                // Equipment slot scaling moved to EquipmentSlotNode component
+                float containerWidth = effectiveSpriteWidth;
+                float containerHeight = effectiveSpriteHeight;
+                float textureWidth = baseSpriteWidth;
+                float textureHeight = baseSpriteHeight;
+                float texturePosX = (effectiveSpriteWidth - baseSpriteWidth) / 2f;
+                float texturePosY = (effectiveSpriteHeight - baseSpriteHeight) / 2f;
 
                 var textureContainer = new Control
                 {
@@ -924,7 +877,7 @@ public partial class SpatialInventoryContainerNode : Control
                     Size = new Vector2(textureWidth, textureHeight),
                     Position = new Vector2(texturePosX, texturePosY),
                     MouseFilter = MouseFilterEnum.Ignore,
-                    Rotation = renderPosResult.IsSuccess && renderPosResult.Value.ShouldCenterInSlot ? 0 : RotationHelper.ToRadians(rotation),
+                    Rotation = RotationHelper.ToRadians(rotation), // TD_003 Phase 3: Always apply rotation (no equipment suppression)
                     PivotOffset = new Vector2(textureWidth / 2f, textureHeight / 2f),
                     ZIndex = 100
                 };
@@ -1004,6 +957,7 @@ public partial class SpatialInventoryContainerNode : Control
 
     /// <summary>
     /// Renders green/red highlight sprites showing where multi-cell item would be placed (Phase 4: L-shape support).
+    /// TD_003 Phase 3: Uses InventoryRenderHelper for highlight creation (DRY).
     /// </summary>
     /// <param name="origin">Top-left position where item would be placed</param>
     /// <param name="itemId">Item being dragged (to get shape)</param>
@@ -1016,20 +970,6 @@ public partial class SpatialInventoryContainerNode : Control
 
         // Clear previous highlights
         ClearDragHighlights();
-
-        var atlasSource = _itemTileSet.GetSource(0) as TileSetAtlasSource;
-        if (atlasSource == null)
-            return;
-
-        // Get highlight tile coords from TileSet
-        var highlightCoords = isValid ? HIGHLIGHT_GREEN_COORDS : HIGHLIGHT_RED_COORDS;
-        var region = atlasSource.GetTileTextureRegion(highlightCoords);
-
-        var atlasTexture = new AtlasTexture
-        {
-            Atlas = atlasSource.Texture,
-            Region = region
-        };
 
         // TD_004 Phase 2: Delegate to Core for highlight cell calculation
         // Core handles: shape rotation, equipment slot override, L-shape support
@@ -1049,7 +989,7 @@ public partial class SpatialInventoryContainerNode : Control
 
         var highlightCells = highlightResult.Value;
 
-        // Render highlight sprite for ONLY occupied cells (Core provides absolute positions)
+        // TD_003 Phase 3: Use InventoryRenderHelper for highlight sprite creation
         int separationX = 2;
         int separationY = 2;
 
@@ -1058,23 +998,19 @@ public partial class SpatialInventoryContainerNode : Control
             float pixelX = cellPos.X * (CellSize + separationX);
             float pixelY = cellPos.Y * (CellSize + separationY);
 
-            var highlight = new TextureRect
-            {
-                Name = $"Highlight_{cellPos.X}_{cellPos.Y}",
-                Texture = atlasTexture,
-                TextureFilter = CanvasItem.TextureFilterEnum.Nearest,
-                StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
-                ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
-                CustomMinimumSize = new Vector2(CellSize, CellSize),
-                Position = new Vector2(pixelX, pixelY),
-                MouseFilter = MouseFilterEnum.Ignore,
-                // PHASE 3 FIX: Extreme transparency (0.25 = 25% opacity) - pragmatic solution
-                // WHY: Can't fix z-order reliably, so make highlights barely visible
-                // Trade-off: Faint glow, but items always clearly visible
-                Modulate = new Color(1, 1, 1, 0.25f)
-            };
+            // Use helper to create highlight (0.25 opacity for faint glow)
+            var highlight = Inventory.InventoryRenderHelper.CreateHighlight(
+                isValid,
+                _itemTileSet,
+                CellSize,
+                opacity: 0.25f); // Extreme transparency - pragmatic z-order solution
 
-            _highlightOverlayContainer.AddChild(highlight);
+            if (highlight != null)
+            {
+                highlight.Name = $"Highlight_{cellPos.X}_{cellPos.Y}";
+                highlight.Position = new Vector2(pixelX, pixelY);
+                _highlightOverlayContainer.AddChild(highlight);
+            }
         }
     }
 
@@ -1094,47 +1030,7 @@ public partial class SpatialInventoryContainerNode : Control
         }
     }
 
-    /// <summary>
-    /// Swaps two items atomically using Core's SwapItemsCommand.
-    /// WHY: Delegates business logic to Core (TD_004 Leak #5 - eliminates 78 lines of Presentation logic).
-    /// </summary>
-    /// <remarks>
-    /// REPLACED BY CORE: SwapItemsCommand handles all swap logic with rollback safety.
-    /// Presentation just calls command and refreshes UI.
-    /// </remarks>
-    private async void SwapItemsSafeAsync(
-        ActorId sourceActorId,
-        ItemId sourceItemId,
-        GridPosition sourcePos,
-        ActorId targetActorId,
-        ItemId targetItemId,
-        GridPosition targetPos,
-        Rotation rotation) // PHASE 3: Rotation for dragged item
-    {
-        _logger.LogInformation("SWAP: Delegating to Core SwapItemsCommand");
-
-        var command = new SwapItemsCommand(
-            sourceActorId,
-            sourceItemId,
-            sourcePos,
-            targetActorId,
-            targetItemId, // Core command uses nullable ItemId, always provided for swap
-            targetPos,
-            rotation);
-
-        var result = await _mediator.Send(command);
-
-        if (result.IsFailure)
-        {
-            _logger.LogError("SWAP FAILED: {Error}", result.Error);
-            // Core already rolled back, just refresh UI
-            EmitSignal(SignalName.InventoryChanged);
-            return;
-        }
-
-        _logger.LogInformation("SWAP COMPLETED");
-        EmitSignal(SignalName.InventoryChanged);
-    }
+    // TD_003 Phase 3: SwapItemsSafeAsync removed - swap logic now in EquipmentSlotNode component
 
     private async void MoveItemAsync(ActorId sourceActorId, ItemId itemId, GridPosition targetPos, Rotation rotation)
     {

@@ -53,8 +53,9 @@ public partial class SpatialInventoryTestController : Control
     private ActorId _weaponSlotActorId = ActorId.NewId();
 
     // Container references (for cross-container refresh)
-    private Components.SpatialInventoryContainerNode? _backpackANode;
-    private Components.SpatialInventoryContainerNode? _backpackBNode;
+    // TD_003 Phase 3: Use renamed InventoryContainerNode for Tetris grids
+    private Components.Inventory.InventoryContainerNode? _backpackANode;
+    private Components.Inventory.InventoryContainerNode? _backpackBNode;
     private Components.Inventory.EquipmentSlotNode? _weaponSlotNode; // TD_003 Phase 1: Use dedicated equipment slot component
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -263,8 +264,8 @@ public partial class SpatialInventoryTestController : Control
         var backpackBPlaceholder = GetNode<Control>("VBoxContainer/ContainersRow/BackpackB");
         var weaponSlotPlaceholder = GetNode<Control>("VBoxContainer/ContainersRow/WeaponSlot");
 
-        // Create and attach Backpack A container
-        _backpackANode = new Components.SpatialInventoryContainerNode
+        // Create and attach Backpack A container (TD_003 Phase 3: InventoryContainerNode for Tetris grids)
+        _backpackANode = new Components.Inventory.InventoryContainerNode
         {
             OwnerActorId = _backpackAActorId,
             ContainerTitle = "Backpack A",
@@ -275,8 +276,8 @@ public partial class SpatialInventoryTestController : Control
         _backpackANode.InventoryChanged += OnInventoryChanged;
         backpackAPlaceholder.AddChild(_backpackANode);
 
-        // Create and attach Backpack B container
-        _backpackBNode = new Components.SpatialInventoryContainerNode
+        // Create and attach Backpack B container (TD_003 Phase 3: InventoryContainerNode for Tetris grids)
+        _backpackBNode = new Components.Inventory.InventoryContainerNode
         {
             OwnerActorId = _backpackBActorId,
             ContainerTitle = "Backpack B",
