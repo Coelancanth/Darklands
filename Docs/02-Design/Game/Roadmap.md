@@ -90,58 +90,89 @@ Phase 4: Emergent Narrative (3-4 months)
 
 ---
 
-### VS_007: Smart Movement Interruption ⭐ **PLANNED**
+### VS_007: Time-Unit Turn Queue System ⭐ **PLANNED**
 
-**Status**: Proposed (depends on VS_006 completion)
-**Owner**: Product Owner → Tech Lead (for breakdown)
-**Size**: M (4-6h)
-**Priority**: Important (UX polish for core mechanic)
-**Depends On**: VS_006 (Interactive Movement - manual cancellation foundation)
+**Status**: Proposed | **Size**: L (2-3 days) | **Owner**: Product Owner → Tech Lead
+**Depends On**: VS_005 (FOV events), VS_006 (Movement cancellation)
 
-**What**: Auto-interrupt movement when tactical situations change (enemy spotted in FOV, trap/loot discovered, dangerous terrain)
+**What**: Time-unit turn scheduling that distinguishes exploration (auto-movement) from combat (single-step tactical movement)
 
-**Why**:
-- **Safety**: Prevent walking into danger (enemy appears → stop immediately)
-- **Discovery**: Don't walk past important items (loot, traps require investigation)
-- **Roguelike Standard**: NetHack, DCSS, Cogmind all auto-stop on enemy detection
-- **Tactical Awareness**: Game alerts player to changing battlefield conditions
+**Why**: Core Vision.md pillar (weapon speed, armor penalties, action costs). Turn queue size = combat state. Enemy detection → schedule enemy → queue grows → auto-movement cancels.
 
-**How** (4-Phase Implementation):
-- **Phase 1 (Domain)**: Minimal (reuse existing Position, ActorId)
-- **Phase 2 (Application)**: `IMovementStateService` to track active movements, `InterruptMovementCommand`
-- **Phase 3 (Infrastructure)**: Movement state tracking (in-memory), interruption policy engine
-- **Phase 4 (Presentation)**:
-  - Subscribe to `FOVCalculatedEvent` → detect new enemies → trigger interruption
-  - UI prompt: "Enemy spotted! Continue moving? [Y/N]" (optional auto-resume)
-  - Animation cleanup: Stop Tween gracefully when interrupted
-
-**Interruption Triggers**:
-1. **Enemy Detection** (Critical): New enemy appears in FOV → pause movement, alert player
-2. **Discovery Events** (Important): Step on tile reveals loot/trap → pause for investigation
-3. **Dangerous Terrain** (Future): About to enter fire/acid → confirm before proceeding
+**How**:
+- **Phase 1**: `TurnQueue` aggregate, `TimeUnits` value object, `ScheduledActor` record
+- **Phase 2**: `ScheduleActorCommand`, `IsInCombatQuery`, `EnemyDetectionEventHandler` (FOV→queue), `CombatModeDetectedEventHandler` (cancel movement)
+- **Phase 3**: `TurnQueueService` (in-memory queue + cancellation tokens)
+- **Phase 4**: Input routing (`IsInCombat()` → auto-path OR single-step)
 
 **Scope**:
-- ✅ Auto-pause when enemy enters FOV during movement
-- ✅ UI confirmation prompt ("Continue? [Y/N]")
-- ✅ Clean animation stop (no mid-tile glitches)
-- ✅ Movement state service tracks active paths
-- ❌ Memory of "last seen enemy position" (AI feature, not movement)
-- ❌ Configurable interruption settings (add in settings VS later)
+- ✅ Priority queue by time, relative time model (resets per combat), player-first ties, duplicate prevention, dynamic reinforcements
+- ❌ Enemy AI (just schedule), variable action costs (all 100 units), turn UI visualization
 
-**Done When**:
-- ✅ Walking across map → enemy appears in FOV → movement stops automatically
-- ✅ Prompt appears: "Goblin spotted! Continue moving? [Y/N]"
-- ✅ Player presses Y → resumes path, N → cancels remaining movement
-- ✅ Animation stops cleanly at current tile (no visual glitches)
-- ✅ Manual test: Walk toward hidden enemy behind smoke → movement stops when smoke clears and enemy visible
-- ✅ Code review: FOVCalculatedEvent subscriber triggers interruption (event-driven, no polling)
+**Example Scenario** (Exploration → Combat → Reinforcement → Victory):
+```
+1. Player clicks distant tile → auto-path starts (exploration mode, time=N/A)
+2. Step 3: Goblin appears in FOV → auto-path cancelled (combat starts, time=0)
+   Queue: [Player@0, Goblin@0] → Player acts first (tie-breaking)
+3. Player moves 1 step (costs 100) → Player@100, Goblin@0
+4. Goblin attacks (costs 150) → Goblin@150, Player@100
+5. Player moves → Orc appears in FOV (reinforcement!)
+   Queue: [Orc@100, Player@200, Goblin@150] → Orc acts next (just appeared)
+6. Orc attacks (costs 150) → Orc@250
+7. Player defeats Goblin → removed from queue
+8. Player defeats Orc → queue=[Player] → combat ends (time resets)
+9. Next click resumes auto-path (exploration mode)
+```
 
-**Architecture Integration**:
-- Builds on VS_006's `CancellationToken` foundation (manual cancel becomes "interruption trigger")
-- `MoveAlongPathCommand` already respects cancellation → just need external trigger
-- Event-driven: `FOVCalculatedEvent` → Check for new enemies → Call `InterruptMovementCommand`
+**Done When**: Scenario above works end-to-end. Zero changes to existing handlers.
 
-**Phase**: All 4 phases (Domain minimal, Application + Infrastructure core, Presentation UI prompts)
+---
+
+### VS_011: Enemy AI & Vision System 🔮 **FUTURE**
+
+**Status**: Planned (depends on VS_007)
+**Owner**: Product Owner → Tech Lead (for breakdown)
+**Size**: L (2-3 days, all 4 phases)
+**Priority**: Important (enables asymmetric combat, ambushes)
+**Depends On**: VS_007 (Turn Queue System - provides scheduling infrastructure)
+
+**What**: Enemy FOV calculation, asymmetric vision (enemy sees you before you see them), basic AI decision-making (move toward player, attack when in range)
+
+**Why**:
+- **Ambush mechanics**: Enemies can detect player around corners, initiate combat first
+- **Tactical depth**: Player must consider enemy patrol patterns and vision cones
+- **AI foundation**: Enemies make autonomous decisions (move, attack, flee)
+- **Reuses VS_007**: Parallel detection (PlayerDetectionEventHandler mirrors EnemyDetectionEventHandler)
+
+**How**:
+- **Phase 1**: Enemy perception attributes (vision radius, awareness zones)
+- **Phase 2**: `PlayerDetectionEventHandler` (subscribes to enemy FOV events), `DecideEnemyActionQuery` (AI decision tree)
+- **Phase 3**: Enemy FOV calculation (triggered by awareness zones), AI behavior states (passive, alerted, combat)
+- **Phase 4**: Enemy activation zones (distance-based), enemy turn execution (move toward player OR attack)
+
+**Scope**:
+- ✅ Enemy FOV calculation (when within awareness radius of player)
+- ✅ PlayerDetectionEventHandler (enemy sees player → schedule enemy)
+- ✅ Asymmetric combat (enemy detects first, player discovers on move)
+- ✅ Basic AI (move toward player if not adjacent, attack if adjacent)
+- ✅ Awareness zones (only nearby enemies calculate FOV for performance)
+- ❌ Advanced AI (flanking, kiting, cover usage - future)
+- ❌ Behavior trees (simple decision tree for MVP)
+- ❌ Patrol patterns (enemies stationary until activated)
+
+**Example Scenario** (Ambush):
+```
+1. Player auto-paths down hallway (exploration mode)
+2. Orc around corner (15 tiles away) - passive, not calculating FOV
+3. Player reaches 10 tiles from Orc → enters awareness zone
+4. Orc FOV calculated → Player visible → ScheduleActorCommand(Orc)
+5. Combat starts (queue = [Player, Orc]), auto-path cancels
+6. Player doesn't see Orc yet (wall blocks player FOV)
+7. Player moves 1 step → FOV updates → NOW sees Orc ("Orc ambushes you!")
+8. Orc's turn → DecideEnemyActionQuery → Move toward player
+```
+
+**Done When**: Scenario above works. Enemies detect player independently. Basic AI (approach + attack). Zero refactoring of VS_007 turn queue (event-driven addition).
 
 ---
 

@@ -16,7 +16,7 @@ namespace Darklands.Core.Tests.Infrastructure.Events;
 /// CRITICAL: Validates open generic registration doesn't cause type resolution bugs.
 /// User specifically requested tests for MediatR autoscan edge cases.
 /// </summary>
-[Trait("Category", "Phase2")]
+[Trait("Category", "Infrastructure")]
 public class UIEventForwarderTests
 {
     [Fact]

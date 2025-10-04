@@ -12,7 +12,7 @@ namespace Darklands.Core.Tests.Application.Infrastructure;
 /// Category: Phase1 for VS_002 implementation gates.
 /// Collection: GameStrapperCollection prevents parallel execution (shared static state)
 /// </summary>
-[Trait("Category", "Phase1")]
+[Trait("Category", "Infrastructure")]
 [Collection("GameStrapperCollection")]
 public class GameStrapperTests
 {

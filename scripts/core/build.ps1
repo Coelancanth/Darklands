@@ -5,7 +5,10 @@
 param(
     [Parameter(Position=0)]
     [ValidateSet('build', 'test', 'test-only', 'clean', 'run', 'all')]
-    [string]$Command = 'build'
+    [string]$Command = 'build',
+
+    [Parameter(Position=1)]
+    [string]$Filter = $null
 )
 
 $ErrorActionPreference = "Stop"
@@ -61,18 +64,36 @@ switch ($Command) {
         Execute-Command "$BuildCommand $GodotProject --configuration Debug"
         Write-Host "✓ Build successful" -ForegroundColor Green
         Write-Step "Running tests"
-        Execute-Command "$TestCommand $TestProject --configuration Debug --verbosity normal"
+
+        $testCmd = "$TestCommand $TestProject --configuration Debug --verbosity normal"
+        if ($Filter) {
+            $testCmd += " --filter `"$Filter`""
+            Write-Host "  Filter: $Filter" -ForegroundColor Yellow
+        }
+        Execute-Command $testCmd
+
         Write-Host "✓ Build and test complete - safe to commit" -ForegroundColor Green
-        Write-Host "  💡 Tip: Phase-specific tests: add --filter `"Category=Phase1`" (or Phase2/3/4)" -ForegroundColor DarkGray
+        if (-not $Filter) {
+            Write-Host "  💡 Tip: Feature-specific tests: ./scripts/core/build.ps1 test `"Category=Combat`"" -ForegroundColor DarkGray
+        }
     }
 
     'test-only' {
         Write-Step "Running tests only (development iteration)"
         Write-Host "  ⚠️  Note: This doesn't validate Godot compilation" -ForegroundColor Yellow
-        Execute-Command "$TestCommand $TestProject --configuration Debug --verbosity normal --no-build"
+
+        $testCmd = "$TestCommand $TestProject --configuration Debug --verbosity normal --no-build"
+        if ($Filter) {
+            $testCmd += " --filter `"$Filter`""
+            Write-Host "  Filter: $Filter" -ForegroundColor Yellow
+        }
+        Execute-Command $testCmd
+
         Write-Host "✓ All tests passed" -ForegroundColor Green
         Write-Host "  Remember to run 'test' (not 'test-only') before committing!" -ForegroundColor Yellow
-        Write-Host "  💡 Tip: Phase-specific: add --filter `"Category=Phase1`" (or Phase2/3/4)" -ForegroundColor DarkGray
+        if (-not $Filter) {
+            Write-Host "  💡 Tip: Feature-specific: ./scripts/core/build.ps1 test-only `"Category=Combat`"" -ForegroundColor DarkGray
+        }
     }
 
     'run' {

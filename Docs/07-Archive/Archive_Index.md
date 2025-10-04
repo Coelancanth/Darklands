@@ -1,19 +1,20 @@
 # Backlog Archive Index
 
-**Last Updated**: 2025-10-04 14:15
-**Current Active Archive**: Completed_Backlog_2025-10_Part2.md (Lines: 242/1000)
+**Last Updated**: 2025-10-04 19:35
+**Current Active Archive**: Completed_Backlog_2025-10_Part2.md (Lines: 704/1000)
 
 ## Archive Files (Newest First)
 
 ### Completed_Backlog_2025-10_Part2.md (✅ ACTIVE - October 2025 Part 3)
 - **Created**: 2025-10-04 14:15 (after rotation)
-- **Line Count**: 242/1000
+- **Line Count**: 704/1000
 - **Date Range**: 2025-10-04 to 2025-10-04
 - **Status**: ✅ Active (accepting new items)
-- **Extraction Status**: 0/1 extracted (1 NOT EXTRACTED ⚠️)
+- **Extraction Status**: 0/2 extracted (2 NOT EXTRACTED ⚠️)
 
 **Items**:
 - **TD_003**: Separate Equipment Slots from Spatial Inventory Container (EquipmentSlotNode 646 lines, InventoryRenderHelper 256 lines, renamed InventoryContainerNode, 359 tests GREEN) [NOT EXTRACTED ⚠️]
+- **VS_007**: Time-Unit Turn Queue System (4-phase implementation, 49 new tests, 6 follow-ups complete: vision constants, FOV-based combat exit, movement cost 10 units, production log formatting) [NOT EXTRACTED ⚠️]
 
 ### Completed_Backlog_2025-10.md (🔒 SEALED - October 2025 Part 2)
 - **Created**: 2025-10-02 12:17 (after rotation)
@@ -71,5 +72,5 @@
 2. Open that specific archive file (newest first: Completed_Backlog_2025-10_Part2.md)
 3. Use Ctrl+F to search for item ID
 
-**Current Active Capacity**: 242/1000 lines (758 lines remaining)
-**Total Archived Items**: 22 (19 in Oct 2025, 3 in Sept 2025)
+**Current Active Capacity**: 704/1000 lines (296 lines remaining)
+**Total Archived Items**: 23 (20 in Oct 2025, 3 in Sept 2025)

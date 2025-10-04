@@ -1,5 +1,8 @@
 using CSharpFunctionalExtensions;
 using Darklands.Core.Domain.Common;
+using Darklands.Core.Features.Combat.Application;
+using Darklands.Core.Features.Combat.Application.Queries;
+using Darklands.Core.Features.Combat.Domain;
 using Darklands.Core.Features.Grid.Application.Commands;
 using Darklands.Core.Features.Grid.Application.Queries;
 using Darklands.Core.Features.Grid.Application.Services;
@@ -13,7 +16,7 @@ using Xunit;
 
 namespace Darklands.Core.Tests.Features.Grid.Application.Commands;
 
-[Trait("Category", "Phase2")]
+[Trait("Category", "Grid")]
 [Trait("Category", "Unit")]
 public class MoveActorCommandHandlerTests
 {
@@ -21,6 +24,7 @@ public class MoveActorCommandHandlerTests
     private readonly IActorPositionService _mockPositionService;
     private readonly IMediator _mockMediator;
     private readonly IGodotEventBus _mockEventBus;
+    private readonly ITurnQueueRepository _mockTurnQueue;
     private readonly ILogger<MoveActorCommandHandler> _mockLogger;
     private readonly MoveActorCommandHandler _handler;
 
@@ -30,6 +34,7 @@ public class MoveActorCommandHandlerTests
         _mockPositionService = Substitute.For<IActorPositionService>();
         _mockMediator = Substitute.For<IMediator>();
         _mockEventBus = Substitute.For<IGodotEventBus>();
+        _mockTurnQueue = Substitute.For<ITurnQueueRepository>();
         _mockLogger = Substitute.For<ILogger<MoveActorCommandHandler>>();
 
         // Setup default FOV query response (success with empty set)
@@ -37,7 +42,12 @@ public class MoveActorCommandHandlerTests
             .Send(Arg.Any<CalculateFOVQuery>(), Arg.Any<CancellationToken>())
             .Returns(Result.Success<HashSet<Position>>(new HashSet<Position>()));
 
-        _handler = new MoveActorCommandHandler(_gridMap, _mockPositionService, _mockMediator, _mockEventBus, _mockLogger);
+        // Setup default IsInCombat query response (exploration mode)
+        _mockMediator
+            .Send(Arg.Any<IsInCombatQuery>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success(false));
+
+        _handler = new MoveActorCommandHandler(_gridMap, _mockPositionService, _mockMediator, _mockEventBus, _mockTurnQueue, _mockLogger);
     }
 
     #region Valid Movement Tests

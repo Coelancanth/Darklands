@@ -4,7 +4,7 @@ using Xunit;
 
 namespace Darklands.Core.Tests.Domain.Common;
 
-[Trait("Category", "Phase1")]
+[Trait("Category", "Common")]
 public class ItemShapeTests
 {
     [Fact]

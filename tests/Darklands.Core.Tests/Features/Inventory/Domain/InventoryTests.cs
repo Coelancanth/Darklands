@@ -6,7 +6,7 @@ using InventoryId = Darklands.Core.Features.Inventory.Domain.InventoryId;
 
 namespace Darklands.Core.Tests.Features.Inventory.Domain;
 
-[Trait("Category", "Phase1")]
+[Trait("Category", "Inventory")]
 [Trait("Category", "Unit")]
 public class InventoryTests
 {

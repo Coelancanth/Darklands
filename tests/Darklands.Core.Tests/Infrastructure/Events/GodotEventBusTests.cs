@@ -13,7 +13,7 @@ namespace Darklands.Core.Tests.Infrastructure.Events;
 /// NOTE: GodotEventBus implementation (with Godot.CallDeferred) is tested manually in Phase 3.
 /// These tests verify the interface contract using a mock implementation.
 /// </summary>
-[Trait("Category", "Phase2")]
+[Trait("Category", "Infrastructure")]
 public class GodotEventBusTests
 {
     [Fact]

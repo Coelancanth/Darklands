@@ -1,4 +1,7 @@
 using CSharpFunctionalExtensions;
+using Darklands.Core.Features.Combat.Application;
+using Darklands.Core.Features.Combat.Application.Queries;
+using Darklands.Core.Features.Combat.Domain;
 using Darklands.Core.Features.Grid.Application.Queries;
 using Darklands.Core.Features.Grid.Application.Services;
 using Darklands.Core.Features.Grid.Domain;
@@ -23,6 +26,7 @@ public class MoveActorCommandHandler : IRequestHandler<MoveActorCommand, Result>
     private readonly IActorPositionService _actorPositionService;
     private readonly IMediator _mediator;
     private readonly IGodotEventBus _eventBus;
+    private readonly ITurnQueueRepository _turnQueue;
     private readonly ILogger<MoveActorCommandHandler> _logger;
 
     public MoveActorCommandHandler(
@@ -30,12 +34,14 @@ public class MoveActorCommandHandler : IRequestHandler<MoveActorCommand, Result>
         IActorPositionService actorPositionService,
         IMediator mediator,
         IGodotEventBus eventBus,
+        ITurnQueueRepository turnQueue,
         ILogger<MoveActorCommandHandler> logger)
     {
         _gridMap = gridMap;
         _actorPositionService = actorPositionService;
         _mediator = mediator;
         _eventBus = eventBus;
+        _turnQueue = turnQueue;
         _logger = logger;
     }
 
@@ -98,9 +104,9 @@ public class MoveActorCommandHandler : IRequestHandler<MoveActorCommand, Result>
             request.TargetPosition.Y);
 
         // Calculate FOV for new position
-        const int visionRadius = 8; // TODO: Make this configurable per actor
+        // TODO: Replace with per-actor vision (VisionConstants → GetActorVisionRadiusQuery when implementing racial bonuses)
         var fovResult = await _mediator.Send(
-            new CalculateFOVQuery(request.TargetPosition, visionRadius),
+            new CalculateFOVQuery(request.TargetPosition, VisionConstants.DefaultVisionRadius),
             cancellationToken);
 
         if (fovResult.IsFailure)
@@ -119,11 +125,91 @@ public class MoveActorCommandHandler : IRequestHandler<MoveActorCommand, Result>
 
         if (fovResult.IsSuccess)
         {
+            // Dual publishing: FOVCalculatedEvent goes to BOTH buses
+            // GodotEventBus → Presentation layer (UI subscribers: FOV overlay, test scenes)
             await _eventBus.PublishAsync(new FOVCalculatedEvent(request.ActorId, fovResult.Value));
+
+            // MediatR → Application layer (business logic: EnemyDetectionEventHandler)
+            await _mediator.Publish(new FOVCalculatedEvent(request.ActorId, fovResult.Value));
+
             _logger.LogDebug(
                 "FOV calculated for actor {ActorId}: {VisibleCount} positions visible",
                 request.ActorId,
                 fovResult.Value.Count);
+        }
+
+        // Advance turn time if in combat mode (exploration movement is instant)
+        var isInCombatQuery = new IsInCombatQuery();
+        var isInCombatResult = await _mediator.Send(isInCombatQuery, cancellationToken);
+
+        if (isInCombatResult.IsSuccess && isInCombatResult.Value)
+        {
+            // In combat - movement costs time
+            var queueResult = await _turnQueue.GetAsync(cancellationToken);
+
+            if (queueResult.IsSuccess)
+            {
+                var queue = queueResult.Value;
+                var scheduledActor = queue.ScheduledActors
+                    .FirstOrDefault(a => a.ActorId == request.ActorId);
+
+                if (scheduledActor.ActorId != default)
+                {
+                    // Calculate new action time: current time + movement cost
+                    var currentTime = scheduledActor.NextActionTime;
+                    var newActionTimeResult = currentTime.Add(TimeUnits.MovementCost);
+
+                    if (newActionTimeResult.IsFailure)
+                    {
+                        _logger.LogWarning(
+                            "Failed to calculate new action time for {ActorId}: {Error}",
+                            request.ActorId,
+                            newActionTimeResult.Error);
+                        return Result.Success(); // Move succeeded, just skip time advancement
+                    }
+
+                    var newActionTime = newActionTimeResult.Value;
+                    var rescheduleResult = queue.Reschedule(request.ActorId, newActionTime);
+
+                    if (rescheduleResult.IsSuccess)
+                    {
+                        await _turnQueue.SaveAsync(queue, cancellationToken);
+
+                        _logger.LogInformation(
+                            "Combat turn: {ActorId} moved (time: {OldTime} -> {NewTime}, cost: {Cost})",
+                            request.ActorId,
+                            currentTime,
+                            newActionTime,
+                            TimeUnits.MovementCost);
+                    }
+                    else
+                    {
+                        _logger.LogWarning(
+                            "Failed to reschedule actor {ActorId} after movement: {Error}",
+                            request.ActorId,
+                            rescheduleResult.Error);
+                    }
+                }
+                else
+                {
+                    _logger.LogDebug(
+                        "Actor {ActorId} not in turn queue (combat started mid-move?), skipping time advancement",
+                        request.ActorId);
+                }
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "Failed to get turn queue for time advancement: {Error}",
+                    queueResult.Error);
+            }
+        }
+        else
+        {
+            // Exploration mode - movement is instant (no time cost)
+            _logger.LogDebug(
+                "Exploration mode: Movement for {ActorId} is instant (no time cost)",
+                request.ActorId);
         }
 
         return Result.Success();

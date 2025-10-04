@@ -10,7 +10,7 @@ namespace Darklands.Core.Tests.Features.Grid.Infrastructure;
 /// Tests for ShadowcastingFOVService - Phase 3 Infrastructure layer.
 /// Verifies custom shadowcasting implementation with REAL terrain opacity checks.
 /// </summary>
-[Trait("Category", "Phase3")]
+[Trait("Category", "Grid")]
 [Trait("Category", "Unit")]
 public sealed class ShadowcastingFOVServiceTests
 {

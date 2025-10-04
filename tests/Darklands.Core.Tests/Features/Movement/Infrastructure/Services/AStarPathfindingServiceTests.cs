@@ -9,7 +9,7 @@ using Xunit;
 
 namespace Darklands.Core.Tests.Features.Movement.Infrastructure.Services;
 
-[Trait("Category", "Phase3")]
+[Trait("Category", "Movement")]
 [Trait("Category", "Unit")]
 public class AStarPathfindingServiceTests
 {

@@ -1,0 +1,31 @@
+[gd_scene load_steps=4 format=3 uid="uid://ngwonh3wlic5"]
+
+[ext_resource type="Script" uid="uid://djjhuw13t30c6" path="res://godot_project/test_scenes/TurnQueueTestSceneController.cs" id="1_controller"]
+[ext_resource type="TileSet" uid="uid://ctg8p3ufnuc2d" path="res://assets/grid_tileset.tres" id="2_kyx3r"]
+[ext_resource type="Texture2D" uid="uid://cpjo2p3va4g4k" path="res://assets/micro-roguelike/colored_tilemap.png" id="2_tilemap"]
+
+[node name="TurnQueueTestScene" type="Node2D"]
+script = ExtResource("1_controller")
+
+[node name="TerrainLayer" type="TileMapLayer" parent="."]
+tile_set = ExtResource("2_kyx3r")
+
+[node name="FOVLayer" type="TileMapLayer" parent="."]
+modulate = Color(1, 1, 0.501961, 0.501961)
+tile_set = ExtResource("2_kyx3r")
+
+[node name="Player" type="Sprite2D" parent="."]
+modulate = Color(0, 1, 0, 1)
+position = Vector2(40, 40)
+scale = Vector2(6, 6)
+texture = ExtResource("2_tilemap")
+region_enabled = true
+region_rect = Rect2(0, 0, 8, 8)
+
+[node name="Dummy" type="Sprite2D" parent="."]
+modulate = Color(1, 0, 0, 1)
+position = Vector2(160, 160)
+scale = Vector2(6, 6)
+texture = ExtResource("2_tilemap")
+region_enabled = true
+region_rect = Rect2(0, 0, 8, 8)

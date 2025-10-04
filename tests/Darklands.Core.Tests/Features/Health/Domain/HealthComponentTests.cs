@@ -6,7 +6,7 @@ using HealthValue = Darklands.Core.Domain.Common.Health;
 
 namespace Darklands.Core.Tests.Features.Health.Domain;
 
-[Trait("Category", "Phase1")]
+[Trait("Category", "Health")]
 [Trait("Category", "Unit")]
 public class HealthComponentTests
 {

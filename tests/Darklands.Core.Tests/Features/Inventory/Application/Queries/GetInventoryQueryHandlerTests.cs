@@ -8,7 +8,7 @@ using Xunit;
 
 namespace Darklands.Core.Tests.Features.Inventory.Application.Queries;
 
-[Trait("Category", "Phase2")]
+[Trait("Category", "Inventory")]
 [Trait("Category", "Unit")]
 public class GetInventoryQueryHandlerTests
 {

@@ -15,7 +15,7 @@ namespace Darklands.Core.Tests.Infrastructure.Events;
 /// CRITICAL: Validates that MediatR.Publish() correctly routes to GodotEventBus.
 /// User requested verification that MediatR autoscan creates correct instances.
 /// </summary>
-[Trait("Category", "Phase2")]
+[Trait("Category", "Infrastructure")]
 public class EventBusIntegrationTests
 {
     [Fact]

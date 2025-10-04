@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-04 14:15 (Backlog Assistant: TD_003 archived - EquipmentSlotNode created, InventoryRenderHelper extracted, InventoryContainerNode cleaned, 3 phases complete)
+**Last Updated**: 2025-10-04 19:25 (Dev Engineer: VS_007 follow-ups COMPLETE ✅ - Vision constant, combat exit, movement cost, log formatting all done)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -81,56 +81,10 @@
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*
 
-### VS_007: Smart Movement Interruption ⭐ **PLANNED**
+**No items in Important section!** ✅
 
-**Status**: Proposed (depends on VS_006 completion)
-**Owner**: Product Owner → Tech Lead (for breakdown)
-**Size**: M (4-6h)
-**Priority**: Important (UX polish for core mechanic)
-**Depends On**: VS_006 (Interactive Movement - manual cancellation foundation)
-
-**What**: Auto-interrupt movement when tactical situations change (enemy spotted in FOV, trap/loot discovered, dangerous terrain)
-
-**Why**:
-- **Safety**: Prevent walking into danger (enemy appears → stop immediately)
-- **Discovery**: Don't walk past important items (loot, traps require investigation)
-- **Roguelike Standard**: NetHack, DCSS, Cogmind all auto-stop on enemy detection
-- **Tactical Awareness**: Game alerts player to changing battlefield conditions
-
-**How** (4-Phase Implementation):
-- **Phase 1 (Domain)**: Minimal (reuse existing Position, ActorId)
-- **Phase 2 (Application)**: `IMovementStateService` to track active movements, `InterruptMovementCommand`
-- **Phase 3 (Infrastructure)**: Movement state tracking (in-memory), interruption policy engine
-- **Phase 4 (Presentation)**:
-  - Subscribe to `FOVCalculatedEvent` → detect new enemies → trigger interruption
-  - Animation cleanup: Stop Tween gracefully when interrupted
-
-**Interruption Triggers**:
-1. **Enemy Detection** (Critical): New enemy appears in FOV → pause movement
-2. **Discovery Events** (Important): Step on tile reveals loot/trap → pause for investigation
-3. **Dangerous Terrain** (Future): About to enter fire/acid → confirm before proceeding
-
-**Scope**:
-- ✅ Auto-pause when enemy enters FOV during movement
-- ✅ Clean animation stop (no mid-tile glitches)
-- ✅ Movement state service tracks active paths
-- ❌ Memory of "last seen enemy position" (AI feature, not movement)
-- ❌ Configurable interruption settings (add in settings VS later)
-
-**Done When**:
-- ✅ Walking across map → enemy appears in FOV → movement stops automatically
-- ✅ Prompt appears: "Goblin spotted! Continue moving? [Y/N]"
-- ✅ Player presses Y → resumes path, N → cancels remaining movement
-- ✅ Animation stops cleanly at current tile (no visual glitches)
-- ✅ Manual test: Walk toward hidden enemy behind smoke → movement stops when smoke clears and enemy visible
-- ✅ Code review: FOVCalculatedEvent subscriber triggers interruption (event-driven, no polling)
-
-**Architecture Integration**:
-- Builds on VS_006's `CancellationToken` foundation (manual cancel becomes "interruption trigger")
-- `MoveAlongPathCommand` already respects cancellation → just need external trigger
-- Event-driven: `FOVCalculatedEvent` → Check for new enemies → Call `InterruptMovementCommand`
-
-**Phase**: All 4 phases (Domain minimal, Application + Infrastructure core, Presentation UI prompts)
+*Recently completed and archived (2025-10-04 19:35):*
+- **VS_007**: Time-Unit Turn Queue System - Complete 4-phase implementation with natural mode detection, 49 new tests GREEN, 6 follow-ups complete. ✅ (2025-10-04 17:38)
 
 ---
 

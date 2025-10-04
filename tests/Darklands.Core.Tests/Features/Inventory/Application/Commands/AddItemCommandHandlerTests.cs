@@ -7,7 +7,7 @@ using Xunit;
 
 namespace Darklands.Core.Tests.Features.Inventory.Application.Commands;
 
-[Trait("Category", "Phase2")]
+[Trait("Category", "Inventory")]
 [Trait("Category", "Unit")]
 public class AddItemCommandHandlerTests
 {

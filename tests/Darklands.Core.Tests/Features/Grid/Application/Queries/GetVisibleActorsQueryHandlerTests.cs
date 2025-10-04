@@ -10,7 +10,7 @@ using Xunit;
 
 namespace Darklands.Core.Tests.Features.Grid.Application.Queries;
 
-[Trait("Category", "Phase2")]
+[Trait("Category", "Grid")]
 [Trait("Category", "Unit")]
 public class GetVisibleActorsQueryHandlerTests
 {

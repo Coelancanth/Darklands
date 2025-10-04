@@ -21,7 +21,7 @@ namespace Darklands.Core.Tests.Features.Item.Infrastructure;
 /// - Phase 3: Contract tests (this file) verify repository behavior patterns
 /// - Phase 4: Manual testing with real TileSet validates Godot integration
 /// </remarks>
-[Trait("Category", "Phase3")]
+[Trait("Category", "Item")]
 [Trait("Category", "Unit")]
 public class ItemRepositoryContractTests
 {
