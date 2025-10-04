@@ -661,13 +661,18 @@ public partial class TurnQueueTestSceneController : Node2D
         var pathString = string.Join(" → ", path.Select(p => $"({p.X},{p.Y})"));
         _logger.LogDebug("Path: {PathString}", pathString);
 
-        // Path preview already visible from hover - just execute movement
+        // Show path preview for the movement (stays visible during execution)
+        ShowPathPreview(path);
+
         // Create cancellation token for this movement
         _movementCancellation = new CancellationTokenSource();
 
         // Execute movement along path and track the task
         _activeMovementTask = ExecuteMovementAsync(actorId, path, target);
         await _activeMovementTask;
+
+        // Clear path preview after movement completes
+        ClearPathPreview();
 
         // Clean up (only if not already cancelled)
         // NOTE: CancelMovementAsync already handles disposal, so check before disposing
@@ -687,9 +692,6 @@ public partial class TurnQueueTestSceneController : Node2D
         var moveResult = await _mediator.Send(
             new MoveAlongPathCommand(actorId, path),
             _movementCancellation!.Token);
-
-        // Clear path preview after movement completes/fails/cancels
-        ClearPathPreview();
 
         if (moveResult.IsFailure)
         {
