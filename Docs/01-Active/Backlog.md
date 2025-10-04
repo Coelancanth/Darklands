@@ -87,18 +87,18 @@
 
 **What**: Replace GridTestScene's ColorRect rendering with TileMapLayer, refactor terrain to use TileSet as SSOT (like VS_009 items catalog), maintain existing test scene layout
 
-**Latest Progress** (2025-10-05 01:21):
+**Latest Progress** (2025-10-05 01:39):
 - ✅ **Phase 1 COMPLETE** - Core refactoring finished, committed [f64c7de]
-  - TerrainDefinition domain model created (immutable record with CanPass/CanSeeThrough)
-  - ITerrainRepository interface + StubTerrainRepository implementation
-  - GridMap refactored to store TerrainDefinition objects (zero-cost property access)
-  - SetTerrainCommand updated to accept terrain name strings
-  - TerrainType enum DELETED (all 415 tests GREEN ✅)
-  - GameStrapper DI registration with factory pattern
-  - All test files updated (GridMapTests, MoveActorTests, FOVTests, ShadowcastingTests)
-  - Presentation layer updated (GridTestScene, TurnQueueTestScene)
-  - **Commit**: `feat(terrain): Refactor TerrainType enum to data-driven TerrainDefinition pattern [VS_019 Phase 1]`
-- **Next**: Phase 2 - Create TileSetTerrainRepository (Infrastructure/Godot bridge)
+  - TerrainDefinition domain model, ITerrainRepository, StubTerrainRepository
+  - GridMap refactored, TerrainType enum deleted, all 415 tests GREEN ✅
+- ✅ **Phase 2 COMPLETE** - TileSet integration finished, committed [59159e5]
+  - TileSetTerrainRepository created (follows VS_009 pattern)
+  - Main.cs loads test_terrain_tileset.tres and registers repository
+  - StubTerrainRepository removed from GameStrapper
+  - TileSet auto-discovery working (reads custom data: name, can_pass, can_see_through)
+  - **All 415 tests still GREEN** - zero Core changes needed (DIP validated!)
+  - **Commit**: `feat(terrain): Implement TileSetTerrainRepository with TileSet auto-discovery [VS_019 Phase 2]`
+- **Next**: Phase 3 - Configure tree tile custom data, then upgrade GridTestScene to TileMapLayer
 
 **Why**:
 - Visual progress after infrastructure-heavy VS_007 (restore motivation)
@@ -147,28 +147,15 @@ TileSet (Godot)                  Infrastructure (Bridge)           Core (Pure C#
 - ✅ Updated Presentation layer (GridTestScene, TurnQueueTestScene)
 - ✅ **All 415 tests GREEN** - 100% behavioral compatibility maintained
 
-**Phase 2: Infrastructure - GodotTerrainRepository (1 hour)**
-- Create `src/Darklands.Core/Features/Grid/Infrastructure/Repositories/GodotTerrainRepository.cs`
-- Implement `ITerrainRepository` (follow VS_009 GodotItemRepository pattern):
-  ```csharp
-  public class GodotTerrainRepository : ITerrainRepository
-  {
-      private readonly TileSetAtlasSource _atlasSource;
-      private readonly Dictionary<string, Vector2I> _atlasMapping;
-
-      public IReadOnlyDictionary<string, TerrainDefinition> LoadAllTerrains()
-      {
-          // Iterate atlas tiles: for each tile with custom_data_0 (name)
-          // Read: name, can_pass (custom_data_1), can_see_through (custom_data_2)
-          // Build TerrainDefinition, cache atlas coords
-          // Return dictionary keyed by terrain name
-      }
-
-      public Vector2I GetAtlasCoords(string name) => _atlasMapping[name];
-  }
-  ```
-- Register in `GameStrapper.cs`: `services.AddSingleton<ITerrainRepository, GodotTerrainRepository>()`
-- **Done When**: Repository loads 4 terrain types from TileSet (floor, wall variants, smoke, tree)
+**Phase 2: Infrastructure - TileSetTerrainRepository** - ✅ **COMPLETE** (2025-10-05 01:39, commit 59159e5)
+- ✅ Created TileSetTerrainRepository (Infrastructure/TileSetTerrainRepository.cs)
+- ✅ Follows VS_009 TileSetItemRepository pattern exactly
+- ✅ Auto-discovers terrains from TileSet atlas source 4
+- ✅ Reads custom data layers: name (layer 0), can_pass (layer 1), can_see_through (layer 2)
+- ✅ Validates name required, defaults can_pass/can_see_through to true if missing
+- ✅ Registered in Main.cs ConfigureServices (Presentation loads TileSet via GD.Load)
+- ✅ Removed StubTerrainRepository from GameStrapper (ITerrainRepository now in Main.cs)
+- ✅ **All 415 tests GREEN** - DIP validated (Core unchanged despite implementation swap)
 
 **Phase 3: Upgrade GridTestScene to TileMapLayer In-Place (2-3 hours)** - No duplication!
 - **Step 1 (15 min)**: Add `TileMapLayer` node to existing GridTestScene.tscn
