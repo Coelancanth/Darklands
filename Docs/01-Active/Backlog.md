@@ -87,16 +87,19 @@
 
 **What**: Replace GridTestScene's ColorRect rendering with TileMapLayer, refactor terrain to use TileSet as SSOT (like VS_009 items catalog), maintain existing test scene layout
 
-n**Latest Progress** (2025-10-05 01:47):
+**Latest Progress** (2025-10-05 02:02):
 - ✅ **Phase 1 COMPLETE** [f64c7de] - Core refactoring, TerrainType enum deleted
 - ✅ **Phase 2 COMPLETE** [59159e5, d9d9a4d] - TileSetTerrainRepository, wall_stone configured
-- ✅ **Phase 3 COMPLETE** [1b8b69b] - TileMapLayer pixel art rendering
-  - GridTestSceneController renders via TileMapLayer.SetCell()
-  - Tree terrain configured (impassable + opaque)
-  - Interior obstacles: walls → trees (visual variety)
-  - All 415 tests GREEN - Presentation changes dont affect Core
-- **Status**: VS_019 functionally complete! TileSet is SSOT, pixel art works
-- **Optional Phase 4**: Delete ColorRect terrain, add actor Sprite2D (can defer)
+- ✅ **Phase 3 COMPLETE** (2025-10-05 02:02) - TileMapLayer pixel art rendering + fog fixes
+  - GridTestSceneController renders via TileMapLayer.SetCell() with 6× scale
+  - Fixed rendering bugs: Z-index layering, scale mismatch (8px tiles → 48px grid)
+  - Replaced smoke → grass terrain (atlas 5:4), added to TileSet custom data
+  - Fixed FOV/fog overlay for dark floor tiles (ColorRect transparent, fog alpha 0.4)
+  - Tree terrain configured (impassable + opaque), 5 trees at Y=15
+  - All 415 tests GREEN - Presentation changes don't affect Core
+  - **KNOWN ISSUE**: Wall autotiling not working (SetCellsTerrainConnect API needs batch processing)
+- **Status**: Phase 3 functionally complete! TileSet is SSOT, pixel art works, fog readable
+- **Next**: Phase 4 (delete ColorRect terrain layer) + fix autotiling (deferred - polish work)
 
 **Why**:
 - Visual progress after infrastructure-heavy VS_007 (restore motivation)

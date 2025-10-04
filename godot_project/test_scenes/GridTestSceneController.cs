@@ -71,10 +71,10 @@ public partial class GridTestSceneController : Node2D
     private static readonly Color FOVColor = new Color(1f, 1f, 0f, 0.3f); // Semi-transparent yellow
     private static readonly Color PathPreviewColor = new Color(1f, 0.65f, 0f, 0.6f); // Semi-transparent orange (VS_006)
 
-    // Fog of War overlay colors
-    private static readonly Color UnexploredFog = new Color(0, 0, 0, 0.9f); // Nearly opaque black
-    private static readonly Color ExploredFog = new Color(0, 0, 0, 0.6f); // Semi-transparent black
-    private static readonly Color VisibleFog = new Color(0, 0, 0, 0); // Transparent (no fog)
+    // Fog of War overlay colors (VS_019: Adjusted for dark floor tiles)
+    private static readonly Color UnexploredFog = new Color(0, 0, 0, 1.0f); // Opaque black (unexplored = fully hidden)
+    private static readonly Color ExploredFog = new Color(0, 0, 0, 0.4f); // Light fog (can see terrain but dimmed)
+    private static readonly Color VisibleFog = new Color(0, 0, 0, 0); // Transparent (fully visible)
 
     public override void _Ready()
     {
@@ -87,6 +87,18 @@ public partial class GridTestSceneController : Node2D
 
         // Get TileMapLayer from scene (VS_019 Phase 3)
         _terrainLayer = GetNode<TileMapLayer>("TerrainLayer");
+
+        // VS_019 Phase 3: Verify terrain repository loaded
+        var allTerrainsResult = _terrainRepo.GetAll();
+        if (allTerrainsResult.IsSuccess)
+        {
+            _logger.LogDebug("Terrain repository loaded: {Count} terrains available",
+                allTerrainsResult.Value.Count);
+        }
+        else
+        {
+            _logger.LogError("Terrain repository FAILED: {Error}", allTerrainsResult.Error);
+        }
 
         // Create grid visualization (LEGACY ColorRect - will be removed)
         CreateGridCells();
@@ -123,12 +135,12 @@ public partial class GridTestSceneController : Node2D
         {
             for (int y = 0; y < GridSize; y++)
             {
-                // Terrain layer (bottom, Z=0) - starts as pure black (unexplored)
+                // Terrain layer (bottom, Z=0) - VS_019: TileMapLayer renders terrain, keep transparent
                 var terrainCell = new ColorRect
                 {
                     Position = new Vector2(x * CellSize, y * CellSize),
                     Size = new Vector2(CellSize, CellSize),
-                    Color = Colors.Black, // Unexplored = pure black
+                    Color = Colors.Transparent, // TileMapLayer renders actual terrain
                     MouseFilter = Control.MouseFilterEnum.Stop // VS_006: Capture mouse input
                 };
                 AddChild(terrainCell);
@@ -169,23 +181,24 @@ public partial class GridTestSceneController : Node2D
     /// <summary>
     /// Renders a terrain to the TileMapLayer (VS_019 Phase 3).
     /// Gets terrain definition from repository and sets the tile with atlas coordinates.
+    /// Uses direct SetCell for all terrains (autotiling deferred - manual tile selection works).
     /// </summary>
     private void RenderTerrainToTileMap(Position pos, string terrainName)
     {
         var terrainResult = _terrainRepo.GetByName(terrainName);
         if (terrainResult.IsFailure)
         {
-            _logger.LogWarning("Failed to render terrain '{TerrainName}' at ({X},{Y}): {Error}",
+            _logger.LogError("Failed to render terrain '{TerrainName}' at ({X},{Y}): {Error}",
                 terrainName, pos.X, pos.Y, terrainResult.Error);
             return;
         }
 
         var terrain = terrainResult.Value;
+        var cellPos = new Vector2I(pos.X, pos.Y);
         var atlasCoords = new Vector2I(terrain.AtlasX, terrain.AtlasY);
 
-        // SetCell(coords, sourceId, atlasCoords, alternativeTile)
-        // sourceId = 4 (terrain atlas in test_terrain_tileset.tres)
-        _terrainLayer.SetCell(new Vector2I(pos.X, pos.Y), sourceId: 4, atlasCoords);
+        // Direct tile placement (autotiling requires batch SetCellsTerrainConnect - defer to future work)
+        _terrainLayer.SetCell(cellPos, sourceId: 4, atlasCoords);
     }
 
     private async void InitializeGameState()
@@ -197,6 +210,18 @@ public partial class GridTestSceneController : Node2D
 
         // Initialize test terrain: Walls around edges, smoke patches
         // VS_019 Phase 3: Render to TileMapLayer after Core commands
+
+        // FIRST: Fill entire grid with floor tiles (default terrain)
+        for (int x = 0; x < GridSize; x++)
+        {
+            for (int y = 0; y < GridSize; y++)
+            {
+                await _mediator.Send(new SetTerrainCommand(new Position(x, y), "floor"));
+                RenderTerrainToTileMap(new Position(x, y), "floor");
+            }
+        }
+
+        // THEN: Overlay walls around edges
         for (int x = 0; x < GridSize; x++)
         {
             await _mediator.Send(new SetTerrainCommand(new Position(x, 0), "wall_stone"));
@@ -215,15 +240,15 @@ public partial class GridTestSceneController : Node2D
             RenderTerrainToTileMap(new Position(GridSize - 1, y), "wall_stone");
         }
 
-        // Add some smoke patches for testing vision blocking
-        await _mediator.Send(new SetTerrainCommand(new Position(10, 10), "smoke"));
-        RenderTerrainToTileMap(new Position(10, 10), "smoke");
+        // Add some grass patches for testing vision blocking
+        await _mediator.Send(new SetTerrainCommand(new Position(10, 10), "grass"));
+        RenderTerrainToTileMap(new Position(10, 10), "grass");
 
-        await _mediator.Send(new SetTerrainCommand(new Position(10, 11), "smoke"));
-        RenderTerrainToTileMap(new Position(10, 11), "smoke");
+        await _mediator.Send(new SetTerrainCommand(new Position(10, 11), "grass"));
+        RenderTerrainToTileMap(new Position(10, 11), "grass");
 
-        await _mediator.Send(new SetTerrainCommand(new Position(11, 10), "smoke"));
-        RenderTerrainToTileMap(new Position(11, 10), "smoke");
+        await _mediator.Send(new SetTerrainCommand(new Position(11, 10), "grass"));
+        RenderTerrainToTileMap(new Position(11, 10), "grass");
 
         // VS_019 Phase 3: Replace interior walls with tree terrain
         for (int x = 5; x < 10; x++)
@@ -239,8 +264,8 @@ public partial class GridTestSceneController : Node2D
         await _mediator.Send(new RegisterActorCommand(_playerId, playerStartPos));
         await _mediator.Send(new RegisterActorCommand(_dummyId, dummyStartPos));
 
-        // DON'T render terrain - it will be revealed through FOV exploration
-        // Terrain stays pure black until explored
+        // VS_019: TileMapLayer renders terrain, ColorRect stays transparent
+        // Terrain is already rendered via TileMapLayer, fog overlay handles visibility
 
         // Set initial actor colors
         SetCellColor(playerStartPos.X, playerStartPos.Y, PlayerColor);
@@ -422,11 +447,9 @@ public partial class GridTestSceneController : Node2D
                     _fovCells[x, y].Color = VisibleFog;
                     _exploredCells[x, y] = true;
 
-                    // Reveal terrain when first explored
-                    if (_gridCells[x, y].Color == Colors.Black)
-                    {
-                        RestoreTerrainColor(x, y); // Paint actual terrain color
-                    }
+                    // VS_019: TileMapLayer renders terrain, no need to paint ColorRect
+                    // Keep ColorRect transparent (TileMapLayer visible)
+                    _gridCells[x, y].Color = Colors.Transparent;
 
                     // Show actors ONLY in currently visible areas (real-time)
                     UpdateActorVisibility(pos, playerPosResult, dummyPosResult, true);
@@ -436,14 +459,17 @@ public partial class GridTestSceneController : Node2D
                     // Previously explored but not currently visible: Dim fog
                     _fovCells[x, y].Color = ExploredFog;
 
+                    // VS_019: Keep ColorRect transparent (TileMapLayer + fog overlay visible)
+                    _gridCells[x, y].Color = Colors.Transparent;
+
                     // HIDE actors in explored areas (they may have moved - no memory of enemies)
                     UpdateActorVisibility(pos, playerPosResult, dummyPosResult, false);
                 }
                 else
                 {
-                    // Never explored: Pure black (hide terrain completely)
-                    _fovCells[x, y].Color = Colors.Transparent; // No fog overlay needed
-                    _gridCells[x, y].Color = Colors.Black; // Terrain layer is pure black
+                    // Never explored: Opaque black fog (hide terrain completely)
+                    _fovCells[x, y].Color = UnexploredFog; // Opaque black overlay
+                    _gridCells[x, y].Color = Colors.Transparent; // Don't double-paint black
 
                     // HIDE actors in unexplored areas (true fog of war)
                     UpdateActorVisibility(pos, playerPosResult, dummyPosResult, false);

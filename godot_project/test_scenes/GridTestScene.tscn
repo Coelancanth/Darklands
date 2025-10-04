@@ -8,6 +8,8 @@
 script = ExtResource("1_controller")
 
 [node name="TerrainLayer" type="TileMapLayer" parent="."]
+z_index = 5
+scale = Vector2(6, 6)
 tile_set = ExtResource("2_kyx3r")
 
 [node name="FOVLayer" type="TileMapLayer" parent="."]
