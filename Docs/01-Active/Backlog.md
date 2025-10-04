@@ -87,18 +87,16 @@
 
 **What**: Replace GridTestScene's ColorRect rendering with TileMapLayer, refactor terrain to use TileSet as SSOT (like VS_009 items catalog), maintain existing test scene layout
 
-**Latest Progress** (2025-10-05 01:39):
-- ✅ **Phase 1 COMPLETE** - Core refactoring finished, committed [f64c7de]
-  - TerrainDefinition domain model, ITerrainRepository, StubTerrainRepository
-  - GridMap refactored, TerrainType enum deleted, all 415 tests GREEN ✅
-- ✅ **Phase 2 COMPLETE** - TileSet integration finished, committed [59159e5]
-  - TileSetTerrainRepository created (follows VS_009 pattern)
-  - Main.cs loads test_terrain_tileset.tres and registers repository
-  - StubTerrainRepository removed from GameStrapper
-  - TileSet auto-discovery working (reads custom data: name, can_pass, can_see_through)
-  - **All 415 tests still GREEN** - zero Core changes needed (DIP validated!)
-  - **Commit**: `feat(terrain): Implement TileSetTerrainRepository with TileSet auto-discovery [VS_019 Phase 2]`
-- **Next**: Phase 3 - Configure tree tile custom data, then upgrade GridTestScene to TileMapLayer
+n**Latest Progress** (2025-10-05 01:47):
+- ✅ **Phase 1 COMPLETE** [f64c7de] - Core refactoring, TerrainType enum deleted
+- ✅ **Phase 2 COMPLETE** [59159e5, d9d9a4d] - TileSetTerrainRepository, wall_stone configured
+- ✅ **Phase 3 COMPLETE** [1b8b69b] - TileMapLayer pixel art rendering
+  - GridTestSceneController renders via TileMapLayer.SetCell()
+  - Tree terrain configured (impassable + opaque)
+  - Interior obstacles: walls → trees (visual variety)
+  - All 415 tests GREEN - Presentation changes dont affect Core
+- **Status**: VS_019 functionally complete! TileSet is SSOT, pixel art works
+- **Optional Phase 4**: Delete ColorRect terrain, add actor Sprite2D (can defer)
 
 **Why**:
 - Visual progress after infrastructure-heavy VS_007 (restore motivation)
