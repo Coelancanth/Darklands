@@ -72,6 +72,10 @@ public static class GameStrapper
         // TODO: Remove after VS_001 (health system) is complete
         services.AddSingleton<ITestService, TestService>();
 
+        // Player Context (VS_007 Phase 3) - Provides player character identity
+        services.AddSingleton<Darklands.Core.Application.IPlayerContext,
+            Darklands.Core.Infrastructure.PlayerContext>();
+
         // MediatR (VS_003) - Registered via Presentation layer configureServices callback
 
         // Event Bus (VS_004) - Infrastructure must be registered in Presentation
@@ -96,6 +100,10 @@ public static class GameStrapper
         // Inventory System (VS_008 Phase 3) - Repository
         services.AddSingleton<Features.Inventory.Application.IInventoryRepository,
             Features.Inventory.Infrastructure.InMemoryInventoryRepository>();
+
+        // Combat System (VS_007 Phase 3) - Turn queue repository
+        services.AddSingleton<Features.Combat.Application.ITurnQueueRepository,
+            Features.Combat.Infrastructure.InMemoryTurnQueueRepository>();
     }
 
     /// <summary>

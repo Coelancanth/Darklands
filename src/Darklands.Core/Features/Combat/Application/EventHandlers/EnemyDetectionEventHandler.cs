@@ -1,3 +1,4 @@
+using Darklands.Core.Application;
 using Darklands.Core.Domain.Common;
 using Darklands.Core.Features.Combat.Application.Commands;
 using Darklands.Core.Features.Combat.Application.Queries;
@@ -33,28 +34,26 @@ namespace Darklands.Core.Features.Combat.Application.EventHandlers;
 public class EnemyDetectionEventHandler : INotificationHandler<FOVCalculatedEvent>
 {
     private readonly IMediator _mediator;
+    private readonly IPlayerContext _playerContext;
     private readonly ILogger<EnemyDetectionEventHandler> _logger;
 
     // TODO: Replace with proper faction/hostility system in future VS
     // For MVP, assume all non-player actors at visible positions are hostile
-    private readonly ActorId _playerId; // Injected from game context
 
     public EnemyDetectionEventHandler(
         IMediator mediator,
+        IPlayerContext playerContext,
         ILogger<EnemyDetectionEventHandler> logger)
     {
-        _mediator = mediator;
-        _logger = logger;
-
-        // TODO: Get player ID from game context service (Phase 3)
-        // For now, this will need to be injected properly in Infrastructure
-        _playerId = default!;
+        _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
+        _playerContext = playerContext ?? throw new ArgumentNullException(nameof(playerContext));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public async Task Handle(FOVCalculatedEvent notification, CancellationToken cancellationToken)
     {
         // Only process player's FOV events (MVP scope)
-        if (notification.ActorId != _playerId)
+        if (!_playerContext.IsPlayer(notification.ActorId))
             return;
 
         _logger.LogDebug(
