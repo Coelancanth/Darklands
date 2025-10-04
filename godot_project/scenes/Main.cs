@@ -122,7 +122,30 @@ public partial class Main : Node
         // services.AddTransient(typeof(INotificationHandler<>), typeof(UIEventForwarder<>));
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        // 4. ITEM SYSTEM (VS_009 Phase 4) - TileSet-based item catalog
+        // 4. TERRAIN SYSTEM (VS_019 Phase 2) - TileSet-based terrain catalog
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        // Load terrain TileSet resource
+        var terrainTileSet = GD.Load<TileSet>("res://assets/micro-roguelike/test_terrain_tileset.tres");
+
+        if (terrainTileSet == null)
+        {
+            GD.PrintErr("❌ Failed to load terrain TileSet: res://assets/micro-roguelike/test_terrain_tileset.tres");
+        }
+        else
+        {
+            // Register TileSetTerrainRepository with loaded TileSet
+            services.AddSingleton<Darklands.Core.Features.Grid.Application.ITerrainRepository>(sp =>
+            {
+                var logger = sp.GetRequiredService<ILogger<Infrastructure.TileSetTerrainRepository>>();
+                return new Infrastructure.TileSetTerrainRepository(terrainTileSet, logger);
+            });
+
+            GD.Print("   - ITerrainRepository → TileSetTerrainRepository (test_terrain_tileset.tres loaded)");
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // 5. ITEM SYSTEM (VS_009 Phase 4) - TileSet-based item catalog
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
         // Load item TileSet resource
@@ -149,6 +172,7 @@ public partial class Main : Node
         GD.Print("   - LoggingService (category filtering for DebugConsole)");
         GD.Print("   - MediatR (command handlers + UIEventForwarder via assembly scan)");
         GD.Print("   - IGodotEventBus → GodotEventBus");
+        GD.Print("   - ITerrainRepository → TileSetTerrainRepository (auto-discovery from TileSet)");
         GD.Print("   - IItemRepository → TileSetItemRepository (auto-discovery from TileSet)");
     }
 }
