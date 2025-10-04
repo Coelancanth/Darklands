@@ -4,7 +4,10 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using CSharpFunctionalExtensions;
+using Darklands.Core.Application;
 using Darklands.Core.Domain.Common;
+using Darklands.Core.Features.Combat.Application;
+using Darklands.Core.Features.Combat.Application.Queries;
 using Darklands.Core.Features.Grid.Application.Commands;
 using Darklands.Core.Features.Grid.Application.Queries;
 using Darklands.Core.Features.Grid.Domain;
@@ -95,7 +98,7 @@ public partial class TurnQueueTestSceneController : Node2D
         _eventBus.Subscribe<ActorMovedEvent>(this, OnActorMoved);
         _eventBus.Subscribe<FOVCalculatedEvent>(this, OnFOVCalculated);
 
-        // Initialize game state
+        // Initialize game state (async - will complete initialization)
         InitializeGameState();
 
         // VS_006 Phase 4: Log instructions
@@ -173,6 +176,16 @@ public partial class TurnQueueTestSceneController : Node2D
         _goblinId = ActorId.NewId(); // VS_007: Enemy actor
         _orcId = ActorId.NewId(); // VS_007: Second enemy
         _activeActorId = _playerId; // Start with player's FOV
+
+        // VS_007 Phase 4: Initialize PlayerContext and TurnQueueRepository
+        var playerContext = ServiceLocator.Get<IPlayerContext>();
+        playerContext.SetPlayerId(_playerId);
+
+        var turnQueueRepo = ServiceLocator.Get<ITurnQueueRepository>();
+        (turnQueueRepo as Darklands.Core.Features.Combat.Infrastructure.InMemoryTurnQueueRepository)?
+            .InitializeWithPlayer(_playerId);
+
+        _logger.LogInformation("✅ VS_007: Player context and turn queue initialized with player {PlayerId}", _playerId);
 
         // Initialize test terrain: Walls around edges, smoke patches
         for (int x = 0; x < GridSize; x++)
@@ -571,6 +584,7 @@ public partial class TurnQueueTestSceneController : Node2D
 
     /// <summary>
     /// Click-to-move: Pathfind to target and execute movement.
+    /// VS_007 Phase 4: Routes to single-step or auto-path based on combat mode.
     /// </summary>
     private async void ClickToMove(ActorId actorId, Position target)
     {
@@ -594,20 +608,53 @@ public partial class TurnQueueTestSceneController : Node2D
             return;
         }
 
-        // Find path using A* pathfinding
-        var pathResult = _pathfindingService.FindPath(
-            currentPos,
-            target,
-            pos => IsPassable(pos),
-            pos => 1); // Uniform cost for VS_006
+        // VS_007 Phase 4: Check combat mode BEFORE pathfinding
+        var isInCombatQuery = new IsInCombatQuery();
+        var isInCombatResult = await _mediator.Send(isInCombatQuery);
+        bool isInCombat = isInCombatResult.IsSuccess && isInCombatResult.Value;
 
-        if (pathResult.IsFailure)
+        if (isInCombat)
         {
-            _logger.LogDebug("No path to ({TargetX}, {TargetY}): {Error}", target.X, target.Y, pathResult.Error);
+            // COMBAT MODE: Single-step movement toward target (tactical)
+            _logger.LogInformation("⚔️ Combat mode active - single-step movement toward ({TargetX}, {TargetY})", target.X, target.Y);
+
+            // Calculate single step toward target (A* with depth=1)
+            var pathResult = _pathfindingService.FindPath(currentPos, target, pos => IsPassable(pos), pos => 1);
+            if (pathResult.IsFailure || pathResult.Value.Count == 0)
+            {
+                _logger.LogDebug("No path to target in combat mode");
+                return;
+            }
+
+            // Take only first step
+            var nextStep = pathResult.Value[0];
+            _logger.LogInformation("Moving to ({NextX}, {NextY}) [1 step]", nextStep.X, nextStep.Y);
+
+            var moveResult = await _mediator.Send(new MoveActorCommand(actorId, nextStep));
+            if (moveResult.IsFailure)
+            {
+                _logger.LogError("Combat move failed: {Error}", moveResult.Error);
+            }
             return;
         }
 
-        var path = pathResult.Value;
+        // EXPLORATION MODE: Auto-path movement (existing VS_006 behavior)
+        _logger.LogDebug("🚶 Exploration mode - auto-path to ({TargetX}, {TargetY})", target.X, target.Y);
+
+        // Find path using A* pathfinding
+        var fullPathResult = _pathfindingService.FindPath(
+            currentPos,
+            target,
+            pos => IsPassable(pos),
+            pos => 1); // Uniform cost
+
+        if (fullPathResult.IsFailure)
+        {
+            _logger.LogDebug("No path to ({TargetX}, {TargetY}): {Error}", target.X, target.Y, fullPathResult.Error);
+            return;
+        }
+
+        var path = fullPathResult.Value;
         _logger.LogInformation("Found path with {PathLength} steps to ({TargetX}, {TargetY})", path.Count, target.X, target.Y);
 
         // Debug: Log full path for verification
