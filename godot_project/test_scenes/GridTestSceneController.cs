@@ -33,6 +33,7 @@ public partial class GridTestSceneController : Node2D
     private IGodotEventBus _eventBus = null!;
     private IPathfindingService _pathfindingService = null!;
     private ILogger<GridTestSceneController> _logger = null!;
+    private Darklands.Core.Features.Grid.Application.ITerrainRepository _terrainRepo = null!; // VS_019 Phase 3
 
     private ActorId _playerId;
     private ActorId _dummyId;
@@ -44,9 +45,13 @@ public partial class GridTestSceneController : Node2D
     private Position? _lastHoveredPosition; // Track last hovered position for path preview
 
     private const int GridSize = 30;
-    private const int CellSize = 48; // 48x48 pixels per cell
+    private const int CellSize = 48; // 48x48 pixels per cell (ColorRect legacy)
+    private const int TileSize = 8; // TileSet tile size (VS_019 Phase 3)
 
-    // Grid cells: [x, y] = ColorRect node
+    // VS_019 Phase 3: TileMapLayer for terrain rendering
+    private TileMapLayer _terrainLayer = null!;
+
+    // Grid cells: [x, y] = ColorRect node (LEGACY - will be removed after TileMapLayer works)
     private readonly ColorRect[,] _gridCells = new ColorRect[GridSize, GridSize];
     private readonly ColorRect[,] _fovCells = new ColorRect[GridSize, GridSize];
     private readonly ColorRect[,] _actorCells = new ColorRect[GridSize, GridSize]; // Actor overlay above fog
@@ -78,8 +83,12 @@ public partial class GridTestSceneController : Node2D
         _eventBus = ServiceLocator.Get<IGodotEventBus>();
         _pathfindingService = ServiceLocator.Get<IPathfindingService>(); // VS_006 Phase 4
         _logger = ServiceLocator.Get<ILogger<GridTestSceneController>>(); // ADR-001: Use ILogger<T>, not GD.Print
+        _terrainRepo = ServiceLocator.Get<Darklands.Core.Features.Grid.Application.ITerrainRepository>(); // VS_019 Phase 3
 
-        // Create grid visualization
+        // Get TileMapLayer from scene (VS_019 Phase 3)
+        _terrainLayer = GetNode<TileMapLayer>("TerrainLayer");
+
+        // Create grid visualization (LEGACY ColorRect - will be removed)
         CreateGridCells();
 
         // Subscribe to events (ADR-004: Terminal subscriber)
@@ -157,6 +166,28 @@ public partial class GridTestSceneController : Node2D
         _logger.LogInformation("Created {GridSize}x{GridSize} grid cells (3 layers: terrain, FOV, actors)", GridSize, GridSize);
     }
 
+    /// <summary>
+    /// Renders a terrain to the TileMapLayer (VS_019 Phase 3).
+    /// Gets terrain definition from repository and sets the tile with atlas coordinates.
+    /// </summary>
+    private void RenderTerrainToTileMap(Position pos, string terrainName)
+    {
+        var terrainResult = _terrainRepo.GetByName(terrainName);
+        if (terrainResult.IsFailure)
+        {
+            _logger.LogWarning("Failed to render terrain '{TerrainName}' at ({X},{Y}): {Error}",
+                terrainName, pos.X, pos.Y, terrainResult.Error);
+            return;
+        }
+
+        var terrain = terrainResult.Value;
+        var atlasCoords = new Vector2I(terrain.AtlasX, terrain.AtlasY);
+
+        // SetCell(coords, sourceId, atlasCoords, alternativeTile)
+        // sourceId = 4 (terrain atlas in test_terrain_tileset.tres)
+        _terrainLayer.SetCell(new Vector2I(pos.X, pos.Y), sourceId: 4, atlasCoords);
+    }
+
     private async void InitializeGameState()
     {
         // Create actor IDs
@@ -165,27 +196,40 @@ public partial class GridTestSceneController : Node2D
         _activeActorId = _playerId; // Start with player's FOV
 
         // Initialize test terrain: Walls around edges, smoke patches
+        // VS_019 Phase 3: Render to TileMapLayer after Core commands
         for (int x = 0; x < GridSize; x++)
         {
             await _mediator.Send(new SetTerrainCommand(new Position(x, 0), "wall_stone"));
+            RenderTerrainToTileMap(new Position(x, 0), "wall_stone");
+
             await _mediator.Send(new SetTerrainCommand(new Position(x, GridSize - 1), "wall_stone"));
+            RenderTerrainToTileMap(new Position(x, GridSize - 1), "wall_stone");
         }
 
         for (int y = 0; y < GridSize; y++)
         {
             await _mediator.Send(new SetTerrainCommand(new Position(0, y), "wall_stone"));
+            RenderTerrainToTileMap(new Position(0, y), "wall_stone");
+
             await _mediator.Send(new SetTerrainCommand(new Position(GridSize - 1, y), "wall_stone"));
+            RenderTerrainToTileMap(new Position(GridSize - 1, y), "wall_stone");
         }
 
         // Add some smoke patches for testing vision blocking
         await _mediator.Send(new SetTerrainCommand(new Position(10, 10), "smoke"));
-        await _mediator.Send(new SetTerrainCommand(new Position(10, 11), "smoke"));
-        await _mediator.Send(new SetTerrainCommand(new Position(11, 10), "smoke"));
+        RenderTerrainToTileMap(new Position(10, 10), "smoke");
 
-        // Add some interior walls
+        await _mediator.Send(new SetTerrainCommand(new Position(10, 11), "smoke"));
+        RenderTerrainToTileMap(new Position(10, 11), "smoke");
+
+        await _mediator.Send(new SetTerrainCommand(new Position(11, 10), "smoke"));
+        RenderTerrainToTileMap(new Position(11, 10), "smoke");
+
+        // VS_019 Phase 3: Replace interior walls with tree terrain
         for (int x = 5; x < 10; x++)
         {
-            await _mediator.Send(new SetTerrainCommand(new Position(x, 15), "wall_stone"));
+            await _mediator.Send(new SetTerrainCommand(new Position(x, 15), "tree"));
+            RenderTerrainToTileMap(new Position(x, 15), "tree");
         }
 
         // Register actors at starting positions
