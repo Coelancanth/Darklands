@@ -100,11 +100,11 @@ public class GodotConsoleSink : ILogEventSink
         const string GruvboxOrange = "#fe8019";      // Bright orange (time/numbers)
 
         // Combat state transitions
-        message = message.Replace("Exploration -> Combat:", $"[color={GruvboxGreen}]Exploration -> Combat:[/color]");
+        message = message.Replace("Exploration -> Combat:", $"[color={GruvboxOrange}]Exploration -> Combat:[/color]");
         message = message.Replace("Combat -> Exploration transition:", $"[color={GruvboxYellow}]Combat -> Exploration:[/color]");
-        message = message.Replace("FOV Detection:", $"[color={GruvboxGreen}]FOV Detection:[/color]");
+        message = message.Replace("FOV Detection:", $"[color={GruvboxOrange}]FOV Detection:[/color]");
         message = message.Replace("Combat ended", $"[color={GruvboxYellow}]Combat ended[/color]");
-        message = message.Replace("Combat detected!", $"[color={GruvboxGreen}]Combat detected![/color]");
+        message = message.Replace("Combat detected!", $"[color={GruvboxOrange}]Combat detected![/color]");
         message = message.Replace("FOV cleared", $"[color={GruvboxYellow}]FOV cleared[/color]");
 
         // Time progression highlighting (time: X -> Y)

@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-04 17:38 (Dev Engineer: VS_007 COMPLETE ✅ - Turn queue system working end-to-end, follow-up issues captured)
+**Last Updated**: 2025-10-04 19:25 (Dev Engineer: VS_007 follow-ups COMPLETE ✅ - Vision constant, combat exit, movement cost, log formatting all done)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -456,28 +456,69 @@ Exploration → Combat Detection → Reinforcement → Victory
 
 ---
 
-## 🔄 **FOLLOW-UP ISSUES** (Next Session)
+## 🔄 **FOLLOW-UP ISSUES** ✅ ALL COMPLETE (2025-10-04)
 
-**Issue #1: Vision Radius Hardcoded (Magic Numbers)**
+**Issue #1: Vision Radius Hardcoded (Magic Numbers)** ✅ COMPLETE
 - **Problem**: FOV radius=8 duplicated in MoveActorCommandHandler and EnemyDetectionEventHandler
-- **Impact**: If vision changes, must update 2+ locations (error-prone)
-- **Solution Options**:
-  - Option A: Create VisionRadius value object per actor (configurable)
-  - Option B: Add visionRadius field to ActorId or Position service
-  - Option C: Extract constant to shared config (simplest MVP)
-- **Priority**: Medium (technical debt, affects future racial/equipment vision bonuses)
-- **Estimate**: S (1-2 hours)
+- **Solution Implemented**: Option C (VisionConstants.DefaultVisionRadius = 8) with documented migration path to Option A
+- **Files Created**: VisionConstants.cs with TODO comments for future per-actor vision system (racial bonuses, equipment)
+- **Files Modified**: MoveActorCommandHandler.cs, EnemyDetectionEventHandler.cs (both use constant now)
+- **Result**: SSOT achieved, magic numbers eliminated, easy refactor path to VisionRadius value object when needed
+- **Commits**: fix(VS_007): Vision radius constant + FOV-based combat exit
+- **Completed**: 2025-10-04 19:15
 
-**Issue #2: Combat → Exploration Transition Missing**
-- **Problem**: When last enemy defeated, turn queue shows IsInCombat=false BUT movement doesn't auto-switch back to exploration mode
-- **Impact**: Player stuck in single-step movement even after combat ends
-- **Root Cause**: ClickToMove only checks IsInCombat at START of click, not dynamically
-- **Solution**: After defeating last enemy, query IsInCombat → if false, resume auto-path
-- **Where**: Either in ClickToMove (query after each combat move) OR RemoveActorFromQueueCommandHandler (emit "CombatEndedEvent")
-- **Priority**: High (blocks natural gameplay flow)
-- **Estimate**: S (2-3 hours, includes event wiring)
+**Issue #2: Combat → Exploration Transition Missing** ✅ COMPLETE
+- **Problem**: Combat mode never ended (stuck in single-step movement after enemies defeated/escaped)
+- **Solution Implemented**: FOV-based combat exit via CombatEndDetectionEventHandler
+  - Subscribes to FOVCalculatedEvent (dual publishing pattern)
+  - When FOV clears (no visible enemies) → removes all enemies from turn queue → combat ends
+  - Creates natural "escape combat" mechanic (run away until enemies out of vision → auto-switch to exploration)
+- **Files Created**: CombatEndDetectionEventHandler.cs, GetTurnQueueStateQuery/Handler/Dto, TurnQueue.GetScheduledActors()
+- **Result**: Symmetric enter/exit pattern (both FOV-driven), exploration mode auto-resumes, simpler than defeat detection
+- **Commits**: fix(VS_007): Vision radius constant + FOV-based combat exit
+- **Completed**: 2025-10-04 19:15
 
-**Recommended Order**: Issue #2 first (gameplay-blocking), then Issue #1 (tech debt cleanup)
+**BONUS IMPROVEMENTS** (Not in original scope, added during session):
+
+**Movement Cost Implementation** ✅ COMPLETE
+- **Problem**: Turn progression not visible (all actors stuck at time=0, no "ticks" in logs)
+- **Solution**: MoveActorCommandHandler advances time in combat mode (Reschedule with +10 time units)
+- **Design**: Combat mode costs time (10 units/move), Exploration mode instant (no cost)
+- **Files Modified**: MoveActorCommandHandler.cs (time advancement), MoveActorCommandHandlerTests.cs (new dependency)
+- **Commits**: feat(VS_007): Movement cost implementation + window size fix
+- **Completed**: 2025-10-04 19:09
+
+**Movement Cost Tuning** ✅ COMPLETE
+- **Change**: Reduced from 100 → 10 time units (easier mental math: 3 moves = 30 time vs 300)
+- **Files Modified**: TimeUnits.cs (MovementCost constant + diagonal movement notes), TimeUnitsTests.cs
+- **Commits**: refactor(VS_007): Change movement cost from 100 to 10
+- **Completed**: 2025-10-04 19:09
+
+**Production Log Formatting** ✅ COMPLETE
+- **Problem**: Emojis and verbose TimeUnits.ToString() ("10 time units") make logs hard to parse
+- **Solution Phase 1**: Removed ALL emojis, changed TimeUnits.ToString() to return numeric value only, ASCII arrows (-> not →)
+- **Files Modified**: TimeUnits.cs, MoveActorCommandHandler.cs, EnemyDetectionEventHandler.cs, CombatEndDetectionEventHandler.cs, MoveAlongPathCommandHandler.cs, TurnQueueTestSceneController.cs
+- **Commits**: refactor(logs): Remove emojis and clean TimeUnits formatting
+- **Completed**: 2025-10-04 19:15
+
+**Gruvbox Semantic Color Highlighting** ✅ COMPLETE
+- **Problem**: Plain text logs hard to scan, combat transitions not visually distinct
+- **Solution Phase 2**: Added semantic color highlighting in GodotConsoleSink with Gruvbox palette
+  - Combat enter (green #b8bb26): "FOV Detection", "Exploration -> Combat", "Combat mode active", "Combat detected!"
+  - Combat exit (yellow #fabd2f): "Combat -> Exploration", "Combat ended", "FOV cleared", "Exploration mode"
+  - Time progression (orange #fe8019): Highlights all numbers in "time: X -> Y, cost: Z"
+- **Files Modified**: GodotConsoleSink.cs (ApplySemanticColors method)
+- **Benefits**: Visual scanability, grep-friendly, Gruvbox warm tones (easy on eyes), production-ready
+- **Commits**: feat(logs): Remove remaining emojis + add Gruvbox semantic highlighting
+- **Completed**: 2025-10-04 19:25
+
+**Additional Fix**: Window Size (1280×720 HD) - project.godot updated for better test visibility
+
+**Total Session Work**:
+- ✅ **6 commits** created
+- ✅ **23 files** modified (14 new, 9 updated)
+- ✅ **359/359 tests GREEN** (zero regressions)
+- ✅ **All follow-ups resolved** + bonus improvements added
 
 ---
 
