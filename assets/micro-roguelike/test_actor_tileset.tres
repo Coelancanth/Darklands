@@ -1,0 +1,23 @@
+[gd_resource type="TileSet" load_steps=3 format=3 uid="uid://n2h3gu38nigc"]
+
+[ext_resource type="Texture2D" uid="uid://cpjo2p3va4g4k" path="res://assets/micro-roguelike/colored_tilemap.png" id="1_dyh7l"]
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_q02us"]
+resource_name = "actor"
+texture = ExtResource("1_dyh7l")
+separation = Vector2i(1, 1)
+texture_region_size = Vector2i(8, 8)
+5:0/0 = 0
+5:0/0/custom_data_0 = "player"
+11:0/0 = 0
+11:0/0/custom_data_0 = "zombie"
+13:0/0 = 0
+13:0/0/custom_data_0 = "beholder"
+4:0/0 = 0
+4:0/0/custom_data_0 = "dummy"
+
+[resource]
+tile_size = Vector2i(8, 8)
+custom_data_layer_0/name = "name"
+custom_data_layer_0/type = 4
+sources/0 = SubResource("TileSetAtlasSource_q02us")

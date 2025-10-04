@@ -62,10 +62,12 @@ texture_region_size = Vector2i(8, 8)
 1:1/0 = 0
 1:1/0/custom_data_0 = "floor"
 1:1/0/custom_data_1 = true
+1:1/0/custom_data_2 = true
 15:3/0 = 0
 15:3/0/custom_data_0 = "smoke"
 15:3/0/custom_data_1 = true
 5:5/0 = 0
+5:5/0/custom_data_0 = "tree"
 
 [resource]
 tile_size = Vector2i(8, 8)
@@ -74,8 +76,8 @@ terrain_set_0/terrain_0/name = "wall_stone"
 terrain_set_0/terrain_0/color = Color(0.664847, 0.00168458, 0.836154, 1)
 custom_data_layer_0/name = "name"
 custom_data_layer_0/type = 4
-custom_data_layer_1/name = "is_passable"
+custom_data_layer_1/name = "can_pass"
 custom_data_layer_1/type = 1
-custom_data_layer_2/name = "is_opaque"
+custom_data_layer_2/name = "can_see_through"
 custom_data_layer_2/type = 1
 sources/4 = SubResource("TileSetAtlasSource_6r31d")

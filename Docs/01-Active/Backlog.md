@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-05 00:17 (Tech Lead: PROMOTED VS_019 PCG from optional to primary scope - autotiling validated working via screenshot, terrain set 0 configured, custom data layers ready, 2-3h realistic estimate, cellular automata + regeneration now part of "Done When")
+**Last Updated**: 2025-10-05 00:32 (Tech Lead: SIMPLIFIED VS_019 scope - removed PCG, focus on TileMapLayer visual upgrade + TileSet SSOT refactoring only, added tree terrain for interior obstacles, M (1-2 days) estimate)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -81,20 +81,19 @@
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*
 
-### VS_019: TileSet-Based Visual Scene + TileSet as Terrain Catalog (SSOT) + PCG 🎨
-**Status**: Approved | **Owner**: Dev Engineer | **Size**: L (2-3 days) | **Priority**: Important
-**Markers**: [VISUAL-POLISH] [MOTIVATION] [RESEARCH-FIRST] [ARCHITECTURE] [REFACTORING] [PCG-VALIDATED]
+### VS_019: TileSet-Based Visual Scene + TileSet as Terrain Catalog (SSOT) 🎨
+**Status**: Approved | **Owner**: Dev Engineer | **Size**: M (1-2 days) | **Priority**: Important
+**Markers**: [VISUAL-POLISH] [MOTIVATION] [ARCHITECTURE] [REFACTORING]
 
-**What**: Create new TileMap-based test scene using Godot terrain system, refactor terrain to use TileSet as SSOT (like VS_009 items catalog), AND implement cellular automata PCG with regeneration
+**What**: Replace GridTestScene's ColorRect rendering with TileMapLayer, refactor terrain to use TileSet as SSOT (like VS_009 items catalog), maintain existing test scene layout
 
 **Why**:
 - Visual progress after infrastructure-heavy VS_007 (restore motivation)
-- Professional appearance vs prototype ColorRect
+- Professional pixel art appearance vs prototype ColorRect
 - **Architect terrain like items (VS_009 pattern)**: TileSet = catalog, Infrastructure loads → Core domain objects
 - Designer-editable terrain properties (add lava/ice/water without C# changes)
 - Future-proof: Supports movement_cost, damage_per_turn, terrain effects
-- **PCG validated feasible** - autotiling proven working, 2-3h realistic estimate
-- Random map generation makes game feel alive (high motivation value)
+- Autotiling for walls creates polished look
 - **NOT blocking Phase 1 validation** (acknowledged polish + architecture improvement)
 
 **🎯 ARCHITECTURAL PATTERN: TileSet as SSOT** (Same as VS_009 Items):
@@ -116,163 +115,170 @@ TileSet (Godot)                  Infrastructure (Bridge)           Core (Pure C#
 
 **How** (Refined 7-Phase Breakdown - TileSet SSOT Approach):
 
-**Phase 0: Research & Risk Mitigation (1-2 hours)** - ✅ COMPLETED (2025-10-05)
-- ✅ Autotiling VALIDATED - test_terrain_tileset.tres shows working 3x3 bitmask patterns
-- ✅ Custom data layers configured: `name`, `is_passable`, `is_opaque` (TileSet as SSOT ready)
-- ✅ Terrain set 0 configured for wall autotiling (9 wall variants + floor/smoke)
-- ✅ PCG APPROVED - promoted from optional to primary scope (2-3h realistic estimate)
+**Phase 0: TileSet Configuration** - ✅ COMPLETED (2025-10-05)
+- ✅ Autotiling VALIDATED - test_terrain_tileset.tres shows working 3x3 bitmask patterns for walls
+- ✅ Custom data layers configured: `name`, `can_pass`, `can_see_through` (TileSet as SSOT)
+- ✅ Terrain tiles defined: floor (1:1), wall autotiling (terrain_set_0), smoke (15:3), tree (5:5)
+- ✅ Tree tile needs `can_pass=false` and `can_see_through=false` configuration
 - **Next**: Review VS_009 GodotItemRepository pattern, then proceed to Phase 1
 
-**Phase 1: Core Refactoring - TerrainDefinition Domain Model (1 hour)**
+**Phase 1: Core Refactoring - TerrainDefinition Domain Model (1-2 hours)**
 - Create `src/Darklands.Core/Features/Grid/Domain/TerrainDefinition.cs`:
   ```csharp
   public record TerrainDefinition(
-      TerrainId Id,        // int or GUID
-      string Name,         // "Floor", "Wall", "Smoke", "Lava"...
-      bool IsPassable,     // Can actors walk through?
-      bool IsOpaque        // Blocks vision?
+      TerrainId Id,        // Simple int wrapper (matches atlas source ID)
+      string Name,         // "floor", "wall_top_left", "smoke", "tree"
+      bool CanPass,        // Can actors walk through?
+      bool CanSeeThrough   // Transparent for vision?
   );
   ```
-- Create `TerrainId` value object (simple int wrapper or GUID)
+- Create `TerrainId` value object (int wrapper)
 - Create `ITerrainRepository` interface in Application layer:
   ```csharp
   public interface ITerrainRepository
   {
-      IReadOnlyDictionary<TerrainId, TerrainDefinition> LoadAllTerrains();
-      TerrainDefinition GetById(TerrainId id);
+      IReadOnlyDictionary<string, TerrainDefinition> LoadAllTerrains(); // Key = name
+      TerrainDefinition GetByName(string name);
+      Vector2I GetAtlasCoords(string terrainName); // For rendering
   }
   ```
-- **DELETE** `TerrainTypeExtensions.IsPassable()` and `.IsOpaque()` methods (replaced by TerrainDefinition properties)
-- Update `GridMap` to use `TerrainDefinition` instead of hardcoded `TerrainType` enum logic
-- Update FOV/pathfinding services to use `terrainDef.IsOpaque` and `terrainDef.IsPassable`
-- **Done When**: Core compiles, old TerrainType extension methods deleted, all terrain logic uses TerrainDefinition properties
+- **DELETE** `TerrainTypeExtensions.IsPassable()` and `.IsOpaque()` methods
+- Update `GridMap` to store terrain names (strings) instead of `TerrainType` enum
+- Update FOV/pathfinding to query repository: `_repo.GetByName(terrainName).CanSeeThrough`
+- **Done When**: Core compiles, TerrainType enum removed, all terrain logic data-driven via repository
 
-**Phase 2: Infrastructure - GodotTerrainRepository (1-2 hours)**
+**Phase 2: Infrastructure - GodotTerrainRepository (1 hour)**
 - Create `src/Darklands.Core/Features/Grid/Infrastructure/Repositories/GodotTerrainRepository.cs`
-- Implement `ITerrainRepository`:
+- Implement `ITerrainRepository` (follow VS_009 GodotItemRepository pattern):
   ```csharp
   public class GodotTerrainRepository : ITerrainRepository
   {
-      private readonly TileSet _tileSet;
-      private readonly Dictionary<TerrainId, Vector2I> _atlasMapping;
+      private readonly TileSetAtlasSource _atlasSource;
+      private readonly Dictionary<string, Vector2I> _atlasMapping;
 
-      public IReadOnlyDictionary<TerrainId, TerrainDefinition> LoadAllTerrains()
+      public IReadOnlyDictionary<string, TerrainDefinition> LoadAllTerrains()
       {
-          // Iterate TileSet atlas tiles
-          // Read custom data: terrain_name, is_passable, is_opaque
-          // Build TerrainDefinition objects
-          // Cache TerrainId → Vector2I atlas coords for rendering
+          // Iterate atlas tiles: for each tile with custom_data_0 (name)
+          // Read: name, can_pass (custom_data_1), can_see_through (custom_data_2)
+          // Build TerrainDefinition, cache atlas coords
+          // Return dictionary keyed by terrain name
       }
 
-      public Vector2I GetAtlasCoords(TerrainId id) => _atlasMapping[id];
+      public Vector2I GetAtlasCoords(string name) => _atlasMapping[name];
   }
   ```
 - Register in `GameStrapper.cs`: `services.AddSingleton<ITerrainRepository, GodotTerrainRepository>()`
-- **Architectural Guardrail**: Infrastructure can reference Godot (TileSet, Vector2I), Core CANNOT
-- **Done When**: Repository loads terrain definitions from TileSet, Core queries repository (no Godot deps in Core)
+- **Done When**: Repository loads 4 terrain types from TileSet (floor, wall variants, smoke, tree)
 
-**Phase 3: Scene Duplication (15 minutes)**
-- Duplicate `GridTestScene.tscn` → `TileMapTestScene.tscn`
-- Duplicate `GridTestSceneController.cs` → `TileMapTestSceneController.cs`
-- Update script reference in new scene
-- **Architectural Guardrail**: Do NOT modify original GridTestScene.tscn
-- **Done When**: New scene runs identically to original
+**Phase 3: Upgrade GridTestScene to TileMapLayer In-Place (2-3 hours)** - No duplication!
+- **Step 1 (15 min)**: Add `TileMapLayer` node to existing GridTestScene.tscn
+  - Assign `test_terrain_tileset.tres` to TileMapLayer
+  - Keep ColorRect arrays temporarily (terrain + FOV overlay)
+  - Commit: "feat(rendering): Add TileMapLayer to GridTestScene (ColorRect still active)"
+- **Step 2 (1 hour)**: Update terrain initialization to use TileMapLayer
+  - Inject `ITerrainRepository` via ServiceLocator in `_Ready()`
+  - Update `InitializeGameState()` to render via TileMapLayer:
+    ```csharp
+    // OLD (Phase 1-2 breaks this):
+    await _mediator.Send(new SetTerrainCommand(pos, TerrainType.Wall));
 
-**Phase 4: TileSet Configuration with Custom Data (1-2 hours)**
-- Create `tilemap_tileset.tres` resource (or duplicate grid_tileset.tres)
-- Configure atlas source from `colored_tilemap.png`
-- **Add custom data layers** (TileSet = SSOT for terrain properties):
-  - `terrain_id` (int): 0, 1, 2, 3... (maps to TerrainId)
-  - `terrain_name` (String): "Floor", "Wall", "Smoke"
-  - `is_passable` (bool): true/false
-  - `is_opaque` (bool): true/false
-  - (Future: `movement_cost` (float), `damage_per_turn` (int))
-- Paint custom data values for each tile in atlas
-- **OPTION A (Preferred)**: Configure terrain sets for autotiling (3x3 bitmask patterns)
-- **OPTION B (Fallback)**: Use simple atlas coordinates
-- **Done When**: TileSet configured with full terrain properties, can manually paint terrain in editor
+    // NEW (works with refactored Core):
+    await _mediator.Send(new SetTerrainCommand(pos, "wall"));
+    var atlasCoords = _terrainRepo.GetAtlasCoords("wall");
+    _terrainLayer.SetCell(new Vector2I(x, y), sourceId: 4, atlasCoords);
+    ```
+  - Replace interior walls (Y=15, X=5-9) with "tree" terrain
+  - Commit: "feat(rendering): Render terrain via TileMapLayer (ColorRect deprecated)"
+- **Step 3 (30 min)**: Delete ColorRect terrain layer
+  - Delete `_gridCells[,]` array declaration and initialization
+  - Delete `RestoreTerrainColor()` method (hardcoded terrain logic)
+  - Keep `_fovCells[,]` ColorRect array (FOV overlay still needed!)
+  - Commit: "refactor(rendering): Remove deprecated ColorRect terrain layer"
+- **Step 4 (30 min)**: Fix compilation errors and update pathfinding
+  - Update `IsPassable()` method to query repository instead of hardcoded checks
+  - Fix any lingering `TerrainType` references
+  - Run tests: `./scripts/core/build.ps1 test`
+  - Commit: "fix(rendering): Update pathfinding to use TerrainRepository"
+- **Architectural Note**: Core refactoring (Phase 1-2) breaks original ColorRect scene anyway - no preservation possible
+- **Safety Net**: Git branch + incremental commits provide rollback capability (better than scene duplication)
+- **Done When**: GridTestScene renders via TileMapLayer, ColorRect terrain deleted, walls auto-tile, trees at Y=15, FOV/fog works, all tests GREEN
 
-**Phase 5: TileMapLayer Integration (2-3 hours)**
-- Replace `ColorRect[,] _gridCells` with `TileMapLayer _terrainLayer` reference
-- Inject `ITerrainRepository` via ServiceLocator in `_Ready()`
-- Implement coordinate helpers: `PositionToTileCoord(Position) → Vector2I`, `TileCoordToPosition(Vector2I) → Position`
-- Update terrain rendering:
+**Phase 4: Actor Sprites with Sprite2D (OPTIONAL - 1-2 hours)** - Can defer if time-constrained
+- Load `test_actor_tileset.tres` in `_Ready()` (actor catalog with custom data: name)
+- Create `PlayerSprite` and `DummySprite` Sprite2D nodes in scene
+- Configure texture regions from actor TileSet atlas dynamically:
   ```csharp
-  var terrainDef = _terrainRepo.GetById(terrainId);
-  var atlasCoords = _terrainRepo.GetAtlasCoords(terrainId);
-  _terrainLayer.SetCell(tileCoord, sourceId, atlasCoords);
+  // Use actor TileSet as texture source (NOT a second TileMapLayer!)
+  var actorAtlas = actorTileSet.GetSource(0) as TileSetAtlasSource;
+  _playerSprite.Texture = actorAtlas.Texture;
+  _playerSprite.RegionRect = GetActorRegion(actorAtlas, "player"); // Atlas 5:0
   ```
-- Update FOV overlay (keep ColorRect approach OR explore TileMapLayer modulation)
-- **Done When**: Terrain renders via TileMapLayer, FOV works, fog of war works, autotiling applies (if terrain sets used)
-
-**Phase 6: Actor Sprites (1 hour)**
-- Replace `Sprite2D` nodes with atlas texture regions from `colored_tilemap.png`
-- Update actor rendering: `_playerSprite.Position = _terrainLayer.MapToLocal(PositionToTileCoord(newPosition))`
-- **Done When**: Player and dummy render as pixel art sprites, movement works
-
-**Phase 7: Cellular Automata PCG (2-3 hours)** - PRIMARY SCOPE (validated feasible)
-- Implement cellular automata algorithm (45m): 45% random walls, 4 iterations of 5-neighbor rule
-- Initialize GridMap from generated `bool[,]` map using `TerrainDefinition` catalog (30m)
-- Render via TileMapLayer.SetCell() with terrain IDs - autotiling applies automatically! (30m)
-- Test cave-like generation, tweak parameters (wall%, iterations), add border walls (30m)
-- Add "Regenerate Map" button in UI (15m)
-- **Fallback Strategy**: If cellular automata blocked → simple random scatter; if still blocked → static test map
-- **Done When**: Can generate random cave map on scene load, walls autotile seamlessly, "Regenerate" button works
+- Implement `GetActorRegion(atlas, actorName)` helper to find atlas coords by custom data name
+- Update `OnActorMoved` event handler to tween Sprite2D positions (smooth movement animation)
+- Remove `_actorCells[,]` ColorRect array (replaced by Sprite2D nodes)
+- Set `ZIndex = 20` to render actors above terrain and FOV overlay
+- **Done When**: Player/dummy render as pixel art sprites from actor TileSet, smooth movement tweening works, or SKIP if ColorRect sufficient
 
 **Scope**:
-- ✅ **Core refactoring**: Create TerrainDefinition domain model, delete hardcoded IsPassable/IsOpaque extension methods
-- ✅ **Infrastructure**: GodotTerrainRepository reads TileSet → creates Core domain objects (VS_009 pattern)
-- ✅ **TileSet as SSOT**: Custom data layers store terrain properties (terrain_name, is_passable, is_opaque)
-- ✅ Research Godot native features (terrain system, metadata, TileMapLayer) - **VALIDATED in Phase 0**
-- ✅ Duplicate GridTestScene.tscn (preserve original)
-- ✅ **Autotiling via terrain sets** - **PROVEN WORKING** (test_terrain_tileset.tres confirms 3x3 bitmask patterns)
-- ✅ TileMapLayer rendering with TerrainDefinition → visual mapping
-- ✅ Sprite2D actors using tileset texture regions
-- ✅ Coordinate mapping in Presentation (Core Position ↔ TileMap Vector2I)
-- ✅ **Cellular automata PCG** - **PRIMARY SCOPE** (2-3h estimate, autotiling makes this achievable)
+- ✅ **Core refactoring**: TerrainDefinition with CanPass/CanSeeThrough, delete TerrainType enum (breaks ColorRect scene - acceptable)
+- ✅ **Infrastructure**: GodotTerrainRepository reads TileSet custom data (VS_009 pattern)
+- ✅ **Terrain TileSet as SSOT**: Custom data layers (name, can_pass, can_see_through) - **CONFIGURED**
+- ✅ **Autotiling for walls** - **VALIDATED** (terrain_set_0 with 9 bitmask patterns)
+- ✅ **In-place upgrade**: Modify GridTestScene directly (NO scene duplication - YAGNI principle)
+- ✅ TileMapLayer rendering replaces ColorRect terrain layer (FOV ColorRect overlay preserved)
+- ✅ Maintain existing test scene layout (30×30 grid, border walls, smoke patches, interior obstacles)
+- ✅ Add tree terrain (simple tile, no autotiling) - replaces interior walls for visual variety
+- ✅ Incremental commits for safety (4-step migration with rollback points)
+- ⚠️ **OPTIONAL**: Actor sprites via Sprite2D nodes using `test_actor_tileset.tres` (player, dummy, zombie, beholder)
+- ⚠️ **OPTIONAL**: Smooth movement tweening for actors (can use instant ColorRect if time-constrained)
+- ❌ Scene duplication (ColorRect prototype has no value after TileMapLayer works - maintenance burden)
+- ❌ Second TileMapLayer for actors (use Sprite2D instead - actors are dynamic, not grid-locked)
+- ❌ PCG (defer to future VS - focus on visual upgrade only)
 - ❌ Animations (static sprites only)
-- ❌ Advanced PCG (multi-room dungeons, BSP trees—defer to future VS)
 - ❌ Navigation mesh integration (defer to movement/pathfinding work)
 
 **Done When**:
-- **Core refactored**: TerrainDefinition replaces hardcoded TerrainType logic, ITerrainRepository interface exists
-- **Infrastructure created**: GodotTerrainRepository loads terrain catalog from TileSet (like VS_009 items)
-- **TileSet configured**: Custom data layers define terrain properties (is_passable, is_opaque, terrain_name) - **VALIDATED**
-- New TileMapTestScene.tscn exists (GridTestScene.tscn unchanged)
-- **Autotiling works seamlessly**: Walls connect via terrain sets (3x3 bitmask patterns) - **VALIDATED**
-- TileSet is SOURCE OF TRUTH for ALL terrain properties (gameplay + visual)
-- Core has zero hardcoded terrain logic (data-driven via TerrainDefinition)
-- Player/enemies are recognizable pixel art sprites
-- FOV overlay still works visually (floor tiles must be transparent!)
+- **Core refactored**: TerrainDefinition with CanPass/CanSeeThrough replaces TerrainType enum (breaks old ColorRect scene - acceptable)
+- **Infrastructure created**: GodotTerrainRepository loads 4 terrain types from TileSet (floor, walls, smoke, tree)
+- **TileSet configured**: Tree tile has can_pass=false, can_see_through=false - **COMPLETE**
+- **GridTestScene upgraded in-place**: TileMapLayer replaces ColorRect terrain layer (no duplicate scene created)
+- **Walls auto-tile seamlessly** via terrain_set_0 (9 bitmask patterns) - **VALIDATED WORKING**
+- Trees replace interior walls (Y=15, X=5-9) - provides visual variety
+- TileSet is SOURCE OF TRUTH for ALL terrain properties (no hardcoded logic in Core)
+- FOV/fog of war still works (ColorRect overlay preserved, only terrain layer replaced)
 - All 359 tests GREEN (Core refactoring maintains behavior)
-- Scene looks "game-like" instead of prototype
-- **PCG works**: Can generate random cave map on scene load, "Regenerate" button creates new maps
+- Scene looks pixel-art polished instead of ColorRect prototype
+- Movement, pathfinding, FOV all functional with new rendering
+- Git history shows 4 incremental commits (rollback safety at each step)
 
 **Dependencies**: None (VS_009 pattern already proven)
 
 **Risks**:
-- **MEDIUM**: Core refactoring breaks existing tests (mitigation: incremental refactoring, run tests after each change)
-- **LOW**: PCG scope creep (mitigation: 2-3h estimate, fallback strategy defined, cellular automata proven simple)
+- **MEDIUM**: Core refactoring breaks existing tests (mitigation: incremental refactoring, run tests after each phase)
+- ~~**CRITICAL**: Floor tile `is_opaque=true` breaks FOV~~ - **RESOLVED: can_see_through=true configured**
 - ~~**MEDIUM**: Terrain set configuration complexity~~ - **RESOLVED: Autotiling validated working**
-- **LOW**: TileSet custom data API (mitigation: proven in VS_009, same pattern)
-- **LOW**: Coordinate mapping bugs (mitigation: trivial X→X, Y→Y mapping, easy visual verification)
-- **CRITICAL**: Floor tile `is_opaque=true` breaks FOV (mitigation: fix before Phase 5 TileMapLayer integration)
+- **LOW**: TileSet custom data API (mitigation: VS_009 pattern proven, same approach)
+- **LOW**: FOV overlay integration (mitigation: keep ColorRect approach, proven working)
 
-**Research Questions** - ✅ ANSWERED (Phase 0 complete):
-1. ~~How does VS_009 GodotItemRepository work?~~ **Next: Review implementation before Phase 1**
-2. ~~How to configure autotiling terrain sets?~~ **✅ VALIDATED: test_terrain_tileset.tres shows working 3x3 bitmask**
-3. ~~What's the simplest PCG algorithm?~~ **✅ CONFIRMED: Cellular automata (45m implementation)**
-4. ~~Terrain sets OR simple atlas coords?~~ **✅ DECIDED: Terrain sets (proven working in screenshot)**
-5. ~~TerrainId as int or GUID?~~ **RECOMMEND: int for simplicity (0=Floor, 1=Wall, 2=Smoke)**
-
-**Tech Lead Decision** (2025-10-05 00:17):
-- **REVISED SCOPE: PCG promoted from optional to PRIMARY** - Autotiling validation changes risk profile
-- **Evidence**: Screenshot confirms terrain set 0 working, custom data layers configured, 9 wall variants auto-tile correctly
-- **Updated estimate**: L (2-3 days) instead of M-L (2-2.5 days) to account for PCG implementation (2-3h)
-- **Key insight**: Godot autotiling = PCG complexity is 80% solved (just generate bool[,], Godot handles visual matching)
-- **Fallback strategy**: Cellular automata → random scatter → static test map (degrades gracefully)
-- **Benefits**: Random maps = game feels alive (high motivation value), proves TileSet pattern works for dynamic content
-- **Next steps**: Dev Engineer reviews VS_009 GodotItemRepository pattern, then Phase 1 Core refactoring
+**Tech Lead Decision** (2025-10-05 00:32):
+- **SCOPE SIMPLIFIED: PCG removed** - Focus on visual upgrade + architecture refactoring only
+- **Rationale**: TileSet SSOT + TileMapLayer rendering provides immediate visual improvement without PCG complexity
+- **Evidence**: Autotiling validated, custom data layers configured (name, can_pass, can_see_through)
+- **Size revised**: M (1-2 days) - removed 2-3h PCG work, simplified to 4-phase implementation
+- **Tree terrain added**: Simple tile (5:5) replaces interior walls, adds visual variety (no autotiling needed)
+- **In-place upgrade decision (YAGNI principle)**:
+  - NO scene duplication - Core refactoring breaks ColorRect scene anyway (TerrainType enum deletion)
+  - Maintaining two scenes = doubled maintenance for every future feature (VS_020 Combat, etc.)
+  - Git branches provide better safety net than scene duplication (rollback any commit)
+  - ColorRect prototype has zero value after TileMapLayer works (nobody will use it)
+  - Incremental commits (4 steps) provide rollback points during migration
+- **Actor TileSet pattern clarified**: Use `test_actor_tileset.tres` as sprite catalog for Sprite2D nodes (NOT a second TileMapLayer)
+  - TileMapLayer = static grid-aligned terrain (walls, floors, trees)
+  - Sprite2D = dynamic entities with smooth movement (player, enemies)
+  - Both follow SSOT pattern but consumed differently (SetCell vs RegionRect)
+- **Benefits**: Professional pixel-art look, designer-editable terrain, consistent VS_009 architecture, no dead code maintenance
+- **PCG deferred**: Can add as future VS after visual foundation established
+- **Next steps**: Dev Engineer reviews VS_009 GodotItemRepository, implements Phases 1-4 with incremental commits
 
 ---
 
