@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-04 16:14 (Dev Engineer: VS_007 Phase 1 complete - TimeUnits, ScheduledActor, TurnQueue implemented with 36/36 tests GREEN)
+**Last Updated**: 2025-10-04 16:31 (Dev Engineer: VS_007 Phase 2 complete - Application layer (Commands, Queries, Events, EventHandlers) with 13 tests)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -83,7 +83,7 @@
 
 ### VS_007: Time-Unit Turn Queue System ⭐ **IN PROGRESS**
 
-**Status**: Phase 1 Complete (Domain) - 36/36 tests GREEN
+**Status**: Phase 2 Complete (Application) - Commands, Queries, Events + 49 total tests
 **Owner**: Dev Engineer (implementing phases)
 **Size**: L (2-3 days, all 4 phases)
 **Priority**: Critical (foundation for combat system)
@@ -271,6 +271,46 @@ Exploration → Combat Detection → Reinforcement → Victory
 - `tests/Darklands.Core.Tests/Features/Combat/Domain/TurnQueueTests.cs`
 
 **Next**: Phase 2 (Application) - Commands, Queries, Event Handlers
+
+**Phase 2 Progress** (2025-10-04 16:31):
+
+✅ **Application Layer Complete** (13 new tests, 49 total):
+
+**Repository Interface**:
+- `ITurnQueueRepository`: Singleton pattern, async API, auto-creates with player
+
+**Commands + Handlers** (2 commands, Railway-oriented):
+- `ScheduleActorCommand`: Add actor → Save → Publish TurnQueueChangedEvent
+- `RemoveActorFromQueueCommand`: Remove actor → Auto-reset if last enemy → Event
+
+**Queries + Handlers** (2 queries, hot-path optimized):
+- `IsInCombatQuery`: Returns queue.IsInCombat (called every movement)
+- `IsActorScheduledQuery`: Checks Contains() (prevents duplicate scheduling)
+
+**Events**:
+- `TurnQueueChangedEvent`: ActorId, ChangeType, IsInCombat, QueueSize
+- `TurnQueueChangeType` enum: ActorScheduled, ActorRemoved
+- Per ADR-004: Terminal subscribers, no cascading events
+
+**Event Handler**:
+- `EnemyDetectionEventHandler`: FOVCalculatedEvent → ScheduleActorCommand
+  - Bridges FOV System (VS_005) to Combat System (VS_007)
+  - Processes player's FOV only (MVP scope)
+  - Filters hostile actors, checks if already scheduled
+  - Schedules new enemies at time=0 (immediate action)
+  - Handles reinforcements during combat (FOV recalculates on movement)
+
+**Test Coverage** (13 Phase 2 tests):
+- Command handlers (8 tests): Schedule/Remove success, failures, mode transitions
+- Query handlers (5 tests): Combat state, actor scheduling checks
+- Test infrastructure: FakeTurnQueueRepository, FakeEventBus
+
+**Files Created** (17 files):
+- Application: ITurnQueueRepository, 2 commands + handlers, 2 queries + handlers, 1 event handler
+- Events: TurnQueueChangedEvent, TurnQueueChangeType enum
+- Tests: 3 test classes + 2 test infrastructure classes
+
+**Next**: Phase 3 (Infrastructure) - TurnQueueRepository implementation, DI registration
 
 ---
 
