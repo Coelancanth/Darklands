@@ -275,42 +275,44 @@ TileSet (Godot)                  Infrastructure (Bridge)           Core (Pure C#
 
 ---
 
-### VS_019_FOLLOWUP: Fix Wall Autotiling (Godot Terrain API)
-**Status**: Proposed | **Owner**: Dev Engineer | **Size**: S (<4h) | **Priority**: Important (Polish)
+### VS_019_FOLLOWUP: Fix Wall Autotiling (Manual Edge Assignment) ✅
+**Status**: Done | **Owner**: Dev Engineer | **Size**: S (3h) | **Priority**: Important (Polish)
 **Markers**: [VISUAL-POLISH] [TECHNICAL-DEBT]
 
-**What**: Implement proper wall autotiling using Godot's SetCellsTerrainConnect API for seamless corner rendering
+**What**: Implemented manual wall tile assignment for correct edge/corner rendering
 
 **Why**:
-- Current walls show individual brick tiles at corners instead of seamless connected walls
-- TileSet terrain_set_0 is already configured with bitmask patterns (9 variants validated)
-- VS_019 uses SetCell() which bypasses terrain system autotiling logic
+- Godot terrain autotiling failed for walls with symmetric bitmasks
+- Left and right edges have identical neighbor patterns → autotiling picked wrong variants
+- Result: Visual seam/gap on left wall edge (using wrong tile atlas coords)
 
-**How**:
-- **Problem**: SetCell(pos, sourceId, atlasCoords) places tiles manually, ignoring terrain bitmask
-- **Solution**: Collect all wall positions FIRST, then call SetCellsTerrainConnect(allWallCells, terrainSet: 0, terrain: 0)
-- **Pattern**: Batch processing required - Godot analyzes neighbors for entire set, not individual cells
-- **Implementation**:
-  ```csharp
-  // Collect all wall positions during initialization
-  var wallPositions = new Godot.Collections.Array<Vector2I>();
-  for (edges...) {
-      await _mediator.Send(new SetTerrainCommand(pos, "wall_stone"));
-      wallPositions.Add(new Vector2I(pos.X, pos.Y));
-  }
-  // THEN apply autotiling to entire set
-  _terrainLayer.SetCellsTerrainConnect(wallPositions, terrainSet: 0, terrain: 0);
-  ```
+**Root Cause Discovery** (via debug logging):
+- Both edges were rendering with atlas (3,1) "wall_middle_right"
+- Symmetric bitmasks mean Godot can't distinguish left from right via neighbors alone
+- SetCellsTerrainConnect API arbitrarily picked one variant for both edges
 
-**Done When**:
-- Wall corners render seamlessly (L-shaped corners, T-junctions, etc.)
-- Border walls connect properly at all 4 corners
-- Interior tree obstacles (Y=15) still render correctly
-- Floor, grass, trees unaffected (direct SetCell still used)
+**Solution Implemented**:
+- Manual position-based tile assignment using conditional logic
+- Corners: Check (0,0), (29,0), (0,29), (29,29) → assign specific corner atlas coords
+- Edges: Check X==0/X==29/Y==0/Y==29 → assign edge-specific tiles
+- Code: `RenderWallsWithAutotiling()` in GridTestSceneController.cs (lines 180-242)
 
-**Dependencies**: None (VS_019 complete, autotiling is polish)
+**Done** (2025-10-05):
+- ✅ Wall corners render seamlessly (4 proper L-shaped corners)
+- ✅ Border walls show correct edge tiles (left uses (0,1), right uses (3,1))
+- ✅ Visual symmetry achieved (left and right edges match appearance)
+- ✅ Interior obstacles (trees, grass) unaffected
+- ✅ Commit 0885cbd: Manual tiling implementation with detailed explanation
 
-**Effort**: 2-3 hours (refactor InitializeGameState terrain loop, test corner rendering)
+**Lessons Learned**:
+- Godot terrain autotiling requires asymmetric bitmasks for directional edges
+- For symmetric patterns, manual assignment is more reliable than terrain API
+- Position-based logic is simple and maintainable for border walls
+
+**Trade-offs Accepted**:
+- Manual assignment requires position knowledge (not fully data-driven)
+- For complex interior walls, would need additional logic
+- For border walls (90% use case), this solution is ideal
 
 ---
 
