@@ -95,11 +95,12 @@ public class CalculateHighlightCellsQueryHandlerTests
         var itemRepo = new StubItemRepository(item);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
-        // Create WeaponOnly container
+        // Create WeaponOnly container and register it for this actor
+        var inventoryId = new Darklands.Core.Features.Inventory.Domain.InventoryId(Guid.NewGuid());
         var inventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(
-            new Darklands.Core.Features.Inventory.Domain.InventoryId(actorId.Value),
+            inventoryId,
             1, 1, ContainerType.WeaponOnly).Value;
-        await inventoryRepo.SaveAsync(inventory);
+        inventoryRepo.RegisterInventoryForActor(actorId, inventory);
 
         var handler = new CalculateHighlightCellsQueryHandler(inventoryRepo, itemRepo, NullLogger<CalculateHighlightCellsQueryHandler>.Instance);
 
@@ -138,18 +139,21 @@ public class CalculateHighlightCellsQueryHandlerTests
     }
 
     [Fact]
-    public async Task Handle_InventoryNotFound_ShouldReturnFailure()
+    public async Task Handle_AutoCreatedInventory_ShouldUseGeneralContainer()
     {
+        // WHY: InMemoryInventoryRepository auto-creates General containers for unknown actors
+        // This test validates that auto-created inventories DON'T apply equipment slot override
+
         // Arrange
         var actorId = ActorId.NewId();
         var itemId = ItemId.NewId();
         var position = new GridPosition(0, 0);
 
-        var item = Darklands.Core.Features.Item.Domain.Item.Create(itemId, 0, 0, "Test", "item", 1, 1, 1, 1, 1).Value;
+        var item = Darklands.Core.Features.Item.Domain.Item.Create(itemId, 0, 0, "Test", "item", 2, 2, 2, 2, 1).Value; // 2×2 item
         var itemRepo = new StubItemRepository(item);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
-        // Don't save inventory - it won't exist
+        // Don't register inventory - it will auto-create as General container
 
         var handler = new CalculateHighlightCellsQueryHandler(inventoryRepo, itemRepo, NullLogger<CalculateHighlightCellsQueryHandler>.Instance);
 
@@ -159,6 +163,8 @@ public class CalculateHighlightCellsQueryHandlerTests
         var result = await handler.Handle(query, CancellationToken.None);
 
         // Assert
-        result.IsFailure.Should().BeTrue();
+        // Auto-created inventory is General, so NO equipment slot override (shows full 2×2)
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().HaveCount(4); // 2×2 = 4 cells, NOT overridden to 1×1
     }
 }
