@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-04 14:15 (Backlog Assistant: TD_003 archived - EquipmentSlotNode created, InventoryRenderHelper extracted, InventoryContainerNode cleaned, 3 phases complete)
+**Last Updated**: 2025-10-04 16:14 (Dev Engineer: VS_007 Phase 1 complete - TimeUnits, ScheduledActor, TurnQueue implemented with 36/36 tests GREEN)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -81,10 +81,10 @@
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*
 
-### VS_007: Time-Unit Turn Queue System ⭐ **PLANNED**
+### VS_007: Time-Unit Turn Queue System ⭐ **IN PROGRESS**
 
-**Status**: Proposed
-**Owner**: Product Owner → Tech Lead (for breakdown)
+**Status**: Phase 1 Complete (Domain) - 36/36 tests GREEN
+**Owner**: Dev Engineer (implementing phases)
 **Size**: L (2-3 days, all 4 phases)
 **Priority**: Critical (foundation for combat system)
 **Depends On**: VS_005 (FOV events), VS_006 (Movement cancellation)
@@ -223,6 +223,54 @@ Exploration → Combat Detection → Reinforcement → Victory
 - **Player-Centric FOV**: VS_007 only uses player's FOV (enemies scheduled when player sees them). Enemy vision (asymmetric combat, ambushes) deferred to future VS. Architecture supports it (just add PlayerDetectionEventHandler subscribing to enemy FOV events), but out of scope for MVP.
 - **Future Extensibility**: To add enemy vision later: (1) Calculate FOV for enemies within awareness radius, (2) Publish FOVCalculatedEvent(enemyId, visiblePositions), (3) PlayerDetectionEventHandler checks if player in visiblePositions, (4) Schedule enemy if yes. No refactoring of turn queue needed—event-driven design allows non-breaking addition.
 - **Reference Scenario Above**: Shows complete lifecycle including exploration, combat start, reinforcements, victory. Use for integration test design and manual testing walkthrough.
+
+**Dev Engineer Review** (2025-10-04):
+
+*Architecture Clarifications*:
+1. **Phase 3 Infrastructure Pattern**: Use `ITurnQueueRepository` following our repository pattern (not service layer). Command handlers fetch aggregate via repository, call domain methods, persist. No `TurnQueueService` needed—breaks SSOT if service duplicates aggregate logic.
+2. **Tie-Breaking Location**: Implement in Domain (`TurnQueue.PopNext()`) for testability. Pure logic without MediatR dependency.
+3. **Player Scheduling Lifecycle**: Player permanently lives in queue at time=0 during exploration (never removed). When combat starts, player advances time normally. When combat ends (queue.Count == 1), player's time resets to 0 via `ResetToExploration()` method.
+4. **Turn Execution Flow**: Semi-automated. Player acts (click) → game auto-processes all enemy turns until player is next → waits for player input. Uses `ProcessPendingTurnsQuery` to batch enemy actions without UI blocking.
+5. **Event Handler Testing**: Phase 2 includes unit tests for event handlers (mock IMediator, verify correct commands sent). Integration tests (Phase 3) verify end-to-end flow.
+6. **Reinforcement Handling**: Part of `EnemyDetectionEventHandler` (not separate). Handler checks `IsActorScheduledQuery` before scheduling to prevent duplicates.
+
+*Implementation Decisions*:
+- **Domain**: `TurnQueue` aggregate with `SortedList<TimeUnits, ActorId>` for O(log n) insert, O(1) peek/pop
+- **Tie-Breaking**: Use `SortedList` key `(TimeUnits, IsPlayer)` composite for automatic player-first ordering
+- **Time Reset**: `TurnQueue.ResetToExploration()` sets player's NextActionTime = TimeUnits.Zero when queue.Count drops to 1
+- **Event Handlers**: Unit testable via mocked `IMediator.Send()` verification (Phase 2 test coverage)
+
+*Ready to implement Phase 1*: Domain primitives with comprehensive unit tests.
+
+**Phase 1 Progress** (2025-10-04 16:14):
+
+✅ **Domain Implementation Complete** (36/36 tests GREEN, <20ms total):
+- `TimeUnits` value object: Immutable, type-safe time representation with Result<T> validation
+- `ScheduledActor` record: Lightweight data holder (ActorId + NextActionTime + IsPlayer flag)
+- `TurnQueue` aggregate: Priority queue with player-first tie-breaking, automatic exploration reset
+  - Methods: `Schedule()`, `PopNext()`, `PeekNext()`, `Remove()`, `Reschedule()`, `Contains()`, `IsInCombat`
+  - Player permanently in queue (never fully removed), resets to time=0 when combat ends
+  - Internal `List<ScheduledActor>` + custom sort for flexible tie-breaking
+
+**Key Design Decisions Validated**:
+1. **PopNext() + Re-Schedule Pattern**: Actor removed on action → re-scheduled with new time (not in-place update)
+2. **Automatic Exploration Reset**: When queue.Count drops to 1 (only player), `Remove()` auto-resets player to time=0
+3. **Player-First Tie-Breaking**: Sort comparator ensures player acts before enemies at same time
+4. **Reschedule() for Adjustments**: Separate method for updating existing actor's time (used in Phase 2 handlers)
+
+**Test Coverage**:
+- Unit tests (20 tests): TimeUnits validation, arithmetic, comparison operators
+- Unit tests (16 tests): TurnQueue scheduling, ordering, combat mode detection, lifecycle simulation
+- Complex integration test: Full exploration → combat → reinforcement → victory scenario
+
+**Files Created**:
+- `src/Darklands.Core/Features/Combat/Domain/TimeUnits.cs`
+- `src/Darklands.Core/Features/Combat/Domain/ScheduledActor.cs`
+- `src/Darklands.Core/Features/Combat/Domain/TurnQueue.cs`
+- `tests/Darklands.Core.Tests/Features/Combat/Domain/TimeUnitsTests.cs`
+- `tests/Darklands.Core.Tests/Features/Combat/Domain/TurnQueueTests.cs`
+
+**Next**: Phase 2 (Application) - Commands, Queries, Event Handlers
 
 ---
 
