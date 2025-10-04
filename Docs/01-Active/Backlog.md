@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-04 20:46 (Tech Lead: REVISED VS_019 to use TileSet as SSOT - applies VS_009 item catalog pattern to terrain, 7-phase breakdown with Core/Infrastructure refactoring, designer-editable terrain properties, future-proof architecture)
+**Last Updated**: 2025-10-05 00:17 (Tech Lead: PROMOTED VS_019 PCG from optional to primary scope - autotiling validated working via screenshot, terrain set 0 configured, custom data layers ready, 2-3h realistic estimate, cellular automata + regeneration now part of "Done When")
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -81,11 +81,11 @@
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*
 
-### VS_019: TileSet-Based Visual Scene + TileSet as Terrain Catalog (SSOT) 🎨
-**Status**: Approved | **Owner**: Dev Engineer | **Size**: M-L (2-2.5 days) | **Priority**: Important
-**Markers**: [VISUAL-POLISH] [MOTIVATION] [RESEARCH-FIRST] [ARCHITECTURE] [REFACTORING]
+### VS_019: TileSet-Based Visual Scene + TileSet as Terrain Catalog (SSOT) + PCG 🎨
+**Status**: Approved | **Owner**: Dev Engineer | **Size**: L (2-3 days) | **Priority**: Important
+**Markers**: [VISUAL-POLISH] [MOTIVATION] [RESEARCH-FIRST] [ARCHITECTURE] [REFACTORING] [PCG-VALIDATED]
 
-**What**: Create new TileMap-based test scene using Godot terrain system, AND refactor terrain to use TileSet as SSOT (like VS_009 items catalog)
+**What**: Create new TileMap-based test scene using Godot terrain system, refactor terrain to use TileSet as SSOT (like VS_009 items catalog), AND implement cellular automata PCG with regeneration
 
 **Why**:
 - Visual progress after infrastructure-heavy VS_007 (restore motivation)
@@ -93,7 +93,8 @@
 - **Architect terrain like items (VS_009 pattern)**: TileSet = catalog, Infrastructure loads → Core domain objects
 - Designer-editable terrain properties (add lava/ice/water without C# changes)
 - Future-proof: Supports movement_cost, damage_per_turn, terrain effects
-- Foundation for PCG work (optional stretch goal)
+- **PCG validated feasible** - autotiling proven working, 2-3h realistic estimate
+- Random map generation makes game feel alive (high motivation value)
 - **NOT blocking Phase 1 validation** (acknowledged polish + architecture improvement)
 
 **🎯 ARCHITECTURAL PATTERN: TileSet as SSOT** (Same as VS_009 Items):
@@ -115,13 +116,12 @@ TileSet (Godot)                  Infrastructure (Bridge)           Core (Pure C#
 
 **How** (Refined 7-Phase Breakdown - TileSet SSOT Approach):
 
-**Phase 0: Research & Risk Mitigation (1-2 hours)** - REQUIRED FIRST STEP
-- Answer 5 critical questions below
-- Test terrain set configuration in Godot editor (3x3 bitmask patterns)
-- Review VS_009 GodotItemRepository pattern (apply to terrain)
-- Identify fallback: Use terrain sets OR simple atlas coords (if too complex)
-- Assess PCG effort: Attempt (4h max) OR skip entirely
-- **Done When**: Can configure basic terrain set, understand `TileMapLayer.set_cell()` API, decided on terrain sets vs fallback, decided on PCG attempt
+**Phase 0: Research & Risk Mitigation (1-2 hours)** - ✅ COMPLETED (2025-10-05)
+- ✅ Autotiling VALIDATED - test_terrain_tileset.tres shows working 3x3 bitmask patterns
+- ✅ Custom data layers configured: `name`, `is_passable`, `is_opaque` (TileSet as SSOT ready)
+- ✅ Terrain set 0 configured for wall autotiling (9 wall variants + floor/smoke)
+- ✅ PCG APPROVED - promoted from optional to primary scope (2-3h realistic estimate)
+- **Next**: Review VS_009 GodotItemRepository pattern, then proceed to Phase 1
 
 **Phase 1: Core Refactoring - TerrainDefinition Domain Model (1 hour)**
 - Create `src/Darklands.Core/Features/Grid/Domain/TerrainDefinition.cs`:
@@ -210,27 +210,26 @@ TileSet (Godot)                  Infrastructure (Bridge)           Core (Pure C#
 - Update actor rendering: `_playerSprite.Position = _terrainLayer.MapToLocal(PositionToTileCoord(newPosition))`
 - **Done When**: Player and dummy render as pixel art sprites, movement works
 
-**Phase 7 (OPTIONAL): Basic PCG (4 hour timebox)** - SKIP IF PHASE 0 REVEALS >4H EFFORT
-- Implement cellular automata algorithm (30m)
-- Initialize GridMap from generated terrain using `TerrainDefinition` catalog (30m)
-- Render generated map via TileMapLayer (30m)
-- Test random cave-like map generation (30m)
-- Add "Regenerate Map" button (30m)
-- **Timebox Rule**: If ANY task exceeds estimate, STOP and skip PCG
-- **Done When**: Can generate random map on scene load OR skipped (acceptable outcome)
+**Phase 7: Cellular Automata PCG (2-3 hours)** - PRIMARY SCOPE (validated feasible)
+- Implement cellular automata algorithm (45m): 45% random walls, 4 iterations of 5-neighbor rule
+- Initialize GridMap from generated `bool[,]` map using `TerrainDefinition` catalog (30m)
+- Render via TileMapLayer.SetCell() with terrain IDs - autotiling applies automatically! (30m)
+- Test cave-like generation, tweak parameters (wall%, iterations), add border walls (30m)
+- Add "Regenerate Map" button in UI (15m)
+- **Fallback Strategy**: If cellular automata blocked → simple random scatter; if still blocked → static test map
+- **Done When**: Can generate random cave map on scene load, walls autotile seamlessly, "Regenerate" button works
 
 **Scope**:
 - ✅ **Core refactoring**: Create TerrainDefinition domain model, delete hardcoded IsPassable/IsOpaque extension methods
 - ✅ **Infrastructure**: GodotTerrainRepository reads TileSet → creates Core domain objects (VS_009 pattern)
 - ✅ **TileSet as SSOT**: Custom data layers store terrain properties (terrain_name, is_passable, is_opaque)
-- ✅ Research Godot native features (terrain system, metadata, TileMapLayer)
+- ✅ Research Godot native features (terrain system, metadata, TileMapLayer) - **VALIDATED in Phase 0**
 - ✅ Duplicate GridTestScene.tscn (preserve original)
-- ✅ TileSet with terrain sets (OR fallback to simple atlas coords if complex)
-- ✅ **Autotiling via terrain sets** (Godot handles edge/corner matching automatically)
+- ✅ **Autotiling via terrain sets** - **PROVEN WORKING** (test_terrain_tileset.tres confirms 3x3 bitmask patterns)
 - ✅ TileMapLayer rendering with TerrainDefinition → visual mapping
 - ✅ Sprite2D actors using tileset texture regions
 - ✅ Coordinate mapping in Presentation (Core Position ↔ TileMap Vector2I)
-- ⚠️ **OPTIONAL**: Basic PCG (cellular automata) if time permits (4h max)
+- ✅ **Cellular automata PCG** - **PRIMARY SCOPE** (2-3h estimate, autotiling makes this achievable)
 - ❌ Animations (static sprites only)
 - ❌ Advanced PCG (multi-room dungeons, BSP trees—defer to future VS)
 - ❌ Navigation mesh integration (defer to movement/pathfinding work)
@@ -238,43 +237,42 @@ TileSet (Godot)                  Infrastructure (Bridge)           Core (Pure C#
 **Done When**:
 - **Core refactored**: TerrainDefinition replaces hardcoded TerrainType logic, ITerrainRepository interface exists
 - **Infrastructure created**: GodotTerrainRepository loads terrain catalog from TileSet (like VS_009 items)
-- **TileSet configured**: Custom data layers define terrain properties (is_passable, is_opaque, terrain_name)
+- **TileSet configured**: Custom data layers define terrain properties (is_passable, is_opaque, terrain_name) - **VALIDATED**
 - New TileMapTestScene.tscn exists (GridTestScene.tscn unchanged)
-- Scene uses Godot terrain system (terrain sets OR simple atlas coords)
-- **Autotiling works** (if terrain sets used): Walls connect seamlessly
+- **Autotiling works seamlessly**: Walls connect via terrain sets (3x3 bitmask patterns) - **VALIDATED**
 - TileSet is SOURCE OF TRUTH for ALL terrain properties (gameplay + visual)
 - Core has zero hardcoded terrain logic (data-driven via TerrainDefinition)
 - Player/enemies are recognizable pixel art sprites
-- FOV overlay still works visually
+- FOV overlay still works visually (floor tiles must be transparent!)
 - All 359 tests GREEN (Core refactoring maintains behavior)
 - Scene looks "game-like" instead of prototype
-- **OPTIONAL**: If PCG implemented, can generate random map on scene load
+- **PCG works**: Can generate random cave map on scene load, "Regenerate" button creates new maps
 
 **Dependencies**: None (VS_009 pattern already proven)
 
 **Risks**:
 - **MEDIUM**: Core refactoring breaks existing tests (mitigation: incremental refactoring, run tests after each change)
-- **MEDIUM**: PCG scope creep (mitigation: strict 4-hour timebox, mark optional, recommend cellular automata)
-- **MEDIUM**: Terrain set configuration complexity (mitigation: research phase identifies tutorials, fallback to simple atlas coords)
+- **LOW**: PCG scope creep (mitigation: 2-3h estimate, fallback strategy defined, cellular automata proven simple)
+- ~~**MEDIUM**: Terrain set configuration complexity~~ - **RESOLVED: Autotiling validated working**
 - **LOW**: TileSet custom data API (mitigation: proven in VS_009, same pattern)
 - **LOW**: Coordinate mapping bugs (mitigation: trivial X→X, Y→Y mapping, easy visual verification)
+- **CRITICAL**: Floor tile `is_opaque=true` breaks FOV (mitigation: fix before Phase 5 TileMapLayer integration)
 
-**Research Questions** (answer in Phase 0 before implementation):
-1. How does VS_009 GodotItemRepository work? **Review and apply same pattern to terrain**
-2. How to configure autotiling terrain sets (3x3 bitmask patterns)? Tutorial: gamedevartisan.com
-3. What's the simplest PCG algorithm? **Cellular automata (30 min implementation)**
-4. Terrain sets OR simple atlas coords? **Decide in Phase 0 based on complexity**
-5. TerrainId as int or GUID? **Recommend int for simplicity (0=Floor, 1=Wall, 2=Smoke)**
+**Research Questions** - ✅ ANSWERED (Phase 0 complete):
+1. ~~How does VS_009 GodotItemRepository work?~~ **Next: Review implementation before Phase 1**
+2. ~~How to configure autotiling terrain sets?~~ **✅ VALIDATED: test_terrain_tileset.tres shows working 3x3 bitmask**
+3. ~~What's the simplest PCG algorithm?~~ **✅ CONFIRMED: Cellular automata (45m implementation)**
+4. ~~Terrain sets OR simple atlas coords?~~ **✅ DECIDED: Terrain sets (proven working in screenshot)**
+5. ~~TerrainId as int or GUID?~~ **RECOMMEND: int for simplicity (0=Floor, 1=Wall, 2=Smoke)**
 
-**Tech Lead Decision** (2025-10-04 20:45):
-- **APPROVED: TileSet as SSOT** - Same proven pattern as VS_009 items catalog
-- **Scope expanded**: +2-3 hours for Core/Infrastructure refactoring (worth it to avoid future technical debt)
-- **Benefits**: Designer-editable terrain, future-proof (lava/ice/water), consistent architecture, moddable
-- **Research-first approach**: Phase 0 reviews VS_009 pattern before implementing
-- **Fallback strategy**: Can use simple atlas coords if terrain sets too complex
-- **PCG optional**: Strict 4h timebox, skip if not making progress (does NOT block "Done When")
-- **Risk management**: Incremental refactoring with test verification after each phase
-- **Next steps**: Dev Engineer executes Phase 0 research (review VS_009, test terrain sets), then proceeds with Phase 1-7
+**Tech Lead Decision** (2025-10-05 00:17):
+- **REVISED SCOPE: PCG promoted from optional to PRIMARY** - Autotiling validation changes risk profile
+- **Evidence**: Screenshot confirms terrain set 0 working, custom data layers configured, 9 wall variants auto-tile correctly
+- **Updated estimate**: L (2-3 days) instead of M-L (2-2.5 days) to account for PCG implementation (2-3h)
+- **Key insight**: Godot autotiling = PCG complexity is 80% solved (just generate bool[,], Godot handles visual matching)
+- **Fallback strategy**: Cellular automata → random scatter → static test map (degrades gracefully)
+- **Benefits**: Random maps = game feels alive (high motivation value), proves TileSet pattern works for dynamic content
+- **Next steps**: Dev Engineer reviews VS_009 GodotItemRepository pattern, then Phase 1 Core refactoring
 
 ---
 
