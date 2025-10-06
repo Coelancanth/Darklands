@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using Microsoft.Extensions.Logging;
 
 namespace Darklands.Core.Features.WorldGen.Infrastructure.Algorithms;
 
@@ -8,6 +10,15 @@ namespace Darklands.Core.Features.WorldGen.Infrastructure.Algorithms;
 /// </summary>
 public static class ClimateCalculator
 {
+    private static ILogger? _logger;
+
+    /// <summary>
+    /// Sets the logger for algorithm tracing (optional - for debugging climate calculations).
+    /// </summary>
+    public static void SetLogger(ILogger logger)
+    {
+        _logger = logger;
+    }
     /// <summary>
     /// Calculates precipitation using multi-factor model:
     /// - Latitude bands (ITCZ, Hadley cells, temperate fronts)
@@ -34,6 +45,18 @@ public static class ClimateCalculator
         var noiseOffsetX = random.Next(0, 10000);
         var noiseOffsetY = random.Next(0, 10000);
 
+        // Sample cells for detailed tracing (avoid spam - pick 3 representative cells)
+        var sampleCells = new List<(int x, int y, string desc)>
+        {
+            (width / 4, height / 2, "west-equator"),      // Western equatorial region
+            (width / 2, height / 4, "center-northern"),   // Center northern (temperate)
+            (3 * width / 4, height / 2, "east-equator")   // Eastern equatorial (potential rain shadow)
+        };
+
+        // Statistics tracking
+        float minPrecip = float.MaxValue, maxPrecip = float.MinValue, sumPrecip = 0f;
+        int oceanCount = 0, landCount = 0;
+
         for (int y = 0; y < height; y++)
         {
             // Latitude: 0 = equator (center), ±1 = poles (edges)
@@ -46,8 +69,19 @@ public static class ClimateCalculator
             {
                 float elevation = heightmap[y, x];
 
+                // Check if this is a sample cell for detailed tracing
+                bool isSample = sampleCells.Exists(s => s.x == x && s.y == y);
+                string sampleDesc = isSample ? sampleCells.Find(s => s.x == x && s.y == y).desc : "";
+
+                if (isSample)
+                    _logger?.LogDebug("Precipitation trace [{Desc}] ({X},{Y}): elevation={Elev:F3}, latitude={Lat:F3}",
+                        sampleDesc, x, y, elevation, latitude);
+
                 // 1. Start with latitude-based precipitation
                 float precip = latitudePercip;
+
+                if (isSample)
+                    _logger?.LogDebug("  Step 1 - Latitude base: {Value:F3}", precip);
 
                 // 2. Add noise variation (WorldEngine approach - breaks up banding)
                 // Use multiple octaves for more organic variation
@@ -62,33 +96,75 @@ public static class ClimateCalculator
                     (y + noiseOffsetY) * 0.08f,
                     seed + 1000); // Different seed for variety
 
+                float precipBeforeNoise = precip;
                 precip += coarseNoise * 0.25f; // ±0.25 large-scale variation
                 precip += fineNoise * 0.15f;   // ±0.15 fine-scale variation (breaks up boundaries)
 
+                if (isSample)
+                    _logger?.LogDebug("  Step 2 - After noise (coarse={Coarse:F3}, fine={Fine:F3}): {Value:F3} (delta={Delta:+F3;-F3})",
+                        coarseNoise, fineNoise, precip, precip - precipBeforeNoise);
+
                 // 3. Orographic lift (mountains increase precipitation on windward side)
+                float precipBeforeOro = precip;
                 float orographicEffect = CalculateOrographicEffect(heightmap, x, y, width, height);
                 precip += orographicEffect;
 
+                if (isSample && Math.Abs(orographicEffect) > 0.01f)
+                    _logger?.LogDebug("  Step 3 - Orographic lift: +{Effect:F3} -> {Value:F3}",
+                        orographicEffect, precip);
+
                 // 4. Rain shadow effect (leeward side is drier)
+                float precipBeforeRainShadow = precip;
                 float rainShadowEffect = CalculateRainShadowEffect(heightmap, x, y, width, height);
                 precip *= rainShadowEffect; // Multiplicative reduction (0.6-1.0)
 
+                if (isSample && rainShadowEffect < 1.0f)
+                    _logger?.LogDebug("  Step 4 - Rain shadow: x{Effect:F3} -> {Value:F3} (reduced by {Reduction:P0})",
+                        rainShadowEffect, precip, 1.0f - rainShadowEffect);
+
                 // 5. Ocean proximity (moisture source)
+                float precipBeforeOcean = precip;
                 if (oceanMask[y, x])
                 {
                     precip += 0.15f; // Oceans have more moisture
+                    if (isSample)
+                        _logger?.LogDebug("  Step 5 - Ocean cell: +0.15 -> {Value:F3}", precip);
                 }
                 else
                 {
                     // Coastal cells get bonus (adjacent to ocean)
                     bool isCoastal = IsAdjacentToOcean(oceanMask, x, y, width, height);
                     if (isCoastal)
+                    {
                         precip += 0.1f;
+                        if (isSample)
+                            _logger?.LogDebug("  Step 5 - Coastal cell: +0.10 -> {Value:F3}", precip);
+                    }
                 }
 
-                precipitation[y, x] = Math.Clamp(precip, 0f, 1f);
+                float finalPrecip = Math.Clamp(precip, 0f, 1f);
+                precipitation[y, x] = finalPrecip;
+
+                if (isSample)
+                    _logger?.LogDebug("  Final (clamped): {Value:F3}", finalPrecip);
+
+                // Update statistics
+                minPrecip = Math.Min(minPrecip, finalPrecip);
+                maxPrecip = Math.Max(maxPrecip, finalPrecip);
+                sumPrecip += finalPrecip;
+                if (oceanMask[y, x])
+                    oceanCount++;
+                else
+                    landCount++;
             }
         }
+
+        // Log summary statistics (one message per generation)
+        int totalCells = width * height;
+        float avgPrecip = sumPrecip / totalCells;
+        _logger?.LogInformation(
+            "Precipitation summary: min={Min:F3}, max={Max:F3}, avg={Avg:F3} (land={Land}, ocean={Ocean})",
+            minPrecip, maxPrecip, avgPrecip, landCount, oceanCount);
 
         return precipitation;
     }
@@ -330,6 +406,17 @@ public static class ClimateCalculator
         var noiseOffsetX = random.Next(0, 10000);
         var noiseOffsetY = random.Next(0, 10000);
 
+        // Sample cells for detailed tracing (same positions as precipitation)
+        var sampleCells = new List<(int x, int y, string desc)>
+        {
+            (width / 4, height / 2, "west-equator"),
+            (width / 2, height / 4, "center-northern"),
+            (3 * width / 4, height / 2, "east-equator")
+        };
+
+        // Statistics tracking
+        float minTemp = float.MaxValue, maxTemp = float.MinValue, sumTemp = 0f;
+
         for (int y = 0; y < height; y++)
         {
             // Latitude: 0 = equator (center), ±1 = poles (edges)
@@ -340,7 +427,18 @@ public static class ClimateCalculator
 
             for (int x = 0; x < width; x++)
             {
+                // Check if this is a sample cell for detailed tracing
+                bool isSample = sampleCells.Exists(s => s.x == x && s.y == y);
+                string sampleDesc = isSample ? sampleCells.Find(s => s.x == x && s.y == y).desc : "";
+
+                if (isSample)
+                    _logger?.LogDebug("Temperature trace [{Desc}] ({X},{Y}): elevation={Elev:F3}, latitude={Lat:F3}",
+                        sampleDesc, x, y, heightmap[y, x], latitude);
+
                 float temp = baseTemp;
+
+                if (isSample)
+                    _logger?.LogDebug("  Step 1 - Latitude base (cosine): {Value:F3}", temp);
 
                 // Add temperature variation noise (breaks up horizontal bands)
                 // Use fine-grain noise to create micro-climate variation
@@ -348,20 +446,52 @@ public static class ClimateCalculator
                     (x + noiseOffsetX) * 0.05f,
                     (y + noiseOffsetY) * 0.05f,
                     seed + 5000);
+                float tempBeforeNoise = temp;
                 temp += tempNoise * 0.08f; // ±0.08 temperature variation (enough to cross biome boundaries)
+
+                if (isSample)
+                    _logger?.LogDebug("  Step 2 - After noise: {Value:F3} (delta={Delta:+F3;-F3})",
+                        temp, temp - tempBeforeNoise);
 
                 // Elevation cooling: FIXED from 0.5× to 0.25× (was making highlands too cold)
                 // This allows temperate highlands to support forests instead of just ice/tundra
+                float tempBeforeCooling = temp;
                 float elevationCooling = heightmap[y, x] * 0.25f;
                 temp = Math.Max(0f, temp - elevationCooling);
 
+                if (isSample && elevationCooling > 0.01f)
+                    _logger?.LogDebug("  Step 3 - Elevation cooling: -{Cooling:F3} -> {Value:F3}",
+                        elevationCooling, temp);
+
                 // Oceans moderate temperature (reduce extremes)
                 if (oceanMask[y, x])
+                {
+                    float tempBeforeModeration = temp;
                     temp = Lerp(temp, 0.5f, 0.2f); // Pull towards moderate temp
+                    if (isSample)
+                        _logger?.LogDebug("  Step 4 - Ocean moderation: {Before:F3} -> {After:F3}",
+                            tempBeforeModeration, temp);
+                }
 
-                temperature[y, x] = Math.Clamp(temp, 0f, 1f);
+                float finalTemp = Math.Clamp(temp, 0f, 1f);
+                temperature[y, x] = finalTemp;
+
+                if (isSample)
+                    _logger?.LogDebug("  Final (clamped): {Value:F3}", finalTemp);
+
+                // Update statistics
+                minTemp = Math.Min(minTemp, finalTemp);
+                maxTemp = Math.Max(maxTemp, finalTemp);
+                sumTemp += finalTemp;
             }
         }
+
+        // Log summary statistics
+        int totalCells = width * height;
+        float avgTemp = sumTemp / totalCells;
+        _logger?.LogInformation(
+            "Temperature summary: min={Min:F3}, max={Max:F3}, avg={Avg:F3}",
+            minTemp, maxTemp, avgTemp);
 
         return temperature;
     }

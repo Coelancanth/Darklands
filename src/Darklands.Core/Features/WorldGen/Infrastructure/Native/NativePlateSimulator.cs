@@ -204,6 +204,9 @@ public class NativePlateSimulator : IPlateSimulator
 
         try
         {
+            // Enable algorithm tracing (logger will be used for sample cells + summary stats)
+            ClimateCalculator.SetLogger(_logger);
+
             // Calculate precipitation (noise + orographic lift + rain shadow)
             var precipitation = ClimateCalculator.CalculatePrecipitation(
                 elevation.Heightmap,
