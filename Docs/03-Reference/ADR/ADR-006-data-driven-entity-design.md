@@ -2,10 +2,11 @@
 
 **Status**: Approved
 **Date**: 2025-10-06
-**Last Updated**: 2025-10-06
+**Last Updated**: 2025-10-06 14:03
 **Decision Makers**: Tech Lead
 
 **Changelog**:
+- 2025-10-06 (v1.2): Added IIdentifiableResource interface for compile-time safety, fail-fast loading, ActorFactory future enhancement
 - 2025-10-06 (v1.1): Added comprehensive Control Flow section - Three execution phases (Design-Time, Startup, Runtime), critical insights, hot-reload flow
 - 2025-10-06 (v1.0): Initial decision - Godot Resources for entity templates, designer autonomy, iteration speed
 
@@ -346,10 +347,10 @@ NEXT spawned goblin uses new template:
 using Godot;
 
 [GlobalClass]
-public partial class ActorTemplate : Resource
+public partial class ActorTemplate : Resource, IIdentifiableResource
 {
     // Identity
-    [Export] public string Id { get; set; } = "";  // "goblin", "orc", "skeleton"
+    [Export] public string Id { get; set; } = "";  // "goblin", "orc", "skeleton" (enforced by interface)
 
     // i18n (ADR-005 integration)
     [Export] public string NameKey { get; set; } = "";  // "ACTOR_GOBLIN"
@@ -377,16 +378,42 @@ public partial class ActorTemplate : Resource
 
 ### Template Service (Infrastructure Layer)
 
+#### Template Identity Interface
+
+**All templates MUST implement `IIdentifiableResource` for compile-time safety**:
+
+```csharp
+// Infrastructure/Templates/IIdentifiableResource.cs
+public interface IIdentifiableResource
+{
+    string Id { get; }
+}
+```
+
+**Why**: Prevents reflection-based ID extraction (fragile). Compile-time error if template missing Id property.
+
+**Template Definition with Interface**:
+```csharp
+[GlobalClass]
+public partial class ActorTemplate : Resource, IIdentifiableResource
+{
+    [Export] public string Id { get; set; } = "";  // ✅ Enforced by interface
+    // ... other properties
+}
+```
+
+#### Template Service Abstraction
+
 ```csharp
 // Infrastructure/Services/ITemplateService.cs (abstraction for testing)
-public interface ITemplateService<T> where T : Resource
+public interface ITemplateService<T> where T : Resource, IIdentifiableResource
 {
     Result<T> GetTemplate(string id);
     IReadOnlyDictionary<string, T> GetAllTemplates();
 }
 
 // Infrastructure/Services/GodotTemplateService.cs (implementation)
-public class GodotTemplateService<T> : ITemplateService<T> where T : Resource
+public class GodotTemplateService<T> : ITemplateService<T> where T : Resource, IIdentifiableResource
 {
     private readonly Dictionary<string, T> _templates = new();
     private readonly ILogger<GodotTemplateService<T>> _logger;
@@ -414,20 +441,13 @@ public class GodotTemplateService<T> : ITemplateService<T> where T : Resource
                 var template = GD.Load<T>(path);
 
                 if (template == null)
-                {
-                    _logger.LogWarning("Failed to load template: {Path}", path);
-                    continue;
-                }
+                    return Result.Failure($"Failed to load template: {path}");  // ✅ Fail-fast
 
-                // Extract ID from template (assumes T has Id property via reflection or known interface)
-                var idProperty = typeof(T).GetProperty("Id");
-                var id = idProperty?.GetValue(template) as string;
+                // ✅ Compile-time safe (no reflection!)
+                var id = template.Id;
 
                 if (string.IsNullOrEmpty(id))
-                {
-                    _logger.LogWarning("Template missing Id property: {Path}", path);
-                    continue;
-                }
+                    return Result.Failure($"Template missing Id property: {path}");  // ✅ Fail-fast
 
                 _templates[id] = template;
                 _logger.LogInformation("Loaded template: {Id} from {Path}", id, path);
@@ -459,6 +479,8 @@ public class GodotTemplateService<T> : ITemplateService<T> where T : Resource
 - Uses `ILogger` (ADR-001 - abstractions only)
 - Godot dependency (`GD.Load`) isolated to Infrastructure (ADR-001, ADR-002 compliant)
 - Abstraction `ITemplateService<T>` enables testing (mock service, no Godot needed)
+- **Compile-time safe** via `IIdentifiableResource` constraint (no reflection)
+- **Fail-fast loading** - ANY invalid template blocks game startup (prevents runtime crashes)
 
 ---
 
@@ -673,6 +695,8 @@ public Result LoadTemplates()
 ```
 
 **Fail-Fast Philosophy**: Invalid templates cause startup failure (development), not runtime crash (production).
+
+**Load-Time Fail-Fast Behavior**: If ANY template fails to load (`GD.Load()` returns null) or has invalid data (empty Id, invalid stats), `LoadTemplates()` immediately returns `Result.Failure` and **blocks game startup**. This prevents broken templates from causing runtime crashes later (e.g., spawning entity with corrupted data).
 
 ---
 
@@ -1017,9 +1041,10 @@ public partial class GoblinTemplate : Resource
 ## Implementation Checklist
 
 **Phase 1: Infrastructure Setup** (2-3 hours):
-- [ ] Create ActorTemplate.cs with [GlobalClass] + [Export] properties
-- [ ] Create ITemplateService<T> interface
-- [ ] Create GodotTemplateService<T> implementation
+- [ ] Create IIdentifiableResource.cs interface (compile-time safety)
+- [ ] Create ActorTemplate.cs with [GlobalClass] + [Export] properties (must implement IIdentifiableResource)
+- [ ] Create ITemplateService<T> interface (with IIdentifiableResource constraint)
+- [ ] Create GodotTemplateService<T> implementation (fail-fast loading)
 - [ ] Register service in DI container (GameStrapper)
 - [ ] Create res://data/entities/ directory
 
@@ -1094,6 +1119,112 @@ Damage = 15.0  # Override only what's different
 - Live preview (see sprite + stats together)
 
 **When to implement**: When designers request "better editing UX" (after 50+ templates created).
+
+---
+
+### ActorFactory Pattern (When Creation Logic Exceeds 5 Lines)
+
+**Problem**: Complex entity creation logic bloats CommandHandlers (violates Single Responsibility Principle).
+
+**Current State**: Creation logic in `SpawnActorCommandHandler` is **4 lines** (simple, acceptable).
+
+**Solution**: Extract to dedicated factory when logic grows:
+```csharp
+// Application/Factories/ActorFactory.cs
+public class ActorFactory
+{
+    public Result<Actor> CreateFromTemplate(ActorTemplate template)
+    {
+        // All complex creation/validation logic here
+        var healthResult = Health.Create(template.MaxHealth, template.MaxHealth);
+        if (healthResult.IsFailure)
+            return Result.Failure<Actor>(healthResult.Error);
+
+        // Complex derived stats, multiple validations, etc.
+        var armorResult = Armor.Create(template.ArmorRating, template.ArmorType);
+        if (armorResult.IsFailure)
+            return Result.Failure<Actor>(armorResult.Error);
+
+        return Result.Success(new Actor(
+            ActorId.NewId(),
+            nameKey: template.NameKey,
+            health: healthResult.Value,
+            armor: armorResult.Value,
+            damage: template.Damage
+        ));
+    }
+}
+
+// CommandHandler becomes simpler
+public async Task<Result<Actor>> Handle(SpawnActorCommand cmd, CancellationToken ct)
+{
+    var templateResult = _templates.GetTemplate(cmd.TemplateId);
+    if (templateResult.IsFailure)
+        return Result.Failure<Actor>(templateResult.Error);
+
+    return _actorFactory.CreateFromTemplate(templateResult.Value);  // ✅ Delegated
+}
+```
+
+**When to implement**:
+- Creation logic exceeds **5 lines** OR
+- Requires **3+ validation steps** OR
+- Multiple entity types share creation logic (DRY)
+
+**Benefits**:
+- ✅ Single Responsibility (handler orchestrates, factory creates)
+- ✅ Testable in isolation (test factory without MediatR)
+- ✅ Reusable (multiple handlers can use same factory)
+
+---
+
+### Async/On-Demand Template Loading (When Startup > 3 Seconds)
+
+**Problem**: Startup delay with 1000+ templates (current scale: 20-50 templates, loads in milliseconds).
+
+**Solution Option 1 - On-Demand Loading**:
+```csharp
+public class LazyTemplateService<T> : ITemplateService<T> where T : Resource, IIdentifiableResource
+{
+    private readonly Dictionary<string, T> _cache = new();
+    private readonly string _resourcePath;
+
+    public Result<T> GetTemplate(string id)
+    {
+        // Load on first access, cache result
+        if (!_cache.TryGetValue(id, out var template))
+        {
+            var path = $"{_resourcePath}/{id}.tres";
+            template = GD.Load<T>(path);
+            if (template == null)
+                return Result.Failure<T>($"Template not found: {id}");
+
+            _cache[id] = template;
+        }
+
+        return Result.Success(template);
+    }
+}
+```
+
+**Solution Option 2 - Async Background Loading**:
+```csharp
+public async Task<Result> LoadTemplatesAsync(IProgress<float> progress, CancellationToken ct)
+{
+    // Load templates on background thread
+    // Update loading screen progress bar
+    // Main menu shows when complete
+}
+```
+
+**When to implement**:
+- Template loading causes startup time > **3 seconds**
+- Players complain about loading times
+- Template count exceeds **500+**
+
+**Trade-offs**:
+- On-Demand: Faster startup, first-spawn slower (acceptable for roguelikes)
+- Async: Requires loading screen UI, more complex error handling
 
 ---
 
