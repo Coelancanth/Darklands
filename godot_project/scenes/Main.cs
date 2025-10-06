@@ -192,6 +192,21 @@ public partial class Main : Node
             return templateService;
         });
 
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // 7. WORLDGEN SYSTEM (VS_019 Phase 3) - Plate tectonics world generation
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        // Override Core's IPlateSimulator registration with correct Godot project path
+        // (Core uses Directory.GetCurrentDirectory() which doesn't work in Godot)
+        var projectPath = ProjectSettings.GlobalizePath("res://");
+        services.AddSingleton<Darklands.Core.Features.WorldGen.Application.Abstractions.IPlateSimulator>(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<Darklands.Core.Features.WorldGen.Infrastructure.Native.NativePlateSimulator>>();
+            return new Darklands.Core.Features.WorldGen.Infrastructure.Native.NativePlateSimulator(logger, projectPath);
+        });
+
+        GD.Print($"   - IPlateSimulator → NativePlateSimulator (projectPath: {projectPath})");
+
         GD.Print("📦 Services registered:");
         GD.Print("   - Logging (Serilog → Console + File)");
         GD.Print("   - LoggingService (category filtering for DebugConsole)");
@@ -200,5 +215,6 @@ public partial class Main : Node
         GD.Print("   - ITerrainRepository → TileSetTerrainRepository (auto-discovery from TileSet)");
         GD.Print("   - IItemRepository → TileSetItemRepository (auto-discovery from TileSet)");
         GD.Print("   - ITemplateService<ActorTemplate> → GodotTemplateService (data-driven entities)");
+        GD.Print("   - IPlateSimulator → NativePlateSimulator (plate tectonics world generation)");
     }
 }

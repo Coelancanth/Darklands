@@ -1,6 +1,6 @@
 [gd_resource type="TileSet" load_steps=3 format=3 uid="uid://bw8qxm3yw7h8y"]
 
-[ext_resource type="Texture2D" uid="uid://cxy7j8kqvnp0x" path="res://assets/tilesets/worldgen/white_pixel.png" id="1_white"]
+[ext_resource type="Texture2D" uid="uid://cxy7j8kqvnp0x" path="res://godot_project/assets/tilesets/worldgen/white_pixel.png" id="1_white"]
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_worldgen"]
 texture = ExtResource("1_white")
