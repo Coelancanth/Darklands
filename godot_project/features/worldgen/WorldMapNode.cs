@@ -107,7 +107,7 @@ public partial class WorldMapNode : Node2D
                 else if (mouseButton.ButtonIndex == MouseButton.Middle)
                 {
                     _isDragging = true;
-                    _dragStartPosition = GetGlobalMousePosition();
+                    _dragStartPosition = GetViewport().GetMousePosition();
                     _cameraStartPosition = _camera.Position;
                 }
             }
@@ -124,12 +124,12 @@ public partial class WorldMapNode : Node2D
         // Handle mouse motion for middle mouse button dragging
         if (@event is InputEventMouseMotion && _isDragging)
         {
-            var currentMousePosition = GetGlobalMousePosition();
+            var currentMousePosition = GetViewport().GetMousePosition();
             var dragDelta = currentMousePosition - _dragStartPosition;
 
             // Pan camera inversely to drag direction (natural feeling)
-            // Direct 1:1 mapping for responsive dragging (no zoom division)
-            _camera.Position = _cameraStartPosition - dragDelta;
+            // Use screen-space delta scaled by zoom for proper world-space movement
+            _camera.Position = _cameraStartPosition - dragDelta / _camera.Zoom.X;
         }
     }
 
