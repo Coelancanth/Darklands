@@ -36,8 +36,7 @@ enabled=PackedStringArray("res://addons/item_shape_editor/plugin.cfg")
 
 [internationalization]
 
-locale/translations=PackedStringArray("res://translations/en.csv")
-locale/fallback="en"
+locale/translations=PackedStringArray("res://translations/en.en.translation")
 
 [rendering]
 
