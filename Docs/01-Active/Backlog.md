@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-07 01:23 (Dev Engineer: Revised TD_009 Phase 1 - Two-layer TileMapLayer system with biome mapping)
+**Last Updated**: 2025-10-07 02:28 (Dev Engineer: Revised TD_009 scope - Complete WorldEngine simulation pipeline)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -362,86 +362,210 @@
 
 ---
 
-### TD_009: WorldGen Quality Polish & TileSet Visualization
+### TD_009: Complete WorldEngine Simulation Pipeline (Erosion, Rivers, Humidity)
 **Status**: Proposed
 **Owner**: Tech Lead → Dev Engineer
-**Size**: M (6-8 hours - revised scope)
+**Size**: XL (15-18 hours) - 4 simulation algorithms + biome fix
 **Priority**: Ideas
-**Markers**: [WORLDGEN] [PERFORMANCE] [QUALITY] [TILESET]
+**Markers**: [WORLDGEN] [CORE-LOGIC] [ALGORITHMS] [ARCHITECTURE]
 **Parent**: VS_019 (Phase 4)
 
-**What**: Two-layer TileMapLayer rendering system + WorldEngine erosion/rivers
+**What**: Port WorldEngine's missing simulation steps (Erosion, Watermap, Irrigation, Humidity) to complete the proven generation pipeline and fix biome classification.
 
-**Why**: Replace flat Image/Texture2D with tile-based pixel art aesthetic (strategy game style). Add terrain realism via erosion and rivers.
+**Why**: Our current implementation **skips 4 critical simulation steps** that WorldEngine considers essential. Most importantly, our biomes use **precipitation directly** when they should use **humidity** (precipitation + irrigation with 3× weight). This means our biomes ignore proximity to water entirely!
 
-**Current State** (as of 2025-10-07 01:23):
+**Critical Discovery** (from ultra-analysis, see [Docs/08-Learnings/WorldEngine/TD_009-Pipeline-Gap-Analysis.md](../08-Learnings/WorldEngine/TD_009-Pipeline-Gap-Analysis.md)):
+- WorldEngine pipeline has **10 sequential steps**: Plates → Elevation → Temp → Precip → **Erosion** → **Watermap** → **Irrigation** → **Humidity** → Biomes → Icecap
+- We currently have: Steps 1-4 ✅, then **skip steps 5-8** ❌, jump to Step 9 ✅ (but with wrong input!)
+- **Impact**: Biomes near rivers should be wetter even if precipitation is low (irrigation effect)
+
+**Work Breakdown** (4 algorithms + biome fix):
+
+**Phase 1: Erosion & Rivers** (~6-8h)
+- **File**: `HydraulicErosionProcessor.cs` (new)
+- **Port**: `erosion.py` (403 lines → ~500 lines C#)
+- **Algorithms**:
+  1. `FindWaterFlow()` - Compute flow direction per cell (steepest descent)
+  2. `FindRiverSources()` - Detect river sources (mountains + precip threshold 0.02, min spacing radius 9)
+  3. `TraceRiverPath()` - Follow steepest descent to ocean, merge into existing rivers, A* fallback for complex terrain
+  4. `ErodeValleysAroundRivers()` - Radius 2 erosion, curve factors 0.2 (adjacent) / 0.05 (diagonal)
+  5. `CleanUpFlow()` - Ensure monotonic elevation along river paths
+- **Returns**: `(float[,] erodedHeightmap, List<River> rivers, List<(int,int)> lakes)`
+
+**Phase 2: Watermap Simulation** (~3-4h)
+- **File**: `WatermapCalculator.cs` (new)
+- **Port**: `hydrology.py` (81 lines → ~120 lines C#)
+- **Algorithms**:
+  1. `SimulateDroplet()` - Recursive droplet flow (distribute quantity to lower neighbors proportionally)
+  2. `CalculateWatermap()` - Seed 20,000 droplets on random land (weighted by precipitation), calculate thresholds: creek (5%), river (2%), main river (0.7%)
+- **Returns**: `(float[,] watermap, WatermapThresholds thresholds)`
+
+**Phase 3: Irrigation Simulation** (~2-3h)
+- **File**: `IrrigationCalculator.cs` (new)
+- **Port**: `irrigation.py` (63 lines → ~80 lines C#)
+- **Algorithm**: Logarithmic kernel convolution (21×21 neighborhood, influence = watermap[neighbor] / log(distance + 1))
+- **Returns**: `float[,] irrigation`
+
+**Phase 4: Humidity Simulation** (~1-2h)
+- **File**: `HumidityCalculator.cs` (new)
+- **Port**: `humidity.py` (45 lines → ~60 lines C#)
+- **Algorithm**: `humidity = precipitation × 1.0 + irrigation × 3.0` (irrigation has 3× weight!)
+- **Quantiles**: Calculate [12, 25, 37, 50, 62, 75, 87] percentiles for 8-level moisture classification
+- **Returns**: `(float[,] humidity, float[] quantiles)`
+
+**Phase 5: Fix Biome Classification** (~1-2h)
+- **File**: `BiomeClassifier.cs` (modify existing)
+- **Change**: Update method signature to accept `humidityMap` + `humidityQuantiles` instead of `precipitationMap` + `precipPercentiles`
+- **Impact**: Biomes now consider proximity to water (irrigation effect with 3× weight)
+
+**Phase 6: Update Pipeline** (~1-2h)
+- **File**: `NativePlateSimulator.cs` (modify existing)
+- **Add Step**: `.Bind(climate => SimulateHydrology(climate, params))` between CalculateClimate() and ClassifyBiomes()
+- **Update DTO**: Expand `PlateSimulationResult` with rivers, lakes, watermap, irrigation, humidity fields
+
+**Done When**:
+- ✅ `HydraulicErosionProcessor.cs` exists with 5 methods (flow, sources, tracing, erosion, cleanup)
+- ✅ `WatermapCalculator.cs` exists with droplet model + threshold calculation
+- ✅ `IrrigationCalculator.cs` exists with logarithmic kernel convolution
+- ✅ `HumidityCalculator.cs` exists with precip + irrigation combination (1:3 weight)
+- ✅ `BiomeClassifier.Classify()` updated to use humidity instead of precipitation
+- ✅ `NativePlateSimulator.Generate()` pipeline includes all 4 new simulation steps
+- ✅ `PlateSimulationResult` DTO expanded with rivers, lakes, watermap, irrigation, humidity
+- ✅ Generated worlds have:
+  - Rivers flowing from mountains to ocean (realistic hydrology)
+  - Lakes where rivers can't reach sea (natural lake formation)
+  - Eroded valleys around rivers (smooth terrain, not sharp)
+  - Biomes consider proximity to water (cells near rivers are wetter due to irrigation)
+- ✅ All existing 439 tests remain GREEN
+- ✅ New integration tests for erosion/watermap/irrigation/humidity (at least 8 tests)
+
+**NOT in TD_009 Scope** (separate TD items):
+- TileMapLayer/TileSet rendering (presentation concern) → TD_011
+- Multi-view debug maps (elevation/precip/temp views) → TD_010
+- Icecap simulation (deferred - not needed for MVP)
+- Permeability simulation (not critical)
+
+**Reference**:
+- **Analysis**: [Docs/08-Learnings/WorldEngine/TD_009-Pipeline-Gap-Analysis.md](../08-Learnings/WorldEngine/TD_009-Pipeline-Gap-Analysis.md)
+- **WorldEngine Sources**: `References/worldengine/worldengine/simulations/{erosion,hydrology,irrigation,humidity}.py`
+
+**Dependencies**: TD_008 complete ✅
+
+---
+
+### TD_010: Multi-View Map Rendering System
+**Status**: Proposed
+**Owner**: Tech Lead → Dev Engineer
+**Size**: M (5-7 hours)
+**Priority**: Ideas
+**Markers**: [WORLDGEN] [VISUALIZATION] [DEBUG]
+**Parent**: VS_019 (Phase 4)
+
+**What**: Debug visualization system with multiple map view modes (elevation, precipitation, temperature) + persistent generation data
+
+**Why**: Enable rapid iteration on worldgen algorithms by visualizing underlying data layers. Developers need to see raw elevation/precipitation/temperature data to debug biome classification, rain shadow effects, and climate calculations. Saving generation results prevents regeneration overhead during view switching.
+
+**Current State** (as of 2025-10-07 02:02):
 ✅ **Implemented**:
-- 41 WorldEngine biomes - complete Holdridge life zones
-- Percentile-based moisture classification (automatic biome balance)
-- WorldEngine color scheme (Biomes.html palette)
-- Fixed elevation cooling (0.25× lapse rate)
-- Multi-octave noise (coarse + fine-grain variation)
-- Rain shadow effect (orographic lift, leeward reduction)
-- Image/Texture2D rendering (262,000× faster than DrawRect)
-- Camera zoom (20× for detail inspection)
+- Biome map rendering (41 WorldEngine biomes → colored pixels)
+- Single view mode (biome classification only)
+- Image/Texture2D rendering pipeline (262,000× faster than DrawRect)
 
-⚠️ **Quality Issues Remaining**:
-1. **No tile-based rendering** - Using colored pixels instead of pixel art tiles
-2. **No erosion** - Sharp terrain, unrealistic coastlines
-3. **No rivers** - Missing hydrology simulation
+⚠️ **Missing**:
+- No elevation map view (can't debug terrain generation)
+- No precipitation map view (can't debug rain shadow)
+- No temperature map view (can't debug climate zones)
+- Regenerates world on every view switch (slow, inconsistent)
 
-**Revised Work** (Two-Layer TileMapLayer + WorldEngine algorithms):
+**Work Breakdown**:
 
-1. **Two-Layer TileMapLayer System** (3-4h) ← REVISED:
-   - **Architecture**: Base TileMapLayer ("plain" tile background) + Overlay TileMapLayer (terrain tiles)
-   - **Tile size**: 32×32 pixels (2×2 atlas cells @ 16px base) per world cell
-   - **Coverage**: 60% overlay (moderate density), 40% plain base shows through gaps
-   - **Biome mapping** (Core logic): 41 WorldEngine biomes → 7 TileSet terrain types
-     - Ocean/ShallowWater → "ocean" tile (25:9)
-     - Polar/Subpolar (6 biomes) → "tundra" tile (10:12)
-     - Boreal (5 biomes) → "taiga" tile (28:18)
-     - Temperate/Tropical forests (17 biomes) → "forest" tile (28:21)
-     - Desert biomes (10 biomes) → "desert" tile (10:6)
-     - Grassland/Steppe (3 biomes) → Skip overlay (show "plain" base, 10:15)
-   - **Mountain placement** (elevation-based, density-scaled):
-     - High elevation (>0.8): Dense placement (every 2 cells) for tall peaks
-     - Medium (0.6-0.8): Moderate (every 4 cells) for hills
-     - Low (0.4-0.6): Sparse (every 8 cells) for highlands
-   - **Implementation**: `GetTerrainTileMapQuery` in Core (SSOT principle)
-   - **Impact**: Pixel art aesthetic, validates multi-layer strategic map architecture
+1. **Persistent Generation Data** (1-2h):
+   - **Data Structure**: `WorldGenerationResult` record in Core
+     ```csharp
+     public record WorldGenerationResult(
+         int Seed,
+         int Width,
+         int Height,
+         float[,] Elevation,      // 0.0-1.0 normalized
+         float[,] Precipitation,  // 0.0-1.0 normalized
+         float[,] Temperature,    // 0.0-1.0 normalized (Celsius converted)
+         BiomeType[,] Biomes      // Classified biomes
+     );
+     ```
+   - **Storage**: Cache in `WorldGeneratorService` (single-world scope, cleared on new generation)
+   - **Query**: `GetWorldDataQuery` returns cached `WorldGenerationResult?`
+   - **Impact**: Generate once, render many times (instant view switching)
 
-2. **Hydraulic Erosion** (3-4h) ← DEFERRED TO PHASE 2:
-   - Port `erosion.py` → `HydraulicErosionProcessor.cs` (WorldEngine's proven implementation)
-   - Iterative erosion passes (sediment transport, deposition)
-   - Creates realistic valleys, river beds, smooth coastlines
-   - **Reference**: `References/worldengine/worldengine/erosion.py`
-   - **Impact**: Natural terrain features, realistic geography
+2. **View Mode System** (1-2h):
+   - **Enum**: `MapViewMode { Biomes, Elevation, Precipitation, Temperature }`
+   - **UI Controls**: Radio buttons or dropdown in WorldGenDebugView
+   - **State Management**: Track `currentViewMode` in presentation layer
+   - **Query Update**: Extend `GetTerrainTileMapQuery` → `GetMapVisualizationQuery(MapViewMode mode)`
+   - **Impact**: Single control switches between data layer views
 
-3. **River Simulation** (2-3h) ← DEFERRED TO PHASE 2:
-   - Port `rivers.py` → `RiverSimulator.cs` (WorldEngine's proven implementation)
-   - Flow accumulation from precipitation + elevation gradients
-   - River path generation (follows downhill flow)
-   - **Reference**: `References/worldengine/worldengine/rivers.py`
-   - **Impact**: Realistic hydrology, rivers connect to oceans
+3. **Elevation Map Renderer** (1h):
+   - **Color Mapping**: WorldEngine-style colored gradient (matches `draw_simple_elevation`)
+     - Ocean depths: Dark blue (RGB: 0,0,~190) → Blue (0,0,255)
+     - Sea level → low land: Green (0,128,0) → Yellow-green
+     - Mid elevation: Yellow (255,255,0) → Orange (255,128,0)
+     - High elevation: Orange-red (255,64,0) → Light gray (128,128,128)
+     - Mountain peaks: Gray → White (255,255,255) → Pink (255,0,255) for extreme heights
+   - **Reference**: `worldengine/draw.py:151-200` (`_elevation_color` function)
+   - **Implementation**: `ElevationMapColorizer` service in Core
+   - **Impact**: Debug terrain generation, visually matches WorldEngine output
 
-4. **Performance Optimization** (1-2h) ← DEFERRED TO PHASE 2:
-   - Multi-thread erosion/rivers (independent per-pass)
-   - Profile generation pipeline (identify actual bottlenecks)
-   - **Target**: <5 seconds for 512×512 world
+4. **Precipitation Map Renderer** (1h):
+   - **Color Mapping**: Discretized cyan gradient (8 humidity levels, matches `draw_precipitation`)
+     - Superarid: RGB(0, 32, 32) - very dark teal
+     - Perarid: RGB(0, 64, 64)
+     - Arid: RGB(0, 96, 96)
+     - Semiarid: RGB(0, 128, 128)
+     - Subhumid: RGB(0, 160, 160)
+     - Humid: RGB(0, 192, 192)
+     - Perhumid: RGB(0, 224, 224)
+     - Superhumid: RGB(0, 255, 255) - bright cyan
+   - **Reference**: `worldengine/draw.py:535-570` (`draw_precipitation` function)
+   - **Implementation**: `PrecipitationMapColorizer` service in Core
+   - **Impact**: Debug rain shadow with WorldEngine-proven color scale
 
-**Done When** (Phase 1 - TileSet System):
-- ✅ Two TileMapLayers render correctly (base "plain" + overlay terrain)
-- ✅ 41 biomes mapped to 7 terrain tiles (Core query handles logic)
-- ✅ Mountains placed with elevation-based density scaling
-- ✅ 60% overlay coverage achieved (moderate density, plain shows through)
-- ✅ Visual quality matches reference image (pixel art tiles, natural variation)
+5. **Temperature Map Renderer** (1h):
+   - **Color Mapping**: Discretized thermal gradient (7 zones, matches `draw_temperature_levels`)
+     - Polar: RGB(0, 0, 255) - blue
+     - Alpine: RGB(42, 0, 213) - blue-purple
+     - Boreal: RGB(85, 0, 170) - purple
+     - Cool: RGB(128, 0, 128) - magenta
+     - Warm: RGB(170, 0, 85) - red-purple
+     - Subtropical: RGB(213, 0, 42) - red-orange
+     - Tropical: RGB(255, 0, 0) - red
+   - **Reference**: `worldengine/draw.py:586-619` (`draw_temperature_levels` function)
+   - **Implementation**: `TemperatureMapColorizer` service in Core
+   - **Impact**: Debug elevation cooling with WorldEngine's proven thermal gradient
+
+6. **View Switching Logic** (1h):
+   - **Event Flow**: User selects view → Query with mode → Colorizer applies mapping → Render
+   - **Performance**: No regeneration (uses cached `WorldGenerationResult`)
+   - **Consistency**: Same world data across all views (debugging reliability)
+   - **Implementation**: Update `WorldGenDebugView` signal handlers
+   - **Impact**: Instant (<100ms) view switching for rapid iteration
+
+**Done When**:
+- ✅ `WorldGenerationResult` cached after generation (single source of truth)
+- ✅ Four view modes work: Biomes, Elevation, Precipitation, Temperature
+- ✅ View switching is instant (<100ms, no regeneration)
+- ✅ Elevation uses WorldEngine colored gradient (blue ocean → green → yellow → red → white peaks)
+- ✅ Precipitation uses 8-level discretized cyan gradient (dark teal → bright cyan)
+- ✅ Temperature uses 7-level discretized thermal gradient (blue polar → red tropical)
+- ✅ UI controls clearly indicate current view mode
 - ✅ All existing tests remain GREEN
+- ✅ Visual validation: Output matches WorldEngine reference images from `draw.py`
 
 **Tech Notes**:
-- TileSet: `assets/overworld/overworld.tres` with 7 terrain types (all 2×2 atlas, 32×32px)
-- Rendering: Replace Sprite2D/Image/Texture2D → 2× TileMapLayer (base + overlay)
-- World size: 512×512 cells → 16,384×16,384 pixel map (32px per cell)
-- Core query: `GetTerrainTileMapQuery` returns `TerrainTileType?[,]` (null = show base)
+- **Architecture**: Query returns raw data (`float[,]`), colorizer applies mapping (separation of concerns)
+- **WorldEngine Reference**: All color schemes ported from `References/worldengine/worldengine/draw.py`
+- **Elevation**: Continuous gradient with complex logic (ocean vs land normalization, see `_elevation_color`)
+- **Precipitation/Temperature**: Discrete thresholds (8 and 7 levels respectively, not continuous)
+- **Performance**: Pre-compute color lookup tables for precipitation/temperature (O(1) mapping)
+- **Future Enhancement**: Add "black & white" mode option for scientific visualization (WorldEngine has this)
 
 **Dependencies**: TD_008 complete ✅
 
