@@ -1,22 +1,23 @@
 # Backlog Archive Index
 
-**Last Updated**: 2025-10-05 02:31
-**Current Active Archive**: Completed_Backlog_2025-10_Part2.md (Lines: 972/1000)
+**Last Updated**: 2025-10-06 16:24
+**Current Active Archive**: Completed_Backlog_2025-10_Part2.md (Lines: 1170/1000)
 
 ## Archive Files (Newest First)
 
 ### Completed_Backlog_2025-10_Part2.md (✅ ACTIVE - October 2025 Part 3)
 - **Created**: 2025-10-04 14:15 (after rotation)
-- **Line Count**: 972/1000
-- **Date Range**: 2025-10-04 to 2025-10-05
-- **Status**: ✅ Active (accepting new items)
-- **Extraction Status**: 0/4 extracted (4 NOT EXTRACTED ⚠️)
+- **Line Count**: 1170/1000
+- **Date Range**: 2025-10-04 to 2025-10-06
+- **Status**: ✅ Active (accepting new items) - ⚠️ ROTATION NEEDED SOON (170 lines over capacity)
+- **Extraction Status**: 0/5 extracted (5 NOT EXTRACTED ⚠️)
 
 **Items**:
 - **TD_003**: Separate Equipment Slots from Spatial Inventory Container (EquipmentSlotNode 646 lines, InventoryRenderHelper 256 lines, renamed InventoryContainerNode, 359 tests GREEN) [NOT EXTRACTED ⚠️]
 - **VS_007**: Time-Unit Turn Queue System (4-phase implementation, 49 new tests, 6 follow-ups complete: vision constants, FOV-based combat exit, movement cost 10 units, production log formatting) [NOT EXTRACTED ⚠️]
 - **VS_019**: TileSet-Based Visual Scene + TileSet as Terrain Catalog (SSOT) (4 phases complete, TileMapLayer rendering, Sprite2D actors, fog system, 300+ line cleanup, commits: f64c7de, 59159e5, d9d9a4d, 27b62b2, 896f6d5) [NOT EXTRACTED ⚠️]
 - **VS_019_FOLLOWUP**: Fix Wall Autotiling (Manual Edge Assignment) (Manual tile assignment for symmetric bitmasks, position-based logic, visual symmetry achieved, commit: 0885cbd) [NOT EXTRACTED ⚠️]
+- **VS_021**: i18n + Data-Driven Entity Infrastructure (ADR-005 + ADR-006) (5 phases complete, 18 translation keys, ActorTemplate system, validation scripts, architecture fix to Presentation layer, 7 commits, 415 tests GREEN) [NOT EXTRACTED ⚠️]
 
 ### Completed_Backlog_2025-10.md (🔒 SEALED - October 2025 Part 2)
 - **Created**: 2025-10-02 12:17 (after rotation)
@@ -74,5 +75,5 @@
 2. Open that specific archive file (newest first: Completed_Backlog_2025-10_Part2.md)
 3. Use Ctrl+F to search for item ID
 
-**Current Active Capacity**: 704/1000 lines (296 lines remaining)
-**Total Archived Items**: 23 (20 in Oct 2025, 3 in Sept 2025)
+**Current Active Capacity**: 1170/1000 lines (170 lines OVER capacity - rotation needed)
+**Total Archived Items**: 24 (21 in Oct 2025, 3 in Sept 2025)

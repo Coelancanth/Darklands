@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-06 16:17 (Tech Lead: VS_020 Phase 0 architecture finalized - Component pattern chosen for Actor entities, full breakdown added, reusability strategy documented)
+**Last Updated**: 2025-10-06 16:24 (Backlog Assistant: VS_021 archived to Completed_Backlog_2025-10_Part2.md)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -68,90 +68,12 @@
 ## 🔥 Critical (Do First)
 *Blockers preventing other work, production bugs, dependencies for other features*
 
-**No critical items!** ✅ VS_021 completed, VS_020 unblocked.
+**No critical items!** ✅ VS_021 completed and archived, VS_020 unblocked.
 
 ---
 
 *Recently completed and archived (2025-10-06):*
-- **VS_021**: i18n + Data-Driven Entity Infrastructure (ADR-005 + ADR-006) - 5 phases complete! Translation system (18 keys in en.csv), ActorTemplate system with GodotTemplateService, player.tres template, pre-push validation script, architecture fix (templates → Presentation layer). Bonus: Actor type logging enhancement (IPlayerContext integration). All 415 tests GREEN. Commits: cda5b99, e2f59f9, caea90a, 8bc0823, fdf6ef2, a9311cc, 144a09d. ✅ (2025-10-06 16:23)
-
-**What**: Combined implementation of internationalization (i18n) and data-driven entity templates using Godot Resources
-
-**Why**:
-- **Prevents double refactoring** - Implementing both together is 40% more efficient than separate (no rework)
-- **Natural integration** - Templates store translation keys (NameKey), i18n translates them (synergistic design)
-- **Optimal timing** - Small codebase now (1-2 days), exponentially harder after VS_020 adds multiple entity types (3-4 days+)
-- **Blocks VS_020** - Combat should use template-based entities from day one (clean architecture)
-
-**How** (5 Phases):
-
-**Phase 1: i18n Foundation** (ADR-005, 2-3 hours)
-- Create `godot_project/translations/` directory structure
-- Create `en.csv` with initial UI/entity keys (`UI_ATTACK`, `ACTOR_PLAYER`, etc.)
-- Configure Godot Project Settings → Localization → Import Translation
-- Refactor existing UI nodes to use `tr()` pattern (buttons, labels)
-- Document i18n discipline in CLAUDE.md (all new UI must use keys)
-
-**Phase 2: Template Infrastructure** (ADR-006, 3-4 hours)
-- Create `Infrastructure/Templates/IIdentifiableResource.cs` interface (compile-time safety)
-- Create `Infrastructure/Templates/ActorTemplate.cs` ([GlobalClass], implements IIdentifiableResource)
-  - Properties: Id, NameKey, DescriptionKey, MaxHealth, Damage, MoveSpeed, Sprite, Tint
-- Create `Infrastructure/Services/ITemplateService<T>` abstraction
-- Create `Infrastructure/Services/GodotTemplateService<T>` (fail-fast loading, constraint: IIdentifiableResource)
-- Register in DI container (GameStrapper._Ready())
-- Create `res://data/entities/` directory in Godot project
-
-**Phase 3: First Template + Integration** (1-2 hours)
-- Create `player.tres` in Godot Editor (Inspector)
-  - Id = "player"
-  - NameKey = "ACTOR_PLAYER"
-  - MaxHealth = 100, Damage = 10
-  - Sprite = res://sprites/player.png
-- Add `ACTOR_PLAYER,Player` to `translations/en.csv`
-- Update entity spawning code to use `ITemplateService.GetTemplate("player")`
-- Create Actor entity from template data (template.NameKey → actor.NameKey)
-- Verify i18n works: `tr(actor.NameKey)` displays "Player"
-- Test hot-reload: Edit player.tres → Ctrl+S → instant update (no recompile)
-
-**Phase 4: Validation Scripts** (2-3 hours)
-- Create `scripts/validate-templates.sh`:
-  - Check all template NameKey values exist in en.csv
-  - Check template IDs are unique (no duplicates)
-  - Check stats are valid (MaxHealth > 0, Damage >= 0)
-  - Exit 1 if any validation fails (fail-fast)
-- Add to `.github/workflows/ci.yml` (run on PR, fail build on invalid templates)
-- Add to `.husky/pre-commit` hook (fast local feedback)
-- Test with broken template (missing NameKey) → ensure validation catches it
-
-**Phase 5: Migration + Cleanup** (1-2 hours)
-- Refactor existing entity creation to use templates (remove hardcoded factories)
-- Update unit tests to mock `ITemplateService<T>` (no Godot dependency)
-- Update integration tests to use real .tres files
-- Remove old hardcoded entity factory code
-- Verify all tests GREEN (dotnet test)
-
-**Done When**:
-- All UI text uses `tr("UI_*")` pattern (zero hardcoded strings in presentation)
-- Entity names come from `.tres` templates (zero hardcoded entities in code)
-- `en.csv` contains all keys (UI labels + entity names)
-- Logs show translated names: `"Player attacks Goblin"` (not `"Actor_a3f attacks Actor_b7d"`)
-- Designer can create new entity in < 5 minutes (create .tres in Inspector → test in-game)
-- Hot-reload works (edit template → save → see changes without restart)
-- Validation scripts run in CI (broken templates = failed build)
-- CLAUDE.md documents both patterns (i18n discipline + template usage)
-- All tests GREEN (unit tests mock ITemplateService, integration tests use real .tres)
-- VS_020 (Combat) can use clean template-based entities from day one
-
-**Dependencies**: None (can start immediately)
-**Blocks**: VS_020 (Combat) - should use template-based entities, not hardcoded factories
-
-**Tech Lead Decision** (2025-10-06):
-- **Combining ADR-005 + ADR-006 is the correct architectural move**
-- Prevents rework: Doing i18n without templates means refactoring entity names twice (once now, once when templates added)
-- Timing is optimal: Codebase is small (5-10 entity references), cost curve is exponential
-- After VS_020 adds combat entities (weapons, enemies), migration cost increases 3x
-- Trade-off: +1 day now, saves -3 days later (net +2 days efficiency gain)
-- Risk mitigation: Both ADRs are approved, proven patterns (Godot Resources + tr() are standard)
+- **VS_021**: i18n + Data-Driven Entity Infrastructure (ADR-005 + ADR-006) - 5 phases complete! Translation system (18 keys in en.csv), ActorTemplate system with GodotTemplateService, player.tres template, pre-push validation script, architecture fix (templates → Presentation layer). Bonus: Actor type logging enhancement (IPlayerContext integration). All 415 tests GREEN. ✅ (2025-10-06 16:23) *See: [Completed_Backlog_2025-10_Part2.md](../07-Archive/Completed_Backlog_2025-10_Part2.md) for full archive*
 
 ---
 
