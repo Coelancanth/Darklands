@@ -143,6 +143,10 @@ public sealed class TileSetTerrainRepository : ITerrainRepository
 
         var name = nameVariant.AsString();
 
+        // FIX: Remove surrounding quotes if present (Godot metadata quirk)
+        // AsString() sometimes returns "\"wall\"" instead of "wall"
+        name = name.Trim('"');
+
         if (string.IsNullOrWhiteSpace(name))
         {
             return Result.Failure<TerrainDefinition>(

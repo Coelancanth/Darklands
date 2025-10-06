@@ -97,11 +97,19 @@ public class GetVisibleActorsQueryHandler : IRequestHandler<GetVisibleActorsQuer
             }
         }
 
+        // Format visible actors list (empty if none visible)
+        // TODO (VS_020): Replace GUID fragments with actor names from templates
+        // Future: visibleActorIds = string.Join(", ", await GetActorNames(visibleActors))
+        // Result: "Observer Player can see 2 actors: [Goblin, Orc] (out of 3 total actors)"
+        var visibleActorIds = visibleActors.Count > 0
+            ? string.Join(", ", visibleActors.Select(a => a.Value.ToString().Substring(0, 8)))
+            : "none";
+
         _logger.LogInformation(
             "Observer {ObserverId} can see {VisibleCount} actors: [{VisibleActors}] (out of {TotalCount} total actors)",
             request.ObserverId,
             visibleActors.Count,
-            string.Join(", ", visibleActors.Select(a => a.Value.ToString().Substring(0, 8))), // First 8 chars of GUID for readability
+            visibleActorIds, // "none" or "a1b2c3d4, e5f6g7h8" (GUIDs until VS_020 adds names)
             allActors.Count - 1); // -1 excludes observer
 
         return Result.Success(visibleActors);
