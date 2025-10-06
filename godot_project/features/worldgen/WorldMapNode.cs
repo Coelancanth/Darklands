@@ -25,9 +25,14 @@ public partial class WorldMapNode : Node2D
 
     // Camera control settings
     private const float PanSpeed = 500f;
-    private const float ZoomSpeed = 0.1f;
+    private const float ZoomSpeed = 0.3f; // Increased from 0.1 to 0.3 for faster zoom
     private const float MinZoom = 0.5f;
     private const float MaxZoom = 20f; // Increased from 3x to 20x for detailed inspection
+
+    // Middle mouse button drag state
+    private bool _isDragging = false;
+    private Vector2 _dragStartPosition;
+    private Vector2 _cameraStartPosition;
 
     // World generation settings
     [Export] public int Seed { get; set; } = 42;
@@ -83,19 +88,48 @@ public partial class WorldMapNode : Node2D
 
         if (_camera == null) return;
 
-        // Mouse wheel zoom
-        if (@event is InputEventMouseButton mouseButton && mouseButton.Pressed)
+        // Mouse wheel zoom (faster with increased ZoomSpeed)
+        if (@event is InputEventMouseButton mouseButton)
         {
-            if (mouseButton.ButtonIndex == MouseButton.WheelUp)
+            if (mouseButton.Pressed)
             {
-                var newZoom = _camera.Zoom.X + ZoomSpeed;
-                _camera.Zoom = new Vector2(Mathf.Clamp(newZoom, MinZoom, MaxZoom), Mathf.Clamp(newZoom, MinZoom, MaxZoom));
+                if (mouseButton.ButtonIndex == MouseButton.WheelUp)
+                {
+                    var newZoom = _camera.Zoom.X + ZoomSpeed;
+                    _camera.Zoom = new Vector2(Mathf.Clamp(newZoom, MinZoom, MaxZoom), Mathf.Clamp(newZoom, MinZoom, MaxZoom));
+                }
+                else if (mouseButton.ButtonIndex == MouseButton.WheelDown)
+                {
+                    var newZoom = _camera.Zoom.X - ZoomSpeed;
+                    _camera.Zoom = new Vector2(Mathf.Clamp(newZoom, MinZoom, MaxZoom), Mathf.Clamp(newZoom, MinZoom, MaxZoom));
+                }
+                // Middle mouse button drag - start dragging
+                else if (mouseButton.ButtonIndex == MouseButton.Middle)
+                {
+                    _isDragging = true;
+                    _dragStartPosition = GetGlobalMousePosition();
+                    _cameraStartPosition = _camera.Position;
+                }
             }
-            else if (mouseButton.ButtonIndex == MouseButton.WheelDown)
+            else // Button released
             {
-                var newZoom = _camera.Zoom.X - ZoomSpeed;
-                _camera.Zoom = new Vector2(Mathf.Clamp(newZoom, MinZoom, MaxZoom), Mathf.Clamp(newZoom, MinZoom, MaxZoom));
+                // Middle mouse button drag - stop dragging
+                if (mouseButton.ButtonIndex == MouseButton.Middle)
+                {
+                    _isDragging = false;
+                }
             }
+        }
+
+        // Handle mouse motion for middle mouse button dragging
+        if (@event is InputEventMouseMotion && _isDragging)
+        {
+            var currentMousePosition = GetGlobalMousePosition();
+            var dragDelta = currentMousePosition - _dragStartPosition;
+
+            // Pan camera inversely to drag direction (natural feeling)
+            // Divide by zoom to maintain consistent drag speed at all zoom levels
+            _camera.Position = _cameraStartPosition - dragDelta / _camera.Zoom.X;
         }
     }
 
@@ -146,7 +180,7 @@ public partial class WorldMapNode : Node2D
 
         if (_uiLabel != null)
         {
-            _uiLabel.Text = $"WorldGen Test Scene\nWASD: Pan camera\nMouse Wheel: Zoom\n\nWorld: {result.Value.Width}x{result.Value.Height} (Seed: {Seed})";
+            _uiLabel.Text = $"WorldGen Test Scene\nWASD: Pan camera\nMiddle Mouse: Drag to pan\nMouse Wheel: Zoom (faster!)\n\nWorld: {result.Value.Width}x{result.Value.Height} (Seed: {Seed})";
         }
     }
 
