@@ -88,10 +88,22 @@
 
 
 ### VS_020: Basic Combat System (Attacks & Damage)
-**Status**: Approved | **Owner**: Tech Lead → Dev Engineer | **Size**: M (1-2 days) | **Priority**: Important
+**Status**: In Progress (Phase 0/5 complete) | **Owner**: Dev Engineer | **Size**: M (1-2 days) | **Priority**: Important
 **Markers**: [PHASE-1-CRITICAL] [BLOCKING]
 
 **What**: Attack commands (melee + ranged), damage application, range validation, manual dummy enemy combat testing
+
+**Progress** (2025-10-06 18:30):
+- ✅ **Phase 0 Complete** - Component Pattern Infrastructure (commit 7f299d7)
+  - Created component system: IComponent, Actor (container), IHealthComponent, IWeaponComponent
+  - Weapon value object: damage, time cost, range, type (Melee/Ranged)
+  - IActorRepository + InMemoryActorRepository (two-system tracking)
+  - ActorFactory.CreateFromTemplate() with conditional component assembly
+  - ActorTemplate extended with weapon properties
+  - ActorIdLoggingExtensions enhanced: "shortId [type: Type, name: ACTOR_KEY]"
+  - DI registration in GameStrapper
+  - All 415 tests GREEN ✅
+  - Architecture: Component pattern scales to 50+ actor types (write once, reuse everywhere)
 
 **Why**:
 - **BLOCKS Phase 1 validation** - cannot prove "time-unit combat is fun" without attacks
