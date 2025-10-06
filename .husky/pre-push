@@ -68,6 +68,21 @@ if [ $? -ne 0 ]; then
     echo "✅ Build fixed automatically"
 fi
 
+# Run tests to catch runtime errors (constructor mismatches, etc.)
+echo "🧪 Running tests..."
+dotnet test tests/Darklands.Core.Tests/Darklands.Core.Tests.csproj \
+    --configuration Debug \
+    --no-build \
+    --verbosity minimal \
+    --logger "console;verbosity=minimal" 2>/dev/null
+
+if [ $? -ne 0 ]; then
+    echo "❌ Tests failed - fix before pushing"
+    echo "💡 Run: ./scripts/core/build.ps1 test"
+    exit 1
+fi
+echo "✅ All tests passed"
+
 # AUTO-FIX: Verify and fix code formatting
 echo "🔧 Verifying code formatting..."
 dotnet format src/Darklands.Core/Darklands.Core.csproj --verify-no-changes --verbosity minimal 2>/dev/null
