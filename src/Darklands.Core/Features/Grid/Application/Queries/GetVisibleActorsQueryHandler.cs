@@ -1,3 +1,4 @@
+using System.Linq;
 using CSharpFunctionalExtensions;
 using Darklands.Core.Domain.Common;
 using Darklands.Core.Features.Grid.Application.Services;
@@ -97,9 +98,10 @@ public class GetVisibleActorsQueryHandler : IRequestHandler<GetVisibleActorsQuer
         }
 
         _logger.LogInformation(
-            "Observer {ObserverId} can see {VisibleCount} actors (out of {TotalCount})",
+            "Observer {ObserverId} can see {VisibleCount} actors: [{VisibleActors}] (out of {TotalCount} total actors)",
             request.ObserverId,
             visibleActors.Count,
+            string.Join(", ", visibleActors.Select(a => a.Value.ToString().Substring(0, 8))), // First 8 chars of GUID for readability
             allActors.Count - 1); // -1 excludes observer
 
         return Result.Success(visibleActors);

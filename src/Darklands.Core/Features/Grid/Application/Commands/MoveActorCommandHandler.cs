@@ -98,8 +98,8 @@ public class MoveActorCommandHandler : IRequestHandler<MoveActorCommand, Result>
         }
 
         _logger.LogInformation(
-            "Successfully moved actor {ActorId} to position ({X}, {Y})",
-            request.ActorId,
+            "Actor {ActorId} moved to ({X}, {Y})",
+            request.ActorId.Value.ToString().Substring(0, 8), // Shorter GUID for readability
             request.TargetPosition.X,
             request.TargetPosition.Y);
 
