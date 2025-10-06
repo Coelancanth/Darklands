@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-07 02:28 (Dev Engineer: Revised TD_009 scope - Complete WorldEngine simulation pipeline)
+**Last Updated**: 2025-10-07 02:51 (Dev Engineer: TD_009 Phase 1 complete - Erosion & rivers working!)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -381,16 +381,21 @@
 
 **Work Breakdown** (4 algorithms + biome fix):
 
-**Phase 1: Erosion & Rivers** (~6-8h)
-- **File**: `HydraulicErosionProcessor.cs` (new)
-- **Port**: `erosion.py` (403 lines → ~500 lines C#)
-- **Algorithms**:
-  1. `FindWaterFlow()` - Compute flow direction per cell (steepest descent)
-  2. `FindRiverSources()` - Detect river sources (mountains + precip threshold 0.02, min spacing radius 9)
-  3. `TraceRiverPath()` - Follow steepest descent to ocean, merge into existing rivers, A* fallback for complex terrain
-  4. `ErodeValleysAroundRivers()` - Radius 2 erosion, curve factors 0.2 (adjacent) / 0.05 (diagonal)
-  5. `CleanUpFlow()` - Ensure monotonic elevation along river paths
-- **Returns**: `(float[,] erodedHeightmap, List<River> rivers, List<(int,int)> lakes)`
+**Phase 1: Erosion & Rivers** (~6-8h) ✅ **COMPLETE** (2025-10-07)
+- **Files**: `HydraulicErosionProcessor.cs` (600 lines), `AStarPathfinder.cs` (230 lines)
+- **Port**: `erosion.py` + `astar.py` (403 + 229 lines → 830 lines C#)
+- **Algorithms Implemented**:
+  1. `FindWaterFlow()` - Flow direction per cell (steepest descent)
+  2. `FindRiverSources()` - Mountain river sources (precip 0.02, spacing radius 9)
+  3. `TraceRiverPath()` - Rivers to ocean (steepest descent + A* fallback + river merging)
+  4. `ErodeValleysAroundRivers()` - Valley carving (radius 2, curves 0.2/0.05)
+  5. `CleanUpFlow()` - Monotonic elevation (no uphill flow)
+- **Integration**: `NativePlateSimulator` Step 5 (between climate and biomes)
+- **DTO Expansion**: `PlateSimulationResult` + Rivers/Lakes properties
+- **Validation**: ✅ 617 rivers, 17 lakes generated (seed 42, 512×512 map)
+  - 602 rivers reached ocean (97.6%)
+  - 15 rivers formed lakes (2.4% endorheic basins)
+- **Tests**: All 439 GREEN ✅
 
 **Phase 2: Watermap Simulation** (~3-4h)
 - **File**: `WatermapCalculator.cs` (new)
