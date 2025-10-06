@@ -314,9 +314,10 @@ _label.Text = "Goblin";  // NOT TRANSLATABLE!
 - `DESC_*` - Descriptions (e.g., `DESC_ITEM_SWORD`)
 
 **Translation Files**:
-- Location: `godot_project/translations/en.csv` (English - default/fallback)
-- Future: `godot_project/translations/zh_CN.csv` (Chinese - deferred until Phase 1 validated)
+- Location: `translations/en.csv` (English - default/fallback) ✅ **ACTIVE**
+- Future: `translations/zh_CN.csv` (Chinese - deferred until Phase 1 validated)
 - Format: `ACTOR_GOBLIN,Goblin` (CSV: key, translated text)
+- Configuration: `project.godot` [internationalization] section ✅ **CONFIGURED**
 
 **Discipline Rules**:
 - ✅ **ALWAYS use keys** in Domain (never hardcoded strings)
