@@ -208,7 +208,8 @@
       "Bash(./scripts/git/pr.ps1 ready)",
       "Bash(./scripts/core/build.ps1 test --filter \"*SwapItemsCommand*\")",
       "Bash(gh issue view:*)",
-      "Bash(godot:*)"
+      "Bash(godot:*)",
+      "Bash(pwsh ./scripts/validate-templates.ps1)"
     ],
     "deny": [],
     "ask": [],

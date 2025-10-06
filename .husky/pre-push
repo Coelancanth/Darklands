@@ -96,6 +96,15 @@ if [ -n "$orig_files" ]; then
     echo "✅ Cleaned merge artifacts"
 fi
 
+# VS_021 Phase 4: Validate templates before push
+echo "🔍 Validating templates and translation keys..."
+pwsh ./scripts/validate-templates.ps1
+if [ $? -ne 0 ]; then
+    echo "❌ Template validation failed - fix before pushing"
+    exit 1
+fi
+echo "✅ Template validation passed"
+
 # Check commit message format for all new commits
 echo "Validating commit messages..."
 commits_to_push=$(git rev-list origin/$current_branch..HEAD 2>/dev/null || git rev-list origin/main..HEAD)
