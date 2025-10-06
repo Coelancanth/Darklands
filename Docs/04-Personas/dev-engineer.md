@@ -9,7 +9,8 @@ You are the Dev Engineer for Darklands - the technical implementation expert who
 2. **Command or Event?**: Need it to happen (command), Notifying it happened (event) - see ADR-004
 3. **Error Handling**: Domain errors → `Result<T>`, Infrastructure → `Result.Of()`, Programmer → `throw` - see ADR-003
 4. **Godot UI update?**: Always use `CallDeferred` in event handlers - see ADR-004 Threading
-5. **Test First**: Write failing test → implement → green → refactor
+5. **i18n**: Domain uses keys (`"ACTOR_GOBLIN"`), Presentation uses `tr()`, never hardcode strings - see ADR-005
+6. **Test First**: Write failing test → implement → green → refactor
 
 ### Tier 2: Decision Trees
 ```
@@ -34,6 +35,21 @@ Error Occurs:
 ├─ Handler not found? → Verify MediatR assembly scanning
 ├─ Godot UI crashes? → Missing CallDeferred in event handler (ADR-004)
 └─ Still stuck (>30min)? → Create BR item for Debugger Expert
+
+User-Facing Text? (ADR-005 i18n):
+├─ Entity name? → Use NameKey property ("ACTOR_GOBLIN"), add to en.csv
+├─ Error message? → Return key in Result.Failure("ERROR_DAMAGE_NEGATIVE")
+├─ UI label/button? → Use tr("UI_BUTTON_ATTACK") in Presentation
+├─ Godot node? → Always call tr() for Text/TooltipText properties
+└─ Hardcoded string? → ❌ WRONG! Convert to translation key
+
+Entity Creation? (ADR-006 Data-Driven):
+├─ Hard-coded factory? → ❌ WRONG! Use template system
+├─ Create template? → Godot Editor: Create Resource → ActorTemplate → Set properties → Save .tres
+├─ Load template? → Application: var template = _templates.GetTemplate("goblin")
+├─ Create entity? → var actor = new Actor(ActorId.NewId(), template.NameKey, ...)
+├─ Entity references template? → ❌ WRONG! Copy data only, no template reference
+└─ Hot-reload works? → ✅ YES! Edit .tres → save → future entities use new values
 ```
 
 ### Tier 3: Deep Links
@@ -41,6 +57,8 @@ Error Occurs:
 - **Error Handling**: [ADR-003](../03-Reference/ADR/ADR-003-functional-error-handling.md) ⭐⭐⭐⭐⭐ - Result<T>, Three Error Types
 - **Godot Integration**: [ADR-002](../03-Reference/ADR/ADR-002-godot-integration-architecture.md) ⭐⭐⭐⭐⭐ - ServiceLocator at boundary
 - **Clean Architecture**: [ADR-001](../03-Reference/ADR/ADR-001-clean-architecture-foundation.md) ⭐⭐⭐⭐⭐ - Layer dependencies
+- **Internationalization**: [ADR-005](../03-Reference/ADR/ADR-005-internationalization-architecture.md) ⭐⭐⭐⭐⭐ - Translation key discipline
+- **Data-Driven Design**: [ADR-006](../03-Reference/ADR/ADR-006-data-driven-entity-design.md) ⭐⭐⭐⭐⭐ - Templates, control flow, hot-reload
 - **Workflow**: [Workflow.md](../01-Active/Workflow.md) - Implementation patterns
 - **Quality Gates**: [CLAUDE.md - Build Requirements](../../CLAUDE.md)
 
@@ -188,6 +206,8 @@ You IMPLEMENT specifications with **technical excellence**, leveraging modern C#
 - **[ADR-003](../03-Reference/ADR/ADR-003-functional-error-handling.md)** ⭐⭐⭐⭐⭐ - Error handling with CSharpFunctionalExtensions
 - **[ADR-002](../03-Reference/ADR/ADR-002-godot-integration-architecture.md)** ⭐⭐⭐⭐⭐ - Godot integration patterns
 - **[ADR-001](../03-Reference/ADR/ADR-001-clean-architecture-foundation.md)** ⭐⭐⭐⭐⭐ - Clean Architecture foundation
+- **[ADR-005](../03-Reference/ADR/ADR-005-internationalization-architecture.md)** ⭐⭐⭐⭐⭐ - Internationalization with translation keys
+- **[ADR-006](../03-Reference/ADR/ADR-006-data-driven-entity-design.md)** ⭐⭐⭐⭐⭐ - Data-driven templates, designer autonomy, control flow
 - **[Workflow.md](../01-Active/Workflow.md)** ⭐⭐⭐⭐⭐ - Implementation patterns and process
 - **[Glossary.md](../03-Reference/Glossary.md)** ⭐⭐⭐⭐⭐ - MANDATORY terminology
 

@@ -1,3 +1,4 @@
+using Darklands.Core.Application;
 using Darklands.Core.Domain.Common;
 using Darklands.Core.Features.Combat.Application.Commands;
 using Darklands.Core.Features.Combat.Application.Queries;
@@ -24,6 +25,7 @@ public class QueryHandlerTests
     {
         _repository = new FakeTurnQueueRepository(_playerId);
         _eventBus = new FakeEventBus();
+        var playerContext = new FakePlayerContext(_playerId);
         _isInCombatHandler = new IsInCombatQueryHandler(
             _repository,
             NullLogger<IsInCombatQueryHandler>.Instance);
@@ -33,6 +35,7 @@ public class QueryHandlerTests
         _scheduleHandler = new ScheduleActorCommandHandler(
             _repository,
             _eventBus,
+            playerContext,
             NullLogger<ScheduleActorCommandHandler>.Instance);
     }
 

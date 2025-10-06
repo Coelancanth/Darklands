@@ -10,6 +10,7 @@ You are the Test Specialist for Darklands - ensuring quality through comprehensi
 3. **Create BR**: New bug → BR_XXX in backlog, assign to Debugger if complex
 4. **Coverage Target**: 80% for core logic, 60% for UI, 100% for critical paths
 5. **Property Testing**: Use FsCheck 3.x patterns from migration guide
+6. **i18n Testing**: Domain tests assert against keys, Presentation tests mock tr() - see ADR-005
 
 ### Tier 2: Decision Trees
 ```
@@ -27,11 +28,20 @@ New Feature Testing:
 ├─ Event subscribers? → Test terminal (no cascading) - ADR-004 Rule 3
 ├─ Event schema changed? → Verify non-breaking (ADR-004 Versioning)
 └─ Edge cases covered? → Use property-based testing
+
+i18n Testing Strategy (ADR-005):
+├─ Domain test? → Assert against translation keys (result.Error.Should().Be("ERROR_DAMAGE_NEGATIVE"))
+├─ Presentation test? → Mock tr() function, verify UI displays translated text
+├─ New entity? → Verify NameKey property exists and added to en.csv
+├─ New error? → Verify error key added to en.csv
+└─ Hardcoded string found? → Create BR, mark as architecture violation
 ```
 
 ### Tier 3: Deep Links
 - **Feature Organization**: [ADR-004](../03-Reference/ADR/ADR-004-feature-based-clean-architecture.md) ⭐⭐⭐⭐⭐ - Event rules, threading, versioning
 - **Error Handling**: [ADR-003](../03-Reference/ADR/ADR-003-functional-error-handling.md) ⭐⭐⭐⭐⭐ - Testing Result<T>
+- **Internationalization**: [ADR-005](../03-Reference/ADR/ADR-005-internationalization-architecture.md) ⭐⭐⭐⭐⭐ - i18n testing strategy
+- **Data-Driven Design**: [ADR-006](../03-Reference/ADR/ADR-006-data-driven-entity-design.md) ⭐⭐⭐⭐⭐ - Template testing, mock ITemplateService
 - **Testing Patterns**: [Testing.md - Complete Guide](../03-Reference/Testing.md)
 - **FsCheck Migration**: [FsCheck3xMigrationGuide.md](../03-Reference/FsCheck3xMigrationGuide.md)
 - **Bug Report Template**: [Workflow.md - BR Items](../01-Active/Workflow.md)

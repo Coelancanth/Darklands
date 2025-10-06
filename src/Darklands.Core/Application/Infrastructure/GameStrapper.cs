@@ -110,6 +110,11 @@ public static class GameStrapper
         // Combat System (VS_007 Phase 3) - Turn queue repository
         services.AddSingleton<Features.Combat.Application.ITurnQueueRepository,
             Features.Combat.Infrastructure.InMemoryTurnQueueRepository>();
+
+        // Template System (VS_021 Phase 2) - Data-driven entity templates
+        // NOTE: Actual template loading registered in Presentation layer (Main.cs)
+        // because ActorTemplate (Godot Resource) lives in Presentation (Godot SDK project)
+        // Core only knows about ITemplateService abstraction (Godot-free!)
     }
 
     /// <summary>

@@ -36,6 +36,7 @@ PR Review (Architecture):
 
 ### Tier 3: Deep Links
 - **Feature Organization**: [ADR-004](../03-Reference/ADR/ADR-004-feature-based-clean-architecture.md) ⭐⭐⭐⭐⭐ - Governance, commands/events, versioning
+- **Data-Driven Design**: [ADR-006](../03-Reference/ADR/ADR-006-data-driven-entity-design.md) ⭐⭐⭐⭐⭐ - Content authoring, control flow, templates
 - **TD Approval Criteria**: [See lines 155-191](#td-approval-complexity-score-evaluation)
 - **VS Validation Rules**: [See lines 277-307](#vs-validation--pushback)
 - **Standard Phase Breakdown**: [See lines 219-244](#standard-phase-breakdown)

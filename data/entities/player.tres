@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ActorTemplate" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://Infrastructure/Templates/ActorTemplate.cs" id="1"]
+[ext_resource type="Texture2D" path="res://icon.svg" id="2"]
+
+[resource]
+script = ExtResource("1")
+Id = "player"
+NameKey = "ACTOR_PLAYER"
+DescriptionKey = "DESC_ACTOR_PLAYER"
+MaxHealth = 100.0
+Damage = 15.0
+MoveSpeed = 5.0
+Sprite = ExtResource("2")
+Tint = Color(1, 1, 1, 1)
+BehaviorTree = ""

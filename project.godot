@@ -34,6 +34,10 @@ project/assembly_name="Darklands"
 
 enabled=PackedStringArray("res://addons/item_shape_editor/plugin.cfg")
 
+[internationalization]
+
+locale/translations=PackedStringArray("res://translations/en.en.translation")
+
 [rendering]
 
 textures/canvas_textures/default_texture_filter=0

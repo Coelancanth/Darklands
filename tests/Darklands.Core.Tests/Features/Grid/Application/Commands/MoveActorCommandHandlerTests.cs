@@ -1,4 +1,5 @@
 using CSharpFunctionalExtensions;
+using Darklands.Core.Application;
 using Darklands.Core.Domain.Common;
 using Darklands.Core.Features.Combat.Application;
 using Darklands.Core.Features.Combat.Application.Queries;
@@ -31,6 +32,7 @@ public class MoveActorCommandHandlerTests
     private readonly IMediator _mockMediator;
     private readonly IGodotEventBus _mockEventBus;
     private readonly ITurnQueueRepository _mockTurnQueue;
+    private readonly IPlayerContext _mockPlayerContext;
     private readonly ILogger<MoveActorCommandHandler> _mockLogger;
     private readonly MoveActorCommandHandler _handler;
 
@@ -45,6 +47,7 @@ public class MoveActorCommandHandlerTests
         _mockMediator = Substitute.For<IMediator>();
         _mockEventBus = Substitute.For<IGodotEventBus>();
         _mockTurnQueue = Substitute.For<ITurnQueueRepository>();
+        _mockPlayerContext = Substitute.For<IPlayerContext>();
         _mockLogger = Substitute.For<ILogger<MoveActorCommandHandler>>();
 
         // Setup default FOV query response (success with empty set)
@@ -57,7 +60,7 @@ public class MoveActorCommandHandlerTests
             .Send(Arg.Any<IsInCombatQuery>(), Arg.Any<CancellationToken>())
             .Returns(Result.Success(false));
 
-        _handler = new MoveActorCommandHandler(_gridMap, _mockPositionService, _mockMediator, _mockEventBus, _mockTurnQueue, _mockLogger);
+        _handler = new MoveActorCommandHandler(_gridMap, _mockPositionService, _mockMediator, _mockEventBus, _mockTurnQueue, _mockPlayerContext, _mockLogger);
     }
 
     #region Valid Movement Tests

@@ -1,0 +1,19 @@
+keys,en
+ACTOR_PLAYER,Player
+ACTOR_GOBLIN,Goblin
+ACTOR_ORC,Orc
+ACTOR_SKELETON,Skeleton
+DESC_ACTOR_PLAYER,The protagonist of our story. Brave adventurer seeking glory in the Darklands.
+UI_BUTTON_ATTACK,Attack
+UI_BUTTON_MOVE,Move
+UI_BUTTON_WAIT,Wait
+UI_BUTTON_INVENTORY,Inventory
+UI_LABEL_HEALTH,Health
+UI_LABEL_TIME,Time Units
+UI_LABEL_FOV,Field of View
+ERROR_DAMAGE_NEGATIVE,Damage cannot be negative
+ERROR_HEALTH_DEPLETED,Health is already depleted
+ERROR_POSITION_INVALID,Position is invalid
+ERROR_POSITION_OCCUPIED,Position is already occupied
+ERROR_MOVE_BLOCKED,Cannot move to blocked terrain
+ERROR_OUT_OF_RANGE,Target is out of range

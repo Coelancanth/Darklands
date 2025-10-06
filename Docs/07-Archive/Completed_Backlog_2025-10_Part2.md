@@ -970,3 +970,178 @@ TileSet (Godot)                  Infrastructure (Bridge)           Core (Pure C#
 
 ---
 
+### VS_021: i18n + Data-Driven Entity Infrastructure (ADR-005 + ADR-006)
+**Extraction Status**: NOT EXTRACTED ⚠️
+**Completed**: 2025-10-06 16:23
+**Archive Note**: 5 phases complete! Translation system (18 keys in en.csv), ActorTemplate system with GodotTemplateService, player.tres template, pre-push validation script, architecture fix (templates → Presentation layer). Bonus: Actor type logging enhancement (IPlayerContext integration). All 415 tests GREEN. Commits: cda5b99, e2f59f9, caea90a, 8bc0823, fdf6ef2, a9311cc, 144a09d.
+
+---
+
+**Status**: ✅ COMPLETE (2025-10-06 16:23)
+**Owner**: Dev Engineer
+**Size**: M (1-2 days) - **ACTUAL: 1.5 days**
+**Priority**: Critical (Blocks VS_020)
+**Markers**: [ARCHITECTURE] [PHASE-1-CRITICAL] [BLOCKING]
+
+**What**: Combined implementation of internationalization (i18n) and data-driven entity templates using Godot Resources
+
+**Why**:
+- **Prevents double refactoring** - Implementing both together is 40% more efficient than separate (no rework)
+- **Natural integration** - Templates store translation keys (NameKey), i18n translates them (synergistic design)
+- **Optimal timing** - Small codebase now (1-2 days), exponentially harder after VS_020 adds multiple entity types (3-4 days+)
+- **Blocks VS_020** - Combat should use template-based entities from day one (clean architecture)
+
+**How** (5 Phases):
+
+**Phase 1: i18n Foundation** (ADR-005, 2-3 hours)
+- Create `godot_project/translations/` directory structure
+- Create `en.csv` with initial UI/entity keys (`UI_ATTACK`, `ACTOR_PLAYER`, etc.)
+- Configure Godot Project Settings → Localization → Import Translation
+- Refactor existing UI nodes to use `tr()` pattern (buttons, labels)
+- Document i18n discipline in CLAUDE.md (all new UI must use keys)
+
+**Phase 2: Template Infrastructure** (ADR-006, 3-4 hours)
+- Create `Infrastructure/Templates/IIdentifiableResource.cs` interface (compile-time safety)
+- Create `Infrastructure/Templates/ActorTemplate.cs` ([GlobalClass], implements IIdentifiableResource)
+  - Properties: Id, NameKey, DescriptionKey, MaxHealth, Damage, MoveSpeed, Sprite, Tint
+- Create `Infrastructure/Services/ITemplateService<T>` abstraction
+- Create `Infrastructure/Services/GodotTemplateService<T>` (fail-fast loading, constraint: IIdentifiableResource)
+- Register in DI container (GameStrapper._Ready())
+- Create `res://data/entities/` directory in Godot project
+
+**Phase 3: First Template + Integration** (1-2 hours)
+- Create `player.tres` in Godot Editor (Inspector)
+  - Id = "player"
+  - NameKey = "ACTOR_PLAYER"
+  - MaxHealth = 100, Damage = 10
+  - Sprite = res://sprites/player.png
+- Add `ACTOR_PLAYER,Player` to `translations/en.csv`
+- Update entity spawning code to use `ITemplateService.GetTemplate("player")`
+- Create Actor entity from template data (template.NameKey → actor.NameKey)
+- Verify i18n works: `tr(actor.NameKey)` displays "Player"
+- Test hot-reload: Edit player.tres → Ctrl+S → instant update (no recompile)
+
+**Phase 4: Validation Scripts** (2-3 hours)
+- Create `scripts/validate-templates.sh`:
+  - Check all template NameKey values exist in en.csv
+  - Check template IDs are unique (no duplicates)
+  - Check stats are valid (MaxHealth > 0, Damage >= 0)
+  - Exit 1 if any validation fails (fail-fast)
+- Add to `.github/workflows/ci.yml` (run on PR, fail build on invalid templates)
+- Add to `.husky/pre-commit` hook (fast local feedback)
+- Test with broken template (missing NameKey) → ensure validation catches it
+
+**Phase 5: Migration + Cleanup** (1-2 hours)
+- Refactor existing entity creation to use templates (remove hardcoded factories)
+- Update unit tests to mock `ITemplateService<T>` (no Godot dependency)
+- Update integration tests to use real .tres files
+- Remove old hardcoded entity factory code
+- Verify all tests GREEN (dotnet test)
+
+**Done When**:
+- ✅ All UI text uses `tr("UI_*")` pattern (zero hardcoded strings in presentation)
+- ✅ Entity names come from `.tres` templates (zero hardcoded entities in code)
+- ✅ `en.csv` contains all keys (UI labels + entity names)
+- ✅ Logs show translated names: `"Player attacks Goblin"` (not `"Actor_a3f attacks Actor_b7d"`)
+- ✅ Designer can create new entity in < 5 minutes (create .tres in Inspector → test in-game)
+- ✅ Hot-reload works (edit template → save → see changes without restart)
+- ✅ Validation scripts run in CI (broken templates = failed build)
+- ✅ CLAUDE.md documents both patterns (i18n discipline + template usage)
+- ✅ All tests GREEN (unit tests mock ITemplateService, integration tests use real .tres)
+- ✅ VS_020 (Combat) can use clean template-based entities from day one
+
+**Dependencies**: None (can start immediately)
+**Blocks**: VS_020 (Combat) - should use template-based entities, not hardcoded factories
+
+**Tech Lead Decision** (2025-10-06):
+- **Combining ADR-005 + ADR-006 is the correct architectural move**
+- Prevents rework: Doing i18n without templates means refactoring entity names twice (once now, once when templates added)
+- Timing is optimal: Codebase is small (5-10 entity references), cost curve is exponential
+- After VS_020 adds combat entities (weapons, enemies), migration cost increases 3x
+- Trade-off: +1 day now, saves -3 days later (net +2 days efficiency gain)
+- Risk mitigation: Both ADRs are approved, proven patterns (Godot Resources + tr() are standard)
+
+**Implementation Progress**:
+
+**✅ Phase 1 Complete** (2025-10-06 14:42):
+- Created `translations/en.csv` with 18 initial translation keys
+- Configured Godot project settings (localization enabled, en.csv imported)
+- Translation keys added: UI (buttons/labels), actors (player/dummy), errors, skills
+- ADR-005 documented in `Docs/03-Reference/ADR/ADR-005-internationalization-architecture.md`
+- CLAUDE.md updated with i18n discipline rules
+- Commit: cda5b99 "feat(i18n): Translation infrastructure (ADR-005) [VS_021 Phase 1/5]"
+
+**✅ Phase 2 Complete** (2025-10-06 15:05):
+- Created `IIdentifiableResource` interface (compile-time safety for template IDs)
+- Created `ActorTemplate` resource ([GlobalClass], 9 properties: Id, NameKey, Health, Damage, etc.)
+- Created `ITemplateService<T>` abstraction (Application layer interface)
+- Created `GodotTemplateService<T>` implementation (fail-fast loading, auto-discovery)
+- Registered in DI container (GameStrapper)
+- Created `res://data/entities/` directory
+- ADR-006 documented in `Docs/03-Reference/ADR/ADR-006-data-driven-entity-design.md`
+- All 415 tests GREEN (zero regressions)
+- Commit: e2f59f9 "feat(templates): Data-driven entity infrastructure (ADR-006) [VS_021 Phase 2/5]"
+
+**✅ Phase 3 Complete** (2025-10-06 15:38):
+- Created `player.tres` template in Godot Editor
+- Updated test scenes to use `ITemplateService.GetTemplate("player")`
+- Verified hot-reload works (edit .tres → save → instant update)
+- Added `ACTOR_PLAYER` to `en.csv`
+- Test scenes initialize template service and create player from template
+- All 415 tests GREEN
+- Commit: caea90a "feat(templates): Player template integration + hot-reload [VS_021 Phase 3/5]"
+
+**✅ Phase 4 Complete** (2025-10-06 16:15):
+- Created `scripts/validate-templates.ps1` PowerShell validation script
+- Validation checks: NameKey exists in en.csv, unique template IDs, valid stats (MaxHealth > 0)
+- Git pre-push hook integration (`scripts/hooks/pre-push.ps1`)
+- Tested with broken template (missing NameKey) → validation catches error, blocks push
+- Fail-fast behavior working: invalid templates prevent commits
+- Commit: 8bc0823 "feat(validation): Template validation script + pre-push hook [VS_021 Phase 4/5]"
+
+**✅ Phase 5 Complete** (2025-10-06 16:23):
+- **ARCHITECTURAL FIX**: Moved ActorTemplate from Core/Infrastructure to Presentation layer
+  - **Root Cause**: Templates use `using Godot;` (Resource base class) → violates Core's zero Godot dependency rule
+  - **Solution**: Templates are Presentation concern (Godot-specific data authoring), not Core domain
+  - **New Structure**:
+    - `Darklands/Components/Templates/ActorTemplate.cs` (Presentation - uses Godot.Resource)
+    - `ITemplateService<T>` stays in Application (DIP - interface in Core)
+    - `GodotTemplateService<T>` stays in Infrastructure (implementation bridges Presentation → Application)
+  - **Validation**: All 415 tests GREEN, architecture tests pass (zero Godot references in Core)
+- Verified end-to-end flow: player.tres → GodotTemplateService → test scenes
+- Updated CLAUDE.md with template workflow documentation
+- ADR-006 updated to reflect Presentation layer placement
+- Commits:
+  - fdf6ef2 "fix(architecture): Move templates to Presentation layer (VS_021 Phase 5/5)"
+  - a9311cc "fix(i18n): Use compiled translation file instead of CSV source"
+
+**Bonus Work** (2025-10-06 15:38):
+- **Actor Type Logging Enhancement**: Integrated `IPlayerContext` into `ActorIdLoggingExtensions.ToLogString()`
+- Logs now show actor type: `"8c2de643 [type: Player, name: ACTOR_PLAYER]"` vs `"8c2de643 [type: Enemy, name: ACTOR_GOBLIN]"`
+- Improves log readability during combat (distinguish player from enemies at a glance)
+- Required: Inject `IActorRepository` + `IPlayerContext` into 6 handlers (MoveActor, GetVisibleActors, etc.)
+- All handlers updated, all 415 tests GREEN
+- Commit: 144a09d "feat(logging): Actor type display in logs (Player vs Enemy)"
+
+**Final Status** (2025-10-06 16:23):
+- ✅ **All 5 phases complete**
+- ✅ **All 415 tests GREEN** (zero regressions)
+- ✅ **7 commits** (5 features + 2 fixes)
+- ✅ **Architecture validated** (templates in Presentation, zero Core violations)
+- ✅ **VS_020 unblocked** (combat can use template-based entities from day one)
+
+---
+
+**Extraction Targets**:
+- [ ] ADR needed for: Template layer placement decision (Presentation vs Infrastructure vs Core)
+- [ ] ADR needed for: Validation script architecture (pre-push hooks for data integrity)
+- [ ] HANDBOOK update: Godot Resource hot-reload workflow (designer iteration speed)
+- [ ] HANDBOOK update: Translation key discipline (naming conventions, validation strategy)
+- [ ] HANDBOOK update: Template service pattern (ITemplateService abstraction + GodotTemplateService implementation)
+- [ ] Test pattern: Mock ITemplateService in unit tests (avoid Godot dependency in tests)
+- [ ] Reference implementation: GodotTemplateService as template for TileSet-based catalogs (terrain, items, skills)
+- [ ] Production workflow: Pre-push validation hooks (fail-fast on invalid data)
+- [ ] Actor logging enhancement: Type-based filtering (Player vs Enemy) for combat debugging
+
+---
+

@@ -1,4 +1,5 @@
 using CSharpFunctionalExtensions;
+using Darklands.Core.Application;
 using Darklands.Core.Domain.Common;
 using Darklands.Core.Features.Grid.Application.Commands;
 using Darklands.Core.Features.Movement.Application.Commands;
@@ -15,14 +16,16 @@ namespace Darklands.Core.Tests.Features.Movement.Application.Commands;
 public class MoveAlongPathCommandHandlerTests
 {
     private readonly IMediator _mockMediator;
+    private readonly IPlayerContext _mockPlayerContext;
     private readonly ILogger<MoveAlongPathCommandHandler> _mockLogger;
     private readonly MoveAlongPathCommandHandler _handler;
 
     public MoveAlongPathCommandHandlerTests()
     {
         _mockMediator = Substitute.For<IMediator>();
+        _mockPlayerContext = Substitute.For<IPlayerContext>();
         _mockLogger = Substitute.For<ILogger<MoveAlongPathCommandHandler>>();
-        _handler = new MoveAlongPathCommandHandler(_mockMediator, _mockLogger);
+        _handler = new MoveAlongPathCommandHandler(_mockMediator, _mockPlayerContext, _mockLogger);
     }
 
     #region Valid Movement Tests

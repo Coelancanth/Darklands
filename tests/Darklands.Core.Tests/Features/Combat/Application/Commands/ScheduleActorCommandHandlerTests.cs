@@ -1,3 +1,4 @@
+using Darklands.Core.Application;
 using Darklands.Core.Domain.Common;
 using Darklands.Core.Features.Combat.Application.Commands;
 using Darklands.Core.Features.Combat.Domain;
@@ -25,6 +26,7 @@ public class ScheduleActorCommandHandlerTests
         _handler = new ScheduleActorCommandHandler(
             _repository,
             _eventBus,
+            new FakePlayerContext(_playerId),
             NullLogger<ScheduleActorCommandHandler>.Instance);
     }
 

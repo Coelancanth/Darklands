@@ -101,7 +101,7 @@ Product Owner → Tech Lead → Dev Engineer → Test Specialist → DevOps
 
 **MANDATORY**: Follow these architectural boundaries strictly.
 
-### Core Principles (ADR-001, ADR-002, ADR-003, ADR-004)
+### Core Principles (ADR-001 through ADR-006)
 
 **Three-Layer Architecture:**
 ```
@@ -275,6 +275,123 @@ public class ExecuteAttackCommandHandler
 - Core.csproj: Microsoft.Extensions.Logging.**Abstractions** only
 - Darklands.csproj: Serilog packages + MS.Extensions.Logging
 - GameStrapper configures Serilog as logging provider
+
+### Internationalization (i18n) - Translation Key Discipline
+
+**MANDATORY**: Follow translation key discipline for ALL user-facing text (ADR-005).
+
+**Core Principle**: Domain returns **keys**, Presentation translates **keys**.
+
+```csharp
+// ✅ CORRECT: Domain returns translation keys
+public record Actor(ActorId Id, string NameKey);  // "ACTOR_GOBLIN"
+
+public Result<Health> TakeDamage(float amount) =>
+    amount < 0
+        ? Result.Failure<Health>("ERROR_DAMAGE_NEGATIVE")  // Error key
+        : Result.Success(...);
+
+// ✅ CORRECT: Presentation translates keys using Godot's tr()
+_actorNameLabel.Text = tr(actor.NameKey);  // "Goblin" or "哥布林"
+result.Match(
+    onSuccess: h => UpdateHealthBar(h),
+    onFailure: err => ShowError(tr(err))  // Translate error key
+);
+
+// ❌ WRONG: Hardcoded strings in Domain
+public record Actor(ActorId Id, string Name);  // Which language???
+
+// ❌ WRONG: Hardcoded strings in Presentation
+_label.Text = "Goblin";  // NOT TRANSLATABLE!
+```
+
+**Key Naming Convention**:
+- `ACTOR_*` - Entity names (e.g., `ACTOR_GOBLIN`, `ACTOR_PLAYER`)
+- `ITEM_*` - Item names (e.g., `ITEM_SWORD_IRON`)
+- `SKILL_*` - Ability names (e.g., `SKILL_FIREBALL`)
+- `ERROR_*` - Error messages (e.g., `ERROR_DAMAGE_NEGATIVE`)
+- `UI_*` - UI labels/buttons (e.g., `UI_BUTTON_ATTACK`)
+- `DESC_*` - Descriptions (e.g., `DESC_ITEM_SWORD`)
+
+**Translation Files**:
+- Location: `translations/en.csv` (English - default/fallback) ✅ **ACTIVE**
+- Future: `translations/zh_CN.csv` (Chinese - deferred until Phase 1 validated)
+- Format: `ACTOR_GOBLIN,Goblin` (CSV: key, translated text)
+- Configuration: `project.godot` [internationalization] section ✅ **CONFIGURED**
+
+**Discipline Rules**:
+- ✅ **ALWAYS use keys** in Domain (never hardcoded strings)
+- ✅ **ALWAYS use tr()** in Presentation for all UI text
+- ✅ **ALWAYS add new keys to en.csv** before using them
+- ❌ **NEVER hardcode user-facing strings** (buttons, labels, entity names, errors)
+
+**Logging Exception**: Logs auto-translate keys to English (developer-readable) via logger enricher.
+
+**See**: [ADR-005: Internationalization Architecture](Docs/03-Reference/ADR/ADR-005-internationalization-architecture.md)
+
+### Data-Driven Entity Design - Content Authoring Workflow
+
+**MANDATORY**: Use Godot Resources (.tres files) for entity templates (ADR-006).
+
+**Core Principle**: Templates are **Infrastructure** (use Godot APIs), Entities are **Domain** (pure C#).
+
+**Three Execution Phases**:
+
+1. **Design-Time**: Designer creates .tres in Godot Inspector (no code runs)
+2. **Startup**: Infrastructure loads templates into cache (GodotTemplateService)
+3. **Runtime**: Application creates entities FROM template data (no template dependency)
+
+**Designer Workflow**:
+```
+Godot Editor → Create Resource → ActorTemplate
+    ↓
+Set properties: Id="goblin", NameKey="ACTOR_GOBLIN", MaxHealth=100
+    ↓
+Save as goblin.tres
+    ↓
+Hot-reload works (edit → save → test in < 5 seconds)
+```
+
+**Code Pattern**:
+```csharp
+// Infrastructure: Template definition
+[GlobalClass]
+public partial class ActorTemplate : Resource
+{
+    [Export] public string Id { get; set; } = "";
+    [Export] public string NameKey { get; set; } = "";  // i18n integration
+    [Export] public float MaxHealth { get; set; } = 100f;
+}
+
+// Application: Create entity from template
+var template = _templates.GetTemplate("goblin");
+var actor = new Actor(
+    ActorId.NewId(),
+    template.NameKey,  // "ACTOR_GOBLIN" from template
+    Health.Create(template.MaxHealth, template.MaxHealth).Value
+);
+
+// ★ Actor has NO reference to template (pure Domain)!
+```
+
+**Key Insights**:
+- Templates loaded **once at startup**, cached in-memory (O(1) lookup)
+- Many entities created from one template (3 goblins from 1 goblin.tres)
+- Template is **cookie cutter**, entities are **cookies** (independent lifecycles)
+- Hot-reload affects **future** entities, not existing ones (correct behavior)
+
+**Integration with i18n**:
+- Templates store `NameKey` property (translation key, not English text)
+- Validation scripts ensure keys exist in `en.csv`
+- Flow: template data → Domain entity → Presentation `tr()` → translation
+
+**Discipline Rules**:
+- ✅ **ALWAYS use ITemplateService** in Application layer (not direct GD.Load)
+- ✅ **ALWAYS validate templates** at startup (fail-fast on invalid data)
+- ✅ **NEVER reference template** from Domain entity (copy data only)
+- ❌ **NEVER use hard-coded entities** (no `public static Actor Goblin()` factories)
+
+**See**: [ADR-006: Data-Driven Entity Design](Docs/03-Reference/ADR/ADR-006-data-driven-entity-design.md)
 
 ### Test Documentation Standards
 
