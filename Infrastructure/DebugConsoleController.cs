@@ -50,8 +50,9 @@ public partial class DebugConsoleController : CanvasLayer
         ProcessMode = ProcessModeEnum.Always;
 
         // Note: Can't log here - DI container not initialized yet (autoload runs before GameStrapper)
-        // First log message will appear on lazy initialization when F12 is pressed
-        GD.Print("DebugConsoleController autoload ready (press F12 to toggle)");
+        // But we can read persisted state file to show what settings will be applied
+        var stateInfo = GetPersistedStateInfo();
+        GD.Print($"🔧 Debug Console ready (F12 to toggle) | {stateInfo}");
     }
 
     /// <summary>
@@ -438,6 +439,43 @@ public partial class DebugConsoleController : CanvasLayer
         catch (Exception ex)
         {
             _logger?.LogWarning(ex, "Failed to save state to {Path}", StateFilePath);
+        }
+    }
+
+    /// <summary>
+    /// Read persisted state file to display current settings in startup message.
+    /// Called during _Ready() before DI container is available.
+    /// </summary>
+    private string GetPersistedStateInfo()
+    {
+        try
+        {
+            var godotPath = ProjectSettings.GlobalizePath(StateFilePath);
+
+            if (!File.Exists(godotPath))
+            {
+                return "Log: Information (default), Categories: All (default)";
+            }
+
+            var json = File.ReadAllText(godotPath);
+            var state = JsonSerializer.Deserialize<DebugConsoleState>(json);
+
+            if (state == null)
+            {
+                return "Log: Information (default), Categories: All (default)";
+            }
+
+            var logLevel = state.LogLevel ?? "Information";
+            var categoryCount = state.EnabledCategories?.Count ?? 0;
+            var categoryNames = state.EnabledCategories != null && state.EnabledCategories.Count > 0
+                ? string.Join(", ", state.EnabledCategories.Take(3)) + (state.EnabledCategories.Count > 3 ? $" +{state.EnabledCategories.Count - 3} more" : "")
+                : "All";
+
+            return $"Log: {logLevel}, Categories: {categoryNames} ({categoryCount} enabled)";
+        }
+        catch
+        {
+            return "Log: Information (default), Categories: All (default)";
         }
     }
 
