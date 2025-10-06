@@ -152,59 +152,57 @@ public class NativePlateSimulator : IPlateSimulator
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // PHASE 2.3: Climate Calculation (STUB - to be implemented)
+    // PHASE 2.3: Climate Calculation
     // ═══════════════════════════════════════════════════════════════════════
 
     private Result<ClimateData> CalculateClimate(ElevationData elevation, PlateSimulationParams p)
     {
-        // TODO (Phase 2.3): Implement
-        // - CalculatePrecipitation() - latitude-based
-        // - CalculateTemperature() - latitude + elevation cooling
+        _logger.LogDebug("Calculating climate: precipitation, temperature");
 
-        _logger.LogDebug("Calculating climate (STUB)");
+        try
+        {
+            // Calculate precipitation (latitude-based with ocean modifiers)
+            var precipitation = ClimateCalculator.CalculatePrecipitation(
+                elevation.Heightmap,
+                elevation.OceanMask);
 
-        // STUB: Return zero maps
-        var size = elevation.Heightmap.GetLength(0);
-        var precipitation = new float[size, size];
-        var temperature = new float[size, size];
+            // Calculate temperature (latitude + elevation cooling)
+            var temperature = ClimateCalculator.CalculateTemperature(
+                elevation.Heightmap,
+                elevation.OceanMask);
 
-        return Result.Success(new ClimateData(
-            elevation.Heightmap,
-            elevation.OceanMask,
-            precipitation,
-            temperature));
+            _logger.LogInformation("Climate calculation complete");
+
+            return Result.Success(new ClimateData(
+                elevation.Heightmap,
+                elevation.OceanMask,
+                precipitation,
+                temperature));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Climate calculation failed");
+            return Result.Failure<ClimateData>("ERROR_WORLDGEN_CLIMATE_FAILED");
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // PHASE 2.4: Biome Classification (STUB - to be implemented)
+    // PHASE 2.4: Biome Classification
     // ═══════════════════════════════════════════════════════════════════════
 
     private PlateSimulationResult ClassifyBiomes(ClimateData climate)
     {
-        // TODO (Phase 2.4): Implement
-        // - Holdridge life zones model
-        // - Combine elevation, precipitation, temperature
+        _logger.LogDebug("Classifying biomes using Holdridge life zones model");
 
-        _logger.LogDebug("Classifying biomes (STUB)");
+        // Classify biomes based on temperature, precipitation, and elevation
+        var biomes = BiomeClassifier.Classify(
+            climate.Heightmap,
+            climate.OceanMask,
+            climate.PrecipitationMap,
+            climate.TemperatureMap,
+            seaLevel: 0.65f); // Use default sea level from params
 
-        // STUB: Simple elevation-based biomes
-        var size = climate.Heightmap.GetLength(0);
-        var biomes = new BiomeType[size, size];
-
-        for (int y = 0; y < size; y++)
-        {
-            for (int x = 0; x < size; x++)
-            {
-                if (climate.OceanMask[y, x])
-                    biomes[y, x] = BiomeType.Ocean;
-                else if (climate.Heightmap[y, x] > 0.8f)
-                    biomes[y, x] = BiomeType.Ice; // High mountains
-                else if (climate.Heightmap[y, x] > 0.7f)
-                    biomes[y, x] = BiomeType.Tundra;
-                else
-                    biomes[y, x] = BiomeType.Grassland;
-            }
-        }
+        _logger.LogInformation("Biome classification complete");
 
         return new PlateSimulationResult(
             climate.Heightmap,
