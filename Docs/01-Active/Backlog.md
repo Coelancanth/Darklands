@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-06 22:33 (Dev Engineer: Completed TD_008 WorldMap Visualization - Image/Texture2D rendering works!)
+**Last Updated**: 2025-10-06 22:54 (Dev Engineer: Upgraded to WorldEngine 41-biome system + quality polish roadmap in TD_009)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -189,6 +189,7 @@
 ---
 
 *Recently completed (2025-10-06):*
+- **WorldEngine 41-Biome Upgrade**: Expanded from 12 → 41 biomes using WorldEngine's proven Holdridge life zones model. **Percentile-based moisture classification** (automatic biome balance), WorldEngine color scheme, fixed climate algorithm (elevation cooling 0.5× → 0.25×). BiomeType enum, BiomeClassifier, ClimateCalculator, WorldMapNode colors all upgraded. Quality issues identified (horizontal banding, no rain shadow) → documented in TD_009 polish roadmap. All 439 tests GREEN. Foundation ready for quality polish phase! ✅ (2025-10-06 22:54, actual: ~3h)
 - **TD_008**: Godot WorldMap Visualization - **Image/Texture2D rendering architecture** (262,000× faster than DrawRect), async world generation, Camera2D navigation (WASD/zoom), 12-biome color rendering. Architectural decision: Image/Texture2D for terrain (colors) + future TileMapLayer for settlements (sprites) validates multi-layer strategic map vision. All 439 tests GREEN. VS_019 Phase 3 complete! ✅ (2025-10-06 22:33, actual: ~2.5h)
 - **TD_007**: Core WorldGen Infrastructure (Wrapper + Post-Processing) - Complete 4-phase implementation! **IPlateSimulator** interface with DTOs, **NativePlateSimulator** wrapper (railway-oriented flow), **ElevationPostProcessor** (borders, noise, flood fill), **ClimateCalculator** (precipitation, temperature), **BiomeClassifier** (Holdridge model, 12 biome types). Lightweight Perlin noise (80 lines, no external deps). All 439 tests GREEN. Foundation ready for TD_008 (Godot visualization)! ✅ (2025-10-06 22:00, actual time: ~4h)
 - **TD_006**: Native Library Setup (plate-tectonics LibraryImport) - Built DLL from source with extern "C" exports, created LibraryImport interop layer (PlateTectonicsNative.cs with source generators), SafeHandle wrapper (RAII cleanup), NativeLibraryLoader (platform detection), 4 integration tests GREEN. **Migrated DllImport → LibraryImport** for .NET 7+ AOT compatibility. Updated ADR-007 v1.2 with migration guide. Foundation ready for TD_007! ✅ (2025-10-06 21:08, migrated 21:31)
@@ -360,51 +361,79 @@
 
 ---
 
-### TD_009: WorldGen Validation & Performance
+### TD_009: WorldGen Quality Polish & Performance Optimization
 **Status**: Proposed
-**Owner**: Tech Lead → Test Specialist
-**Size**: S (2-3 hours)
+**Owner**: Tech Lead → Dev Engineer
+**Size**: M (6-8 hours - expanded scope)
 **Priority**: Ideas
-**Markers**: [TESTING] [PERFORMANCE] [WORLDGEN]
+**Markers**: [WORLDGEN] [PERFORMANCE] [QUALITY]
 **Parent**: VS_019 (Phase 4)
 
-**What**: Validate world generation quality, reproducibility, and performance
+**What**: Polish biome realism + optimize generation performance
 
-**Why**: Ensure generated worlds are realistic and performant enough for gameplay
+**Why**: Current worlds render correctly but have visual quality issues (horizontal banding, no rain shadow, no mountains visible). Need WorldEngine-quality output + faster generation.
 
-**Tech Note**: LibraryImport migration (TD_006) may provide 5-10% performance improvement vs DllImport - validate in performance tests
+**Current State** (as of 2025-10-06):
+✅ **Implemented**:
+- 41 WorldEngine biomes (vs original 12) - complete Holdridge life zones
+- Percentile-based moisture classification (automatic biome balance)
+- WorldEngine color scheme (proven palette from Biomes.html)
+- Fixed elevation cooling (0.5× → 0.25×, highlands can support forests)
+- Image/Texture2D rendering (262,000× faster than DrawRect)
+- Camera zoom increased (3× → 20× for detail inspection)
 
-**How**:
-1. **Reproducibility test** (0.5h):
-   - Generate world with seed 42 → capture heightmap hash
-   - Generate world with seed 42 again → verify same hash
-   - Test with 5 different seeds → all deterministic
+⚠️ **Quality Issues Identified**:
+1. **Horizontal banding** - Precipitation only considers latitude (no rain shadow, no elevation effects)
+2. **Mountains invisible** - Not using elevation data in biome classification properly
+3. **Uniform appearance** - Missing terrain chaos/variation (erosion, permeability not implemented)
+4. **No rivers** - Separate system needed (hydrology simulation)
 
-2. **Performance test** (1h):
-   - Measure generation time for 512×512 world
-   - Target: <5 seconds (accept up to 10 seconds for MVP)
-   - Profile: Which step is slowest (plate sim vs post-processing)?
-   - Document performance characteristics
+**Remaining Work**:
 
-3. **Visual quality check** (1h):
+1. **Rain Shadow & Elevation-Based Precipitation** (2-3h):
+   - Detect mountain ranges from heightmap (gradient analysis)
+   - Calculate windward/leeward sides (prevailing wind from west)
+   - Reduce precipitation on leeward side (rain shadow effect)
+   - Increase precipitation at higher elevations (orographic lift)
+   - **Impact**: Breaks up horizontal bands, creates realistic dry zones behind mountains
+
+2. **Erosion Simulation** (2-3h):
+   - Implement thermal erosion (smooths sharp peaks)
+   - Implement hydraulic erosion (creates valleys, river beds)
+   - Apply iteratively during post-processing
+   - **Impact**: Realistic terrain features, natural-looking coastlines
+
+3. **Performance Optimization** (2h):
+   - Replace Perlin noise with FastNoiseLite (C# library, 3-5× faster)
+   - Multi-thread biome classification loop (Parallel.For on row chunks)
+   - Multi-thread precipitation calculation (independent per-cell)
+   - **Target**: <3 seconds for 512×512 world (currently ~5-7 seconds)
+
+4. **Visual Quality Validation** (1h):
    - Generate 10 worlds with different seeds
-   - Manual inspection:
-     - Rivers connect to oceans (not landlocked)
-     - Mountains cluster in ranges (not scattered randomly)
-     - Coastlines look natural (not perfect straight lines)
-     - Biomes make sense (deserts not next to tundra)
-   - Screenshot 3 "good" examples for documentation
+   - Manual inspection checklist:
+     - ✅ Biome variety (all 41 biomes can appear)
+     - ⚠️ Mountain ranges visible (elevation gradients clear)
+     - ⚠️ Rain shadow effect (dry zones leeward of mountains)
+     - ⚠️ Realistic coastlines (erosion smoothing)
+     - ✅ No artifacts (magenta = unknown biome indicator)
+   - Document quality metrics (% distribution of biomes)
 
-4. **Error handling test** (0.5h):
-   - Rename libplatec.dll → test graceful failure message
-   - Invalid parameters → test Result.Failure returned
-   - Verify no native crashes (all errors caught)
+**Dependencies**:
+- FastNoiseLite NuGet package (C# port: `FastNoiseLite` by Jordan Peck)
+- No additional native libraries (pure C# optimizations)
 
 **Done When**:
-- Same seed produces identical world (reproducibility ✅)
-- Generation time <10 seconds for 512×512 (acceptable performance ✅)
-- Visual quality validated (rivers, mountains, coasts look realistic ✅)
-- Error handling works (missing library shows helpful message ✅)
+- ✅ Rain shadow effect visible (mountains create dry zones)
+- ✅ Mountains visible in world view (elevation impacts biomes)
+- ✅ Erosion applied (smooth terrain, natural coasts)
+- ✅ Generation time <3 seconds for 512×512 (multi-threaded)
+- ✅ 10 test worlds look realistic (variety, no banding)
+
+**Tech Notes**:
+- FastNoiseLite: MIT license, single-file C# port available
+- Multi-threading: Use `Parallel.For` with range partitioning (avoid false sharing)
+- Rain shadow: Simple model = windward gets 1.2×, leeward gets 0.6× base precipitation
 
 **Dependencies**: TD_008 complete
 

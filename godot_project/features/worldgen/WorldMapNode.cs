@@ -1,4 +1,5 @@
 using Godot;
+using System;
 using System.Threading.Tasks;
 using Darklands.Core.Application.Infrastructure;
 using Darklands.Core.Features.WorldGen.Application.Commands;
@@ -26,7 +27,7 @@ public partial class WorldMapNode : Node2D
     private const float PanSpeed = 500f;
     private const float ZoomSpeed = 0.1f;
     private const float MinZoom = 0.5f;
-    private const float MaxZoom = 3f;
+    private const float MaxZoom = 20f; // Increased from 3x to 20x for detailed inspection
 
     // World generation settings
     [Export] public int Seed { get; set; } = 42;
@@ -149,20 +150,80 @@ public partial class WorldMapNode : Node2D
         }
     }
 
+    /// <summary>
+    /// Maps biome types to colors using WorldEngine's proven color scheme.
+    /// Colors are from References/worldengine/docs/Biomes.html (hex codes converted to RGB).
+    /// </summary>
     private static Color GetBiomeColor(BiomeType biome) => biome switch
     {
-        BiomeType.Ocean => new Color(0.1f, 0.2f, 0.5f),              // Dark blue
-        BiomeType.ShallowWater => new Color(0.2f, 0.4f, 0.7f),       // Light blue
-        BiomeType.Ice => new Color(0.9f, 0.9f, 1.0f),                 // White
-        BiomeType.Tundra => new Color(0.6f, 0.7f, 0.6f),             // Gray-green
-        BiomeType.BorealForest => new Color(0.2f, 0.5f, 0.3f),       // Dark green
-        BiomeType.Grassland => new Color(0.5f, 0.7f, 0.3f),          // Yellow-green
-        BiomeType.TemperateForest => new Color(0.3f, 0.6f, 0.3f),    // Green
-        BiomeType.TemperateRainforest => new Color(0.2f, 0.5f, 0.4f),// Teal
-        BiomeType.Desert => new Color(0.9f, 0.8f, 0.5f),             // Sand
-        BiomeType.Savanna => new Color(0.7f, 0.6f, 0.4f),            // Tan
-        BiomeType.TropicalSeasonalForest => new Color(0.4f, 0.7f, 0.3f), // Light green
-        BiomeType.TropicalRainforest => new Color(0.1f, 0.5f, 0.2f), // Dark jungle green
-        _ => new Color(1f, 0f, 1f) // Magenta for unknown
+        // Water biomes
+        BiomeType.Ocean => new Color(0.1f, 0.2f, 0.5f),                          // Custom: Dark blue
+        BiomeType.ShallowWater => new Color(0.2f, 0.4f, 0.7f),                   // Custom: Light blue
+
+        // Polar zone
+        BiomeType.PolarIce => FromHex("FFFFFF"),                                 // White
+        BiomeType.PolarDesert => FromHex("C0C0C0"),                              // Silver
+
+        // Subpolar/Tundra zone
+        BiomeType.SubpolarMoistTundra => FromHex("608080"),                      // Dark gray-green
+        BiomeType.SubpolarWetTundra => FromHex("408080"),                        // Darker teal
+        BiomeType.SubpolarRainTundra => FromHex("2080C0"),                       // Blue-teal
+        BiomeType.SubpolarDryTundra => FromHex("808080"),                        // Gray
+
+        // Boreal zone (cold temperate)
+        BiomeType.BorealDesert => FromHex("A0A080"),                             // Pale olive
+        BiomeType.BorealDryScrub => FromHex("80A080"),                           // Pale green
+        BiomeType.BorealMoistForest => FromHex("60A080"),                        // Teal-green
+        BiomeType.BorealWetForest => FromHex("40A090"),                          // Darker teal-green
+        BiomeType.BorealRainForest => FromHex("20A0C0"),                         // Cyan-teal
+
+        // Cool temperate zone
+        BiomeType.CoolTemperateMoistForest => FromHex("60C080"),                 // Light green
+        BiomeType.CoolTemperateWetForest => FromHex("40C090"),                   // Medium green
+        BiomeType.CoolTemperateRainForest => FromHex("20C0C0"),                  // Cyan
+        BiomeType.CoolTemperateSteppe => FromHex("80C080"),                      // Pale green (grassland)
+        BiomeType.CoolTemperateDesert => FromHex("C0C080"),                      // Pale yellow-green
+        BiomeType.CoolTemperateDesertScrub => FromHex("A0C080"),                 // Light yellow-green
+
+        // Warm temperate zone
+        BiomeType.WarmTemperateMoistForest => FromHex("60E080"),                 // Bright green
+        BiomeType.WarmTemperateWetForest => FromHex("40E090"),                   // Emerald green
+        BiomeType.WarmTemperateRainForest => FromHex("20E0C0"),                  // Cyan-green
+        BiomeType.WarmTemperateThornScrub => FromHex("A0E080"),                  // Light lime
+        BiomeType.WarmTemperateDryForest => FromHex("80E080"),                   // Lime green
+        BiomeType.WarmTemperateDesert => FromHex("E0E080"),                      // Yellow
+        BiomeType.WarmTemperateDesertScrub => FromHex("C0E080"),                 // Yellow-green
+
+        // Subtropical zone
+        BiomeType.SubtropicalThornWoodland => FromHex("B0F080"),                 // Light yellow-green
+        BiomeType.SubtropicalDryForest => FromHex("80F080"),                     // Bright lime
+        BiomeType.SubtropicalMoistForest => FromHex("60F080"),                   // Bright green
+        BiomeType.SubtropicalWetForest => FromHex("40F090"),                     // Emerald
+        BiomeType.SubtropicalRainForest => FromHex("20F0B0"),                    // Cyan-green
+        BiomeType.SubtropicalDesert => FromHex("F0F080"),                        // Bright yellow
+        BiomeType.SubtropicalDesertScrub => FromHex("D0F080"),                   // Yellow-lime
+
+        // Tropical zone (hottest)
+        BiomeType.TropicalThornWoodland => FromHex("C0FF80"),                    // Pale yellow-green
+        BiomeType.TropicalVeryDryForest => FromHex("A0FF80"),                    // Light lime
+        BiomeType.TropicalDryForest => FromHex("80FF80"),                        // Bright lime
+        BiomeType.TropicalMoistForest => FromHex("60FF80"),                      // Vivid green
+        BiomeType.TropicalWetForest => FromHex("40FF90"),                        // Bright emerald
+        BiomeType.TropicalRainForest => FromHex("20FFA0"),                       // Jungle green
+        BiomeType.TropicalDesert => FromHex("FFFF80"),                           // Bright yellow
+        BiomeType.TropicalDesertScrub => FromHex("E0FF80"),                      // Yellow-lime
+
+        _ => new Color(1f, 0f, 1f) // Magenta for unknown (debugging)
     };
+
+    /// <summary>
+    /// Converts hex color string (e.g., "FF8800") to Godot Color (RGB 0.0-1.0).
+    /// </summary>
+    private static Color FromHex(string hex)
+    {
+        int r = Convert.ToInt32(hex.Substring(0, 2), 16);
+        int g = Convert.ToInt32(hex.Substring(2, 2), 16);
+        int b = Convert.ToInt32(hex.Substring(4, 2), 16);
+        return new Color(r / 255f, g / 255f, b / 255f);
+    }
 }

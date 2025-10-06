@@ -63,7 +63,8 @@ public static class ClimateCalculator
 
     /// <summary>
     /// Calculates temperature based on latitude and elevation.
-    /// Simplified model: Hot equator, cold poles, elevation cooling.
+    /// Uses WorldEngine-compatible thresholds for 6-band temperature classification.
+    /// Reference: WorldEngine temps=[0.874, 0.765, 0.594, 0.439, 0.366, 0.124]
     /// </summary>
     /// <param name="heightmap">Elevation data (for elevation cooling)</param>
     /// <param name="oceanMask">Ocean mask (oceans moderate temperature)</param>
@@ -87,10 +88,9 @@ public static class ClimateCalculator
             {
                 float temp = baseTemp;
 
-                // Elevation cooling: -6.5°C per 1000m (standard atmospheric lapse rate)
-                // Assume heightmap 0.0-1.0 = 0-5000m elevation
-                // So elevation cooling = -0.1 per 0.2 elevation units
-                float elevationCooling = heightmap[y, x] * 0.5f;
+                // Elevation cooling: FIXED from 0.5× to 0.25× (was making highlands too cold)
+                // This allows temperate highlands to support forests instead of just ice/tundra
+                float elevationCooling = heightmap[y, x] * 0.25f;
                 temp = Math.Max(0f, temp - elevationCooling);
 
                 // Oceans moderate temperature (reduce extremes)
