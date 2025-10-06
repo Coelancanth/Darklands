@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 008
-- **Next TD**: 007 (TD_006 created 2025-10-06)
+- **Next TD**: 006
 - **Next VS**: 019
 
 
@@ -103,88 +103,7 @@
 ## 💡 Ideas (Future Work)
 *Future features, nice-to-haves, deferred work*
 
-### TD_006: Refactor Test Scene Actor Tracking (Position Query Warnings)
-**Status**: Proposed | **Owner**: Tech Lead | **Size**: S (<4h) | **Priority**: Ideas
-**Markers**: [TECHNICAL-DEBT] [TEST-SCENE-ONLY]
 
-**What**: Eliminate position query warnings for dead actors in test scene by dynamically tracking living actors instead of hardcoded ActorIds.
-
-**Why**:
-- Test scene currently queries hardcoded `_goblinId`, `_orcId` even after death
-- GetActorPositionQueryHandler logs warnings (expected behavior, but noisy)
-- Warnings are harmless but clutter logs during testing
-
-**Problem Context** (VS_020 Death Handling Bug):
-- Dead actors removed from `IActorPositionService` ✅
-- Test scene's `UpdateActorVisibility()` still queries all 3 actors (player, goblin, orc)
-- Dead goblin query fails → Warning logged: "Failed to get position for actor 3855cc70..."
-- Happens 3x per FOV update (OnFOVCalculated, RestoreCellColor, UpdateActorVisibility)
-
-**Current Behavior**:
-```csharp
-// TurnQueueTestSceneController.cs
-private ActorId _goblinId;  // Hardcoded, never removed when actor dies
-private ActorId _orcId;
-
-private void OnFOVCalculated(...) {
-    var goblinPosResult = await _mediator.Send(new GetActorPositionQuery(_goblinId));  // ⚠️ Fails if dead
-    var orcPosResult = await _mediator.Send(new GetActorPositionQuery(_orcId));
-    // ...
-}
-```
-
-**Proposed Solution**:
-```csharp
-// Track living actors dynamically
-private HashSet<ActorId> _enemyActors = new() { goblinId, orcId };
-
-// Remove on death (subscribe to ActorDiedEvent or check position query success)
-private void OnActorDied(ActorId actorId) {
-    _enemyActors.Remove(actorId);
-}
-
-// Query only living actors
-foreach (var enemyId in _enemyActors) {
-    var posResult = await _mediator.Send(new GetActorPositionQuery(enemyId));
-    // ...
-}
-```
-
-**Alternative Solutions**:
-1. **Downgrade log level**: Change `LogWarning` → `LogDebug` in GetActorPositionQueryHandler (loses production debugging value)
-2. **Suppress in test scene**: Catch failures silently (current behavior already does this, just logs warning)
-3. **Dynamic tracking** (recommended): Remove dead actor IDs from tracking set
-
-**Trade-offs**:
-- ✅ Cleaner logs during testing
-- ✅ More realistic production actor tracking pattern
-- ❌ Requires event subscription (ActorDiedEvent) or position query success tracking
-- ❌ Only affects test scene (production will have proper actor lifecycle management)
-
-**Scope**:
-- ✅ Refactor TurnQueueTestSceneController to track living actors dynamically
-- ✅ Subscribe to death events or check position query results
-- ✅ Remove dead actor IDs from tracking set
-- ❌ Change GetActorPositionQueryHandler logging (keep warnings for production debugging)
-
-**Done When**:
-- Test scene runs without position query warnings for dead actors
-- Dead enemies still disappear from grid correctly
-- Combat mode still exits when last enemy dies
-- Code demonstrates production-ready actor lifecycle pattern
-
-**Dependencies**: None (VS_020 complete, bug fixed, warnings are cosmetic)
-
-**Tech Lead Decision**:
-- **Priority**: Ideas (non-blocking, test scene only)
-- **Defer until**: Pattern needed for production actor management (VS_011 Enemy AI?)
-- **Alternative**: Accept warnings as "test scene limitation" (harmless, confirms death handling works)
-
----
-
-*Future work is tracked in [Roadmap.md](../02-Design/Game/Roadmap.md) with dependency chains and sequencing.*
-
----
 
 ## 📋 Quick Reference
 

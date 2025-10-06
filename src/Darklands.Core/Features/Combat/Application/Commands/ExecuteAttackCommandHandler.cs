@@ -5,6 +5,7 @@ using Darklands.Core.Domain.Components;
 using Darklands.Core.Features.Combat.Domain;
 using Darklands.Core.Features.Grid.Application.Services;
 using Darklands.Core.Features.Grid.Domain;
+using Darklands.Core.Features.Health.Application.Events;
 using MediatR;
 using Microsoft.Extensions.Logging;
 
@@ -22,6 +23,7 @@ public class ExecuteAttackCommandHandler :
     private readonly ITurnQueueRepository _turnQueue;
     private readonly IFOVService _fovService;
     private readonly GridMap _gridMap;
+    private readonly IMediator _mediator;
     private readonly ILogger<ExecuteAttackCommandHandler> _logger;
 
     public ExecuteAttackCommandHandler(
@@ -30,6 +32,7 @@ public class ExecuteAttackCommandHandler :
         ITurnQueueRepository turnQueue,
         IFOVService fovService,
         GridMap gridMap,
+        IMediator mediator,
         ILogger<ExecuteAttackCommandHandler> logger)
     {
         _actors = actors;
@@ -37,6 +40,7 @@ public class ExecuteAttackCommandHandler :
         _turnQueue = turnQueue;
         _fovService = fovService;
         _gridMap = gridMap;
+        _mediator = mediator;
         _logger = logger;
     }
 
@@ -113,6 +117,8 @@ public class ExecuteAttackCommandHandler :
         }
 
         // 7. Apply damage to target
+        var oldHealth = targetHealth.CurrentHealth.Current; // Capture before damage
+
         var damageResult = targetHealth.TakeDamage(weapon.Damage);
         if (damageResult.IsFailure)
         {
@@ -129,6 +135,23 @@ public class ExecuteAttackCommandHandler :
             weapon.Damage,
             cmd.TargetId,
             newHealth.Current);
+
+        // 7.5. Publish HealthChangedEvent (ADR-004 Rule 1: Commands publish events at END with ALL info)
+        var healthChangedEvent = new HealthChangedEvent(
+            cmd.TargetId,
+            oldHealth,
+            newHealth.Current,
+            IsDead: targetDied,
+            IsCritical: newHealth.Percentage <= 0.25f);
+
+        _logger.LogDebug(
+            "Publishing HealthChangedEvent for actor {TargetId}: {Old} -> {New} (died: {IsDead})",
+            cmd.TargetId,
+            oldHealth,
+            newHealth.Current,
+            targetDied);
+
+        await _mediator.Publish(healthChangedEvent, cancellationToken);
 
         // 8. Handle death (remove from turn queue AND position service)
         if (targetDied)

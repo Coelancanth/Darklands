@@ -55,6 +55,9 @@ public partial class TurnQueueTestSceneController : Node2D
     private ActorId _orcId; // VS_007: Second enemy for reinforcement testing
     private ActorId _activeActorId; // Whose FOV is currently displayed (toggle with Tab)
 
+    // TD_006: Dynamic actor tracking (remove dead actors to prevent position query warnings)
+    private readonly HashSet<ActorId> _livingEnemies = new();
+
     // Movement state (VS_006 Phase 4)
     private CancellationTokenSource? _movementCancellation;
     private Task? _activeMovementTask; // Track active movement task for proper cancellation
@@ -105,6 +108,7 @@ public partial class TurnQueueTestSceneController : Node2D
         // Subscribe to events (ADR-004: Terminal subscriber)
         _eventBus.Subscribe<ActorMovedEvent>(this, OnActorMoved);
         _eventBus.Subscribe<FOVCalculatedEvent>(this, OnFOVCalculated);
+        _eventBus.Subscribe<Darklands.Core.Features.Health.Application.Events.HealthChangedEvent>(this, OnHealthChanged);
 
         // Initialize game state (async - will complete initialization)
         InitializeGameState();
@@ -236,6 +240,10 @@ public partial class TurnQueueTestSceneController : Node2D
         await _actorRepository.AddActorAsync(player);
         await _actorRepository.AddActorAsync(goblin);
         await _actorRepository.AddActorAsync(orc);
+
+        // TD_006: Track living enemies (remove on death to prevent position query warnings)
+        _livingEnemies.Add(_goblinId);
+        _livingEnemies.Add(_orcId);
 
         _logger.LogInformation("VS_020: Created actors with health and weapons - Player(100HP/melee), Goblin(30HP/melee), Orc(50HP/ranged)");
 
@@ -400,10 +408,17 @@ public partial class TurnQueueTestSceneController : Node2D
         // Create set of currently visible positions for fast lookup
         var visibleSet = new HashSet<Position>(evt.VisiblePositions);
 
-        // VS_007: Get actor positions for visibility checking
+        // TD_006: Get positions for living actors only (prevents position query warnings for dead actors)
         var playerPosResult = await _mediator.Send(new GetActorPositionQuery(_playerId));
-        var goblinPosResult = await _mediator.Send(new GetActorPositionQuery(_goblinId));
-        var orcPosResult = await _mediator.Send(new GetActorPositionQuery(_orcId));
+
+        // Query only living enemies (dead ones removed from _livingEnemies set on death)
+        var goblinPosResult = _livingEnemies.Contains(_goblinId)
+            ? await _mediator.Send(new GetActorPositionQuery(_goblinId))
+            : Result.Failure<Position>("Goblin is dead");
+
+        var orcPosResult = _livingEnemies.Contains(_orcId)
+            ? await _mediator.Send(new GetActorPositionQuery(_orcId))
+            : Result.Failure<Position>("Orc is dead");
 
         // Update fog of war for all cells (3-state system)
         for (int x = 0; x < GridSize; x++)
@@ -451,8 +466,47 @@ public partial class TurnQueueTestSceneController : Node2D
     }
 
     /// <summary>
+    /// Event handler: Health changed - handle death visuals immediately.
+    /// TD_006: Also removes dead actors from tracking to prevent position query warnings.
+    /// </summary>
+    private void OnHealthChanged(Darklands.Core.Features.Health.Application.Events.HealthChangedEvent evt)
+    {
+        if (evt.IsDead)
+        {
+            _logger.LogInformation("💀 Actor {ActorId} died - removing visual from grid", evt.ActorId);
+
+            // TD_006: Remove from living enemies tracking (prevents position query warnings)
+            _livingEnemies.Remove(evt.ActorId);
+
+            // Clear visual cell immediately (bug fix: visual removal on death)
+            // Note: Actor already removed from position service by ExecuteAttackCommandHandler,
+            // so we scan all cells to find and clear the visual
+            for (int x = 0; x < GridSize; x++)
+            {
+                for (int y = 0; y < GridSize; y++)
+                {
+                    // Check if this cell has the dead actor's color
+                    var cellColor = _actorCells[x, y].Color;
+                    if (cellColor != Colors.Transparent)
+                    {
+                        // Check if dead actor matches goblin or orc color
+                        if ((evt.ActorId.Equals(_goblinId) && cellColor == GoblinColor) ||
+                            (evt.ActorId.Equals(_orcId) && cellColor == OrcColor))
+                        {
+                            _actorCells[x, y].Color = Colors.Transparent;
+                            _logger.LogDebug("Cleared death visual at ({X}, {Y})", x, y);
+                            return; // Found and cleared, done
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// <summary>
     /// Updates actor visibility based on exploration state.
     /// VS_007: Updated for Goblin/Orc instead of Dummy.
+    /// TD_006: Now uses _livingEnemies set to avoid querying dead actors.
     /// </summary>
     private void UpdateActorVisibility(
         Position pos,
@@ -513,6 +567,7 @@ public partial class TurnQueueTestSceneController : Node2D
     /// <summary>
     /// Restores a cell's actor layer to transparent, or keeps actor color if another actor is there.
     /// VS_007: Updated for Goblin/Orc instead of Dummy.
+    /// TD_006: Only queries living actors to prevent position warnings for dead actors.
     /// </summary>
     private async Task RestoreCellColor(Position pos)
     {
@@ -526,20 +581,25 @@ public partial class TurnQueueTestSceneController : Node2D
             return;
         }
 
-        // Check if goblin is at this position
-        var goblinPosResult = await _mediator.Send(new GetActorPositionQuery(_goblinId));
-        if (goblinPosResult.IsSuccess && goblinPosResult.Value.Equals(pos))
+        // TD_006: Check only living enemies (prevents position query warnings for dead actors)
+        if (_livingEnemies.Contains(_goblinId))
         {
-            _actorCells[pos.X, pos.Y].Color = GoblinColor;
-            return;
+            var goblinPosResult = await _mediator.Send(new GetActorPositionQuery(_goblinId));
+            if (goblinPosResult.IsSuccess && goblinPosResult.Value.Equals(pos))
+            {
+                _actorCells[pos.X, pos.Y].Color = GoblinColor;
+                return;
+            }
         }
 
-        // Check if orc is at this position
-        var orcPosResult = await _mediator.Send(new GetActorPositionQuery(_orcId));
-        if (orcPosResult.IsSuccess && orcPosResult.Value.Equals(pos))
+        if (_livingEnemies.Contains(_orcId))
         {
-            _actorCells[pos.X, pos.Y].Color = OrcColor;
-            return;
+            var orcPosResult = await _mediator.Send(new GetActorPositionQuery(_orcId));
+            if (orcPosResult.IsSuccess && orcPosResult.Value.Equals(pos))
+            {
+                _actorCells[pos.X, pos.Y].Color = OrcColor;
+                return;
+            }
         }
 
         // No actor here, make actor layer transparent

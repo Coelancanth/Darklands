@@ -9,6 +9,7 @@ using Darklands.Core.Features.Combat.Domain;
 using Darklands.Core.Features.Grid.Application.Services;
 using Darklands.Core.Features.Grid.Domain;
 using Darklands.Core.Features.Grid.Infrastructure.Repositories;
+using MediatR;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Xunit;
@@ -42,12 +43,14 @@ public class ExecuteAttackCommandHandlerTests
         var floorTerrain = terrainRepo.GetDefault().Value;
         _gridMap = new GridMap(floorTerrain);
 
+        var mediator = Substitute.For<IMediator>();
         _handler = new ExecuteAttackCommandHandler(
             _actorRepository,
             _positionService,
             _turnQueueRepository,
             _fovService,
             _gridMap,
+            mediator,
             _logger);
     }
 
