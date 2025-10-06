@@ -1,0 +1,40 @@
+[gd_resource type="TileSet" load_steps=5 format=3 uid="uid://whcbv808cj46"]
+
+[ext_resource type="Texture2D" uid="uid://mq5faadh36gd" path="res://assets/overworld/BaseSet.png" id="1_wwlyp"]
+[ext_resource type="Texture2D" uid="uid://cn3gbuev3l6hi" path="res://assets/overworld/white_32x32.png" id="2_s0bex"]
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_s0bex"]
+texture = ExtResource("1_wwlyp")
+6:21/size_in_atlas = Vector2i(2, 2)
+6:21/0 = 0
+6:21/0/custom_data_0 = "mountain"
+28:21/size_in_atlas = Vector2i(2, 2)
+28:21/0 = 0
+28:21/0/custom_data_0 = "forest"
+28:18/size_in_atlas = Vector2i(2, 2)
+28:18/0 = 0
+28:18/0/custom_data_0 = "taiga"
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_6xmjo"]
+texture = ExtResource("2_s0bex")
+0:0/size_in_atlas = Vector2i(2, 2)
+0:0/next_alternative_id = 5
+0:0/0 = 0
+0:0/1 = 1
+0:0/1/modulate = Color(0.705882, 0.662745, 0.584314, 1)
+0:0/1/custom_data_0 = "tundra"
+0:0/2 = 2
+0:0/2/modulate = Color(0.632456, 0.839527, 0.611613, 1)
+0:0/2/custom_data_0 = "plain"
+0:0/3 = 3
+0:0/3/modulate = Color(0, 0.466667, 0.745098, 1)
+0:0/3/custom_data_0 = "ocean"
+0:0/4 = 4
+0:0/4/modulate = Color(0.834652, 0.609059, 0.439114, 1)
+0:0/4/custom_data_0 = "desert"
+
+[resource]
+custom_data_layer_0/name = "name"
+custom_data_layer_0/type = 4
+sources/1 = SubResource("TileSetAtlasSource_s0bex")
+sources/2 = SubResource("TileSetAtlasSource_6xmjo")

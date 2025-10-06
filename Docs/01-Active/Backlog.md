@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-06 23:11 (Dev Engineer: Implemented rain shadow + orographic lift + multi-octave noise - organic biome transitions!)
+**Last Updated**: 2025-10-07 01:23 (Dev Engineer: Revised TD_009 Phase 1 - Two-layer TileMapLayer system with biome mapping)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -362,81 +362,88 @@
 
 ---
 
-### TD_009: WorldGen Quality Polish & Performance Optimization
+### TD_009: WorldGen Quality Polish & TileSet Visualization
 **Status**: Proposed
 **Owner**: Tech Lead → Dev Engineer
-**Size**: M (6-8 hours - expanded scope)
+**Size**: M (6-8 hours - revised scope)
 **Priority**: Ideas
-**Markers**: [WORLDGEN] [PERFORMANCE] [QUALITY]
+**Markers**: [WORLDGEN] [PERFORMANCE] [QUALITY] [TILESET]
 **Parent**: VS_019 (Phase 4)
 
-**What**: Polish biome realism + optimize generation performance
+**What**: Two-layer TileMapLayer rendering system + WorldEngine erosion/rivers
 
-**Why**: Current worlds render correctly but have visual quality issues (horizontal banding, no rain shadow, no mountains visible). Need WorldEngine-quality output + faster generation.
+**Why**: Replace flat Image/Texture2D with tile-based pixel art aesthetic (strategy game style). Add terrain realism via erosion and rivers.
 
-**Current State** (as of 2025-10-06):
+**Current State** (as of 2025-10-07 01:23):
 ✅ **Implemented**:
-- 41 WorldEngine biomes (vs original 12) - complete Holdridge life zones
+- 41 WorldEngine biomes - complete Holdridge life zones
 - Percentile-based moisture classification (automatic biome balance)
-- WorldEngine color scheme (proven palette from Biomes.html)
-- Fixed elevation cooling (0.5× → 0.25×, highlands can support forests)
+- WorldEngine color scheme (Biomes.html palette)
+- Fixed elevation cooling (0.25× lapse rate)
+- Multi-octave noise (coarse + fine-grain variation)
+- Rain shadow effect (orographic lift, leeward reduction)
 - Image/Texture2D rendering (262,000× faster than DrawRect)
-- Camera zoom increased (3× → 20× for detail inspection)
+- Camera zoom (20× for detail inspection)
 
-⚠️ **Quality Issues Identified**:
-1. **Horizontal banding** - Precipitation only considers latitude (no rain shadow, no elevation effects)
-2. **Mountains invisible** - Not using elevation data in biome classification properly
-3. **Uniform appearance** - Missing terrain chaos/variation (erosion, permeability not implemented)
-4. **No rivers** - Separate system needed (hydrology simulation)
+⚠️ **Quality Issues Remaining**:
+1. **No tile-based rendering** - Using colored pixels instead of pixel art tiles
+2. **No erosion** - Sharp terrain, unrealistic coastlines
+3. **No rivers** - Missing hydrology simulation
 
-**Remaining Work**:
+**Revised Work** (Two-Layer TileMapLayer + WorldEngine algorithms):
 
-1. **Rain Shadow & Elevation-Based Precipitation** (2-3h):
-   - Detect mountain ranges from heightmap (gradient analysis)
-   - Calculate windward/leeward sides (prevailing wind from west)
-   - Reduce precipitation on leeward side (rain shadow effect)
-   - Increase precipitation at higher elevations (orographic lift)
-   - **Impact**: Breaks up horizontal bands, creates realistic dry zones behind mountains
+1. **Two-Layer TileMapLayer System** (3-4h) ← REVISED:
+   - **Architecture**: Base TileMapLayer ("plain" tile background) + Overlay TileMapLayer (terrain tiles)
+   - **Tile size**: 32×32 pixels (2×2 atlas cells @ 16px base) per world cell
+   - **Coverage**: 60% overlay (moderate density), 40% plain base shows through gaps
+   - **Biome mapping** (Core logic): 41 WorldEngine biomes → 7 TileSet terrain types
+     - Ocean/ShallowWater → "ocean" tile (25:9)
+     - Polar/Subpolar (6 biomes) → "tundra" tile (10:12)
+     - Boreal (5 biomes) → "taiga" tile (28:18)
+     - Temperate/Tropical forests (17 biomes) → "forest" tile (28:21)
+     - Desert biomes (10 biomes) → "desert" tile (10:6)
+     - Grassland/Steppe (3 biomes) → Skip overlay (show "plain" base, 10:15)
+   - **Mountain placement** (elevation-based, density-scaled):
+     - High elevation (>0.8): Dense placement (every 2 cells) for tall peaks
+     - Medium (0.6-0.8): Moderate (every 4 cells) for hills
+     - Low (0.4-0.6): Sparse (every 8 cells) for highlands
+   - **Implementation**: `GetTerrainTileMapQuery` in Core (SSOT principle)
+   - **Impact**: Pixel art aesthetic, validates multi-layer strategic map architecture
 
-2. **Erosion Simulation** (2-3h):
-   - Implement thermal erosion (smooths sharp peaks)
-   - Implement hydraulic erosion (creates valleys, river beds)
-   - Apply iteratively during post-processing
-   - **Impact**: Realistic terrain features, natural-looking coastlines
+2. **Hydraulic Erosion** (3-4h) ← DEFERRED TO PHASE 2:
+   - Port `erosion.py` → `HydraulicErosionProcessor.cs` (WorldEngine's proven implementation)
+   - Iterative erosion passes (sediment transport, deposition)
+   - Creates realistic valleys, river beds, smooth coastlines
+   - **Reference**: `References/worldengine/worldengine/erosion.py`
+   - **Impact**: Natural terrain features, realistic geography
 
-3. **Performance Optimization** (2h):
-   - Replace Perlin noise with FastNoiseLite (C# library, 3-5× faster)
-   - Multi-thread biome classification loop (Parallel.For on row chunks)
-   - Multi-thread precipitation calculation (independent per-cell)
-   - **Target**: <3 seconds for 512×512 world (currently ~5-7 seconds)
+3. **River Simulation** (2-3h) ← DEFERRED TO PHASE 2:
+   - Port `rivers.py` → `RiverSimulator.cs` (WorldEngine's proven implementation)
+   - Flow accumulation from precipitation + elevation gradients
+   - River path generation (follows downhill flow)
+   - **Reference**: `References/worldengine/worldengine/rivers.py`
+   - **Impact**: Realistic hydrology, rivers connect to oceans
 
-4. **Visual Quality Validation** (1h):
-   - Generate 10 worlds with different seeds
-   - Manual inspection checklist:
-     - ✅ Biome variety (all 41 biomes can appear)
-     - ⚠️ Mountain ranges visible (elevation gradients clear)
-     - ⚠️ Rain shadow effect (dry zones leeward of mountains)
-     - ⚠️ Realistic coastlines (erosion smoothing)
-     - ✅ No artifacts (magenta = unknown biome indicator)
-   - Document quality metrics (% distribution of biomes)
+4. **Performance Optimization** (1-2h) ← DEFERRED TO PHASE 2:
+   - Multi-thread erosion/rivers (independent per-pass)
+   - Profile generation pipeline (identify actual bottlenecks)
+   - **Target**: <5 seconds for 512×512 world
 
-**Dependencies**:
-- FastNoiseLite NuGet package (C# port: `FastNoiseLite` by Jordan Peck)
-- No additional native libraries (pure C# optimizations)
-
-**Done When**:
-- ✅ Rain shadow effect visible (mountains create dry zones)
-- ✅ Mountains visible in world view (elevation impacts biomes)
-- ✅ Erosion applied (smooth terrain, natural coasts)
-- ✅ Generation time <3 seconds for 512×512 (multi-threaded)
-- ✅ 10 test worlds look realistic (variety, no banding)
+**Done When** (Phase 1 - TileSet System):
+- ✅ Two TileMapLayers render correctly (base "plain" + overlay terrain)
+- ✅ 41 biomes mapped to 7 terrain tiles (Core query handles logic)
+- ✅ Mountains placed with elevation-based density scaling
+- ✅ 60% overlay coverage achieved (moderate density, plain shows through)
+- ✅ Visual quality matches reference image (pixel art tiles, natural variation)
+- ✅ All existing tests remain GREEN
 
 **Tech Notes**:
-- FastNoiseLite: MIT license, single-file C# port available
-- Multi-threading: Use `Parallel.For` with range partitioning (avoid false sharing)
-- Rain shadow: Simple model = windward gets 1.2×, leeward gets 0.6× base precipitation
+- TileSet: `assets/overworld/overworld.tres` with 7 terrain types (all 2×2 atlas, 32×32px)
+- Rendering: Replace Sprite2D/Image/Texture2D → 2× TileMapLayer (base + overlay)
+- World size: 512×512 cells → 16,384×16,384 pixel map (32px per cell)
+- Core query: `GetTerrainTileMapQuery` returns `TerrainTileType?[,]` (null = show base)
 
-**Dependencies**: TD_008 complete
+**Dependencies**: TD_008 complete ✅
 
 ---
 
