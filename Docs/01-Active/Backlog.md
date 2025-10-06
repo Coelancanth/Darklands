@@ -321,9 +321,9 @@
 ---
 
 ### TD_008: Godot WorldMap Visualization
-**Status**: Done ✅ (2025-10-06 22:10)
-**Owner**: Dev Engineer (completed)
-**Size**: S (actual: ~2 hours, estimate was 3-4h - under budget!)
+**Status**: 95% Complete ⚠️ (World generation works, rendering needs fix)
+**Owner**: Dev Engineer
+**Size**: S (actual: ~4 hours including debugging, estimate was 3-4h)
 **Priority**: Ideas
 **Markers**: [PRESENTATION] [GODOT] [WORLDGEN]
 **Parent**: VS_019 (Phase 3)
@@ -371,16 +371,41 @@
 - ✅ Uses `SetCell()` + `Modulate` property for biome colors
 - ✅ Single tile reused for all 512×512 cells (GPU-efficient)
 
+**Native Library Integration** (3h debugging):
+- ✅ Fixed projectPath: Main.cs overrides with `ProjectSettings.GlobalizePath("res://")`
+- ✅ Fixed DLL dependencies: Copied vcruntime140.dll + msvcp140.dll to addons/bin/
+- ✅ Fixed DLL search path: Added `DllImportResolver` in PlateTectonicsNative.cs
+  - Static constructor registers custom resolver with .NET runtime
+  - Searches addons/darklands/bin/{platform}/ for platform-specific DLLs
+  - Falls back to assembly-relative path for tests
+- ✅ Enhanced logging: 5-step pipeline diagnostics (validation → simulation → elevation → climate → biomes)
+- ✅ **World generation WORKS!** Logs show: 1030 steps, 512×512, 12 biomes classified ✅
+
+**Rendering Issue** (⚠️ Remaining work):
+- ❌ DrawRect() approach attempted but no visual output
+- Possible causes:
+  1. Camera positioning (may need to center on world origin)
+  2. Draw order (Node2D z-index or canvas layer issue)
+  3. Color issue (all colors rendering as background)
+  4. TileMapLayer removal from scene may have broken hierarchy
+- **Next session**: Debug rendering (add debug rectangles, check camera bounds, validate draw calls)
+
 **Tests**: All 439 tests GREEN (no regressions)
 
-**Done When** (all ✅):
+**Done When** (4/5 ✅):
 - ✅ `GenerateWorldCommand` returns PlateSimulationResult with all world data
-- ✅ WorldMapTestScene configured with TileMapLayer + tileset
-- ✅ Camera2D navigation works (WASD pan, mouse wheel zoom)
-- ✅ 12 biome colors visible (realistic color palette)
-- ✅ Ready for in-engine testing (launch WorldMapTestScene.tscn in Godot)
+- ✅ World generation completes successfully (logs prove it works!)
+- ✅ Camera2D navigation implemented (WASD pan, mouse wheel zoom)
+- ⚠️ WorldMapNode._Draw() implemented but not rendering (needs debugging)
+- ❌ 12 biome colors VISIBLE on screen ← **Remaining work**
 
 **Dependencies**: TD_007 complete ✅
+
+**Commits** (2025-10-06):
+- ecb27d6: Override IPlateSimulator with correct projectPath
+- f5a506c: Enhanced logging + MSVC runtime documentation
+- 6309d5d: DllImportResolver for custom native library search
+- (final): DrawRect rendering approach (not yet working)
 
 ---
 

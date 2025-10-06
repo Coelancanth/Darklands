@@ -10,16 +10,18 @@ using Microsoft.Extensions.Logging;
 namespace Darklands.Features.WorldGen;
 
 /// <summary>
-/// Renders generated world map using TileMapLayer.
+/// Renders generated world map using custom drawing.
 /// Handles world generation via GenerateWorldCommand and camera controls.
 /// </summary>
 public partial class WorldMapNode : Node2D
 {
     private IMediator? _mediator;
     private ILogger<WorldMapNode>? _logger;
-    private TileMapLayer? _tileMapLayer;
     private Camera2D? _camera;
     private Label? _uiLabel;
+
+    // Store world data for rendering
+    private Darklands.Core.Features.WorldGen.Application.DTOs.PlateSimulationResult? _worldData;
 
     // Camera control settings
     private const float PanSpeed = 500f;
@@ -38,7 +40,6 @@ public partial class WorldMapNode : Node2D
         _mediator = ServiceLocator.GetService<IMediator>().Value;
         _logger = ServiceLocator.GetService<ILogger<WorldMapNode>>().Value;
 
-        _tileMapLayer = GetNode<TileMapLayer>("TileMapLayer");
         _camera = GetParent().GetNode<Camera2D>("Camera2D");
         _uiLabel = GetNode<Label>("../UI/Label");
 
@@ -90,9 +91,32 @@ public partial class WorldMapNode : Node2D
         }
     }
 
+    public override void _Draw()
+    {
+        base._Draw();
+
+        if (_worldData == null)
+            return;
+
+        const int tileSize = 8; // 8x8 pixel tiles
+
+        // Draw each cell as a colored rectangle
+        for (int y = 0; y < _worldData.Height; y++)
+        {
+            for (int x = 0; x < _worldData.Width; x++)
+            {
+                var biome = _worldData.BiomeMap[y, x];
+                var color = GetBiomeColor(biome);
+
+                var rect = new Rect2(x * tileSize, y * tileSize, tileSize, tileSize);
+                DrawRect(rect, color);
+            }
+        }
+    }
+
     private async Task GenerateAndRenderWorldAsync()
     {
-        if (_mediator == null || _logger == null || _tileMapLayer == null)
+        if (_mediator == null || _logger == null)
         {
             _logger?.LogError("Required dependencies not initialized");
             return;
@@ -113,49 +137,19 @@ public partial class WorldMapNode : Node2D
             return;
         }
 
-        _logger.LogInformation("World generation complete, rendering {Width}x{Height} tiles",
+        _logger.LogInformation("World generation complete, storing world data {Width}x{Height}",
             result.Value.Width, result.Value.Height);
 
-        RenderWorld(result.Value);
+        // Store world data and trigger redraw
+        _worldData = result.Value;
+        QueueRedraw(); // Force _Draw() to be called
+
+        _logger.LogInformation("World rendering queued");
 
         if (_uiLabel != null)
         {
             _uiLabel.Text = $"WorldGen Test Scene\nWASD: Pan camera\nMouse Wheel: Zoom\n\nWorld: {result.Value.Width}x{result.Value.Height} (Seed: {Seed})";
         }
-    }
-
-    private void RenderWorld(Darklands.Core.Features.WorldGen.Application.DTOs.PlateSimulationResult world)
-    {
-        if (_tileMapLayer == null)
-        {
-            _logger?.LogError("TileMapLayer not found");
-            return;
-        }
-
-        _logger?.LogInformation("Rendering world with biome-based colors");
-
-        // Render using biome types (skip placeholder tileset for MVP - use modulate colors)
-        for (int y = 0; y < world.Height; y++)
-        {
-            for (int x = 0; x < world.Width; x++)
-            {
-                var biome = world.BiomeMap[y, x];
-                var color = GetBiomeColor(biome);
-
-                // For MVP: Use single tile ID (0) with modulate colors
-                // Future: Create proper tileset with biome sprites
-                _tileMapLayer.SetCell(new Vector2I(x, y), sourceId: 0, atlasCoords: Vector2I.Zero);
-
-                // Apply biome color via modulation (requires tile to exist first)
-                var tileData = _tileMapLayer.GetCellTileData(new Vector2I(x, y));
-                if (tileData != null)
-                {
-                    tileData.Modulate = color;
-                }
-            }
-        }
-
-        _logger?.LogInformation("World rendering complete");
     }
 
     private static Color GetBiomeColor(BiomeType biome) => biome switch
