@@ -204,15 +204,17 @@ public class NativePlateSimulator : IPlateSimulator
 
         try
         {
-            // Calculate precipitation (latitude-based with ocean modifiers)
+            // Calculate precipitation (noise + orographic lift + rain shadow)
             var precipitation = ClimateCalculator.CalculatePrecipitation(
                 elevation.Heightmap,
-                elevation.OceanMask);
+                elevation.OceanMask,
+                p.Seed);
 
-            // Calculate temperature (latitude + elevation cooling)
+            // Calculate temperature (latitude + elevation cooling + noise variation)
             var temperature = ClimateCalculator.CalculateTemperature(
                 elevation.Heightmap,
-                elevation.OceanMask);
+                elevation.OceanMask,
+                p.Seed);
 
             _logger.LogInformation("Climate calculation complete");
 

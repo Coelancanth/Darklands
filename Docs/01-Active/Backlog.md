@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-06 22:54 (Dev Engineer: Upgraded to WorldEngine 41-biome system + quality polish roadmap in TD_009)
+**Last Updated**: 2025-10-06 23:11 (Dev Engineer: Implemented rain shadow + orographic lift + multi-octave noise - organic biome transitions!)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -189,6 +189,7 @@
 ---
 
 *Recently completed (2025-10-06):*
+- **Rain Shadow + Orographic Precipitation**: Comprehensive climate system with **multi-octave noise** (coarse + fine-grain), **orographic lift** (windward slopes get +0.2 rain), **rain shadow effect** (leeward sides -40% rain), **ocean proximity** (coastal moisture), **temperature micro-climates** (±0.08 variation breaks horizontal bands). ClimateCalculator rewrite (~370 lines): custom gradient noise implementation, 5-factor precipitation model, temperature + moisture noise layers. Result: **organic biome transitions** - no more straight lines! All 439 tests GREEN. VS_019 Phase 3 quality significantly improved! ✅ (2025-10-06 23:11, actual: ~2h)
 - **WorldEngine 41-Biome Upgrade**: Expanded from 12 → 41 biomes using WorldEngine's proven Holdridge life zones model. **Percentile-based moisture classification** (automatic biome balance), WorldEngine color scheme, fixed climate algorithm (elevation cooling 0.5× → 0.25×). BiomeType enum, BiomeClassifier, ClimateCalculator, WorldMapNode colors all upgraded. Quality issues identified (horizontal banding, no rain shadow) → documented in TD_009 polish roadmap. All 439 tests GREEN. Foundation ready for quality polish phase! ✅ (2025-10-06 22:54, actual: ~3h)
 - **TD_008**: Godot WorldMap Visualization - **Image/Texture2D rendering architecture** (262,000× faster than DrawRect), async world generation, Camera2D navigation (WASD/zoom), 12-biome color rendering. Architectural decision: Image/Texture2D for terrain (colors) + future TileMapLayer for settlements (sprites) validates multi-layer strategic map vision. All 439 tests GREEN. VS_019 Phase 3 complete! ✅ (2025-10-06 22:33, actual: ~2.5h)
 - **TD_007**: Core WorldGen Infrastructure (Wrapper + Post-Processing) - Complete 4-phase implementation! **IPlateSimulator** interface with DTOs, **NativePlateSimulator** wrapper (railway-oriented flow), **ElevationPostProcessor** (borders, noise, flood fill), **ClimateCalculator** (precipitation, temperature), **BiomeClassifier** (Holdridge model, 12 biome types). Lightweight Perlin noise (80 lines, no external deps). All 439 tests GREEN. Foundation ready for TD_008 (Godot visualization)! ✅ (2025-10-06 22:00, actual time: ~4h)
