@@ -95,7 +95,7 @@ public class GodotConsoleSink : ILogEventSink
     private static string ApplySemanticColors(string message, string defaultColor)
     {
         // Gruvbox semantic colors
-        const string GruvboxGreen = "#b8bb26";       // Bright green (combat enter)
+        //const string GruvboxGreen = "#b8bb26";       // Bright green (combat enter)
         const string GruvboxYellow = "#fabd2f";      // Bright yellow (exploration/mode)
         const string GruvboxOrange = "#fe8019";      // Bright orange (time/numbers)
 
@@ -123,7 +123,7 @@ public class GodotConsoleSink : ILogEventSink
         }
 
         // Mode indicators
-        message = message.Replace("Combat mode active", $"[color={GruvboxGreen}]Combat mode active[/color]");
+        message = message.Replace("Combat mode active", $"[color={GruvboxOrange}]Combat mode active[/color]");
         message = message.Replace("Exploration mode", $"[color={GruvboxYellow}]Exploration mode[/color]");
 
         // Default color for remaining text

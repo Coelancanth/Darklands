@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-06 15:15 (Dev Engineer: VS_021 complete - i18n + template infrastructure delivered, all 5 phases implemented, 415 tests GREEN, pre-push validation active, VS_020 unblocked)
+**Last Updated**: 2025-10-06 15:38 (Tech Lead: Actor logging enrichment complete - added type tags to all logs, IPlayerContext integration, VS_020 ready for Actor entity implementation)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -74,6 +74,7 @@
 
 *Recently completed and archived (2025-10-06):*
 - **VS_021**: i18n + Data-Driven Entity Infrastructure (ADR-005 + ADR-006) - 5 phases complete! Translation system (18 keys in en.csv), ActorTemplate system with GodotTemplateService, player.tres template, pre-push validation script, architecture fix (templates → Presentation layer). All 415 tests GREEN. ✅ (2025-10-06 15:15)
+- **Logging Enhancement**: Actor type tags added to all logs - `ActorIdLoggingExtensions.ToLogString()` shows "8c2de643 [type: Player/Enemy]" using IPlayerContext. 6 handlers updated (MoveActorCommand, GetVisibleActors, EnemyDetection, ScheduleActor, MoveAlongPath). ✅ (2025-10-06 15:38)
 
 **What**: Combined implementation of internationalization (i18n) and data-driven entity templates using Godot Resources
 
@@ -177,6 +178,13 @@
 - Foundation for Enemy AI (VS_011)
 
 **How**:
+- **Phase 0 (Foundation - ADR-006 Integration)**:
+  - Create `Actor` entity (pure Domain: ActorId, NameKey, Health, Weapon)
+  - Create `IActorRepository` interface (Application) + `InMemoryActorRepository` (Infrastructure)
+  - Spawn actors FROM templates: `templateService.GetTemplate("goblin")` → copy data to `new Actor(...)`
+  - Register in DI container (GameStrapper)
+  - Update `ActorIdLoggingExtensions.ToLogString()` to use `IActorRepository` for names
+  - Result: Logs show `"8c2de643 [type: Enemy, name: ACTOR_GOBLIN]"` instead of `"8c2de643 [type: Enemy]"`
 - **Phase 1 (Domain)**: `Weapon` value object (damage, time cost, range, weapon type enum)
 - **Phase 2 (Application)**: `ExecuteAttackCommand` (attacker, target, weapon), range validation (melee=adjacent, ranged=FOV line-of-sight), integrates with existing `TakeDamageCommand` from VS_001
 - **Phase 3 (Infrastructure)**: Attack validation service (checks adjacency for melee, FOV visibility for ranged)
@@ -202,6 +210,15 @@
 **Dependencies**:
 - VS_007 (Turn Queue) - ✅ complete
 - VS_021 (i18n + Templates) - ✅ complete (2025-10-06)
+- Logging Enhancement - ✅ complete (2025-10-06 15:38) - foundation for actor name display
+
+**Tech Lead Decision - Phase 0 Architecture** (2025-10-06 15:38):
+- **Why Actor entities**: Combat requires actors to carry `Weapon` data (per ADR-006, entities created FROM template data)
+- **Why NOT just name service**: Anemic model would require refactoring when adding Weapon in Phase 1 (rework cost)
+- **ADR-006 Compliance**: Templates (Infrastructure) → Actor entity created FROM template data (Domain) → No template reference in entity
+- **Pattern**: `InMemoryActorRepository` same as `InMemoryTurnQueueRepository` (consistent architecture)
+- **Lifecycle**: Actors created at spawn, destroyed at death (independent of templates)
+- **Two-system tracking**: `IActorRepository` (WHO: name/health/weapon) + `IActorPositionService` (WHERE: grid coords)
 
 **Next Step**: After combat feels fun → VS_011 (Enemy AI uses these attack commands)
 

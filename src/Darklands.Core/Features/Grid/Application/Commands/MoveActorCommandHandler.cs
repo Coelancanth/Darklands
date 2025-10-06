@@ -1,4 +1,5 @@
 using CSharpFunctionalExtensions;
+using Darklands.Core.Application;
 using Darklands.Core.Features.Combat.Application;
 using Darklands.Core.Features.Combat.Application.Queries;
 using Darklands.Core.Features.Combat.Domain;
@@ -7,6 +8,7 @@ using Darklands.Core.Features.Grid.Application.Services;
 using Darklands.Core.Features.Grid.Domain;
 using Darklands.Core.Features.Grid.Domain.Events;
 using Darklands.Core.Infrastructure.Events;
+using Darklands.Core.Infrastructure.Logging;
 using MediatR;
 using Microsoft.Extensions.Logging;
 
@@ -27,6 +29,7 @@ public class MoveActorCommandHandler : IRequestHandler<MoveActorCommand, Result>
     private readonly IMediator _mediator;
     private readonly IGodotEventBus _eventBus;
     private readonly ITurnQueueRepository _turnQueue;
+    private readonly IPlayerContext _playerContext;
     private readonly ILogger<MoveActorCommandHandler> _logger;
 
     public MoveActorCommandHandler(
@@ -35,6 +38,7 @@ public class MoveActorCommandHandler : IRequestHandler<MoveActorCommand, Result>
         IMediator mediator,
         IGodotEventBus eventBus,
         ITurnQueueRepository turnQueue,
+        IPlayerContext playerContext,
         ILogger<MoveActorCommandHandler> logger)
     {
         _gridMap = gridMap;
@@ -42,6 +46,7 @@ public class MoveActorCommandHandler : IRequestHandler<MoveActorCommand, Result>
         _mediator = mediator;
         _eventBus = eventBus;
         _turnQueue = turnQueue;
+        _playerContext = playerContext;
         _logger = logger;
     }
 
@@ -99,7 +104,7 @@ public class MoveActorCommandHandler : IRequestHandler<MoveActorCommand, Result>
 
         _logger.LogInformation(
             "Actor {ActorId} moved to ({X}, {Y})",
-            request.ActorId.Value.ToString().Substring(0, 8), // Shorter GUID for readability
+            request.ActorId.ToLogString(_playerContext),
             request.TargetPosition.X,
             request.TargetPosition.Y);
 
@@ -176,8 +181,8 @@ public class MoveActorCommandHandler : IRequestHandler<MoveActorCommand, Result>
                         await _turnQueue.SaveAsync(queue, cancellationToken);
 
                         _logger.LogInformation(
-                            "Combat turn: {ActorId} moved (time: {OldTime} -> {NewTime}, cost: {Cost})",
-                            request.ActorId,
+                            "[Grid] Combat turn: {ActorId} moved (time: {OldTime} -> {NewTime}, cost: {Cost})",
+                            request.ActorId.ToLogString(_playerContext),
                             currentTime,
                             newActionTime,
                             TimeUnits.MovementCost);

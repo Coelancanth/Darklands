@@ -6,6 +6,7 @@ using Darklands.Core.Features.Combat.Domain;
 using Darklands.Core.Features.Grid.Application.Queries;
 using Darklands.Core.Features.Grid.Domain;
 using Darklands.Core.Features.Grid.Domain.Events;
+using Darklands.Core.Infrastructure.Logging;
 using MediatR;
 using Microsoft.Extensions.Logging;
 
@@ -88,12 +89,12 @@ public class EnemyDetectionEventHandler : INotificationHandler<FOVCalculatedEven
         }
 
         _logger.LogInformation(
-            "FOV Detection: {HostileCount} hostile actor(s) visible - initiating combat mode",
+            "[Combat] FOV Detection: {HostileCount} hostile actor(s) visible - initiating combat mode",
             hostileActors.Count);
 
         _logger.LogDebug(
-            "Enemy IDs detected: {ActorIds}",
-            string.Join(", ", hostileActors));
+            "[Combat] Enemy IDs detected: {ActorIds}",
+            string.Join(", ", hostileActors.Select(id => id.ToLogString(_playerContext))));
 
         // Schedule each hostile actor (if not already scheduled)
         foreach (var enemyId in hostileActors)
@@ -105,8 +106,8 @@ public class EnemyDetectionEventHandler : INotificationHandler<FOVCalculatedEven
             if (isScheduledResult.IsSuccess && isScheduledResult.Value)
             {
                 _logger.LogDebug(
-                    "Actor {ActorId} already in turn queue (reinforcement/already engaged), skipping",
-                    enemyId);
+                    "[Combat] Actor {ActorId} already in turn queue (reinforcement/already engaged), skipping",
+                    enemyId.ToLogString(_playerContext));
                 continue;
             }
 
@@ -122,15 +123,15 @@ public class EnemyDetectionEventHandler : INotificationHandler<FOVCalculatedEven
             if (scheduleResult.IsFailure)
             {
                 _logger.LogError(
-                    "Failed to schedule enemy {ActorId}: {Error}",
-                    enemyId,
+                    "[Combat] Failed to schedule enemy {ActorId}: {Error}",
+                    enemyId.ToLogString(_playerContext),
                     scheduleResult.Error);
             }
             else
             {
                 _logger.LogInformation(
-                    "Exploration -> Combat: Enemy {ActorId} scheduled at time={Time} (immediate action)",
-                    enemyId,
+                    "[Combat] Exploration -> Combat: Enemy {ActorId} scheduled at time={Time} (immediate action)",
+                    enemyId.ToLogString(_playerContext),
                     initialActionTime);
             }
         }

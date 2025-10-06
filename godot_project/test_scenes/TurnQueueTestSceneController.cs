@@ -356,8 +356,8 @@ public partial class TurnQueueTestSceneController : Node2D
         var actorColor = GetActorColor(evt.ActorId);
         SetCellColor(evt.NewPosition.X, evt.NewPosition.Y, actorColor);
 
-        _logger.LogDebug("Actor moved from ({OldX},{OldY}) to ({NewX},{NewY})",
-            evt.OldPosition.X, evt.OldPosition.Y, evt.NewPosition.X, evt.NewPosition.Y);
+        _logger.LogDebug("{ActorName} moved from ({OldX},{OldY}) to ({NewX},{NewY})",
+            GetActorDebugName(evt.ActorId), evt.OldPosition.X, evt.OldPosition.Y, evt.NewPosition.X, evt.NewPosition.Y);
     }
 
     /// <summary>
@@ -530,6 +530,26 @@ public partial class TurnQueueTestSceneController : Node2D
         if (actorId.Equals(_goblinId)) return GoblinColor;
         if (actorId.Equals(_orcId)) return OrcColor;
         return Colors.White; // Fallback for unknown actors
+    }
+
+    /// <summary>
+    /// Helper to enrich ActorId with readable name for logging.
+    /// Format: "ActorType (short-id)" - e.g., "Player (4f26ce80)" or "Goblin (3e56c588)"
+    /// </summary>
+    /// <remarks>
+    /// TEST-ONLY ENRICHMENT: This is a quick fix for test scene logging.
+    /// TODO (VS_020): Replace with IActorNameResolver service when Actor entities exist.
+    /// Production code should use Actor.NameKey from templates, not hardcoded test names.
+    /// </remarks>
+    private string GetActorDebugName(ActorId actorId)
+    {
+        var shortId = actorId.Value.ToString().Substring(0, 8);
+
+        if (actorId.Equals(_playerId)) return $"Player ({shortId})";
+        if (actorId.Equals(_goblinId)) return $"Goblin ({shortId})";
+        if (actorId.Equals(_orcId)) return $"Orc ({shortId})";
+
+        return $"Unknown ({shortId})"; // Fallback for unregistered actors
     }
 
     /// <summary>

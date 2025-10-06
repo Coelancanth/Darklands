@@ -1,6 +1,8 @@
 using CSharpFunctionalExtensions;
+using Darklands.Core.Application;
 using Darklands.Core.Features.Combat.Application.Queries;
 using Darklands.Core.Features.Grid.Application.Commands;
+using Darklands.Core.Infrastructure.Logging;
 using MediatR;
 using Microsoft.Extensions.Logging;
 
@@ -33,13 +35,16 @@ namespace Darklands.Core.Features.Movement.Application.Commands;
 public class MoveAlongPathCommandHandler : IRequestHandler<MoveAlongPathCommand, Result>
 {
     private readonly IMediator _mediator;
+    private readonly IPlayerContext _playerContext;
     private readonly ILogger<MoveAlongPathCommandHandler> _logger;
 
     public MoveAlongPathCommandHandler(
         IMediator mediator,
+        IPlayerContext playerContext,
         ILogger<MoveAlongPathCommandHandler> logger)
     {
         _mediator = mediator;
+        _playerContext = playerContext;
         _logger = logger;
     }
 
@@ -52,8 +57,8 @@ public class MoveAlongPathCommandHandler : IRequestHandler<MoveAlongPathCommand,
             return Result.Failure("Path cannot be null or empty");
 
         _logger.LogInformation(
-            "Starting path movement for actor {ActorId}: {StepCount} steps",
-            request.ActorId,
+            "[Movement] Starting path movement for actor {ActorId}: {StepCount} steps",
+            request.ActorId.ToLogString(_playerContext),
             request.Path.Count);
 
         // Execute movement step-by-step
@@ -64,8 +69,8 @@ public class MoveAlongPathCommandHandler : IRequestHandler<MoveAlongPathCommand,
             if (cancellationToken.IsCancellationRequested)
             {
                 _logger.LogInformation(
-                    "Movement cancelled for actor {ActorId} at step {Step}/{Total}",
-                    request.ActorId,
+                    "[Movement] Movement cancelled for actor {ActorId} at step {Step}/{Total}",
+                    request.ActorId.ToLogString(_playerContext),
                     i,
                     request.Path.Count);
 
@@ -112,8 +117,8 @@ public class MoveAlongPathCommandHandler : IRequestHandler<MoveAlongPathCommand,
             if (isInCombatResult.IsSuccess && isInCombatResult.Value)
             {
                 _logger.LogInformation(
-                    "Combat detected! Auto-cancelling exploration movement for actor {ActorId} at step {Step}/{Total}",
-                    request.ActorId,
+                    "[Movement] Combat detected! Auto-cancelling exploration movement for actor {ActorId} at step {Step}/{Total}",
+                    request.ActorId.ToLogString(_playerContext),
                     i,
                     request.Path.Count);
                 return Result.Success(); // Graceful stop when combat starts
@@ -129,8 +134,8 @@ public class MoveAlongPathCommandHandler : IRequestHandler<MoveAlongPathCommand,
             {
                 // Cancellation during delay is expected - return gracefully
                 _logger.LogInformation(
-                    "Movement cancelled for actor {ActorId} at step {Step}/{Total} (during delay)",
-                    request.ActorId,
+                    "[Movement] Movement cancelled for actor {ActorId} at step {Step}/{Total} (during delay)",
+                    request.ActorId.ToLogString(_playerContext),
                     i,
                     request.Path.Count);
                 return Result.Success(); // Graceful stop
@@ -138,8 +143,8 @@ public class MoveAlongPathCommandHandler : IRequestHandler<MoveAlongPathCommand,
         }
 
         _logger.LogInformation(
-            "Completed path movement for actor {ActorId}: {StepCount} steps",
-            request.ActorId,
+            "[Movement] Completed path movement for actor {ActorId}: {StepCount} steps",
+            request.ActorId.ToLogString(_playerContext),
             request.Path.Count);
 
         return Result.Success();

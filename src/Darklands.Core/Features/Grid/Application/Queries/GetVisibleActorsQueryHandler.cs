@@ -1,7 +1,9 @@
 using System.Linq;
 using CSharpFunctionalExtensions;
+using Darklands.Core.Application;
 using Darklands.Core.Domain.Common;
 using Darklands.Core.Features.Grid.Application.Services;
+using Darklands.Core.Infrastructure.Logging;
 using MediatR;
 using Microsoft.Extensions.Logging;
 
@@ -16,15 +18,18 @@ public class GetVisibleActorsQueryHandler : IRequestHandler<GetVisibleActorsQuer
 {
     private readonly IActorPositionService _actorPositionService;
     private readonly IMediator _mediator;
+    private readonly IPlayerContext _playerContext;
     private readonly ILogger<GetVisibleActorsQueryHandler> _logger;
 
     public GetVisibleActorsQueryHandler(
         IActorPositionService actorPositionService,
         IMediator mediator,
+        IPlayerContext playerContext,
         ILogger<GetVisibleActorsQueryHandler> logger)
     {
         _actorPositionService = actorPositionService;
         _mediator = mediator;
+        _playerContext = playerContext;
         _logger = logger;
     }
 
@@ -98,18 +103,17 @@ public class GetVisibleActorsQueryHandler : IRequestHandler<GetVisibleActorsQuer
         }
 
         // Format visible actors list (empty if none visible)
-        // TODO (VS_020): Replace GUID fragments with actor names from templates
-        // Future: visibleActorIds = string.Join(", ", await GetActorNames(visibleActors))
-        // Result: "Observer Player can see 2 actors: [Goblin, Orc] (out of 3 total actors)"
+        // TODO (VS_020): Replace with actor names from templates via IActorNameResolver
+        // Future: "Observer {8c2de643 [type: Player]} can see 2 actors: [{bdb71a68 [type: Goblin]}, {b66288f5 [type: Orc]}]"
         var visibleActorIds = visibleActors.Count > 0
-            ? string.Join(", ", visibleActors.Select(a => a.Value.ToString().Substring(0, 8)))
+            ? string.Join(", ", visibleActors.Select(a => a.ToLogString(_playerContext)))
             : "none";
 
         _logger.LogInformation(
-            "Observer {ObserverId} can see {VisibleCount} actors: [{VisibleActors}] (out of {TotalCount} total actors)",
-            request.ObserverId,
+            "[Grid] Observer {ObserverId} can see {VisibleCount} actors: [{VisibleActors}] (out of {TotalCount} total actors)",
+            request.ObserverId.ToLogString(_playerContext),
             visibleActors.Count,
-            visibleActorIds, // "none" or "a1b2c3d4, e5f6g7h8" (GUIDs until VS_020 adds names)
+            visibleActorIds, // "none" or "shortId [type: Enemy/Player]"
             allActors.Count - 1); // -1 excludes observer
 
         return Result.Success(visibleActors);
