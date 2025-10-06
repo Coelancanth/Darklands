@@ -3,6 +3,7 @@ ACTOR_PLAYER,Player
 ACTOR_GOBLIN,Goblin
 ACTOR_ORC,Orc
 ACTOR_SKELETON,Skeleton
+DESC_ACTOR_PLAYER,The protagonist of our story. Brave adventurer seeking glory in the Darklands.
 UI_BUTTON_ATTACK,Attack
 UI_BUTTON_MOVE,Move
 UI_BUTTON_WAIT,Wait
