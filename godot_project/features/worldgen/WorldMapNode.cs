@@ -128,8 +128,8 @@ public partial class WorldMapNode : Node2D
             var dragDelta = currentMousePosition - _dragStartPosition;
 
             // Pan camera inversely to drag direction (natural feeling)
-            // Divide by zoom to maintain consistent drag speed at all zoom levels
-            _camera.Position = _cameraStartPosition - dragDelta / _camera.Zoom.X;
+            // Direct 1:1 mapping for responsive dragging (no zoom division)
+            _camera.Position = _cameraStartPosition - dragDelta;
         }
     }
 

@@ -51,7 +51,7 @@ public partial class DebugConsoleController : CanvasLayer
 
         // Note: Can't log here - DI container not initialized yet (autoload runs before GameStrapper)
         // First log message will appear on lazy initialization when F12 is pressed
-        GD.Print("🎮 DebugConsoleController autoload ready (press F12 to toggle)");
+        GD.Print("DebugConsoleController autoload ready (press F12 to toggle)");
     }
 
     /// <summary>

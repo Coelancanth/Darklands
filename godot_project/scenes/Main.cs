@@ -19,7 +19,7 @@ public partial class Main : Node
 {
     public override void _Ready()
     {
-        GD.Print("🎮 Darklands - Initializing...");
+        GD.Print("Darklands - Initializing...");
 
         // Initialize DI container with all infrastructure services
         var result = GameStrapper.Initialize(ConfigureServices);
@@ -36,7 +36,7 @@ public partial class Main : Node
         GD.Print("✅ Logging configured");
         GD.Print("✅ MediatR registered");
         GD.Print("");
-        GD.Print("🎯 Ready to load scenes!");
+        GD.Print("Ready to load scenes!");
     }
 
     /// <summary>
@@ -207,7 +207,7 @@ public partial class Main : Node
 
         GD.Print($"   - IPlateSimulator → NativePlateSimulator (projectPath: {projectPath})");
 
-        GD.Print("📦 Services registered:");
+        GD.Print("Services registered:");
         GD.Print("   - Logging (Serilog → Console + File)");
         GD.Print("   - LoggingService (category filtering for DebugConsole)");
         GD.Print("   - MediatR (command handlers + UIEventForwarder via assembly scan)");

@@ -177,7 +177,7 @@ public partial class InventoryPanelNode : VBoxContainer
         var inventory = result.Value;
 
         // Update capacity label
-        _capacityLabel.Text = $"📦 Inventory: {inventory.Count}/{inventory.Capacity}";
+        _capacityLabel.Text = $"Inventory: {inventory.Count}/{inventory.Capacity}";
 
         // Update button states
         _addItemButton.Disabled = inventory.IsFull;
