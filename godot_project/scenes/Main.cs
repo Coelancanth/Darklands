@@ -53,7 +53,8 @@ public partial class Main : Node
         var enabledCategories = new HashSet<string>();
 
         // Create level switch for runtime log level control
-        var levelSwitch = new Serilog.Core.LoggingLevelSwitch(Serilog.Events.LogEventLevel.Information);
+        // TEMPORARY: Hardcoded to Debug for development (can be changed via F12 Debug Console)
+        var levelSwitch = new Serilog.Core.LoggingLevelSwitch(Serilog.Events.LogEventLevel.Debug);
 
         // Configure Serilog with category-based filtering
         Log.Logger = new LoggerConfiguration()
