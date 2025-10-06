@@ -217,7 +217,8 @@
       "Bash(./scripts/core/build.ps1 test --filter \"NativePlateSimulatorIntegrationTests\")",
       "Bash(./scripts/core/build.ps1 test --filter \"Category=WorldGen&Category=Integration\")",
       "Bash(findstr:*)",
-      "Bash(convert:*)"
+      "Bash(convert:*)",
+      "Bash(objdump:*)"
     ],
     "deny": [],
     "ask": [],

@@ -31,11 +31,39 @@ public class NativePlateSimulator : IPlateSimulator
             "Generating world (seed: {Seed}, size: {Size}x{Size}, plates: {Plates})",
             parameters.Seed, parameters.WorldSize, parameters.WorldSize, parameters.PlateCount);
 
+        _logger.LogDebug("Step 1: Validating library exists at path: {ProjectPath}", _projectPath);
+
         return EnsureLibraryLoaded()
-            .Bind(() => RunNativeSimulation(parameters))
-            .Bind(rawHeightmap => PostProcessElevation(rawHeightmap, parameters))
-            .Bind(elevationData => CalculateClimate(elevationData, parameters))
-            .Map(climateData => ClassifyBiomes(climateData));
+            .Tap(() => _logger.LogDebug("Step 1 complete: Library validation succeeded"))
+            .TapError(error => _logger.LogError("Step 1 FAILED: Library validation error: {Error}", error))
+            .Bind(() =>
+            {
+                _logger.LogDebug("Step 2: Running native simulation");
+                return RunNativeSimulation(parameters);
+            })
+            .Tap(_ => _logger.LogDebug("Step 2 complete: Native simulation succeeded"))
+            .TapError(error => _logger.LogError("Step 2 FAILED: Native simulation error: {Error}", error))
+            .Bind(rawHeightmap =>
+            {
+                _logger.LogDebug("Step 3: Post-processing elevation");
+                return PostProcessElevation(rawHeightmap, parameters);
+            })
+            .Tap(_ => _logger.LogDebug("Step 3 complete: Elevation post-processing succeeded"))
+            .TapError(error => _logger.LogError("Step 3 FAILED: Elevation post-processing error: {Error}", error))
+            .Bind(elevationData =>
+            {
+                _logger.LogDebug("Step 4: Calculating climate");
+                return CalculateClimate(elevationData, parameters);
+            })
+            .Tap(_ => _logger.LogDebug("Step 4 complete: Climate calculation succeeded"))
+            .TapError(error => _logger.LogError("Step 4 FAILED: Climate calculation error: {Error}", error))
+            .Map(climateData =>
+            {
+                _logger.LogDebug("Step 5: Classifying biomes");
+                var result = ClassifyBiomes(climateData);
+                _logger.LogDebug("Step 5 complete: Biome classification succeeded");
+                return result;
+            });
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -49,7 +77,8 @@ public class NativePlateSimulator : IPlateSimulator
     {
         try
         {
-            _logger.LogDebug("Creating native simulation handle");
+            _logger.LogDebug("Creating native simulation handle with params: seed={Seed}, size={Size}, plates={Plates}",
+                p.Seed, p.WorldSize, p.PlateCount);
 
             var handle = PlateTectonicsNative.Create(
                 seed: p.Seed,
@@ -63,8 +92,13 @@ public class NativePlateSimulator : IPlateSimulator
                 cycleCount: (uint)p.CycleCount,
                 numPlates: (uint)p.PlateCount);
 
+            _logger.LogDebug("Native Create() returned handle: {Handle}", handle);
+
             if (handle == IntPtr.Zero)
+            {
+                _logger.LogError("Native Create() returned NULL handle");
                 return Result.Failure<float[,]>("ERROR_WORLDGEN_SIMULATION_FAILED");
+            }
 
             using var safeHandle = new PlateSimulationHandle(handle);
 
@@ -97,8 +131,17 @@ public class NativePlateSimulator : IPlateSimulator
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Native simulation failed");
-            return Result.Failure<float[,]>("ERROR_WORLDGEN_NATIVE_EXCEPTION");
+            _logger.LogError(ex, "Native simulation exception: {ExceptionType} - {Message}",
+                ex.GetType().Name, ex.Message);
+            _logger.LogError("Exception stack trace: {StackTrace}", ex.StackTrace);
+
+            if (ex.InnerException != null)
+            {
+                _logger.LogError("Inner exception: {InnerType} - {InnerMessage}",
+                    ex.InnerException.GetType().Name, ex.InnerException.Message);
+            }
+
+            return Result.Failure<float[,]>($"ERROR_WORLDGEN_NATIVE_EXCEPTION: {ex.Message}");
         }
     }
 

@@ -43,11 +43,17 @@ cmake --build . --config Release
 # 4. Copy DLL to addons directory
 cp Release/PlateTectonics.dll ../../addons/darklands/bin/win-x64/
 
-# 5. Verify checksum (should match table above)
+# 5. Copy MSVC runtime dependencies (required for DLL loading)
+cp /c/Windows/System32/vcruntime140.dll ../../addons/darklands/bin/win-x64/
+cp /c/Windows/System32/msvcp140.dll ../../addons/darklands/bin/win-x64/
+
+# 6. Verify checksum (should match table above)
 sha256sum ../../addons/darklands/bin/win-x64/PlateTectonics.dll
 ```
 
 **Note**: The CMakeLists.txt has been modified to build `SHARED` library (line 8). If you regenerate from upstream, you must re-apply this change.
+
+**Runtime Dependencies**: PlateTectonics.dll requires MSVC runtime (vcruntime140.dll, msvcp140.dll). These must be placed in the same directory as the DLL for .NET LibraryImport to find them.
 
 ### Build Instructions (Linux) - Future
 
