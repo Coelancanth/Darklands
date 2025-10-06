@@ -213,7 +213,10 @@
       "Bash(./scripts/core/build.ps1 test --filter \"Category=Combat\")",
       "Bash(cmake:*)",
       "Bash(./scripts/core/build.ps1 test --filter \"Category=WorldGen\")",
-      "Bash(./scripts/core/build.ps1 test-only --filter \"Category=WorldGen\")"
+      "Bash(./scripts/core/build.ps1 test-only --filter \"Category=WorldGen\")",
+      "Bash(./scripts/core/build.ps1 test --filter \"NativePlateSimulatorIntegrationTests\")",
+      "Bash(./scripts/core/build.ps1 test --filter \"Category=WorldGen&Category=Integration\")",
+      "Bash(findstr:*)"
     ],
     "deny": [],
     "ask": [],

@@ -7,6 +7,7 @@
 **Applies To**: All features requiring C/C++ native library integration
 
 **Changelog**:
+- 2025-10-06 (v1.2): **LibraryImport as modern standard** - Updated interop examples to use `LibraryImport` (.NET 7+) with source generators instead of legacy `DllImport`. Added migration guidance for existing implementations.
 - 2025-10-06 (v1.1): Architecture review refinements - Span<T> marshaling, Godot path resolution, build strategy documentation
 - 2025-10-06 (v1.0): Initial proposal - Three-layer isolation pattern for PInvoke integration
 
@@ -92,19 +93,35 @@ src/Darklands.Core/
 
 **Location**: `Infrastructure/Native/Interop/`
 
-**Example**:
+**⚠️ IMPORTANT: Use LibraryImport for .NET 7+ projects (Modern Standard)**
+
+**Why LibraryImport over DllImport**:
+- ✅ **Compile-time code generation** (no runtime IL emit overhead)
+- ✅ **AOT-compatible** (NativeAOT, future Godot export optimization)
+- ✅ **Better diagnostics** (marshaling errors caught at compile-time)
+- ✅ **Visible generated code** (debugging, education)
+- ✅ **Microsoft-recommended** (DllImport in legacy maintenance mode)
+
+**When to use DllImport instead**:
+- ❌ .NET 6 or earlier (LibraryImport unavailable)
+- ❌ Complex string marshaling (legacy ANSI/UTF-16 APIs with implicit conversions)
+- ❌ Function pointer callbacks with `UnmanagedFunctionPointer` attribute
+
+**Example (LibraryImport - Preferred)**:
 ```csharp
 // Infrastructure/Native/Interop/PlateTectonicsNative.cs
 using System.Runtime.InteropServices;
 
 namespace Darklands.Core.Features.WorldGen.Infrastructure.Native.Interop;
 
-internal static class PlateTectonicsNative
+internal static partial class PlateTectonicsNative
 {
     private const string LibraryName = "libplatec";
 
-    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-    internal static extern PlateSimulationHandle platec_create(
+    // ✅ MODERN: LibraryImport with source generators (.NET 7+)
+    // Note: 'partial' keyword required for source generator
+    [LibraryImport(LibraryName)]
+    internal static partial PlateSimulationHandle platec_create(
         int seed,
         int width,
         int height,
@@ -116,22 +133,44 @@ internal static class PlateTectonicsNative
         int cycleCount,
         int numPlates);
 
-    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
-    internal static extern int platec_is_finished(PlateSimulationHandle handle);
+    // ✅ Explicit bool marshaling required (C bool = 1 byte, not 4 bytes!)
+    [LibraryImport(LibraryName)]
+    [return: MarshalAs(UnmanagedType.U1)]  // unsigned char (uint8_t) in C
+    internal static partial bool platec_is_finished(PlateSimulationHandle handle);
 
-    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
-    internal static extern void platec_step(PlateSimulationHandle handle);
+    [LibraryImport(LibraryName)]
+    internal static partial void platec_step(PlateSimulationHandle handle);
 
-    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
-    internal static extern IntPtr platec_get_heightmap(PlateSimulationHandle handle);
+    [LibraryImport(LibraryName)]
+    internal static partial IntPtr platec_get_heightmap(PlateSimulationHandle handle);
 
-    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
-    internal static extern IntPtr platec_get_platesmap(PlateSimulationHandle handle);
+    [LibraryImport(LibraryName)]
+    internal static partial IntPtr platec_get_platesmap(PlateSimulationHandle handle);
 
-    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
-    internal static extern void platec_destroy(PlateSimulationHandle handle);
+    [LibraryImport(LibraryName)]
+    internal static partial void platec_destroy(PlateSimulationHandle handle);
 }
 ```
+
+**Example (DllImport - Legacy Fallback)**:
+```csharp
+// Use ONLY if targeting .NET 6 or encountering LibraryImport limitations
+internal static class PlateTectonicsNativeLegacy
+{
+    [DllImport("libplatec", CallingConvention = CallingConvention.Cdecl)]
+    internal static extern PlateSimulationHandle platec_create(...);
+
+    [DllImport("libplatec", CallingConvention = CallingConvention.Cdecl)]
+    internal static extern int platec_is_finished(PlateSimulationHandle handle);
+    // Note: Returns int (4 bytes), not bool - C API design constraint
+}
+```
+
+**Key Differences**:
+- **`partial` methods** (LibraryImport) vs `extern` methods (DllImport)
+- **Explicit `[MarshalAs]`** required for bool/string (LibraryImport) vs implicit (DllImport)
+- **No `CallingConvention`** needed (LibraryImport infers Cdecl for C libraries)
+- **UTF-8 string default** (LibraryImport) vs ANSI/platform-specific (DllImport)
 
 **SafeHandle Pattern** (RAII for Native Resources):
 ```csharp
@@ -923,6 +962,128 @@ public class NativePlateSimulatorIntegrationTests
     }
 }
 ```
+
+---
+
+## Migration Guide: DllImport → LibraryImport
+
+**When to migrate**: Existing implementations using `DllImport` should migrate to `LibraryImport` when:
+- ✅ Targeting .NET 7+ (Godot 4.3+ uses .NET 8)
+- ✅ Simple C APIs (int/float/pointers, no complex string marshaling)
+- ✅ Future-proofing for NativeAOT exports
+
+**Migration Checklist**:
+
+### Step 1: Add `partial` keyword to class
+```diff
+- internal static class PlateTectonicsNative
++ internal static partial class PlateTectonicsNative
+```
+
+### Step 2: Replace `DllImport` → `LibraryImport`, `extern` → `partial`
+```diff
+- [DllImport("PlateTectonics", EntryPoint = "platec_api_create", CallingConvention = CallingConvention.Cdecl)]
+- internal static extern IntPtr Create(...);
++ [LibraryImport("PlateTectonics", EntryPoint = "platec_api_create")]
++ internal static partial IntPtr Create(...);
+```
+
+**Key Changes**:
+- ❌ Remove `CallingConvention` (inferred for C libraries)
+- ❌ Remove `CharSet` (UTF-8 by default)
+- ✅ Keep `EntryPoint` if function name differs from C# method name
+- ✅ Change `extern` → `partial`
+
+### Step 3: Fix bool return types (CRITICAL!)
+```diff
+// ❌ WRONG: DllImport allowed this, but it's unsafe (assumes 4-byte Win32 BOOL)
+- [DllImport("PlateTectonics")]
+- internal static extern uint IsFinished(IntPtr handle);  // Returns uint (4 bytes)
+
+// ✅ CORRECT: LibraryImport requires explicit marshaling
++ [LibraryImport("PlateTectonics")]
++ [return: MarshalAs(UnmanagedType.U1)]  // C bool = uint8_t (1 byte)
++ internal static partial bool IsFinished(IntPtr handle);
+```
+
+**⚠️ CRITICAL GOTCHA**: The plate-tectonics C API uses `uint` for booleans (0/non-zero), not C `bool`. Check your C header file!
+
+**For plate-tectonics specifically**:
+```c
+// C header (plate-tectonics API)
+uint platec_api_is_finished(platec_simulation_handle* handle);  // Returns uint!
+```
+
+**Migration Options**:
+
+**Option A: Keep uint return type** (Safest - matches C API exactly)
+```csharp
+[LibraryImport("PlateTectonics", EntryPoint = "platec_api_is_finished")]
+internal static partial uint IsFinished(IntPtr handle);  // Returns 0 or non-zero
+
+// Usage: if (IsFinished(handle) != 0) { ... }
+```
+
+**Option B: Convert to bool with explicit marshaling** (More idiomatic C#)
+```csharp
+[LibraryImport("PlateTectonics", EntryPoint = "platec_api_is_finished")]
+[return: MarshalAs(UnmanagedType.U4)]  // uint = 4 bytes (matches C API)
+internal static partial bool IsFinished(IntPtr handle);
+
+// Usage: if (IsFinished(handle)) { ... }
+```
+
+**Recommendation**: Use **Option A (uint)** to match C API exactly. Wrapper layer converts to bool if needed.
+
+### Step 4: Verify parameter types (usually unchanged)
+```csharp
+// ✅ Primitive types unchanged (int, float, IntPtr, SafeHandle)
+[LibraryImport("PlateTectonics")]
+internal static partial IntPtr Create(
+    int seed,           // ✅ int → int32_t (unchanged)
+    uint width,         // ✅ uint → uint32_t (unchanged)
+    uint height,        // ✅ uint → uint32_t (unchanged)
+    float seaLevel,     // ✅ float → float (unchanged)
+    ...);
+```
+
+### Step 5: Enable unsafe blocks in .csproj (REQUIRED!)
+```xml
+<!-- Darklands.Core.csproj -->
+<PropertyGroup>
+  <!-- REQUIRED: LibraryImport source generator needs unsafe code for marshaling -->
+  <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+</PropertyGroup>
+```
+
+**Why**: LibraryImport generates compile-time marshaling code using `IntPtr`, `Span<T>`, and unsafe pointers. Without this setting, you'll get:
+```
+error SYSLIB1062: LibraryImportAttribute requires unsafe code.
+Project must be updated with '<AllowUnsafeBlocks>true</AllowUnsafeBlocks>'.
+```
+
+**Note**: DllImport didn't require this because it generates marshaling stubs at runtime (IL emit).
+
+### Step 6: Build and verify source generation
+```bash
+dotnet build
+# Check: obj/Debug/net8.0/generated/System.Runtime.InteropServices.LibraryImportGenerator/...
+# You should see LibraryImportGenerator output (generated marshaling stubs)
+```
+
+### Step 7: Run integration tests (CRITICAL!)
+```bash
+dotnet test --filter "Category=WorldGen&Category=Integration"
+```
+
+**Expected Results**:
+- ✅ All 4 integration tests GREEN (Create, SafeHandle, Step, ValidateLibrary)
+- ✅ No behavioral changes (same inputs → same outputs)
+- ✅ No memory leaks (SafeHandle cleanup still works)
+
+### Step 8: Update ADR references and examples
+- Update feature documentation to show LibraryImport examples
+- Keep DllImport examples in "Legacy Fallback" sections
 
 ---
 
