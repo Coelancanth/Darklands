@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-06 15:38 (Tech Lead: Actor logging enrichment complete - added type tags to all logs, IPlayerContext integration, VS_020 ready for Actor entity implementation)
+**Last Updated**: 2025-10-06 16:17 (Tech Lead: VS_020 Phase 0 architecture finalized - Component pattern chosen for Actor entities, full breakdown added, reusability strategy documented)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -178,13 +178,29 @@
 - Foundation for Enemy AI (VS_011)
 
 **How**:
-- **Phase 0 (Foundation - ADR-006 Integration)**:
-  - Create `Actor` entity (pure Domain: ActorId, NameKey, Health, Weapon)
-  - Create `IActorRepository` interface (Application) + `InMemoryActorRepository` (Infrastructure)
-  - Spawn actors FROM templates: `templateService.GetTemplate("goblin")` → copy data to `new Actor(...)`
-  - Register in DI container (GameStrapper)
-  - Update `ActorIdLoggingExtensions.ToLogString()` to use `IActorRepository` for names
-  - Result: Logs show `"8c2de643 [type: Enemy, name: ACTOR_GOBLIN]"` instead of `"8c2de643 [type: Enemy]"`
+- **Phase 0 (Foundation - Component Pattern + ADR-006 Integration)** (2-3 hours):
+  - **Step 1: Component Infrastructure** (30 min)
+    - Create `IComponent` base interface (Domain/Components/)
+    - Create `Actor` entity as component container (Dictionary<Type, IComponent>)
+    - Implement `AddComponent<T>()`, `GetComponent<T>()`, `HasComponent<T>()` methods
+  - **Step 2: Health Component** (30 min)
+    - Create `IHealthComponent` interface (TakeDamage, Heal, CurrentHealth, IsAlive)
+    - Create `HealthComponent` implementation (wraps Health value object)
+    - Unit tests: component isolation, damage reduction, death detection
+  - **Step 3: Weapon Component** (30 min)
+    - Create `IWeaponComponent` interface (Weapon property, CanAttack validation)
+    - Create `WeaponComponent` implementation (wraps Weapon value object)
+    - Unit tests: weapon validation, range checks
+  - **Step 4: Repository + Factory** (45 min)
+    - Create `IActorRepository` interface (GetActor, AddActor, RemoveActor)
+    - Create `InMemoryActorRepository` implementation
+    - Create `ActorFactory.CreateFromTemplate()` - conditionally adds components based on template
+    - Register in DI container (GameStrapper)
+  - **Step 5: Logging Integration** (15 min)
+    - Update `ActorIdLoggingExtensions.ToLogString()` to use `IActorRepository.GetActor().NameKey`
+    - Inject `IActorRepository` into 6 handlers (MoveActor, GetVisibleActors, etc.)
+    - Result: Logs show `"8c2de643 [type: Enemy, name: ACTOR_GOBLIN]"`
+  - **Deliverable**: Reusable component system - write HealthComponent ONCE, use for player/enemies/bosses/NPCs
 - **Phase 1 (Domain)**: `Weapon` value object (damage, time cost, range, weapon type enum)
 - **Phase 2 (Application)**: `ExecuteAttackCommand` (attacker, target, weapon), range validation (melee=adjacent, ranged=FOV line-of-sight), integrates with existing `TakeDamageCommand` from VS_001
 - **Phase 3 (Infrastructure)**: Attack validation service (checks adjacency for melee, FOV visibility for ranged)
@@ -212,13 +228,37 @@
 - VS_021 (i18n + Templates) - ✅ complete (2025-10-06)
 - Logging Enhancement - ✅ complete (2025-10-06 15:38) - foundation for actor name display
 
-**Tech Lead Decision - Phase 0 Architecture** (2025-10-06 15:38):
-- **Why Actor entities**: Combat requires actors to carry `Weapon` data (per ADR-006, entities created FROM template data)
-- **Why NOT just name service**: Anemic model would require refactoring when adding Weapon in Phase 1 (rework cost)
-- **ADR-006 Compliance**: Templates (Infrastructure) → Actor entity created FROM template data (Domain) → No template reference in entity
-- **Pattern**: `InMemoryActorRepository` same as `InMemoryTurnQueueRepository` (consistent architecture)
-- **Lifecycle**: Actors created at spawn, destroyed at death (independent of templates)
-- **Two-system tracking**: `IActorRepository` (WHO: name/health/weapon) + `IActorPositionService` (WHERE: grid coords)
+**Tech Lead Decision - Phase 0 Architecture** (2025-10-06 16:17):
+
+**Component Pattern (Chosen) vs Simple Entity**:
+- **Decision**: Use component pattern (Actor as component container) instead of simple entity (Actor with properties)
+- **Why Components**:
+  - ✅ **Massive reusability** - Write `HealthComponent` ONCE, use for player/enemies/bosses/NPCs/merchants (5+ actor types)
+  - ✅ **Scales to 50+ actor types** - Roguelikes need many enemies/NPCs, components prevent code duplication
+  - ✅ **Flexible composition** - Player has Equipment, enemies don't; Boss has Phases, others don't (mix and match)
+  - ✅ **Template integration** - Designer configures components in `.tres` files (HasHealth, HasEquipment flags)
+  - ✅ **Matches ADR-002** - Architecture explicitly designed for component pattern (line 62-138)
+  - ✅ **Easy to extend** - Add StatusEffectComponent later → ALL actors get buffs/debuffs automatically
+- **Why NOT simple entity**: Leads to logic duplication when 5+ actor types need same features (copy-paste Health logic)
+- **Trade-off**: +1 hour upfront (components vs properties), but saves 3+ hours after 5th actor type (reuse pays off)
+
+**ADR-006 Compliance**:
+- Templates (Infrastructure) → ActorFactory reads template → Creates Actor with components (Domain)
+- Actor entity has NO reference to template (data copied during spawn)
+- Components are pure C# (zero Godot dependency)
+
+**Architecture Layers**:
+- `IComponent` base interface → Domain/Components/
+- `IHealthComponent`, `IWeaponComponent` → Domain/Components/
+- `Actor` entity (component container) → Domain/Entities/
+- `IActorRepository` interface → Application/Repositories/
+- `InMemoryActorRepository` → Infrastructure/Repositories/
+- `ActorFactory` (template → entity + components) → Application/Factories/
+
+**Two-System Tracking**:
+- `IActorRepository` (WHO: name, health, weapon components)
+- `IActorPositionService` (WHERE: grid coordinates)
+- Both use ActorId as linking key
 
 **Next Step**: After combat feels fun → VS_011 (Enemy AI uses these attack commands)
 

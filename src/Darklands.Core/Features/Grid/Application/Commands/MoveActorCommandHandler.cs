@@ -181,7 +181,7 @@ public class MoveActorCommandHandler : IRequestHandler<MoveActorCommand, Result>
                         await _turnQueue.SaveAsync(queue, cancellationToken);
 
                         _logger.LogInformation(
-                            "[Grid] Combat turn: {ActorId} moved (time: {OldTime} -> {NewTime}, cost: {Cost})",
+                            "Combat turn: {ActorId} moved (time: {OldTime} -> {NewTime}, cost: {Cost})",
                             request.ActorId.ToLogString(_playerContext),
                             currentTime,
                             newActionTime,

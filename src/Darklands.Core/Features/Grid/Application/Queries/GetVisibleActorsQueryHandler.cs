@@ -110,7 +110,7 @@ public class GetVisibleActorsQueryHandler : IRequestHandler<GetVisibleActorsQuer
             : "none";
 
         _logger.LogInformation(
-            "[Grid] Observer {ObserverId} can see {VisibleCount} actors: [{VisibleActors}] (out of {TotalCount} total actors)",
+            "Observer {ObserverId} can see {VisibleCount} actors: [{VisibleActors}] (out of {TotalCount} total actors)",
             request.ObserverId.ToLogString(_playerContext),
             visibleActors.Count,
             visibleActorIds, // "none" or "shortId [type: Enemy/Player]"

@@ -34,7 +34,7 @@ public class ScheduleActorCommandHandler : IRequestHandler<ScheduleActorCommand,
     public async Task<Result> Handle(ScheduleActorCommand request, CancellationToken cancellationToken)
     {
         _logger.LogDebug(
-            "[Combat] Scheduling actor {ActorId} at time {Time} (isPlayer: {IsPlayer})",
+            " Scheduling actor {ActorId} at time {Time} (isPlayer: {IsPlayer})",
             request.ActorId.ToLogString(_playerContext),
             request.NextActionTime,
             request.IsPlayer);
@@ -49,7 +49,7 @@ public class ScheduleActorCommandHandler : IRequestHandler<ScheduleActorCommand,
                     await _turnQueue.SaveAsync(queue, cancellationToken);
 
                     _logger.LogInformation(
-                        "[Combat] Actor {ActorId} scheduled at time {Time} (combat: {IsInCombat}, queue size: {QueueSize})",
+                        "Actor {ActorId} scheduled at time {Time} (combat: {IsInCombat}, queue size: {QueueSize})",
                         request.ActorId.ToLogString(_playerContext),
                         request.NextActionTime,
                         queue.IsInCombat,
