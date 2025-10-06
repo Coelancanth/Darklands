@@ -7,6 +7,8 @@ using Darklands.Core.Features.Combat.Application;
 using Darklands.Core.Features.Combat.Application.Commands;
 using Darklands.Core.Features.Combat.Domain;
 using Darklands.Core.Features.Grid.Application.Services;
+using Darklands.Core.Features.Grid.Domain;
+using Darklands.Core.Features.Grid.Infrastructure.Repositories;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Xunit;
@@ -22,6 +24,8 @@ public class ExecuteAttackCommandHandlerTests
     private readonly IActorRepository _actorRepository;
     private readonly IActorPositionService _positionService;
     private readonly ITurnQueueRepository _turnQueueRepository;
+    private readonly IFOVService _fovService;
+    private readonly GridMap _gridMap;
     private readonly ILogger<ExecuteAttackCommandHandler> _logger;
     private readonly ExecuteAttackCommandHandler _handler;
 
@@ -30,12 +34,20 @@ public class ExecuteAttackCommandHandlerTests
         _actorRepository = Substitute.For<IActorRepository>();
         _positionService = Substitute.For<IActorPositionService>();
         _turnQueueRepository = Substitute.For<ITurnQueueRepository>();
+        _fovService = Substitute.For<IFOVService>();
         _logger = Substitute.For<ILogger<ExecuteAttackCommandHandler>>();
+
+        // Create GridMap with floor terrain using stub repository
+        var terrainRepo = new StubTerrainRepository();
+        var floorTerrain = terrainRepo.GetDefault().Value;
+        _gridMap = new GridMap(floorTerrain);
 
         _handler = new ExecuteAttackCommandHandler(
             _actorRepository,
             _positionService,
             _turnQueueRepository,
+            _fovService,
+            _gridMap,
             _logger);
     }
 
@@ -172,8 +184,14 @@ public class ExecuteAttackCommandHandlerTests
         _actorRepository.GetByIdAsync(targetId).Returns(Result.Success(target));
 
         // Target 5 tiles away (within bow range)
-        _positionService.GetPosition(attackerId).Returns(Result.Success(new Position(5, 5)));
-        _positionService.GetPosition(targetId).Returns(Result.Success(new Position(10, 5))); // Distance = 5
+        var attackerPos = new Position(5, 5);
+        var targetPos = new Position(10, 5);
+        _positionService.GetPosition(attackerId).Returns(Result.Success(attackerPos));
+        _positionService.GetPosition(targetId).Returns(Result.Success(targetPos)); // Distance = 5
+
+        // Mock FOV: Target is visible (line-of-sight clear)
+        var visiblePositions = new HashSet<Position> { targetPos };
+        _fovService.CalculateFOV(_gridMap, attackerPos, 8).Returns(Result.Success(visiblePositions));
 
         var turnQueue = TurnQueue.CreateWithPlayer(attackerId);
         turnQueue.Schedule(targetId, TimeUnits.Zero);
@@ -388,5 +406,122 @@ public class ExecuteAttackCommandHandlerTests
         actor.AddComponent<IHealthComponent>(new HealthComponent(health));
 
         return actor;
+    }
+
+    // ========== Phase 3: Line-of-Sight Tests ==========
+
+    [Fact]
+    public async Task Handle_RangedAttackWithLineOfSightBlocked_ShouldFail()
+    {
+        // WHY: Walls/obstacles block ranged attacks (Phase 3 - FOV integration)
+
+        // Arrange
+        var attackerId = ActorId.NewId();
+        var targetId = ActorId.NewId();
+
+        var attacker = CreateActorWithWeapon(attackerId, "ACTOR_PLAYER",
+            damage: 10, timeCost: 120, range: 8, WeaponType.Ranged);
+        var target = CreateActorWithHealth(targetId, "ACTOR_GOBLIN", currentHealth: 50, maxHealth: 50);
+
+        _actorRepository.GetByIdAsync(attackerId).Returns(Result.Success(attacker));
+        _actorRepository.GetByIdAsync(targetId).Returns(Result.Success(target));
+
+        // Target 5 tiles away (within range) BUT behind a wall
+        var attackerPos = new Position(5, 5);
+        var targetPos = new Position(10, 5);
+        _positionService.GetPosition(attackerId).Returns(Result.Success(attackerPos));
+        _positionService.GetPosition(targetId).Returns(Result.Success(targetPos));
+
+        // Mock FOV: Target NOT visible (wall blocks line-of-sight)
+        var visiblePositions = new HashSet<Position>(); // Empty set = target not visible
+        _fovService.CalculateFOV(_gridMap, attackerPos, 8).Returns(Result.Success(visiblePositions));
+
+        var cmd = new ExecuteAttackCommand(attackerId, targetId);
+
+        // Act
+        var result = await _handler.Handle(cmd, CancellationToken.None);
+
+        // Assert
+        Assert.True(result.IsFailure);
+        Assert.Contains("not visible", result.Error);
+        Assert.Contains("line-of-sight blocked", result.Error);
+    }
+
+    [Fact]
+    public async Task Handle_RangedAttackWithClearLineOfSight_ShouldSucceed()
+    {
+        // WHY: Clear line-of-sight allows ranged attack
+
+        // Arrange
+        var attackerId = ActorId.NewId();
+        var targetId = ActorId.NewId();
+
+        var attacker = CreateActorWithWeapon(attackerId, "ACTOR_PLAYER",
+            damage: 12, timeCost: 110, range: 10, WeaponType.Ranged);
+        var target = CreateActorWithHealth(targetId, "ACTOR_GOBLIN", currentHealth: 50, maxHealth: 50);
+
+        _actorRepository.GetByIdAsync(attackerId).Returns(Result.Success(attacker));
+        _actorRepository.GetByIdAsync(targetId).Returns(Result.Success(target));
+
+        var attackerPos = new Position(3, 3);
+        var targetPos = new Position(8, 8); // Diagonal, distance = 5
+        _positionService.GetPosition(attackerId).Returns(Result.Success(attackerPos));
+        _positionService.GetPosition(targetId).Returns(Result.Success(targetPos));
+
+        // Mock FOV: Target IS visible (clear line-of-sight)
+        var visiblePositions = new HashSet<Position> { targetPos };
+        _fovService.CalculateFOV(_gridMap, attackerPos, 10).Returns(Result.Success(visiblePositions));
+
+        var turnQueue = TurnQueue.CreateWithPlayer(attackerId);
+        turnQueue.Schedule(targetId, TimeUnits.Zero);
+        _turnQueueRepository.GetAsync(Arg.Any<CancellationToken>()).Returns(Result.Success(turnQueue));
+        _turnQueueRepository.SaveAsync(Arg.Any<TurnQueue>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success());
+
+        var cmd = new ExecuteAttackCommand(attackerId, targetId);
+
+        // Act
+        var result = await _handler.Handle(cmd, CancellationToken.None);
+
+        // Assert
+        Assert.True(result.IsSuccess);
+        Assert.Equal(12, result.Value.DamageDealt);
+    }
+
+    [Fact]
+    public async Task Handle_MeleeAttackDoesNotCheckLineOfSight_ShouldSucceed()
+    {
+        // WHY: Melee attacks don't require line-of-sight (can attack around corners, in darkness)
+
+        // Arrange
+        var attackerId = ActorId.NewId();
+        var targetId = ActorId.NewId();
+
+        var attacker = CreateActorWithWeapon(attackerId, "ACTOR_PLAYER",
+            damage: 20, timeCost: 100, range: 1, WeaponType.Melee);
+        var target = CreateActorWithHealth(targetId, "ACTOR_GOBLIN", currentHealth: 50, maxHealth: 50);
+
+        _actorRepository.GetByIdAsync(attackerId).Returns(Result.Success(attacker));
+        _actorRepository.GetByIdAsync(targetId).Returns(Result.Success(target));
+
+        // Adjacent positions (melee range)
+        _positionService.GetPosition(attackerId).Returns(Result.Success(new Position(5, 5)));
+        _positionService.GetPosition(targetId).Returns(Result.Success(new Position(6, 5)));
+
+        var turnQueue = TurnQueue.CreateWithPlayer(attackerId);
+        turnQueue.Schedule(targetId, TimeUnits.Zero);
+        _turnQueueRepository.GetAsync(Arg.Any<CancellationToken>()).Returns(Result.Success(turnQueue));
+        _turnQueueRepository.SaveAsync(Arg.Any<TurnQueue>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success());
+
+        var cmd = new ExecuteAttackCommand(attackerId, targetId);
+
+        // Act
+        var result = await _handler.Handle(cmd, CancellationToken.None);
+
+        // Assert
+        Assert.True(result.IsSuccess);
+        // Verify FOV was NOT called for melee (melee doesn't check line-of-sight)
+        _fovService.DidNotReceive().CalculateFOV(Arg.Any<GridMap>(), Arg.Any<Position>(), Arg.Any<int>());
     }
 }

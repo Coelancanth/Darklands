@@ -4,6 +4,7 @@ using Darklands.Core.Domain.Common;
 using Darklands.Core.Domain.Components;
 using Darklands.Core.Features.Combat.Domain;
 using Darklands.Core.Features.Grid.Application.Services;
+using Darklands.Core.Features.Grid.Domain;
 using MediatR;
 using Microsoft.Extensions.Logging;
 
@@ -19,17 +20,23 @@ public class ExecuteAttackCommandHandler :
     private readonly IActorRepository _actors;
     private readonly IActorPositionService _positions;
     private readonly ITurnQueueRepository _turnQueue;
+    private readonly IFOVService _fovService;
+    private readonly GridMap _gridMap;
     private readonly ILogger<ExecuteAttackCommandHandler> _logger;
 
     public ExecuteAttackCommandHandler(
         IActorRepository actors,
         IActorPositionService positions,
         ITurnQueueRepository turnQueue,
+        IFOVService fovService,
+        GridMap gridMap,
         ILogger<ExecuteAttackCommandHandler> logger)
     {
         _actors = actors;
         _positions = positions;
         _turnQueue = turnQueue;
+        _fovService = fovService;
+        _gridMap = gridMap;
         _logger = logger;
     }
 
@@ -219,8 +226,20 @@ public class ExecuteAttackCommandHandler :
                     $"Target out of ranged weapon range (distance: {distance}, max: {weapon.Range})"));
             }
 
-            // TODO (Phase 3): Add line-of-sight validation (FOV check)
-            // For now, simple distance check is sufficient for Phase 2
+            // Line-of-sight validation (Phase 3): Target must be visible in attacker's FOV
+            var fovResult = _fovService.CalculateFOV(_gridMap, attackerPos, weapon.Range);
+            if (fovResult.IsFailure)
+            {
+                return Task.FromResult(Result.Failure(
+                    $"Failed to calculate FOV: {fovResult.Error}"));
+            }
+
+            var visiblePositions = fovResult.Value;
+            if (!visiblePositions.Contains(targetPos))
+            {
+                return Task.FromResult(Result.Failure(
+                    $"Target not visible (line-of-sight blocked by terrain)"));
+            }
         }
 
         return Task.FromResult(Result.Success());

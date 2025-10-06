@@ -88,12 +88,12 @@
 
 
 ### VS_020: Basic Combat System (Attacks & Damage)
-**Status**: In Progress (Phase 2/5 complete) | **Owner**: Dev Engineer | **Size**: M (1-2 days) | **Priority**: Important
+**Status**: In Progress (Phase 3/5 complete) | **Owner**: Dev Engineer | **Size**: M (1-2 days) | **Priority**: Important
 **Markers**: [PHASE-1-CRITICAL] [BLOCKING]
 
 **What**: Attack commands (melee + ranged), damage application, range validation, manual dummy enemy combat testing
 
-**Progress** (2025-10-06 18:40):
+**Progress** (2025-10-06 19:00):
 - ✅ **Phase 0 Complete** - Component Pattern Infrastructure (commit 7f299d7)
   - Created component system: IComponent, Actor (container), IHealthComponent, IWeaponComponent
   - Weapon value object: damage, time cost, range, type (Melee/Ranged)
@@ -114,6 +114,13 @@
   - Death handling: Remove defeated actors from queue
   - 10 new tests covering happy path, validation, edge cases
   - All 425 tests GREEN ✅ (415 existing + 10 new)
+- ✅ **Phase 3 Complete** - Line-of-Sight Validation (commit pending)
+  - Integrated IFOVService + GridMap into ExecuteAttackCommandHandler
+  - Ranged attacks now validate line-of-sight (FOV visibility check)
+  - Walls/obstacles block ranged attacks (tactical positioning matters)
+  - Melee attacks bypass FOV check (can attack around corners, in darkness)
+  - 3 new tests: LOS blocked, LOS clear, melee independence
+  - All 428 tests GREEN ✅ (425 existing + 3 new)
 
 **Why**:
 - **BLOCKS Phase 1 validation** - cannot prove "time-unit combat is fun" without attacks
