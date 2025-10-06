@@ -130,18 +130,29 @@ public class ExecuteAttackCommandHandler :
             cmd.TargetId,
             newHealth.Current);
 
-        // 8. Handle death (remove from turn queue)
+        // 8. Handle death (remove from turn queue AND position service)
         if (targetDied)
         {
             _logger.LogInformation(
                 "Combat: {TargetId} defeated",
                 cmd.TargetId);
 
+            // Remove from turn queue
             var queue = await _turnQueue.GetAsync(cancellationToken);
             if (queue.IsSuccess && queue.Value.Contains(cmd.TargetId))
             {
                 queue.Value.Remove(cmd.TargetId);
                 await _turnQueue.SaveAsync(queue.Value, cancellationToken);
+            }
+
+            // Remove from position service (visual grid)
+            var removeResult = _positions.RemoveActor(cmd.TargetId);
+            if (removeResult.IsFailure)
+            {
+                _logger.LogWarning(
+                    "Combat: Failed to remove defeated actor {TargetId} from position service: {Error}",
+                    cmd.TargetId,
+                    removeResult.Error);
             }
         }
 

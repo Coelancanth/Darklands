@@ -209,7 +209,8 @@
       "Bash(./scripts/core/build.ps1 test --filter \"*SwapItemsCommand*\")",
       "Bash(gh issue view:*)",
       "Bash(godot:*)",
-      "Bash(pwsh ./scripts/validate-templates.ps1)"
+      "Bash(pwsh ./scripts/validate-templates.ps1)",
+      "Bash(./scripts/core/build.ps1 test --filter \"Category=Combat\")"
     ],
     "deny": [],
     "ask": [],

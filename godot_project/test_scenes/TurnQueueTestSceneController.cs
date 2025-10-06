@@ -960,18 +960,19 @@ public partial class TurnQueueTestSceneController : Node2D
     }
 
     /// <summary>
-    /// Checks if clicked position has an enemy actor (for attack targeting).
+    /// Checks if clicked position has an ALIVE enemy actor (for attack targeting).
+    /// Dead enemies are removed from position service, so GetActorPositionQuery will fail.
     /// </summary>
     private async Task<ActorId?> GetEnemyAtPosition(Position pos)
     {
-        // Check if goblin is at this position
+        // Check if goblin is at this position (dead goblins return failure from position query)
         var goblinPosResult = await _mediator.Send(new GetActorPositionQuery(_goblinId));
         if (goblinPosResult.IsSuccess && goblinPosResult.Value.Equals(pos))
         {
             return _goblinId;
         }
 
-        // Check if orc is at this position
+        // Check if orc is at this position (dead orcs return failure from position query)
         var orcPosResult = await _mediator.Send(new GetActorPositionQuery(_orcId));
         if (orcPosResult.IsSuccess && orcPosResult.Value.Equals(pos))
         {
