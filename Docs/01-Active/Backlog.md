@@ -73,8 +73,7 @@
 ---
 
 *Recently completed and archived (2025-10-06):*
-- **VS_021**: i18n + Data-Driven Entity Infrastructure (ADR-005 + ADR-006) - 5 phases complete! Translation system (18 keys in en.csv), ActorTemplate system with GodotTemplateService, player.tres template, pre-push validation script, architecture fix (templates → Presentation layer). All 415 tests GREEN. ✅ (2025-10-06 15:15)
-- **Logging Enhancement**: Actor type tags added to all logs - `ActorIdLoggingExtensions.ToLogString()` shows "8c2de643 [type: Player/Enemy]" using IPlayerContext. 6 handlers updated (MoveActorCommand, GetVisibleActors, EnemyDetection, ScheduleActor, MoveAlongPath). ✅ (2025-10-06 15:38)
+- **VS_021**: i18n + Data-Driven Entity Infrastructure (ADR-005 + ADR-006) - 5 phases complete! Translation system (18 keys in en.csv), ActorTemplate system with GodotTemplateService, player.tres template, pre-push validation script, architecture fix (templates → Presentation layer). Bonus: Actor type logging enhancement (IPlayerContext integration). All 415 tests GREEN. Commits: cda5b99, e2f59f9, caea90a, 8bc0823, fdf6ef2, a9311cc, 144a09d. ✅ (2025-10-06 16:23)
 
 **What**: Combined implementation of internationalization (i18n) and data-driven entity templates using Godot Resources
 
