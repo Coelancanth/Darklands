@@ -120,6 +120,21 @@ public static class GameStrapper
         // NOTE: Actual template loading registered in Presentation layer (Main.cs)
         // because ActorTemplate (Godot Resource) lives in Presentation (Godot SDK project)
         // Core only knows about ITemplateService abstraction (Godot-free!)
+
+        // WorldGen System (VS_019 Phase 2-3) - Plate tectonics world generation
+        // NOTE: projectPath will be provided by Presentation layer via factory
+        // (Core can't access Godot's ProjectSettings, so Presentation resolves path)
+        services.AddSingleton<Features.WorldGen.Application.Abstractions.IPlateSimulator>(provider =>
+        {
+            var logger = provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<
+                Features.WorldGen.Infrastructure.Native.NativePlateSimulator>>();
+
+            // Project path must be injected from Presentation layer
+            // For now, use working directory (will be overridden by Presentation)
+            var projectPath = System.IO.Directory.GetCurrentDirectory();
+
+            return new Features.WorldGen.Infrastructure.Native.NativePlateSimulator(logger, projectPath);
+        });
     }
 
     /// <summary>

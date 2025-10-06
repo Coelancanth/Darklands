@@ -1,0 +1,23 @@
+[gd_scene load_steps=2 format=3 uid="uid://cjcq3mxl1mxvx"]
+
+[ext_resource type="Script" path="res://features/worldgen/WorldMapNode.cs" id="1_worldmap"]
+
+[node name="WorldMapTestScene" type="Node2D"]
+
+[node name="Camera2D" type="Camera2D" parent="."]
+zoom = Vector2(1, 1)
+
+[node name="WorldMapNode" type="Node2D" parent="."]
+script = ExtResource("1_worldmap")
+
+[node name="TileMapLayer" type="TileMapLayer" parent="WorldMapNode"]
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="Label" type="Label" parent="UI"]
+offset_right = 400.0
+offset_bottom = 100.0
+text = "WorldGen Test Scene
+WASD: Pan camera
+Mouse Wheel: Zoom
+Generating world..."
