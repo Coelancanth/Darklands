@@ -64,11 +64,20 @@ public class NativePlateSimulator : IPlateSimulator
                 _logger.LogDebug("Step 5: Simulating hydraulic erosion (rivers, lakes, valleys)");
                 return SimulateErosion(climateData, parameters);
             })
-            .Map(erosionData =>
+            .Tap(_ => _logger.LogDebug("Step 5 complete: Hydraulic erosion succeeded"))
+            .TapError(error => _logger.LogError("Step 5 FAILED: Hydraulic erosion error: {Error}", error))
+            .Bind(erosionData =>
             {
-                _logger.LogDebug("Step 6: Classifying biomes");
-                var result = ClassifyBiomes(erosionData);
-                _logger.LogDebug("Step 6 complete: Biome classification succeeded");
+                _logger.LogDebug("Step 6: Simulating hydrology (watermap, irrigation, humidity)");
+                return SimulateHydrology(erosionData, parameters);
+            })
+            .Tap(_ => _logger.LogDebug("Step 6 complete: Hydrology simulation succeeded"))
+            .TapError(error => _logger.LogError("Step 6 FAILED: Hydrology simulation error: {Error}", error))
+            .Map(hydrologyData =>
+            {
+                _logger.LogDebug("Step 7: Classifying biomes");
+                var result = ClassifyBiomes(hydrologyData);
+                _logger.LogDebug("Step 7 complete: Biome classification succeeded");
                 return result;
             });
     }
@@ -283,32 +292,90 @@ public class NativePlateSimulator : IPlateSimulator
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // PHASE 2.5: Biome Classification
+    // PHASE 2.5: Hydrology Simulation (Watermap, Irrigation, Humidity)
     // ═══════════════════════════════════════════════════════════════════════
 
-    private PlateSimulationResult ClassifyBiomes(ErosionData erosion)
+    private Result<HydrologyData> SimulateHydrology(ErosionData erosion, PlateSimulationParams p)
+    {
+        _logger.LogDebug("Simulating hydrology: watermap, irrigation, humidity");
+
+        try
+        {
+            // Step 1: Watermap simulation (20k droplet model)
+            var (watermap, watermapThresholds) = WatermapCalculator.Execute(
+                erosion.Heightmap,
+                erosion.OceanMask,
+                erosion.PrecipitationMap,
+                seed: p.Seed,
+                dropletCount: 20000);
+
+            _logger.LogDebug("Watermap simulation complete: creek={CreekThreshold:F4}, river={RiverThreshold:F4}, main_river={MainRiverThreshold:F4}",
+                watermapThresholds.Creek, watermapThresholds.River, watermapThresholds.MainRiver);
+
+            // Step 2: Irrigation simulation (moisture spreading from ocean)
+            var irrigation = IrrigationCalculator.Execute(watermap, erosion.OceanMask);
+
+            _logger.LogDebug("Irrigation simulation complete");
+
+            // Step 3: Humidity simulation (precip + irrigation weighted average)
+            var (humidity, quantiles) = HumidityCalculator.Execute(
+                erosion.PrecipitationMap,
+                irrigation,
+                erosion.OceanMask);
+
+            _logger.LogInformation("Hydrology simulation complete: watermap, irrigation, humidity");
+
+            return Result.Success(new HydrologyData(
+                erosion.Heightmap,
+                erosion.OceanMask,
+                erosion.PrecipitationMap,
+                erosion.TemperatureMap,
+                humidity,
+                quantiles,
+                watermap,
+                irrigation,
+                erosion.Rivers,
+                erosion.Lakes));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Hydrology simulation failed");
+            return Result.Failure<HydrologyData>("ERROR_WORLDGEN_HYDROLOGY_FAILED");
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // PHASE 2.6: Biome Classification
+    // ═══════════════════════════════════════════════════════════════════════
+
+    private PlateSimulationResult ClassifyBiomes(HydrologyData hydrology)
     {
         _logger.LogDebug("Classifying biomes using Holdridge life zones model");
 
-        // Classify biomes based on temperature, precipitation, and elevation
+        // Classify biomes based on temperature, HUMIDITY (not precipitation!), and elevation
         // NOTE: Uses eroded heightmap (valleys carved around rivers)
+        // NOTE: Uses humidity (precip + irrigation) instead of raw precipitation
         var biomes = BiomeClassifier.Classify(
-            erosion.Heightmap,
-            erosion.OceanMask,
-            erosion.PrecipitationMap,
-            erosion.TemperatureMap,
+            hydrology.Heightmap,
+            hydrology.OceanMask,
+            hydrology.HumidityMap,       // ✅ CORRECT: Uses humidity (precip + irrigation)
+            hydrology.Quantiles,          // ✅ NEW: Humidity quantiles for moisture classification
+            hydrology.TemperatureMap,
             seaLevel: 0.65f); // Use default sea level from params
 
-        _logger.LogInformation("Biome classification complete");
+        _logger.LogInformation("Biome classification complete (using humidity-based moisture)");
 
         return new PlateSimulationResult(
-            erosion.Heightmap,
-            erosion.OceanMask,
-            erosion.PrecipitationMap,
-            erosion.TemperatureMap,
+            hydrology.Heightmap,
+            hydrology.OceanMask,
+            hydrology.PrecipitationMap,
+            hydrology.TemperatureMap,
             biomes,
-            erosion.Rivers,
-            erosion.Lakes);
+            hydrology.Rivers,
+            hydrology.Lakes,
+            hydrology.HumidityMap,       // ✅ NEW: Include humidity in result
+            hydrology.WatermapData,      // ✅ NEW: Include watermap in result
+            hydrology.IrrigationMap);    // ✅ NEW: Include irrigation in result
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -328,6 +395,18 @@ public class NativePlateSimulator : IPlateSimulator
         bool[,] OceanMask,
         float[,] PrecipitationMap,
         float[,] TemperatureMap,
+        List<River> Rivers,
+        List<(int x, int y)> Lakes);
+
+    private record HydrologyData(
+        float[,] Heightmap,
+        bool[,] OceanMask,
+        float[,] PrecipitationMap,
+        float[,] TemperatureMap,
+        float[,] HumidityMap,          // Precip + irrigation (1:3 weight)
+        HumidityQuantiles Quantiles,   // Quantile thresholds for moisture classification
+        float[,] WatermapData,         // Flow accumulation from droplet simulation
+        float[,] IrrigationMap,        // Moisture spreading from ocean
         List<River> Rivers,
         List<(int x, int y)> Lakes);
 }

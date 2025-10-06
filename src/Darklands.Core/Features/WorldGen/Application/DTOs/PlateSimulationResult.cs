@@ -54,6 +54,28 @@ public record PlateSimulationResult
     public List<(int x, int y)> Lakes { get; init; }
 
     /// <summary>
+    /// Humidity map (0.0 = driest, 1.0 = wettest).
+    /// Combines precipitation (1× weight) + irrigation (3× weight).
+    /// Used for biome classification instead of raw precipitation.
+    /// Represents effective moisture available to plants.
+    /// </summary>
+    public float[,] HumidityMap { get; init; }
+
+    /// <summary>
+    /// Watermap showing flow accumulation from 20k droplet simulation.
+    /// Higher values indicate more water flowing through the cell.
+    /// Thresholds: creek (5%), river (2%), main river (0.7%).
+    /// </summary>
+    public float[,] WatermapData { get; init; }
+
+    /// <summary>
+    /// Irrigation map showing moisture availability from nearby water.
+    /// Spreads ocean influence via logarithmic kernel (21×21 radius).
+    /// Represents coastal moisture and proximity to water bodies.
+    /// </summary>
+    public float[,] IrrigationMap { get; init; }
+
+    /// <summary>
     /// Map width (all arrays have same dimensions)
     /// </summary>
     public int Width => Heightmap.GetLength(1);
@@ -70,7 +92,10 @@ public record PlateSimulationResult
         float[,] temperatureMap,
         BiomeType[,] biomeMap,
         List<River> rivers,
-        List<(int x, int y)> lakes)
+        List<(int x, int y)> lakes,
+        float[,] humidityMap,
+        float[,] watermapData,
+        float[,] irrigationMap)
     {
         Heightmap = heightmap;
         OceanMask = oceanMask;
@@ -79,5 +104,8 @@ public record PlateSimulationResult
         BiomeMap = biomeMap;
         Rivers = rivers;
         Lakes = lakes;
+        HumidityMap = humidityMap;
+        WatermapData = watermapData;
+        IrrigationMap = irrigationMap;
     }
 }

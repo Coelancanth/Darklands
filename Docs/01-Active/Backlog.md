@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-07 02:59 (Dev Engineer: TD_009 Phases 1-4 complete - All algorithms implemented!)
+**Last Updated**: 2025-10-07 03:08 (Dev Engineer: TD_009 complete - All 6 phases done! Biome classification now uses humidity)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -363,9 +363,9 @@
 ---
 
 ### TD_009: Complete WorldEngine Simulation Pipeline (Erosion, Rivers, Humidity)
-**Status**: Proposed
-**Owner**: Tech Lead → Dev Engineer
-**Size**: XL (15-18 hours) - 4 simulation algorithms + biome fix
+**Status**: Done ✅ (2025-10-07 03:08)
+**Owner**: Dev Engineer (completed)
+**Size**: XL (actual: ~13 hours, estimated: 15-18h - under budget!)
 **Priority**: Ideas
 **Markers**: [WORLDGEN] [CORE-LOGIC] [ALGORITHMS] [ARCHITECTURE]
 **Parent**: VS_019 (Phase 4)
@@ -425,15 +425,26 @@
 - **Returns**: `(float[,] humidity, HumidityQuantiles quantiles)`
 - **Tests**: All 439 GREEN ✅
 
-**Phase 5: Fix Biome Classification** (~1-2h)
-- **File**: `BiomeClassifier.cs` (modify existing)
-- **Change**: Update method signature to accept `humidityMap` + `humidityQuantiles` instead of `precipitationMap` + `precipPercentiles`
-- **Impact**: Biomes now consider proximity to water (irrigation effect with 3× weight)
+**Phase 5: Fix Biome Classification** (~1h) ✅ **COMPLETE** (2025-10-07 03:08)
+- **File**: `BiomeClassifier.cs` (modified)
+- **Changes Implemented**:
+  1. Updated `Classify()` signature: `humidityMap` + `HumidityQuantiles` replace `precipitationMap` + percentiles
+  2. Updated `ClassifyLandBiome()`: Now accepts humidity + quantiles instead of precip + percentiles
+  3. New `GetMoistureLevelFromHumidity()`: Uses pre-calculated quantiles from HumidityCalculator
+  4. **Deleted**: `CalculatePrecipitationPercentiles()` + `GetPercentile()` + `GetMoistureLevel()` (~200 lines removed)
+- **Impact**: Biomes now consider proximity to water (irrigation 3× weight) - river valleys are wetter!
+- **Tests**: All 439 GREEN ✅
 
-**Phase 6: Update Pipeline** (~1-2h)
-- **File**: `NativePlateSimulator.cs` (modify existing)
-- **Add Step**: `.Bind(climate => SimulateHydrology(climate, params))` between CalculateClimate() and ClassifyBiomes()
-- **Update DTO**: Expand `PlateSimulationResult` with rivers, lakes, watermap, irrigation, humidity fields
+**Phase 6: Update Pipeline** (~1h) ✅ **COMPLETE** (2025-10-07 03:08)
+- **File**: `NativePlateSimulator.cs` (modified)
+- **Changes Implemented**:
+  1. New `SimulateHydrology()` method: Orchestrates watermap → irrigation → humidity simulation
+  2. New `HydrologyData` record: Internal pipeline data structure with all hydrology layers
+  3. Updated `ClassifyBiomes()`: Now accepts `HydrologyData` instead of `ErosionData`
+  4. Pipeline updated: `.Bind(erosion => SimulateHydrology(erosion, params))` inserted between erosion and biomes
+  5. **PlateSimulationResult** expanded: Added `HumidityMap`, `WatermapData`, `IrrigationMap` properties + constructor parameters
+- **Tests**: All 439 GREEN ✅
+- **Result**: Complete 7-step pipeline (Library → Elevation → Climate → Erosion → Hydrology → Biomes)
 
 **Done When**:
 - ✅ `HydraulicErosionProcessor.cs` exists with 5 methods (flow, sources, tracing, erosion, cleanup)

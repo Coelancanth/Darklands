@@ -38,6 +38,13 @@ public partial class WorldMapNode : Node2D
     [Export] public int Seed { get; set; } = 42;
     [Export] public int WorldSize { get; set; } = 512;
 
+    /// <summary>
+    /// Use Ricklefs-style simplified biome categories (9 major biomes) instead of detailed Holdridge (41 biomes).
+    /// True = Simplified (default - easier to read strategic map)
+    /// False = Detailed (full 41-biome Holdridge classification)
+    /// </summary>
+    [Export] public bool UseSimplifiedBiomes { get; set; } = true;
+
     public override void _Ready()
     {
         base._Ready();
@@ -167,7 +174,12 @@ public partial class WorldMapNode : Node2D
             for (int x = 0; x < result.Value.Width; x++)
             {
                 var biome = result.Value.BiomeMap[y, x];
-                var color = GetBiomeColor(biome);
+
+                // Choose color scheme based on toggle
+                var color = UseSimplifiedBiomes
+                    ? GetRicklefsColor(biome.ToRicklefs())  // 9 major categories (readable)
+                    : GetHoldridgeColor(biome);              // 41 detailed biomes
+
                 image.SetPixel(x, y, color);
             }
         }
@@ -180,15 +192,38 @@ public partial class WorldMapNode : Node2D
 
         if (_uiLabel != null)
         {
-            _uiLabel.Text = $"WorldGen Test Scene\nWASD: Pan camera\nMiddle Mouse: Drag to pan\nMouse Wheel: Zoom (faster!)\n\nWorld: {result.Value.Width}x{result.Value.Height} (Seed: {Seed})";
+            var biomeMode = UseSimplifiedBiomes ? "Ricklefs (9 categories)" : "Holdridge (41 biomes)";
+            _uiLabel.Text = $"WorldGen Test Scene\nWASD: Pan camera\nMiddle Mouse: Drag to pan\nMouse Wheel: Zoom (faster!)\n\nWorld: {result.Value.Width}x{result.Value.Height} (Seed: {Seed})\nBiome View: {biomeMode}";
         }
     }
 
     /// <summary>
-    /// Maps biome types to colors using WorldEngine's proven color scheme.
-    /// Colors are from References/worldengine/docs/Biomes.html (hex codes converted to RGB).
+    /// Maps Ricklefs biome categories (9 types) to colors using field-tested ecology textbook palette.
+    /// Reference: Robert E. Ricklefs' "The Economy of Nature" color scheme.
+    /// Optimized for visual clarity at strategic map scale.
     /// </summary>
-    private static Color GetBiomeColor(BiomeType biome) => biome switch
+    private static Color GetRicklefsColor(BiomeCategory category) => category switch
+    {
+        BiomeCategory.Water => new Color(0.1f, 0.3f, 0.6f),                       // Ocean blue (custom)
+        BiomeCategory.Tundra => FromHex("C1E1DD"),                                // Pale cyan
+        BiomeCategory.BorealForest => FromHex("A5C790"),                          // Sage green
+        BiomeCategory.TemperateSeasonalForest => FromHex("97B669"),               // Olive green
+        BiomeCategory.TemperateRainForest => FromHex("75A95E"),                   // Forest green
+        BiomeCategory.TropicalRainForest => FromHex("317A22"),                    // Deep green
+        BiomeCategory.TropicalSeasonalForestSavanna => FromHex("A09700"),         // Olive yellow
+        BiomeCategory.SubtropicalDesert => FromHex("DCBB50"),                     // Sandy yellow
+        BiomeCategory.TemperateGrasslandDesert => FromHex("FCD57A"),              // Pale yellow
+        BiomeCategory.WoodlandShrubland => FromHex("D16E3F"),                     // Rust orange
+
+        _ => new Color(1f, 0f, 1f) // Magenta for unknown (debugging)
+    };
+
+    /// <summary>
+    /// Maps detailed Holdridge biome types (41 types) to colors using WorldEngine's proven color scheme.
+    /// Colors are from References/worldengine/docs/Biomes.html (hex codes converted to RGB).
+    /// Provides maximum ecological detail but harder to distinguish at strategic scale.
+    /// </summary>
+    private static Color GetHoldridgeColor(BiomeType biome) => biome switch
     {
         // Water biomes
         BiomeType.Ocean => new Color(0.1f, 0.2f, 0.5f),                          // Custom: Dark blue

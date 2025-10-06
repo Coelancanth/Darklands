@@ -37,17 +37,21 @@ public static class BiomeClassifier
 
     /// <summary>
     /// Classifies biomes using WorldEngine's proven Holdridge life zones algorithm.
+    /// Uses HUMIDITY (precipitation + irrigation) instead of raw precipitation for moisture classification.
+    /// This ensures biomes near rivers/lakes are wetter even if direct rainfall is low.
     /// </summary>
     /// <param name="heightmap">Elevation data</param>
     /// <param name="oceanMask">Ocean mask (water biomes)</param>
-    /// <param name="precipitationMap">Precipitation (0.0-1.0)</param>
+    /// <param name="humidityMap">Humidity (precip + irrigation, 0.0-1.0)</param>
+    /// <param name="quantiles">Humidity quantile thresholds for 8-level moisture classification</param>
     /// <param name="temperatureMap">Temperature (0.0-1.0)</param>
     /// <param name="seaLevel">Sea level threshold</param>
     /// <returns>Biome classification for each cell</returns>
     public static BiomeType[,] Classify(
         float[,] heightmap,
         bool[,] oceanMask,
-        float[,] precipitationMap,
+        float[,] humidityMap,
+        HumidityQuantiles quantiles,
         float[,] temperatureMap,
         float seaLevel)
     {
@@ -56,8 +60,8 @@ public static class BiomeClassifier
 
         var biomes = new BiomeType[height, width];
 
-        // Calculate precipitation percentiles for moisture classification
-        var precipPercentiles = CalculatePrecipitationPercentiles(precipitationMap, oceanMask);
+        // NOTE: No need to calculate percentiles here - they're already computed
+        // by HumidityCalculator and passed as 'quantiles' parameter
 
         for (int y = 0; y < height; y++)
         {
@@ -65,7 +69,7 @@ public static class BiomeClassifier
             {
                 float elevation = heightmap[y, x];
                 float temp = temperatureMap[y, x];
-                float precip = precipitationMap[y, x];
+                float humidity = humidityMap[y, x];
 
                 // Water biomes
                 if (oceanMask[y, x])
@@ -76,8 +80,8 @@ public static class BiomeClassifier
                     continue;
                 }
 
-                // Land biomes: temperature × moisture classification
-                biomes[y, x] = ClassifyLandBiome(temp, precip, precipPercentiles);
+                // Land biomes: temperature × humidity (moisture) classification
+                biomes[y, x] = ClassifyLandBiome(temp, humidity, quantiles);
             }
         }
 
@@ -85,16 +89,16 @@ public static class BiomeClassifier
     }
 
     /// <summary>
-    /// Classifies a land cell based on temperature and precipitation.
+    /// Classifies a land cell based on temperature and HUMIDITY (not precipitation!).
     /// Follows WorldEngine's exact biome classification logic.
     /// </summary>
-    private static BiomeType ClassifyLandBiome(float temp, float precip, float[] percentiles)
+    private static BiomeType ClassifyLandBiome(float temp, float humidity, HumidityQuantiles quantiles)
     {
         // Determine temperature band
         var tempBand = GetTemperatureBand(temp);
 
-        // Determine moisture level
-        var moistureLevel = GetMoistureLevel(precip, percentiles);
+        // Determine moisture level from humidity (precip + irrigation)
+        var moistureLevel = GetMoistureLevelFromHumidity(humidity, quantiles);
 
         // Map (temperature, moisture) → biome
         return (tempBand, moistureLevel) switch
@@ -171,78 +175,24 @@ public static class BiomeClassifier
     }
 
     /// <summary>
-    /// Determines moisture level using percentile-based thresholds.
-    /// This ensures balanced biome distribution across all generated worlds.
+    /// Determines moisture level from humidity using pre-calculated quantile thresholds.
+    /// Humidity = precipitation + irrigation (weighted 1:3), so this properly accounts
+    /// for both direct rainfall AND proximity to water bodies.
     /// </summary>
-    private static MoistureLevel GetMoistureLevel(float precip, float[] percentiles)
+    private static MoistureLevel GetMoistureLevelFromHumidity(float humidity, HumidityQuantiles quantiles)
     {
-        // percentiles array: [p87, p75, p62, p50, p37, p25, p12]
-        if (precip < percentiles[0]) return MoistureLevel.Superarid;     // Driest 13%
-        if (precip < percentiles[1]) return MoistureLevel.Perarid;       // 13-25%
-        if (precip < percentiles[2]) return MoistureLevel.Arid;          // 25-38%
-        if (precip < percentiles[3]) return MoistureLevel.Semiarid;      // 38-50%
-        if (precip < percentiles[4]) return MoistureLevel.Subhumid;      // 50-63%
-        if (precip < percentiles[5]) return MoistureLevel.Humid;         // 63-75%
-        if (precip < percentiles[6]) return MoistureLevel.Perhumid;      // 75-88%
-        return MoistureLevel.Superhumid;                                 // Wettest 12%
-    }
+        // HumidityQuantiles are ordered from highest (wettest) to lowest (driest)
+        // Quantile12 = top 94.1% (only 5.9% of land is wetter) = Superhumid threshold
+        // Quantile87 = top 0.2% (99.8% of land is wetter) = Superarid threshold
 
-    /// <summary>
-    /// Calculates precipitation percentiles for moisture classification.
-    /// Using percentiles ensures balanced biome distribution regardless of precipitation algorithm.
-    /// </summary>
-    private static float[] CalculatePrecipitationPercentiles(float[,] precipitationMap, bool[,] oceanMask)
-    {
-        int height = precipitationMap.GetLength(0);
-        int width = precipitationMap.GetLength(1);
-
-        // Collect land-only precipitation values
-        var landPrecip = new System.Collections.Generic.List<float>();
-        for (int y = 0; y < height; y++)
-        {
-            for (int x = 0; x < width; x++)
-            {
-                if (!oceanMask[y, x])
-                {
-                    landPrecip.Add(precipitationMap[y, x]);
-                }
-            }
-        }
-
-        // Sort for percentile calculation
-        var sorted = landPrecip.OrderBy(p => p).ToArray();
-
-        // Calculate percentiles: 87th, 75th, 62nd, 50th, 37th, 25th, 12th
-        // Note: Lower percentile = drier (e.g., 12th percentile = only 12% of land is drier)
-        return new float[]
-        {
-            GetPercentile(sorted, 13),  // 87th percentile (100 - 13)
-            GetPercentile(sorted, 25),  // 75th percentile
-            GetPercentile(sorted, 38),  // 62nd percentile
-            GetPercentile(sorted, 50),  // 50th percentile (median)
-            GetPercentile(sorted, 63),  // 37th percentile
-            GetPercentile(sorted, 75),  // 25th percentile
-            GetPercentile(sorted, 88)   // 12th percentile
-        };
-    }
-
-    /// <summary>
-    /// Gets the value at a given percentile from a sorted array.
-    /// </summary>
-    private static float GetPercentile(float[] sortedValues, int percentile)
-    {
-        if (sortedValues.Length == 0) return 0f;
-
-        float index = (percentile / 100f) * (sortedValues.Length - 1);
-        int lowerIndex = (int)Math.Floor(index);
-        int upperIndex = (int)Math.Ceiling(index);
-
-        if (lowerIndex == upperIndex)
-            return sortedValues[lowerIndex];
-
-        // Linear interpolation
-        float fraction = index - lowerIndex;
-        return sortedValues[lowerIndex] * (1 - fraction) + sortedValues[upperIndex] * fraction;
+        if (humidity >= quantiles.Quantile12) return MoistureLevel.Superhumid;  // Wettest 12%
+        if (humidity >= quantiles.Quantile25) return MoistureLevel.Perhumid;    // 12-25%
+        if (humidity >= quantiles.Quantile37) return MoistureLevel.Humid;       // 25-37%
+        if (humidity >= quantiles.Quantile50) return MoistureLevel.Subhumid;    // 37-50%
+        if (humidity >= quantiles.Quantile62) return MoistureLevel.Semiarid;    // 50-62%
+        if (humidity >= quantiles.Quantile75) return MoistureLevel.Arid;        // 62-75%
+        if (humidity >= quantiles.Quantile87) return MoistureLevel.Perarid;     // 75-87%
+        return MoistureLevel.Superarid;  // Driest 13%
     }
 
     // Temperature bands (from coldest to hottest)
