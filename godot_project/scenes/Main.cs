@@ -167,6 +167,31 @@ public partial class Main : Node
             GD.Print("   - IItemRepository → TileSetItemRepository (item_sprites.tres loaded)");
         }
 
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // 6. TEMPLATE SYSTEM (VS_021 Phase 2) - Data-driven entity templates
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        // Register ActorTemplate service (loads .tres files from data/entities/)
+        services.AddSingleton<Darklands.Core.Infrastructure.Templates.ITemplateService<Infrastructure.Templates.ActorTemplate>>(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<Infrastructure.Templates.GodotTemplateService<Infrastructure.Templates.ActorTemplate>>>();
+            var templateService = new Infrastructure.Templates.GodotTemplateService<Infrastructure.Templates.ActorTemplate>(
+                logger,
+                "res://data/entities/"
+            );
+
+            // Load templates at startup (fail-fast if any template invalid)
+            var loadResult = templateService.LoadTemplates();
+            if (loadResult.IsFailure)
+            {
+                GD.PrintErr($"❌ Failed to load actor templates: {loadResult.Error}");
+                throw new System.InvalidOperationException($"Template loading failed: {loadResult.Error}");
+            }
+
+            GD.Print($"   - ITemplateService<ActorTemplate> → GodotTemplateService ({templateService.GetAllTemplates().Count} templates loaded)");
+            return templateService;
+        });
+
         GD.Print("📦 Services registered:");
         GD.Print("   - Logging (Serilog → Console + File)");
         GD.Print("   - LoggingService (category filtering for DebugConsole)");
@@ -174,5 +199,6 @@ public partial class Main : Node
         GD.Print("   - IGodotEventBus → GodotEventBus");
         GD.Print("   - ITerrainRepository → TileSetTerrainRepository (auto-discovery from TileSet)");
         GD.Print("   - IItemRepository → TileSetItemRepository (auto-discovery from TileSet)");
+        GD.Print("   - ITemplateService<ActorTemplate> → GodotTemplateService (data-driven entities)");
     }
 }

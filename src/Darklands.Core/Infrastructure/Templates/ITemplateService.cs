@@ -1,5 +1,4 @@
 using CSharpFunctionalExtensions;
-using Godot;
 
 namespace Darklands.Core.Infrastructure.Templates;
 
@@ -36,7 +35,7 @@ namespace Darklands.Core.Infrastructure.Templates;
 /// <para><b>Testability</b>:</para>
 /// <para>Application layer can mock ITemplateService for unit tests (no Godot runtime needed).</para>
 /// </remarks>
-public interface ITemplateService<T> where T : Resource, IIdentifiableResource
+public interface ITemplateService<T> where T : IIdentifiableResource
 {
     /// <summary>
     /// Load all templates from resource directory.

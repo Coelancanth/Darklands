@@ -1,8 +1,11 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using CSharpFunctionalExtensions;
 using Godot;
 using Microsoft.Extensions.Logging;
 
-namespace Darklands.Core.Infrastructure.Templates;
+namespace Darklands.Infrastructure.Templates;
 
 /// <summary>
 /// Godot-based implementation of template loading service.
@@ -23,8 +26,8 @@ namespace Darklands.Core.Infrastructure.Templates;
 /// <para>Invalid template = startup failure (visible error), not runtime crash (silent corruption).
 /// This forces developers to fix data issues immediately.</para>
 /// </remarks>
-public sealed class GodotTemplateService<T> : ITemplateService<T>
-    where T : Resource, IIdentifiableResource
+public sealed class GodotTemplateService<T> : Darklands.Core.Infrastructure.Templates.ITemplateService<T>
+    where T : Resource, Darklands.Core.Infrastructure.Templates.IIdentifiableResource
 {
     private readonly Dictionary<string, T> _templates = new();
     private readonly ILogger<GodotTemplateService<T>> _logger;

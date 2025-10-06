@@ -1,6 +1,6 @@
 using Godot;
 
-namespace Darklands.Core.Infrastructure.Templates;
+namespace Darklands.Infrastructure.Templates;
 
 /// <summary>
 /// Actor entity template - designer-editable configuration for spawning actors.
@@ -26,7 +26,7 @@ namespace Darklands.Core.Infrastructure.Templates;
 /// - Entity = cookie (independent instance with copied data)</para>
 /// </remarks>
 [GlobalClass]
-public partial class ActorTemplate : Resource, IIdentifiableResource
+public partial class ActorTemplate : Resource, Darklands.Core.Infrastructure.Templates.IIdentifiableResource
 {
     // ========== IDENTITY ==========
 
