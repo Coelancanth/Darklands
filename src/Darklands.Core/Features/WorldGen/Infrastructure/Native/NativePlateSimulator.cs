@@ -3,6 +3,7 @@ using CSharpFunctionalExtensions;
 using Darklands.Core.Features.WorldGen.Application.Abstractions;
 using Darklands.Core.Features.WorldGen.Application.DTOs;
 using Darklands.Core.Features.WorldGen.Domain;
+using Darklands.Core.Features.WorldGen.Infrastructure.Algorithms;
 using Darklands.Core.Features.WorldGen.Infrastructure.Native.Interop;
 using Microsoft.Extensions.Logging;
 
@@ -118,26 +119,36 @@ public class NativePlateSimulator : IPlateSimulator
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // PHASE 2.2: Elevation Post-Processing (STUB - to be implemented)
+    // PHASE 2.2: Elevation Post-Processing
     // ═══════════════════════════════════════════════════════════════════════
 
     private Result<ElevationData> PostProcessElevation(float[,] rawHeightmap, PlateSimulationParams p)
     {
-        // TODO (Phase 2.2): Implement
-        // - CenterLand() - rotate to center largest landmass
-        // - AddNoise() - add Simplex noise for variation
-        // - PlaceOceansAtBorders() - lower border elevation
-        // - FillOcean() - flood fill to mark ocean cells
+        _logger.LogDebug("Post-processing elevation: borders, noise, ocean flood fill");
 
-        _logger.LogDebug("Post-processing elevation (STUB)");
+        try
+        {
+            // Make a copy to avoid modifying raw data
+            var heightmap = (float[,])rawHeightmap.Clone();
 
-        // STUB: Just return raw heightmap with fake ocean mask
-        var oceanMask = new bool[rawHeightmap.GetLength(0), rawHeightmap.GetLength(1)];
-        for (int y = 0; y < oceanMask.GetLength(0); y++)
-            for (int x = 0; x < oceanMask.GetLength(1); x++)
-                oceanMask[y, x] = rawHeightmap[y, x] < p.SeaLevel;
+            // 1. Lower elevation at map borders for realistic coastlines
+            ElevationPostProcessor.PlaceOceansAtBorders(heightmap, borderReduction: 0.8f);
 
-        return Result.Success(new ElevationData(rawHeightmap, oceanMask));
+            // 2. Add Perlin noise for terrain variation
+            ElevationPostProcessor.AddNoise(heightmap, p.Seed, scale: 0.05f, amplitude: 0.1f);
+
+            // 3. Flood fill from borders to mark ocean cells
+            var oceanMask = ElevationPostProcessor.FillOcean(heightmap, p.SeaLevel);
+
+            _logger.LogInformation("Elevation post-processing complete");
+
+            return Result.Success(new ElevationData(heightmap, oceanMask));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Elevation post-processing failed");
+            return Result.Failure<ElevationData>("ERROR_WORLDGEN_POSTPROCESSING_FAILED");
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════════
