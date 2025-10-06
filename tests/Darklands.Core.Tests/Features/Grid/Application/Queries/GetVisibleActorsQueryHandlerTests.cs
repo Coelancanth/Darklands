@@ -1,4 +1,5 @@
 using CSharpFunctionalExtensions;
+using Darklands.Core.Application;
 using Darklands.Core.Domain.Common;
 using Darklands.Core.Features.Grid.Application.Queries;
 using Darklands.Core.Features.Grid.Application.Services;
@@ -16,6 +17,7 @@ public class GetVisibleActorsQueryHandlerTests
 {
     private readonly IActorPositionService _mockPositionService;
     private readonly IMediator _mockMediator;
+    private readonly IPlayerContext _mockPlayerContext;
     private readonly ILogger<GetVisibleActorsQueryHandler> _mockLogger;
     private readonly GetVisibleActorsQueryHandler _handler;
 
@@ -23,8 +25,9 @@ public class GetVisibleActorsQueryHandlerTests
     {
         _mockPositionService = Substitute.For<IActorPositionService>();
         _mockMediator = Substitute.For<IMediator>();
+        _mockPlayerContext = Substitute.For<IPlayerContext>();
         _mockLogger = Substitute.For<ILogger<GetVisibleActorsQueryHandler>>();
-        _handler = new GetVisibleActorsQueryHandler(_mockPositionService, _mockMediator, _mockLogger);
+        _handler = new GetVisibleActorsQueryHandler(_mockPositionService, _mockMediator, _mockPlayerContext, _mockLogger);
     }
 
     #region Valid Visibility Tests

@@ -1,3 +1,4 @@
+using Darklands.Core.Application;
 using Darklands.Core.Domain.Common;
 using Darklands.Core.Features.Combat.Application.Commands;
 using Darklands.Core.Features.Combat.Domain;
@@ -23,6 +24,7 @@ public class RemoveActorFromQueueCommandHandlerTests
     {
         _repository = new FakeTurnQueueRepository(_playerId);
         _eventBus = new FakeEventBus();
+        var playerContext = new FakePlayerContext(_playerId);
         _removeHandler = new RemoveActorFromQueueCommandHandler(
             _repository,
             _eventBus,
@@ -30,6 +32,7 @@ public class RemoveActorFromQueueCommandHandlerTests
         _scheduleHandler = new ScheduleActorCommandHandler(
             _repository,
             _eventBus,
+            playerContext,
             NullLogger<ScheduleActorCommandHandler>.Instance);
     }
 
