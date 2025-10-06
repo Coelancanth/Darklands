@@ -37,4 +37,12 @@ public interface IActorPositionService
     /// </summary>
     /// <returns>Success with list of all actor IDs (empty list if no actors registered)</returns>
     Result<List<ActorId>> GetAllActors();
+
+    /// <summary>
+    /// Removes an actor from the position registry.
+    /// Used for cleanup (actor death, despawn, etc.).
+    /// </summary>
+    /// <param name="actorId">Actor to remove</param>
+    /// <returns>Success if removed, Failure if actor not found</returns>
+    Result RemoveActor(ActorId actorId);
 }

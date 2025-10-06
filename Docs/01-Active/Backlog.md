@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 008
-- **Next TD**: 006 (TD_005 complete, counter unchanged)
+- **Next TD**: 006
 - **Next VS**: 019
 
 
@@ -86,102 +86,12 @@
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*
 
+**No important items!** ✅ VS_020 completed and archived.
 
-### VS_020: Basic Combat System (Attacks & Damage)
-**Status**: Approved | **Owner**: Tech Lead → Dev Engineer | **Size**: M (1-2 days) | **Priority**: Important
-**Markers**: [PHASE-1-CRITICAL] [BLOCKING]
+---
 
-**What**: Attack commands (melee + ranged), damage application, range validation, manual dummy enemy combat testing
-
-**Why**:
-- **BLOCKS Phase 1 validation** - cannot prove "time-unit combat is fun" without attacks
-- Completes core combat loop: Movement → FOV → Turn Queue → **Attacks** → Health/Death
-- Foundation for Enemy AI (VS_011)
-
-**How**:
-- **Phase 0 (Foundation - Component Pattern + ADR-006 Integration)** (2-3 hours):
-  - **Step 1: Component Infrastructure** (30 min)
-    - Create `IComponent` base interface (Domain/Components/)
-    - Create `Actor` entity as component container (Dictionary<Type, IComponent>)
-    - Implement `AddComponent<T>()`, `GetComponent<T>()`, `HasComponent<T>()` methods
-  - **Step 2: Health Component** (30 min)
-    - Create `IHealthComponent` interface (TakeDamage, Heal, CurrentHealth, IsAlive)
-    - Create `HealthComponent` implementation (wraps Health value object)
-    - Unit tests: component isolation, damage reduction, death detection
-  - **Step 3: Weapon Component** (30 min)
-    - Create `IWeaponComponent` interface (Weapon property, CanAttack validation)
-    - Create `WeaponComponent` implementation (wraps Weapon value object)
-    - Unit tests: weapon validation, range checks
-  - **Step 4: Repository + Factory** (45 min)
-    - Create `IActorRepository` interface (GetActor, AddActor, RemoveActor)
-    - Create `InMemoryActorRepository` implementation
-    - Create `ActorFactory.CreateFromTemplate()` - conditionally adds components based on template
-    - Register in DI container (GameStrapper)
-  - **Step 5: Logging Integration** (15 min)
-    - Update `ActorIdLoggingExtensions.ToLogString()` to use `IActorRepository.GetActor().NameKey`
-    - Inject `IActorRepository` into 6 handlers (MoveActor, GetVisibleActors, etc.)
-    - Result: Logs show `"8c2de643 [type: Enemy, name: ACTOR_GOBLIN]"`
-  - **Deliverable**: Reusable component system - write HealthComponent ONCE, use for player/enemies/bosses/NPCs
-- **Phase 1 (Domain)**: `Weapon` value object (damage, time cost, range, weapon type enum)
-- **Phase 2 (Application)**: `ExecuteAttackCommand` (attacker, target, weapon), range validation (melee=adjacent, ranged=FOV line-of-sight), integrates with existing `TakeDamageCommand` from VS_001
-- **Phase 3 (Infrastructure)**: Attack validation service (checks adjacency for melee, FOV visibility for ranged)
-- **Phase 4 (Presentation)**: Attack button UI (enabled when valid target in range), manual dummy control (WASD for enemy, Arrow keys for player)
-
-**Scope**:
-- ✅ Melee attacks (adjacent tiles only, 8-directional)
-- ✅ Ranged attacks (FOV line-of-sight validation, max range)
-- ✅ Weapon time costs (integrate with TurnQueue from VS_007)
-- ✅ Death handling (actor reaches 0 health → removed from queue)
-- ❌ Enemy AI (dummy is manually controlled for testing)
-- ❌ Multiple weapon types (just "sword" and "bow" for testing)
-- ❌ Attack animations (instant damage for now)
-
-**Done When**:
-- Player can attack dummy enemy (melee when adjacent, ranged when visible)
-- Dummy can attack player (manual WASD control)
-- Health reduces on hit, actor dies at 0 HP
-- Combat feels tactical (positioning matters for range/line-of-sight)
-- Time costs advance turn queue correctly
-- Can complete full combat: engage → attack → victory/defeat
-
-**Dependencies**:
-- VS_007 (Turn Queue) - ✅ complete
-- VS_021 (i18n + Templates) - ✅ complete (2025-10-06)
-- Logging Enhancement - ✅ complete (2025-10-06 15:38) - foundation for actor name display
-
-**Tech Lead Decision - Phase 0 Architecture** (2025-10-06 16:17):
-
-**Component Pattern (Chosen) vs Simple Entity**:
-- **Decision**: Use component pattern (Actor as component container) instead of simple entity (Actor with properties)
-- **Why Components**:
-  - ✅ **Massive reusability** - Write `HealthComponent` ONCE, use for player/enemies/bosses/NPCs/merchants (5+ actor types)
-  - ✅ **Scales to 50+ actor types** - Roguelikes need many enemies/NPCs, components prevent code duplication
-  - ✅ **Flexible composition** - Player has Equipment, enemies don't; Boss has Phases, others don't (mix and match)
-  - ✅ **Template integration** - Designer configures components in `.tres` files (HasHealth, HasEquipment flags)
-  - ✅ **Matches ADR-002** - Architecture explicitly designed for component pattern (line 62-138)
-  - ✅ **Easy to extend** - Add StatusEffectComponent later → ALL actors get buffs/debuffs automatically
-- **Why NOT simple entity**: Leads to logic duplication when 5+ actor types need same features (copy-paste Health logic)
-- **Trade-off**: +1 hour upfront (components vs properties), but saves 3+ hours after 5th actor type (reuse pays off)
-
-**ADR-006 Compliance**:
-- Templates (Infrastructure) → ActorFactory reads template → Creates Actor with components (Domain)
-- Actor entity has NO reference to template (data copied during spawn)
-- Components are pure C# (zero Godot dependency)
-
-**Architecture Layers**:
-- `IComponent` base interface → Domain/Components/
-- `IHealthComponent`, `IWeaponComponent` → Domain/Components/
-- `Actor` entity (component container) → Domain/Entities/
-- `IActorRepository` interface → Application/Repositories/
-- `InMemoryActorRepository` → Infrastructure/Repositories/
-- `ActorFactory` (template → entity + components) → Application/Factories/
-
-**Two-System Tracking**:
-- `IActorRepository` (WHO: name, health, weapon components)
-- `IActorPositionService` (WHERE: grid coordinates)
-- Both use ActorId as linking key
-
-**Next Step**: After combat feels fun → VS_011 (Enemy AI uses these attack commands)
+*Recently completed and archived (2025-10-06):*
+- **VS_020**: Basic Combat System (Attacks & Damage) - All 4 phases complete! Click-to-attack combat UI, component pattern (Actor + HealthComponent + WeaponComponent), ExecuteAttackCommand with range validation (melee adjacent, ranged line-of-sight), damage application, death handling bug fix. All 428 tests GREEN. Ready for VS_011 (Enemy AI). ✅ (2025-10-06 19:03) *See: [Completed_Backlog_2025-10_Part2.md](../07-Archive/Completed_Backlog_2025-10_Part2.md) for full archive*
 
 ---
 
@@ -193,11 +103,7 @@
 ## 💡 Ideas (Future Work)
 *Future features, nice-to-haves, deferred work*
 
-**No items in Ideas section!** ✅
 
-*Future work is tracked in [Roadmap.md](../02-Design/Game/Roadmap.md) with dependency chains and sequencing.*
-
----
 
 ## 📋 Quick Reference
 

@@ -1,4 +1,5 @@
 using CSharpFunctionalExtensions;
+using Darklands.Core.Application.Repositories;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Darklands.Core.Application.Infrastructure;
@@ -110,6 +111,10 @@ public static class GameStrapper
         // Combat System (VS_007 Phase 3) - Turn queue repository
         services.AddSingleton<Features.Combat.Application.ITurnQueueRepository,
             Features.Combat.Infrastructure.InMemoryTurnQueueRepository>();
+
+        // Actor System (VS_020 Phase 0) - Actor repository
+        services.AddSingleton<IActorRepository,
+            Darklands.Core.Infrastructure.Repositories.InMemoryActorRepository>();
 
         // Template System (VS_021 Phase 2) - Data-driven entity templates
         // NOTE: Actual template loading registered in Presentation layer (Main.cs)
