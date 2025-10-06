@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-06 14:08 (Tech Lead: Expanded VS_021 to combine ADR-005 + ADR-006 implementation - i18n + data-driven templates together prevents double refactoring, upgraded to Critical priority, L (2-3 days) estimate, blocks VS_020)
+**Last Updated**: 2025-10-06 15:15 (Dev Engineer: VS_021 complete - i18n + template infrastructure delivered, all 5 phases implemented, 415 tests GREEN, pre-push validation active, VS_020 unblocked)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -68,9 +68,12 @@
 ## 🔥 Critical (Do First)
 *Blockers preventing other work, production bugs, dependencies for other features*
 
-### VS_021: i18n + Data-Driven Entity Infrastructure (ADR-005 + ADR-006)
-**Status**: Approved | **Owner**: Tech Lead → Dev Engineer | **Size**: L (2-3 days) | **Priority**: Critical
-**Markers**: [ARCHITECTURE] [FOUNDATION] [BLOCKS-VS_020]
+**No critical items!** ✅ VS_021 completed, VS_020 unblocked.
+
+---
+
+*Recently completed and archived (2025-10-06):*
+- **VS_021**: i18n + Data-Driven Entity Infrastructure (ADR-005 + ADR-006) - 5 phases complete! Translation system (18 keys in en.csv), ActorTemplate system with GodotTemplateService, player.tres template, pre-push validation script, architecture fix (templates → Presentation layer). All 415 tests GREEN. ✅ (2025-10-06 15:15)
 
 **What**: Combined implementation of internationalization (i18n) and data-driven entity templates using Godot Resources
 
@@ -198,7 +201,7 @@
 
 **Dependencies**:
 - VS_007 (Turn Queue) - ✅ complete
-- VS_021 (i18n + Templates) - ⏳ required for clean entity creation
+- VS_021 (i18n + Templates) - ✅ complete (2025-10-06)
 
 **Next Step**: After combat feels fun → VS_011 (Enemy AI uses these attack commands)
 
