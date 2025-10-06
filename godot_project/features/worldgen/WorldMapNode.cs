@@ -10,7 +10,8 @@ using Microsoft.Extensions.Logging;
 namespace Darklands.Features.WorldGen;
 
 /// <summary>
-/// Renders generated world map using custom drawing.
+/// Renders generated world map as an Image/Texture2D (base terrain layer).
+/// Uses Sprite2D for GPU-accelerated rendering of biome color data.
 /// Handles world generation via GenerateWorldCommand and camera controls.
 /// </summary>
 public partial class WorldMapNode : Node2D
@@ -19,9 +20,7 @@ public partial class WorldMapNode : Node2D
     private ILogger<WorldMapNode>? _logger;
     private Camera2D? _camera;
     private Label? _uiLabel;
-
-    // Store world data for rendering
-    private Darklands.Core.Features.WorldGen.Application.DTOs.PlateSimulationResult? _worldData;
+    private Sprite2D? _terrainSprite;
 
     // Camera control settings
     private const float PanSpeed = 500f;
@@ -42,6 +41,14 @@ public partial class WorldMapNode : Node2D
 
         _camera = GetParent().GetNode<Camera2D>("Camera2D");
         _uiLabel = GetNode<Label>("../UI/Label");
+
+        // Create terrain sprite as child
+        _terrainSprite = new Sprite2D
+        {
+            Name = "TerrainSprite",
+            Centered = false // Position at (0, 0) for easier camera alignment
+        };
+        AddChild(_terrainSprite);
 
         _logger.LogInformation("WorldMapNode ready, generating world with seed {Seed}", Seed);
 
@@ -91,32 +98,9 @@ public partial class WorldMapNode : Node2D
         }
     }
 
-    public override void _Draw()
-    {
-        base._Draw();
-
-        if (_worldData == null)
-            return;
-
-        const int tileSize = 8; // 8x8 pixel tiles
-
-        // Draw each cell as a colored rectangle
-        for (int y = 0; y < _worldData.Height; y++)
-        {
-            for (int x = 0; x < _worldData.Width; x++)
-            {
-                var biome = _worldData.BiomeMap[y, x];
-                var color = GetBiomeColor(biome);
-
-                var rect = new Rect2(x * tileSize, y * tileSize, tileSize, tileSize);
-                DrawRect(rect, color);
-            }
-        }
-    }
-
     private async Task GenerateAndRenderWorldAsync()
     {
-        if (_mediator == null || _logger == null)
+        if (_mediator == null || _logger == null || _terrainSprite == null)
         {
             _logger?.LogError("Required dependencies not initialized");
             return;
@@ -137,14 +121,27 @@ public partial class WorldMapNode : Node2D
             return;
         }
 
-        _logger.LogInformation("World generation complete, storing world data {Width}x{Height}",
+        _logger.LogInformation("World generation complete, creating terrain texture {Width}x{Height}",
             result.Value.Width, result.Value.Height);
 
-        // Store world data and trigger redraw
-        _worldData = result.Value;
-        QueueRedraw(); // Force _Draw() to be called
+        // Create Image from biome data
+        var image = Image.CreateEmpty(result.Value.Width, result.Value.Height, false, Image.Format.Rgb8);
 
-        _logger.LogInformation("World rendering queued");
+        for (int y = 0; y < result.Value.Height; y++)
+        {
+            for (int x = 0; x < result.Value.Width; x++)
+            {
+                var biome = result.Value.BiomeMap[y, x];
+                var color = GetBiomeColor(biome);
+                image.SetPixel(x, y, color);
+            }
+        }
+
+        // Convert Image to Texture2D and assign to sprite
+        var texture = ImageTexture.CreateFromImage(image);
+        _terrainSprite.Texture = texture;
+
+        _logger.LogInformation("Terrain texture created and assigned to sprite");
 
         if (_uiLabel != null)
         {
