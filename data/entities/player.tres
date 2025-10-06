@@ -1,7 +1,9 @@
-[gd_resource type="Resource" script_class="ActorTemplate" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="ActorTemplate" load_steps=3 format=3 uid="uid://bql7x1abwro17"]
 
-[ext_resource type="Script" path="res://Infrastructure/Templates/ActorTemplate.cs" id="1"]
-[ext_resource type="Texture2D" path="res://icon.svg" id="2"]
+[ext_resource type="Script" uid="uid://bt86amlo0al3x" path="res://Infrastructure/Templates/ActorTemplate.cs" id="1"]
+
+[sub_resource type="Resource" id="Resource_qu1ep"]
+metadata/__load_path__ = "res://icon.svg"
 
 [resource]
 script = ExtResource("1")
@@ -9,8 +11,12 @@ Id = "player"
 NameKey = "ACTOR_PLAYER"
 DescriptionKey = "DESC_ACTOR_PLAYER"
 MaxHealth = 100.0
-Damage = 15.0
 MoveSpeed = 5.0
-Sprite = ExtResource("2")
+WeaponNameKey = ""
+WeaponDamage = 10.0
+WeaponTimeCost = 100
+WeaponRange = 1
+WeaponType = 0
+Sprite = SubResource("Resource_qu1ep")
 Tint = Color(1, 1, 1, 1)
 BehaviorTree = ""

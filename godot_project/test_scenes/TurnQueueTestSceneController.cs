@@ -5,12 +5,16 @@ using System.Threading;
 using System.Threading.Tasks;
 using CSharpFunctionalExtensions;
 using Darklands.Core.Application;
+using Darklands.Core.Application.Repositories;
 using Darklands.Core.Domain.Common;
+using Darklands.Core.Domain.Components;
+using Darklands.Core.Domain.Entities;
 using Darklands.Core.Features.Combat.Application;
+using Darklands.Core.Features.Combat.Application.Commands;
 using Darklands.Core.Features.Combat.Application.Queries;
 using Darklands.Core.Features.Grid.Application.Commands;
 using Darklands.Core.Features.Grid.Application.Queries;
-
+using Darklands.Core.Features.Grid.Application.Services;
 using Darklands.Core.Features.Grid.Domain.Events;
 using Darklands.Core.Features.Movement.Application.Commands;
 using Darklands.Core.Features.Movement.Application.Queries;
@@ -42,6 +46,8 @@ public partial class TurnQueueTestSceneController : Node2D
     private IMediator _mediator = null!;
     private IGodotEventBus _eventBus = null!;
     private IPathfindingService _pathfindingService = null!;
+    private IActorRepository _actorRepository = null!;
+    private IActorPositionService _actorPositionService = null!;
     private ILogger<TurnQueueTestSceneController> _logger = null!;
 
     private ActorId _playerId;
@@ -89,6 +95,8 @@ public partial class TurnQueueTestSceneController : Node2D
         _mediator = ServiceLocator.Get<IMediator>();
         _eventBus = ServiceLocator.Get<IGodotEventBus>();
         _pathfindingService = ServiceLocator.Get<IPathfindingService>(); // VS_006 Phase 4
+        _actorRepository = ServiceLocator.Get<IActorRepository>(); // VS_020 Phase 4
+        _actorPositionService = ServiceLocator.Get<IActorPositionService>(); // VS_020 Phase 4
         _logger = ServiceLocator.Get<ILogger<TurnQueueTestSceneController>>(); // ADR-001: Use ILogger<T>, not GD.Print
 
         // Create grid visualization
@@ -220,6 +228,17 @@ public partial class TurnQueueTestSceneController : Node2D
         await _mediator.Send(new RegisterActorCommand(_goblinId, goblinStartPos));
         await _mediator.Send(new RegisterActorCommand(_orcId, orcStartPos));
 
+        // VS_020 Phase 4: Create actors with health and weapons
+        var player = CreateActorWithWeapon(_playerId, "ACTOR_PLAYER", maxHealth: 100, damage: 20, timeCost: 100, range: 1, WeaponType.Melee);
+        var goblin = CreateActorWithWeapon(_goblinId, "ACTOR_GOBLIN", maxHealth: 30, damage: 8, timeCost: 100, range: 1, WeaponType.Melee);
+        var orc = CreateActorWithWeapon(_orcId, "ACTOR_ORC", maxHealth: 50, damage: 12, timeCost: 100, range: 8, WeaponType.Ranged);
+
+        await _actorRepository.AddActorAsync(player);
+        await _actorRepository.AddActorAsync(goblin);
+        await _actorRepository.AddActorAsync(orc);
+
+        _logger.LogInformation("VS_020: Created actors with health and weapons - Player(100HP/melee), Goblin(30HP/melee), Orc(50HP/ranged)");
+
         // DON'T render terrain - it will be revealed through FOV exploration
         // Terrain stays pure black until explored
 
@@ -231,14 +250,20 @@ public partial class TurnQueueTestSceneController : Node2D
         // Calculate initial FOV for player (this will reveal starting area)
         await _mediator.Send(new MoveActorCommand(_playerId, playerStartPos));
 
-        _logger.LogInformation("=== VS_007 Turn Queue Test Scene ===");
+        _logger.LogInformation("=== VS_020 Combat Test Scene ===");
         _logger.LogInformation("Controls:");
-        _logger.LogInformation("  Left Click: Move player (auto-path)");
+        _logger.LogInformation("  Left Click Floor: Move player (auto-path)");
+        _logger.LogInformation("  Left Click Enemy: Attack (melee/ranged based on weapon)");
         _logger.LogInformation("  Right Click: Cancel movement");
         _logger.LogInformation("Test Scenario:");
-        _logger.LogInformation("  - Goblin at (15,15) - out of initial FOV");
-        _logger.LogInformation("  - Orc at (20,20) - tests reinforcements");
-        _logger.LogInformation("  - Click toward Goblin → movement should stop when enemy appears in FOV");
+        _logger.LogInformation("  - Player (100 HP, melee sword, 20 damage)");
+        _logger.LogInformation("  - Goblin (30 HP, melee, 8 damage) at (15,15)");
+        _logger.LogInformation("  - Orc (50 HP, ranged bow, 12 damage) at (20,20)");
+        _logger.LogInformation("Combat Flow:");
+        _logger.LogInformation("  1. Move toward enemy (FOV reveals them)");
+        _logger.LogInformation("  2. Get adjacent to Goblin (melee range)");
+        _logger.LogInformation("  3. Click Goblin to attack (2 hits to kill: 30 HP / 20 damage)");
+        _logger.LogInformation("  4. Orc attacks from range (line-of-sight required)");
         _logger.LogInformation("Cell size: {CellSize}x{CellSize} pixels, Grid: {GridSize}x{GridSize} cells", CellSize, CellSize, GridSize, GridSize);
     }
 
@@ -605,11 +630,38 @@ public partial class TurnQueueTestSceneController : Node2D
     /// <summary>
     /// Click-to-move: Pathfind to target and execute movement.
     /// VS_007 Phase 4: Routes to single-step or auto-path based on combat mode.
+    /// VS_020 Phase 4: Click-to-attack if clicking on visible enemy.
     /// </summary>
     private async void ClickToMove(ActorId actorId, Position target)
     {
         // Cancel any active movement first AND wait for it to complete
         await CancelMovementAsync();
+
+        // VS_020 Phase 4: Check if clicked on an enemy → Attack instead of move
+        var enemyAtTarget = await GetEnemyAtPosition(target);
+        if (enemyAtTarget.HasValue)
+        {
+            _logger.LogInformation("⚔️ Attacking enemy at ({X}, {Y})", target.X, target.Y);
+
+            var attackResult = await _mediator.Send(new ExecuteAttackCommand(actorId, enemyAtTarget.Value));
+            if (attackResult.IsSuccess)
+            {
+                var result = attackResult.Value;
+                _logger.LogInformation("💥 Attack hit! Dealt {Damage} damage. Target HP: {RemainingHP}",
+                    result.DamageDealt, result.TargetRemainingHealth);
+
+                if (result.TargetDied)
+                {
+                    _logger.LogInformation("☠️ Enemy defeated!");
+                    // Visual feedback: enemy cell will turn transparent when removed from position
+                }
+            }
+            else
+            {
+                _logger.LogError("Attack failed: {Error}", attackResult.Error);
+            }
+            return; // Don't move, we attacked
+        }
 
         // Get current position
         var currentPosResult = await _mediator.Send(new GetActorPositionQuery(actorId));
@@ -878,5 +930,54 @@ public partial class TurnQueueTestSceneController : Node2D
             node.QueueFree();
         }
         _pathOverlayNodes.Clear();
+    }
+
+    // ===== VS_020 Phase 4: Combat System Integration =====
+
+    /// <summary>
+    /// Creates an actor with health and weapon components (for testing VS_020 combat).
+    /// </summary>
+    private Actor CreateActorWithWeapon(
+        ActorId id,
+        string nameKey,
+        float maxHealth,
+        float damage,
+        int timeCost,
+        int range,
+        WeaponType type)
+    {
+        var actor = new Actor(id, nameKey);
+
+        // Add health component
+        var health = Darklands.Core.Domain.Common.Health.Create(maxHealth, maxHealth).Value;
+        actor.AddComponent<IHealthComponent>(new HealthComponent(health));
+
+        // Add weapon component
+        var weapon = Weapon.Create($"WEAPON_{nameKey}", damage, timeCost, range, type).Value;
+        actor.AddComponent<IWeaponComponent>(new WeaponComponent(weapon));
+
+        return actor;
+    }
+
+    /// <summary>
+    /// Checks if clicked position has an enemy actor (for attack targeting).
+    /// </summary>
+    private async Task<ActorId?> GetEnemyAtPosition(Position pos)
+    {
+        // Check if goblin is at this position
+        var goblinPosResult = await _mediator.Send(new GetActorPositionQuery(_goblinId));
+        if (goblinPosResult.IsSuccess && goblinPosResult.Value.Equals(pos))
+        {
+            return _goblinId;
+        }
+
+        // Check if orc is at this position
+        var orcPosResult = await _mediator.Send(new GetActorPositionQuery(_orcId));
+        if (orcPosResult.IsSuccess && orcPosResult.Value.Equals(pos))
+        {
+            return _orcId;
+        }
+
+        return null; // No enemy at position
     }
 }

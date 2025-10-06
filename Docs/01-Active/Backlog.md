@@ -88,12 +88,12 @@
 
 
 ### VS_020: Basic Combat System (Attacks & Damage)
-**Status**: In Progress (Phase 3/5 complete) | **Owner**: Dev Engineer | **Size**: M (1-2 days) | **Priority**: Important
+**Status**: Ready for Testing (Phase 4 complete) | **Owner**: Dev Engineer | **Size**: M (1-2 days) | **Priority**: Important
 **Markers**: [PHASE-1-CRITICAL] [BLOCKING]
 
 **What**: Attack commands (melee + ranged), damage application, range validation, manual dummy enemy combat testing
 
-**Progress** (2025-10-06 19:00):
+**Progress** (2025-10-06 19:15):
 - ✅ **Phase 0 Complete** - Component Pattern Infrastructure (commit 7f299d7)
   - Created component system: IComponent, Actor (container), IHealthComponent, IWeaponComponent
   - Weapon value object: damage, time cost, range, type (Melee/Ranged)
@@ -114,13 +114,48 @@
   - Death handling: Remove defeated actors from queue
   - 10 new tests covering happy path, validation, edge cases
   - All 425 tests GREEN ✅ (415 existing + 10 new)
-- ✅ **Phase 3 Complete** - Line-of-Sight Validation (commit pending)
+- ✅ **Phase 3 Complete** - Line-of-Sight Validation (commit a811e41)
   - Integrated IFOVService + GridMap into ExecuteAttackCommandHandler
   - Ranged attacks now validate line-of-sight (FOV visibility check)
   - Walls/obstacles block ranged attacks (tactical positioning matters)
   - Melee attacks bypass FOV check (can attack around corners, in darkness)
   - 3 new tests: LOS blocked, LOS clear, melee independence
   - All 428 tests GREEN ✅ (425 existing + 3 new)
+- ✅ **Phase 4 Complete** - Presentation Layer (commit pending)
+  - Click-to-attack: Click enemy to attack (replaces click-to-move when targeting enemy)
+  - Test scene updated: TurnQueueTestScene.tscn now combat-ready
+  - Actors created with health + weapons: Player (100HP/melee), Goblin (30HP/melee), Orc (50HP/ranged)
+  - Visual feedback: Damage/death logged to console with emojis (⚔️💥☠️)
+  - Death removes enemy from grid (visual disappearance)
+  - No button UI needed - intuitive click-to-attack
+
+**Testing Instructions** (godot_project/test_scenes/TurnQueueTestScene.tscn):
+1. **Open Scene**: Load TurnQueueTestScene.tscn in Godot Editor → Press F5 to run
+2. **Movement**: Left-click floor tiles to move player (blue square) toward enemies
+3. **FOV Reveals Enemies**:
+   - Goblin (red) at (15,15) appears when you get close (FOV range ~10 tiles)
+   - Orc (orange) at (20,20) appears at longer range
+4. **Melee Combat** (Player vs Goblin):
+   - Move adjacent to Goblin (distance = 1 tile, 8-directional)
+   - Left-click Goblin to attack (melee sword, 20 damage)
+   - Check console for: `⚔️ Attacking enemy` → `💥 Attack hit! Dealt 20 damage. Target HP: 10`
+   - Click Goblin again (2nd hit kills: 10 HP remaining → 0 HP)
+   - Check console for: `☠️ Enemy defeated!`
+   - Goblin disappears from grid (removed from ActorPositionService)
+5. **Ranged Combat** (Orc):
+   - Orc has ranged weapon (bow, range 8 tiles)
+   - Stand 5-8 tiles away from Orc (within range, line-of-sight clear)
+   - Orc should be visible in FOV
+   - Try attacking (currently player has melee, will fail with "out of range")
+6. **Range Validation**:
+   - Try attacking Goblin from 2+ tiles away → Error: "Target out of melee range"
+   - Stand behind wall, try attacking through wall → Error: "Target not visible (line-of-sight blocked)"
+7. **Expected Results**:
+   - ✅ Player can attack adjacent enemies (melee works)
+   - ✅ Damage reduces enemy HP (logged to console)
+   - ✅ 2 hits kill Goblin (30 HP / 20 damage = 2 attacks)
+   - ✅ Dead enemies disappear from grid
+   - ✅ Attacks blocked by range/LOS show error messages
 
 **Why**:
 - **BLOCKS Phase 1 validation** - cannot prove "time-unit combat is fun" without attacks
