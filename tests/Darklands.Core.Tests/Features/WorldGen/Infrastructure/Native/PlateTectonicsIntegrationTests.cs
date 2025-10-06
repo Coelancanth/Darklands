@@ -1,8 +1,10 @@
 using System;
 using System.IO;
+using Darklands.Core.Features.WorldGen.Application.DTOs;
 using Darklands.Core.Features.WorldGen.Infrastructure.Native;
 using Darklands.Core.Features.WorldGen.Infrastructure.Native.Interop;
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -194,5 +196,67 @@ public class PlateTectonicsIntegrationTests
         var testAssemblyPath = AppContext.BaseDirectory;
         var projectRoot = Path.GetFullPath(Path.Combine(testAssemblyPath, "..", "..", "..", "..", ".."));
         return projectRoot;
+    }
+
+    [Fact]
+    public void Generate_WhenCalledWithValidParams_ShouldReturnCompleteWorldData()
+    {
+        // ARCHITECTURE: Integration test for NativePlateSimulator (wrapper layer).
+        // Validates full pipeline: native simulation -> marshaling -> post-processing (stubs in Phase 2.1).
+
+        // ARRANGE
+        ValidateLibraryOrSkip();
+
+        var projectPath = GetProjectRoot();
+        var logger = NullLogger<NativePlateSimulator>.Instance;
+        var simulator = new NativePlateSimulator(logger, projectPath);
+
+        var parameters = new PlateSimulationParams(
+            seed: 42,
+            worldSize: 128, // Small for fast test
+            plateCount: 5,
+            cycleCount: 1); // Single cycle for speed
+
+        // ACT
+        var result = simulator.Generate(parameters);
+
+        // ASSERT
+        result.IsSuccess.Should().BeTrue("Native simulation and marshaling should succeed");
+
+        var worldData = result.Value;
+
+        // Validate dimensions
+        worldData.Width.Should().Be(128);
+        worldData.Height.Should().Be(128);
+
+        worldData.Heightmap.GetLength(0).Should().Be(128, "Heightmap height should match");
+        worldData.Heightmap.GetLength(1).Should().Be(128, "Heightmap width should match");
+
+        // Validate heightmap has real data (not all zeros, not NaN)
+        bool hasNonZeroValues = false;
+        for (int y = 0; y < 128; y++)
+        {
+            for (int x = 0; x < 128; x++)
+            {
+                worldData.Heightmap[y, x].Should().NotBe(float.NaN, $"Heightmap[{y},{x}] should be valid float");
+                if (worldData.Heightmap[y, x] > 0.01f)
+                    hasNonZeroValues = true;
+            }
+        }
+
+        hasNonZeroValues.Should().BeTrue("Heightmap should contain terrain data from simulation");
+
+        // Validate ocean mask is populated (stub logic in Phase 2.1)
+        worldData.OceanMask.GetLength(0).Should().Be(128);
+        worldData.OceanMask.GetLength(1).Should().Be(128);
+
+        // Validate climate maps exist (stub data in Phase 2.1)
+        worldData.PrecipitationMap.Should().NotBeNull();
+        worldData.TemperatureMap.Should().NotBeNull();
+        worldData.BiomeMap.Should().NotBeNull();
+
+        _output.WriteLine($"World generated successfully: {worldData.Width}x{worldData.Height}");
+        _output.WriteLine($"Heightmap sample [64,64]: {worldData.Heightmap[64, 64]:F3}");
+        _output.WriteLine($"Ocean at [64,64]: {worldData.OceanMask[64, 64]}");
     }
 }
