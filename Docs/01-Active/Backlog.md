@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-06 20:14 (Product Owner: Added VS_019 WorldEngine Integration MVP to Ideas)
+**Last Updated**: 2025-10-06 21:10 (Dev Engineer: Completed TD_006 Native Library Setup - 4 integration tests GREEN)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 008
-- **Next TD**: 006
+- **Next TD**: 010
 - **Next VS**: 022
 
 
@@ -182,11 +182,20 @@
 ## 🔧 Technical Debt (Refactoring & Infrastructure)
 *Implementation tasks supporting VS items, infrastructure improvements*
 
-### TD_006: Native Library Setup (plate-tectonics PInvoke)
-**Status**: Proposed
-**Owner**: Tech Lead → Dev Engineer
-**Size**: M (4-6 hours)
-**Priority**: Ideas (Blocked by ADR-007 approval)
+**No active TD items!** ✅ TD_006 completed.
+
+---
+
+*Recently completed (2025-10-06):*
+- **TD_006**: Native Library Setup (plate-tectonics PInvoke) - Built DLL from source with extern "C" exports, created PInvoke interop layer (PlateTectonicsNative.cs), SafeHandle wrapper (RAII cleanup), NativeLibraryLoader (platform detection), 4 integration tests GREEN. Foundation ready for TD_007! ✅ (2025-10-06 21:08)
+
+---
+
+### TD_006: Native Library Setup (plate-tectonics PInvoke) [ARCHIVED]
+**Status**: Done ✅
+**Owner**: Dev Engineer (completed)
+**Size**: M (actual: ~5 hours including DLL build troubleshooting)
+**Priority**: Ideas
 **Markers**: [INFRASTRUCTURE] [NATIVE-LIBRARY] [WORLDGEN]
 **Parent**: VS_019 (Phase 1)
 
@@ -244,8 +253,8 @@
 ---
 
 ### TD_007: Core WorldGen Infrastructure (Wrapper + Post-Processing)
-**Status**: Proposed
-**Owner**: Tech Lead → Dev Engineer
+**Status**: Approved
+**Owner**: Dev Engineer
 **Size**: M (6-8 hours)
 **Priority**: Ideas
 **Markers**: [CORE-LOGIC] [WORLDGEN] [ALGORITHMS]
