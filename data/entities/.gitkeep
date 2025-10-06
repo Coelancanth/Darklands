@@ -1,0 +1,3 @@
+# Template directory for actor entity data
+# .tres files will be created here by designers in Godot Editor
+# Example: player.tres, goblin.tres, orc.tres

@@ -110,6 +110,28 @@ public static class GameStrapper
         // Combat System (VS_007 Phase 3) - Turn queue repository
         services.AddSingleton<Features.Combat.Application.ITurnQueueRepository,
             Features.Combat.Infrastructure.InMemoryTurnQueueRepository>();
+
+        // Template System (VS_021 Phase 2) - Data-driven entity templates
+        // NOTE: Template loading happens in Main.cs after GameStrapper.Initialize()
+        // (templates need ILogger which is registered by Presentation layer)
+        services.AddSingleton<Infrastructure.Templates.ITemplateService<Infrastructure.Templates.ActorTemplate>>(
+            provider =>
+            {
+                var logger = provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<Infrastructure.Templates.GodotTemplateService<Infrastructure.Templates.ActorTemplate>>>();
+                var service = new Infrastructure.Templates.GodotTemplateService<Infrastructure.Templates.ActorTemplate>(
+                    logger,
+                    "res://data/entities/"
+                );
+
+                // Load templates at service creation (fail-fast if invalid)
+                var loadResult = service.LoadTemplates();
+                if (loadResult.IsFailure)
+                {
+                    throw new InvalidOperationException($"Failed to load actor templates: {loadResult.Error}");
+                }
+
+                return service;
+            });
     }
 
     /// <summary>
