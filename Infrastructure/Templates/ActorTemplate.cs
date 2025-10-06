@@ -1,3 +1,4 @@
+using Darklands.Core.Application.Factories;
 using Godot;
 
 namespace Darklands.Infrastructure.Templates;
@@ -26,7 +27,9 @@ namespace Darklands.Infrastructure.Templates;
 /// - Entity = cookie (independent instance with copied data)</para>
 /// </remarks>
 [GlobalClass]
-public partial class ActorTemplate : Resource, Darklands.Core.Infrastructure.Templates.IIdentifiableResource
+public partial class ActorTemplate : Resource,
+    Darklands.Core.Infrastructure.Templates.IIdentifiableResource,
+    IActorTemplateData
 {
     // ========== IDENTITY ==========
 
@@ -65,18 +68,50 @@ public partial class ActorTemplate : Resource, Darklands.Core.Infrastructure.Tem
     public float MaxHealth { get; set; } = 100f;
 
     /// <summary>
-    /// Base damage for attacks. Can be 0 (non-combatant actors).
-    /// Used by combat system when creating Weapon value object.
-    /// </summary>
-    [Export]
-    public float Damage { get; set; } = 10f;
-
-    /// <summary>
     /// Movement speed in grid cells per turn.
     /// Default 5 = typical dungeon crawler speed.
     /// </summary>
     [Export]
     public float MoveSpeed { get; set; } = 5f;
+
+    // ========== WEAPON (VS_020) ==========
+
+    /// <summary>
+    /// Translation key for weapon name (e.g., "WEAPON_IRON_SWORD").
+    /// Empty string = no weapon (unarmed actor).
+    /// </summary>
+    [Export]
+    public string WeaponNameKey { get; set; } = "";
+
+    /// <summary>
+    /// Weapon damage per attack. 0 = unarmed/non-combatant.
+    /// Used by ActorFactory to create Weapon component.
+    /// </summary>
+    [Export]
+    public float WeaponDamage { get; set; } = 10f;
+
+    /// <summary>
+    /// Time units consumed per attack (integrates with TurnQueue).
+    /// Default 100 = standard attack speed.
+    /// </summary>
+    [Export]
+    public int WeaponTimeCost { get; set; } = 100;
+
+    /// <summary>
+    /// Maximum attack range in tiles.
+    /// Melee weapons: typically 1 (adjacent only)
+    /// Ranged weapons: 5-10 (bow, crossbow range)
+    /// </summary>
+    [Export]
+    public int WeaponRange { get; set; } = 1;
+
+    /// <summary>
+    /// Weapon type determines attack mechanics.
+    /// 0 = Melee (adjacent tiles, 8-directional)
+    /// 1 = Ranged (line-of-sight, max range validation)
+    /// </summary>
+    [Export]
+    public int WeaponType { get; set; } = 0; // Default: Melee
 
     // ========== VISUALS ==========
 
