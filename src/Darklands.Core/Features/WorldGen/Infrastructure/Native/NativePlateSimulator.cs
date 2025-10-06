@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using CSharpFunctionalExtensions;
 using Darklands.Core.Features.WorldGen.Application.Abstractions;
 using Darklands.Core.Features.WorldGen.Application.DTOs;
@@ -57,11 +59,16 @@ public class NativePlateSimulator : IPlateSimulator
             })
             .Tap(_ => _logger.LogDebug("Step 4 complete: Climate calculation succeeded"))
             .TapError(error => _logger.LogError("Step 4 FAILED: Climate calculation error: {Error}", error))
-            .Map(climateData =>
+            .Bind(climateData =>
             {
-                _logger.LogDebug("Step 5: Classifying biomes");
-                var result = ClassifyBiomes(climateData);
-                _logger.LogDebug("Step 5 complete: Biome classification succeeded");
+                _logger.LogDebug("Step 5: Simulating hydraulic erosion (rivers, lakes, valleys)");
+                return SimulateErosion(climateData, parameters);
+            })
+            .Map(erosionData =>
+            {
+                _logger.LogDebug("Step 6: Classifying biomes");
+                var result = ClassifyBiomes(erosionData);
+                _logger.LogDebug("Step 6 complete: Biome classification succeeded");
                 return result;
             });
     }
@@ -235,29 +242,73 @@ public class NativePlateSimulator : IPlateSimulator
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // PHASE 2.4: Biome Classification
+    // PHASE 2.4: Hydraulic Erosion (Rivers & Lakes)
     // ═══════════════════════════════════════════════════════════════════════
 
-    private PlateSimulationResult ClassifyBiomes(ClimateData climate)
+    private Result<ErosionData> SimulateErosion(ClimateData climate, PlateSimulationParams p)
+    {
+        _logger.LogDebug("Simulating hydraulic erosion: rivers, lakes, valley carving");
+
+        try
+        {
+            // Execute erosion simulation (modifies heightmap in-place, creates rivers/lakes)
+            var (erodedHeightmap, rivers, lakes) = HydraulicErosionProcessor.Execute(
+                climate.Heightmap,
+                climate.OceanMask,
+                climate.PrecipitationMap,
+                seaLevel: p.SeaLevel);
+
+            _logger.LogInformation("Hydraulic erosion complete: {RiverCount} rivers, {LakeCount} lakes",
+                rivers.Count, lakes.Count);
+
+            // Log river statistics
+            int riversReachedOcean = rivers.Count(r => r.ReachedOcean);
+            int riversFormedLakes = rivers.Count - riversReachedOcean;
+            _logger.LogDebug("Rivers: {Ocean} reached ocean, {Lakes} formed lakes",
+                riversReachedOcean, riversFormedLakes);
+
+            return Result.Success(new ErosionData(
+                erodedHeightmap,
+                climate.OceanMask,
+                climate.PrecipitationMap,
+                climate.TemperatureMap,
+                rivers,
+                lakes));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Hydraulic erosion failed");
+            return Result.Failure<ErosionData>("ERROR_WORLDGEN_EROSION_FAILED");
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // PHASE 2.5: Biome Classification
+    // ═══════════════════════════════════════════════════════════════════════
+
+    private PlateSimulationResult ClassifyBiomes(ErosionData erosion)
     {
         _logger.LogDebug("Classifying biomes using Holdridge life zones model");
 
         // Classify biomes based on temperature, precipitation, and elevation
+        // NOTE: Uses eroded heightmap (valleys carved around rivers)
         var biomes = BiomeClassifier.Classify(
-            climate.Heightmap,
-            climate.OceanMask,
-            climate.PrecipitationMap,
-            climate.TemperatureMap,
+            erosion.Heightmap,
+            erosion.OceanMask,
+            erosion.PrecipitationMap,
+            erosion.TemperatureMap,
             seaLevel: 0.65f); // Use default sea level from params
 
         _logger.LogInformation("Biome classification complete");
 
         return new PlateSimulationResult(
-            climate.Heightmap,
-            climate.OceanMask,
-            climate.PrecipitationMap,
-            climate.TemperatureMap,
-            biomes);
+            erosion.Heightmap,
+            erosion.OceanMask,
+            erosion.PrecipitationMap,
+            erosion.TemperatureMap,
+            biomes,
+            erosion.Rivers,
+            erosion.Lakes);
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -271,4 +322,12 @@ public class NativePlateSimulator : IPlateSimulator
         bool[,] OceanMask,
         float[,] PrecipitationMap,
         float[,] TemperatureMap);
+
+    private record ErosionData(
+        float[,] Heightmap,           // Eroded heightmap (valleys carved)
+        bool[,] OceanMask,
+        float[,] PrecipitationMap,
+        float[,] TemperatureMap,
+        List<River> Rivers,
+        List<(int x, int y)> Lakes);
 }
