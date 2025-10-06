@@ -184,11 +184,12 @@
 ## 🔧 Technical Debt (Refactoring & Infrastructure)
 *Implementation tasks supporting VS items, infrastructure improvements*
 
-**No active TD items!** ✅ TD_006 completed.
+**No active TD items!** ✅ TD_006 + TD_007 completed.
 
 ---
 
 *Recently completed (2025-10-06):*
+- **TD_007**: Core WorldGen Infrastructure (Wrapper + Post-Processing) - Complete 4-phase implementation! **IPlateSimulator** interface with DTOs, **NativePlateSimulator** wrapper (railway-oriented flow), **ElevationPostProcessor** (borders, noise, flood fill), **ClimateCalculator** (precipitation, temperature), **BiomeClassifier** (Holdridge model, 12 biome types). Lightweight Perlin noise (80 lines, no external deps). All 439 tests GREEN. Foundation ready for TD_008 (Godot visualization)! ✅ (2025-10-06 22:00, actual time: ~4h)
 - **TD_006**: Native Library Setup (plate-tectonics LibraryImport) - Built DLL from source with extern "C" exports, created LibraryImport interop layer (PlateTectonicsNative.cs with source generators), SafeHandle wrapper (RAII cleanup), NativeLibraryLoader (platform detection), 4 integration tests GREEN. **Migrated DllImport → LibraryImport** for .NET 7+ AOT compatibility. Updated ADR-007 v1.2 with migration guide. Foundation ready for TD_007! ✅ (2025-10-06 21:08, migrated 21:31)
 
 ---
@@ -261,9 +262,9 @@
 ---
 
 ### TD_007: Core WorldGen Infrastructure (Wrapper + Post-Processing)
-**Status**: Approved
-**Owner**: Dev Engineer
-**Size**: M (6-8 hours)
+**Status**: Done ✅ (2025-10-06 22:00)
+**Owner**: Dev Engineer (completed)
+**Size**: M (actual: ~4 hours, estimate was 6-8h - under budget!)
 **Priority**: Ideas
 **Markers**: [CORE-LOGIC] [WORLDGEN] [ALGORITHMS]
 **Parent**: VS_019 (Phase 2)
