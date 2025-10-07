@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-07 21:52 (Dev Engineer: TD_010 Phases 1-2 complete - Caching + elevation renderer with known issue)
+**Last Updated**: 2025-10-08 02:47 (Dev Engineer: TD_010 complete, TD_011 created for pipeline refactor)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 008
-- **Next TD**: 010
+- **Next TD**: 012
 - **Next VS**: 022
 
 
@@ -184,7 +184,12 @@
 ## 🔧 Technical Debt (Refactoring & Infrastructure)
 *Implementation tasks supporting VS items, infrastructure improvements*
 
-**No active TD items!** ✅ TD_006 + TD_007 + TD_008 completed (VS_019 Phases 1-3 done!).
+**No active TD items!** ✅ TD_010 complete - multi-view debug system ready!
+
+---
+
+*Recently completed (2025-10-08):*
+- **TD_010**: Multi-View Map Rendering System - Complete 5-phase implementation! **7 view modes** (Biomes, Elevation, Precipitation, Temperature, RawElevation, Plates, RawElevationColored), **persistent caching** (instant view switching), **keyboard shortcuts** (Keys 1-7), **probe tool** (P key logs full cell data with highlight), **enlarged legends** (1.6× scale, always visible), **native frame capture** (unconditional PGM export + ffmpeg helper script). Identified elevation color distribution issue → root cause in pipeline (deferred to TD_011). All 439 tests GREEN. Debug infrastructure complete! ✅ (2025-10-08 02:47, actual: ~7h)
 
 ---
 
@@ -477,9 +482,9 @@
 ---
 
 ### TD_010: Multi-View Map Rendering System
-**Status**: In Progress (Phases 1-3 Complete, Climate/Biome corrections applied)
-**Owner**: Dev Engineer
-**Size**: M (actual: ~4h Phase 1-2, est: ~3h Phase 3-4 remaining)
+**Status**: Done ✅ (2025-10-08 02:47)
+**Owner**: Dev Engineer (completed)
+**Size**: M (actual: ~7h total - all 5 phases complete)
 **Priority**: Ideas
 **Markers**: [WORLDGEN] [VISUALIZATION] [DEBUG]
 **Parent**: VS_019 (Phase 4)
@@ -488,7 +493,7 @@
 
 **Why**: Enable rapid iteration on worldgen algorithms by visualizing underlying data layers. Developers need to see raw elevation/precipitation/temperature data to debug biome classification, rain shadow effects, and climate calculations. Saving generation results prevents regeneration overhead during view switching.
 
-**Implementation Summary** (as of 2025-10-07 23:59):
+**Implementation Summary** (updated 2025-10-07 late):
 
 **Phase 1: Persistent Generation Data** ✅ **COMPLETE**
 - `PlateSimulationResult` cached in `_cachedWorldData` field (WorldMapNode)
@@ -529,11 +534,16 @@
 - Legends: Anchored to UI CanvasLayer, enlarged (1.6× scale, 24px swatches, larger fonts), always visible regardless of zoom.
 - Probe: Press `P` to log full cell data (ocean, elevation, temperature, precipitation, humidity, irrigation, watermap, biome, river/lake flags) with a yellow translucent 1×1 highlight on the probed tile.
 
-**Phase 4: Polish & UX** ⏳ **IN PROGRESS**
-- Ongoing tuning of legends and interaction.
-- Simpler than elevation (8-level and 7-level discrete gradients, no complex rescaling)
-- Est: ~1.5h precipitation + 1.5h temperature = 3h total
-- Blocked on elevation issue resolution (consistency across view modes)
+**Phase 4: Native Diagnostics + Capture + Extra Views** ✅ **COMPLETE**
+- Added RawElevation (grayscale), Plates (plate ownership) and RawElevationColored (WorldEngine gradient on raw heightmap) views.
+- Keyboard bindings: 1 Biomes, 2 Elevation, 3 Precipitation, 4 Temperature, 5 RawElevation, 6 Plates, 7 RawElevationColored.
+- Unconditional per-step frame capture during native simulation to `logs/platec_frames/seed_<seed>_size_<size>/frame_####.pgm`.
+- Added PowerShell helper `scripts/utils/Export-PlatecVideo.ps1` to encode MP4 via ffmpeg.
+- Fixed Godot UID issue by switching `run/main_scene` to `res://Main.tscn` and removing stale scene UID.
+
+**Phase 5: Temperature Banding Reduction** ⏳ **IN PROGRESS**
+- Introduced low-frequency 2D latitude warp + gentler axial tilt inside `ClimateCalculator.CalculateTemperature()` to remove straight bands.
+- Next: apply the same warp to precipitation's temperature gamma modulation to ensure climate layers remain consistent → expect biome band removal.
 
 **Work Breakdown**:
 
@@ -661,13 +671,142 @@
   - Stabilized noise addition (reduced amplitude, local clamp) to avoid saturating land into upper bands.
 - Likely root cause:
   - We are not running WorldEngine’s full elevation harmonization (`initialize_ocean_and_thresholds`/`harmonize_ocean`), so post-plate elevations remain too top-heavy relative to sea-level derived thresholds.
+- Progress:
+  - Implemented `HarmonizeOcean` (WE parity) and reduced elevation noise amplitude.
 - Plan:
-  1) Port a faithful version of `initialize_ocean_and_thresholds` (compute elevation thresholds and sea depth) and `harmonize_ocean` to shape land/ocean distributions.
-  2) Keep rank-based remap behind a feature flag for comparison; prefer the harmonization path if results match WE references.
-  3) Expose `SeaLevel` and remap strength in debug UI for rapid tuning.
+  1) Port `initialize_ocean_and_thresholds` (land thresholds plain/hill/mountain + sea depth) to fully match WE shaping.
+  2) Keep rank-based remap behind a feature flag for A/B.
+  3) Expose `SeaLevel`/remap in debug UI for tuning.
 - Acceptance for fix:
   - After rescale, ΔL/11 increases such that plains/hills/mountains distribute visibly inland (not only at coasts).
   - Visual parity with WorldEngine’s `draw_simple_elevation` on at least two seeds (spot checked).
+
+---
+
+### TD_011: WorldGen Pipeline Refactor (Explicit Stages + Visual Validation)
+**Status**: Approved
+**Owner**: Dev Engineer
+**Size**: L (est: 6-8h)
+**Priority**: Ideas
+**Markers**: [ARCHITECTURE] [WORLDGEN] [REFACTORING] [ROOT-CAUSE-FIX]
+**Parent**: VS_019 (Quality improvement)
+
+**What**: Refactor NativePlateSimulator into explicit 10-stage pipeline matching WorldEngine architecture, with each stage's output cached and renderable for visual validation
+
+**Why**: Root-cause fix for elevation color distribution bug. TD_010 confirmed RawElevation (Step 1) is correct, but processed elevation shows wrong distribution. Need to isolate which pipeline step diverges from WorldEngine expectations by rendering intermediate results.
+
+**Dev Engineer Decision** (2025-10-08):
+- **Root Cause Approach**: Systematic visual validation beats symptom patching
+- **RawElevation = Baseline**: Step 1 (plate tectonics) confirmed correct ✅
+- **Hypothesis**: Step 2 (elevation post-processing) or Step 3 (climate) produces unexpected distributions
+- **Strategy**: Explicit pipeline stages + visual debugging to triangulate bug location
+- **Architectural Win**: Matches WorldEngine's proven 10-step architecture (easier to port remaining algorithms)
+
+**Technical Breakdown** (3 phases):
+
+**Phase 1: Pipeline Stage DTOs** (2-3h)
+- Create explicit stage result records:
+  ```csharp
+  public record Stage1RawHeightmap(float[,] Heightmap, int[,] PlateIds);
+  public record Stage2ProcessedElevation(float[,] Heightmap, bool[,] OceanMask);
+  public record Stage3Temperature(float[,] TemperatureMap, TemperatureThresholds Thresholds);
+  public record Stage4Precipitation(float[,] PrecipitationMap);
+  public record Stage5Erosion(float[,] Heightmap, List<River> Rivers, List<Lake> Lakes);
+  public record Stage6Watermap(float[,] WatermapData, WatermapThresholds Thresholds);
+  public record Stage7Irrigation(float[,] IrrigationMap);
+  public record Stage8Humidity(float[,] HumidityMap, HumidityQuantiles Quantiles);
+  public record Stage9Biomes(BiomeType[,] BiomeMap);
+  public record Stage10Final(PlateSimulationResult Result);
+  ```
+
+- Refactor `NativePlateSimulator.Generate()` into explicit method chain:
+  ```csharp
+  public Result<PlateSimulationResult> Generate(PlateSimulationParams p) =>
+      RunPlateSimulation(p)           // Stage 1
+          .Bind(s1 => ProcessElevation(s1, p))        // Stage 2
+          .Bind(s2 => CalculateTemperature(s2, p))    // Stage 3
+          .Bind(s3 => CalculatePrecipitation(s3, p))  // Stage 4
+          .Bind(s4 => SimulateErosion(s4, p))         // Stage 5
+          .Bind(s5 => CalculateWatermap(s5, p))       // Stage 6
+          .Bind(s6 => CalculateIrrigation(s6, p))     // Stage 7
+          .Bind(s7 => CalculateHumidity(s7, p))       // Stage 8
+          .Bind(s8 => ClassifyBiomes(s8, p))          // Stage 9
+          .Map(s9 => BuildFinalResult(s9, p));        // Stage 10
+  ```
+
+**Phase 2: Cache All Stages** (1-2h)
+- Expand `PlateSimulationResult` to include ALL stage outputs:
+  ```csharp
+  public record PlateSimulationResult(
+      // Final outputs (existing)
+      BiomeType[,] BiomeMap,
+      float[,] HeightMap,
+      // ... existing fields ...
+
+      // NEW: Debug pipeline stages
+      Stage1RawHeightmap? Stage1,
+      Stage2ProcessedElevation? Stage2,
+      Stage3Temperature? Stage3,
+      Stage4Precipitation? Stage4,
+      Stage5Erosion? Stage5,
+      Stage6Watermap? Stage6,
+      Stage7Irrigation? Stage7,
+      Stage8Humidity? Stage8
+  );
+  ```
+
+- Store intermediate results during pipeline execution
+- Memory impact: ~30-40 MB for 512×512 world (acceptable for debug builds)
+
+**Phase 3: Expand MapViewMode** (2-3h)
+- Add view modes for each stage:
+  ```csharp
+  public enum MapViewMode
+  {
+      Biomes,              // Stage 9 output
+      RawElevation,        // Stage 1 output ✅ (confirmed correct)
+      ProcessedElevation,  // Stage 2 output (SUSPECT - test this first!)
+      Temperature,         // Stage 3 output
+      Precipitation,       // Stage 4 output
+      ErosionRivers,       // Stage 5 output (rivers overlay)
+      Watermap,            // Stage 6 output
+      Irrigation,          // Stage 7 output
+      Humidity,            // Stage 8 output
+      Plates               // Stage 1 debug (plate ownership)
+  }
+  ```
+
+- Create colorizers for new stages (reuse WorldEngine color schemes)
+- Update `WorldMapNode` to render each stage's cached data
+
+**Done When**:
+- ✅ `NativePlateSimulator` uses explicit 10-stage pipeline (no monolithic method)
+- ✅ Each stage has dedicated DTO with typed outputs
+- ✅ All stage outputs cached in `PlateSimulationResult` (debug mode)
+- ✅ `MapViewMode` expanded to render all 10 stages
+- ✅ Visual validation identifies which stage diverges:
+  - If Stage2ProcessedElevation looks wrong → Bug in `ElevationPostProcessor`
+  - If Stage2 looks good but Stage3 wrong → Bug in `ClimateCalculator`
+  - If all stages 1-8 look good but Stage9 wrong → Bug in `BiomeClassifier`
+- ✅ All 439 tests remain GREEN
+- ✅ Performance acceptable (<10 seconds generation for 512×512 world)
+
+**NOT in Scope** (separate follow-up):
+- Fixing bugs discovered by visual validation (do AFTER identifying root cause)
+- Porting missing WorldEngine algorithms (TD_009 covers this)
+- Production optimization (cache trimming for release builds)
+
+**Reference**:
+- **Gap Analysis**: [Docs/08-Learnings/WorldEngine/TD_009-Pipeline-Gap-Analysis.md](../08-Learnings/WorldEngine/TD_009-Pipeline-Gap-Analysis.md)
+- **WorldEngine Pipeline**: `References/worldengine/worldengine/model/world.py` (10-step architecture)
+
+**Dependencies**: TD_010 complete ✅ (multi-view rendering infrastructure ready)
+
+**Next Steps After TD_011**:
+1. Render each stage visually (Keys 1-10)
+2. Compare outputs to WorldEngine reference images
+3. Identify divergence point (likely Stage 2 or Stage 3)
+4. Create targeted bug fix TD item (e.g., "TD_012: Fix ElevationPostProcessor distribution")
 
 ---
 

@@ -1,4 +1,4 @@
-[gd_scene load_steps=2 format=3 uid="uid://baiov5pq6xkn5"]
+[gd_scene load_steps=2 format=3]
 
 [ext_resource type="Script" uid="uid://dqh2yj48cp7ni" path="res://godot_project/scenes/Main.cs" id="1_main"]
 

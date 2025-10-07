@@ -397,11 +397,12 @@ public static class ClimateCalculator
 
         for (int y = 0; y < height; y++)
         {
-            // Latitude: 0 = equator (center), ±1 = poles (edges)
-            float latitude = Math.Abs((y / (float)(height - 1)) * 2f - 1f);
+            // Latitude with slight axial-tilt meander to avoid perfectly horizontal bands
+            //  - Base latitude: 0 at equator (center), 1 at poles (top/bottom)
+            //  - Tilt: small sinusoidal offset along X (seasonal/ITCZ meander visual)
+            float yNormBase = y / (float)(height - 1);
 
-            // Base temperature from latitude (cosine curve for realistic gradient)
-            float baseTemp = (float)Math.Cos(latitude * Math.PI / 2); // 1.0 at equator, 0.0 at poles
+            // Base temperature is computed per-pixel after applying tilt (no precomputed row value needed)
 
             for (int x = 0; x < width; x++)
             {
@@ -411,9 +412,21 @@ public static class ClimateCalculator
 
                 if (isSample)
                     _logger?.LogDebug("Temperature trace [{Desc}] ({X},{Y}): elevation={Elev:F3}, latitude={Lat:F3}",
-                        sampleDesc, x, y, heightmap[y, x], latitude);
+                        sampleDesc, x, y, heightmap[y, x], Math.Abs(yNormBase * 2f - 1f));
 
-                float temp = baseTemp;
+                // Apply axial tilt (sinusoidal) along X + low-frequency 2D warp to latitude field
+                float tiltAmplitude = 0.03f; // gentler baseline tilt
+                float tilt = tiltAmplitude * (float)Math.Sin((2 * Math.PI * x) / Math.Max(1, width));
+
+                // Low-frequency 2D noise warp (eliminates straight bands)
+                float warp = SimplexNoise(
+                    (x + noiseOffsetX) * 0.01f,
+                    (y + noiseOffsetY) * 0.01f,
+                    seed + 9000) * 0.06f; // ±6%
+
+                float yNormTilted = Math.Clamp(yNormBase + tilt + warp, 0f, 1f);
+                float latitude = Math.Abs(yNormTilted * 2f - 1f);
+                float temp = (float)Math.Cos(latitude * Math.PI / 2); // recompute base with tilt
 
                 if (isSample)
                     _logger?.LogDebug("  Step 1 - Latitude base (cosine): {Value:F3}", temp);
@@ -421,11 +434,11 @@ public static class ClimateCalculator
                 // Add temperature variation noise (breaks up horizontal bands)
                 // Use fine-grain noise to create micro-climate variation
                 float tempNoise = SimplexNoise(
-                    (x + noiseOffsetX) * 0.05f,
-                    (y + noiseOffsetY) * 0.05f,
+                    (x + noiseOffsetX) * 0.06f,
+                    (y + noiseOffsetY) * 0.06f,
                     seed + 5000);
                 float tempBeforeNoise = temp;
-                temp += tempNoise * 0.08f; // ±0.08 temperature variation (enough to cross biome boundaries)
+                temp += tempNoise * 0.10f; // slightly stronger variation to break equatorial banding
 
                 if (isSample)
                     _logger?.LogDebug("  Step 2 - After noise: {Value:F3} (delta={Delta:+F3;-F3})",

@@ -137,6 +137,15 @@ public partial class WorldMapNode : Node2D
                 case Key.Key4:
                     SetViewMode(MapViewMode.Temperature);
                     break;
+                case Key.Key5:
+                    SetViewMode(MapViewMode.RawElevation);
+                    break;
+                case Key.Key6:
+                    SetViewMode(MapViewMode.Plates);
+                    break;
+                case Key.Key7:
+                    SetViewMode(MapViewMode.RawElevationColored);
+                    break;
                 case Key.P:
                     ProbeUnderMouse();
                     break;
@@ -299,6 +308,9 @@ public partial class WorldMapNode : Node2D
             MapViewMode.Elevation => "Elevation (WorldEngine gradient)",
             MapViewMode.Precipitation => "Precipitation (humidity levels)",
             MapViewMode.Temperature => "Temperature (thermal zones)",
+            MapViewMode.RawElevation => "Raw Elevation (native heightmap grayscale)",
+            MapViewMode.Plates => "Plates (plate ownership)",
+            MapViewMode.RawElevationColored => "Raw Elevation (WorldEngine colors)",
             _ => "Unknown View"
         };
 
@@ -371,6 +383,17 @@ public partial class WorldMapNode : Node2D
 
             case MapViewMode.Temperature:
                 RenderTemperatureMap(_cachedWorldData);
+                break;
+
+            case MapViewMode.RawElevation:
+                RenderRawElevationMap(_cachedWorldData);
+                break;
+
+            case MapViewMode.Plates:
+                RenderPlatesMap(_cachedWorldData);
+                break;
+            case MapViewMode.RawElevationColored:
+                RenderRawElevationColoredMap(_cachedWorldData);
                 break;
 
             default:
@@ -562,6 +585,129 @@ public partial class WorldMapNode : Node2D
         var texture = ImageTexture.CreateFromImage(image);
         _terrainSprite.Texture = texture;
         _logger?.LogDebug("Temperature map texture created and assigned to sprite");
+    }
+
+    // Render the raw heightmap straight from native simulation (grayscale)
+    private void RenderRawElevationMap(PlateSimulationResult data)
+    {
+        if (_terrainSprite == null)
+        {
+            _logger?.LogError("Cannot render raw elevation map: Terrain sprite is null");
+            return;
+        }
+
+        var raw = data.RawHeightmap ?? data.Heightmap; // fallback if not present
+        int h = raw.GetLength(0), w = raw.GetLength(1);
+        var image = Image.CreateEmpty(w, h, false, Image.Format.Rgb8);
+
+        float min = float.MaxValue, max = float.MinValue;
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+            {
+                float v = raw[y, x];
+                if (v < min) min = v; if (v > max) max = v;
+            }
+        float delta = Math.Max(1e-6f, max - min);
+
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+            {
+                float t = (raw[y, x] - min) / delta;
+                image.SetPixel(x, y, new Color(t, t, t));
+            }
+
+        _terrainSprite.Texture = ImageTexture.CreateFromImage(image);
+    }
+
+    // Render tectonic plates ownership map (categorical colors per plate id)
+    private void RenderPlatesMap(PlateSimulationResult data)
+    {
+        if (_terrainSprite == null)
+        {
+            _logger?.LogError("Cannot render plates map: Terrain sprite is null");
+            return;
+        }
+
+        if (data.PlatesMap == null)
+        {
+            _logger?.LogWarning("No plates map available on result; did native sim return plates?");
+        }
+
+        int h = data.Height;
+        int w = data.Width;
+        var image = Image.CreateEmpty(w, h, false, Image.Format.Rgb8);
+        var rng = new Random(12345);
+
+        // Generate deterministic color for each plate id encountered
+        var colorCache = new Dictionary<uint, Color>();
+        Color ColorFor(uint id)
+        {
+            if (colorCache.TryGetValue(id, out var c)) return c;
+            // Simple hash to color
+            rng = new Random((int)id * 2654435761u.GetHashCode());
+            c = new Color((float)rng.NextDouble(), (float)rng.NextDouble(), (float)rng.NextDouble());
+            colorCache[id] = c;
+            return c;
+        }
+
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+            {
+                uint id = data.PlatesMap?[y, x] ?? 0u;
+                image.SetPixel(x, y, ColorFor(id));
+            }
+
+        _terrainSprite.Texture = ImageTexture.CreateFromImage(image);
+    }
+
+    // Render the raw elevation with same WorldEngine colorization as Elevation view
+    private void RenderRawElevationColoredMap(PlateSimulationResult data)
+    {
+        if (_terrainSprite == null)
+        {
+            _logger?.LogError("Cannot render raw elevation colored map: Terrain sprite is null");
+            return;
+        }
+
+        var raw = data.RawHeightmap ?? data.Heightmap;
+        int h = raw.GetLength(0), w = raw.GetLength(1);
+        var image = Image.CreateEmpty(w, h, false, Image.Format.Rgb8);
+
+        // Compute WE rescale stats with processed ocean mask but raw elevations
+        bool hasOcean = false;
+        for (int y = 0; y < h && !hasOcean; y++)
+            for (int x = 0; x < w && !hasOcean; x++)
+                if (data.OceanMask[y, x]) hasOcean = true;
+
+        float minLand = float.PositiveInfinity, maxLand = float.NegativeInfinity;
+        float minSea = float.PositiveInfinity, maxSea = float.NegativeInfinity;
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+            {
+                float e = raw[y, x];
+                if (data.OceanMask[y, x]) { if (e < minSea) minSea = e; if (e > maxSea) maxSea = e; }
+                else { if (e < minLand) minLand = e; if (e > maxLand) maxLand = e; }
+            }
+        float elevDeltaSea = Math.Max(1e-6f, maxSea - minSea);
+        float elevDeltaLand = Math.Max(1e-6f, (maxLand - minLand) / 11.0f);
+
+        const float SeaLevel = 1.0f;
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+            {
+                float e = raw[y, x];
+                bool isOcean = data.OceanMask[y, x];
+                float c;
+                if (hasOcean)
+                {
+                    if (isOcean) c = (e - minSea) / elevDeltaSea; else c = ((e - minLand) / elevDeltaLand) + 1.0f;
+                }
+                else c = ((e - minLand) / elevDeltaLand) + 1.0f;
+                var (r, g, b) = ElevationMapColorizer.GetElevationColor(c, SeaLevel);
+                image.SetPixel(x, y, new Color(r, g, b));
+            }
+
+        _terrainSprite.Texture = ImageTexture.CreateFromImage(image);
     }
 
     private static Color GetTemperatureColor(float v, float[] th)
@@ -769,11 +915,13 @@ public partial class WorldMapNode : Node2D
                 AddLegendEntry("Ocean", new Color(0.1f, 0.3f, 0.6f));
                 AddLegendEntry("Tundra", FromHex("C1E1DD"));
                 AddLegendEntry("Boreal Forest", FromHex("A5C790"));
-                AddLegendEntry("Temperate Forest", FromHex("97B669"));
-                AddLegendEntry("Tropical Rainforest", FromHex("317A22"));
-                AddLegendEntry("Savanna", FromHex("A09700"));
-                AddLegendEntry("Desert", FromHex("DCBB50"));
-                AddLegendEntry("Grassland", FromHex("FCD57A"));
+                AddLegendEntry("Temperate Seasonal Forest", FromHex("97B669"));
+                AddLegendEntry("Temperate Rain Forest", FromHex("75A95E"));
+                AddLegendEntry("Tropical Rain Forest", FromHex("317A22"));
+                AddLegendEntry("Tropical Seasonal Forest / Savanna", FromHex("A09700"));
+                AddLegendEntry("Subtropical Desert", FromHex("DCBB50"));
+                AddLegendEntry("Temperate Grassland / Cold Desert", FromHex("FCD57A"));
+                AddLegendEntry("Woodland / Shrubland", FromHex("D16E3F"));
                 break;
 
             case MapViewMode.Precipitation:
@@ -789,6 +937,13 @@ public partial class WorldMapNode : Node2D
                 AddLegendEntry("Cool Temperate", new Color(0.75f, 0f, 0.5f));
                 AddLegendEntry("Warm", new Color(1f, 0f, 0.25f));
                 AddLegendEntry("Tropical (hot)", new Color(1f, 0f, 0f));
+                break;
+            case MapViewMode.RawElevation:
+                AddLegendEntry("Low (black)", new Color(0f, 0f, 0f));
+                AddLegendEntry("High (white)", new Color(1f, 1f, 1f));
+                break;
+            case MapViewMode.Plates:
+                AddLegendEntry("Distinct color = plate ID", new Color(0.8f, 0.8f, 0.8f));
                 break;
         }
     }

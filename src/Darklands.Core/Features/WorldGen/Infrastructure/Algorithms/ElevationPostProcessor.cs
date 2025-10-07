@@ -212,6 +212,49 @@ public static class ElevationPostProcessor
     }
 
     /// <summary>
+    /// Harmonizes ocean floor elevations to reduce noise, matching WorldEngine's behavior.
+    /// This shapes shallow/deep ocean around a midpoint for smoother gradients.
+    /// Port of worldengine.generation.harmonize_ocean().
+    /// Operates in-place on elevation values for ocean cells only.
+    /// </summary>
+    /// <param name="heightmap">Elevation data (modified in-place)</param>
+    /// <param name="oceanMask">Ocean mask (true = ocean)</param>
+    /// <param name="seaLevel">Sea level threshold</param>
+    public static void HarmonizeOcean(float[,] heightmap, bool[,] oceanMask, float seaLevel)
+    {
+        int height = heightmap.GetLength(0);
+        int width = heightmap.GetLength(1);
+
+        // WorldEngine uses shallow_sea = sea_level * 0.85 and midpoint = shallow_sea / 2.0
+        float shallowSea = seaLevel * 0.85f;
+        float midpoint = shallowSea / 2.0f;
+
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                if (!oceanMask[y, x])
+                    continue;
+
+                float e = heightmap[y, x];
+                if (e >= shallowSea)
+                    continue; // Only adjust true ocean points (below shallow sea)
+
+                if (e < midpoint)
+                {
+                    // Shallow ocean: pull up slightly toward midpoint (less noisy basins)
+                    heightmap[y, x] = midpoint - ((midpoint - e) / 5.0f);
+                }
+                else
+                {
+                    // Deep ocean: pull down slightly toward midpoint
+                    heightmap[y, x] = midpoint + ((e - midpoint) / 5.0f);
+                }
+            }
+        }
+    }
+
+    /// <summary>
     /// Adds Perlin noise to elevation for natural terrain variation.
     /// Prevents artificially smooth terrain from plate simulation.
     /// </summary>

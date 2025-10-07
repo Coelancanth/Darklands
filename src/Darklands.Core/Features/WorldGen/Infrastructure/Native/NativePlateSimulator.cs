@@ -45,38 +45,42 @@ public class NativePlateSimulator : IPlateSimulator
             })
             .Tap(_ => _logger.LogDebug("Step 2 complete: Native simulation succeeded"))
             .TapError(error => _logger.LogError("Step 2 FAILED: Native simulation error: {Error}", error))
-            .Bind(rawHeightmap =>
+            .Bind(nativeOut =>
             {
                 _logger.LogDebug("Step 3: Post-processing elevation");
-                return PostProcessElevation(rawHeightmap, parameters);
+                return PostProcessElevation(nativeOut.Heightmap, parameters)
+                    .Map(elev => (elev, nativeOut));
             })
             .Tap(_ => _logger.LogDebug("Step 3 complete: Elevation post-processing succeeded"))
             .TapError(error => _logger.LogError("Step 3 FAILED: Elevation post-processing error: {Error}", error))
-            .Bind(elevationData =>
+            .Bind(tuple1 =>
             {
                 _logger.LogDebug("Step 4: Calculating climate");
-                return CalculateClimate(elevationData, parameters);
+                return CalculateClimate(tuple1.elev, parameters)
+                    .Map(climate => (climate, tuple1.nativeOut));
             })
             .Tap(_ => _logger.LogDebug("Step 4 complete: Climate calculation succeeded"))
             .TapError(error => _logger.LogError("Step 4 FAILED: Climate calculation error: {Error}", error))
-            .Bind(climateData =>
+            .Bind(tuple2 =>
             {
                 _logger.LogDebug("Step 5: Simulating hydraulic erosion (rivers, lakes, valleys)");
-                return SimulateErosion(climateData, parameters);
+                return SimulateErosion(tuple2.climate, parameters)
+                    .Map(erosion => (erosion, tuple2.nativeOut));
             })
             .Tap(_ => _logger.LogDebug("Step 5 complete: Hydraulic erosion succeeded"))
             .TapError(error => _logger.LogError("Step 5 FAILED: Hydraulic erosion error: {Error}", error))
-            .Bind(erosionData =>
+            .Bind(tuple3 =>
             {
                 _logger.LogDebug("Step 6: Simulating hydrology (watermap, irrigation, humidity)");
-                return SimulateHydrology(erosionData, parameters);
+                return SimulateHydrology(tuple3.erosion, parameters)
+                    .Map(hydrology => (hydrology, tuple3.nativeOut));
             })
             .Tap(_ => _logger.LogDebug("Step 6 complete: Hydrology simulation succeeded"))
             .TapError(error => _logger.LogError("Step 6 FAILED: Hydrology simulation error: {Error}", error))
-            .Map(hydrologyData =>
+            .Map(tuple4 =>
             {
                 _logger.LogDebug("Step 7: Classifying biomes");
-                var result = ClassifyBiomes(hydrologyData);
+                var result = ClassifyBiomes(tuple4.hydrology, tuple4.nativeOut.Heightmap, tuple4.nativeOut.Plates);
                 _logger.LogDebug("Step 7 complete: Biome classification succeeded");
                 return result;
             });
@@ -89,7 +93,7 @@ public class NativePlateSimulator : IPlateSimulator
     private Result EnsureLibraryLoaded() =>
         NativeLibraryLoader.ValidateLibraryExists(_projectPath);
 
-    private Result<float[,]> RunNativeSimulation(PlateSimulationParams p)
+    private Result<NativeOut> RunNativeSimulation(PlateSimulationParams p)
     {
         try
         {
@@ -113,7 +117,7 @@ public class NativePlateSimulator : IPlateSimulator
             if (handle == IntPtr.Zero)
             {
                 _logger.LogError("Native Create() returned NULL handle");
-                return Result.Failure<float[,]>("ERROR_WORLDGEN_SIMULATION_FAILED");
+                return Result.Failure<NativeOut>("ERROR_WORLDGEN_SIMULATION_FAILED");
             }
 
             using var safeHandle = new PlateSimulationHandle(handle);
@@ -122,16 +126,39 @@ public class NativePlateSimulator : IPlateSimulator
             int stepCount = 0;
             const int maxSteps = 10000;
 
+            // Optional frame capture controls via environment variables
+            bool captureFrames = string.Equals(Environment.GetEnvironmentVariable("PLATEC_CAPTURE_FRAMES"), "1", StringComparison.OrdinalIgnoreCase);
+            int captureEvery = int.TryParse(Environment.GetEnvironmentVariable("PLATEC_CAPTURE_EVERY"), out var ce) && ce > 0 ? ce : 1;
+            string captureDir = Environment.GetEnvironmentVariable("PLATEC_CAPTURE_DIR") ?? System.IO.Path.Combine("logs", "platec_frames", $"seed_{p.Seed}_size_{p.WorldSize}");
+
             while (PlateTectonicsNative.IsFinished(handle) == 0 && stepCount < maxSteps)
             {
                 PlateTectonicsNative.Step(handle);
                 stepCount++;
+
+                if (captureFrames && (stepCount % captureEvery == 0))
+                {
+                    try
+                    {
+                        var framePtr = PlateTectonicsNative.GetHeightmap(handle);
+                        if (framePtr != IntPtr.Zero)
+                        {
+                            System.IO.Directory.CreateDirectory(captureDir);
+                            var framePath = System.IO.Path.Combine(captureDir, $"frame_{stepCount:0000}.pgm");
+                            WriteHeightmapAsPGM(framePtr, p.WorldSize, p.WorldSize, framePath);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to capture frame at step {Step}", stepCount);
+                    }
+                }
             }
 
             if (stepCount >= maxSteps)
             {
                 _logger.LogWarning("Simulation reached max steps ({MaxSteps})", maxSteps);
-                return Result.Failure<float[,]>("ERROR_WORLDGEN_SIMULATION_TIMEOUT");
+                return Result.Failure<NativeOut>("ERROR_WORLDGEN_SIMULATION_TIMEOUT");
             }
 
             _logger.LogInformation("Simulation completed in {Steps} steps", stepCount);
@@ -139,11 +166,15 @@ public class NativePlateSimulator : IPlateSimulator
             // Marshal heightmap to C# 2D array
             var heightmapPtr = PlateTectonicsNative.GetHeightmap(handle);
             if (heightmapPtr == IntPtr.Zero)
-                return Result.Failure<float[,]>("ERROR_WORLDGEN_MARSHALING_FAILED");
+                return Result.Failure<NativeOut>("ERROR_WORLDGEN_MARSHALING_FAILED");
 
             var heightmap = Marshal2DArray(heightmapPtr, p.WorldSize, p.WorldSize);
 
-            return Result.Success(heightmap);
+            // Plates map
+            var platesPtr = PlateTectonicsNative.GetPlatesMap(handle);
+            var plates = Marshal2DArrayUInt(platesPtr, p.WorldSize, p.WorldSize);
+
+            return Result.Success(new NativeOut(heightmap, plates));
         }
         catch (Exception ex)
         {
@@ -157,7 +188,7 @@ public class NativePlateSimulator : IPlateSimulator
                     ex.InnerException.GetType().Name, ex.InnerException.Message);
             }
 
-            return Result.Failure<float[,]>($"ERROR_WORLDGEN_NATIVE_EXCEPTION: {ex.Message}");
+            return Result.Failure<NativeOut>($"ERROR_WORLDGEN_NATIVE_EXCEPTION: {ex.Message}");
         }
     }
 
@@ -177,6 +208,47 @@ public class NativePlateSimulator : IPlateSimulator
         return result;
     }
 
+    private static unsafe uint[,] Marshal2DArrayUInt(IntPtr ptr, int width, int height)
+    {
+        var result = new uint[height, width];
+        var span = new Span<uint>(ptr.ToPointer(), width * height);
+
+        for (int y = 0; y < height; y++)
+            for (int x = 0; x < width; x++)
+                result[y, x] = span[y * width + x];
+
+        return result;
+    }
+
+    /// <summary>
+    /// Writes a native heightmap (float*) to an 8-bit binary PGM image (P5).
+    /// </summary>
+    private static unsafe void WriteHeightmapAsPGM(IntPtr floatPtr, int width, int height, string filePath)
+    {
+        var span = new Span<float>(floatPtr.ToPointer(), width * height);
+        float min = float.MaxValue, max = float.MinValue;
+        for (int i = 0; i < span.Length; i++) { var v = span[i]; if (v < min) min = v; if (v > max) max = v; }
+        float delta = Math.Max(1e-6f, max - min);
+
+        using var fs = System.IO.File.Create(filePath);
+        var header = System.Text.Encoding.ASCII.GetBytes($"P5\n{width} {height}\n255\n");
+        fs.Write(header, 0, header.Length);
+
+        // Stream rows to avoid large allocations
+        var row = new byte[width];
+        for (int y = 0; y < height; y++)
+        {
+            int o = y * width;
+            for (int x = 0; x < width; x++)
+            {
+                float v = span[o + x];
+                int b = (int)Math.Clamp(((v - min) / delta) * 255f, 0f, 255f);
+                row[x] = (byte)b;
+            }
+            fs.Write(row, 0, row.Length);
+        }
+    }
+
     // ═══════════════════════════════════════════════════════════════════════
     // PHASE 2.2: Elevation Post-Processing
     // ═══════════════════════════════════════════════════════════════════════
@@ -193,11 +265,14 @@ public class NativePlateSimulator : IPlateSimulator
             // 1. Lower elevation at map borders for realistic coastlines
             ElevationPostProcessor.PlaceOceansAtBorders(heightmap, borderReduction: 0.8f);
 
-            // 2. Add Perlin noise for terrain variation
-            ElevationPostProcessor.AddNoise(heightmap, p.Seed, scale: 0.05f, amplitude: 0.1f);
+            // 2. Add Perlin noise for terrain variation (reduced amplitude to avoid top-heavy land)
+            ElevationPostProcessor.AddNoise(heightmap, p.Seed, scale: 0.05f, amplitude: 0.06f);
 
             // 3. Flood fill from borders to mark ocean cells
             var oceanMask = ElevationPostProcessor.FillOcean(heightmap, p.SeaLevel);
+
+            // 3b. Harmonize ocean floor elevations (WorldEngine parity)
+            ElevationPostProcessor.HarmonizeOcean(heightmap, oceanMask, p.SeaLevel);
 
             // Diagnostics: ocean vs land counts and elevation ranges
             int oceanCount = 0, landCount = 0;
@@ -377,7 +452,7 @@ public class NativePlateSimulator : IPlateSimulator
     // PHASE 2.6: Biome Classification
     // ═══════════════════════════════════════════════════════════════════════
 
-    private PlateSimulationResult ClassifyBiomes(HydrologyData hydrology)
+    private PlateSimulationResult ClassifyBiomes(HydrologyData hydrology, float[,] rawHeightmap, uint[,] platesMap)
     {
         _logger.LogDebug("Classifying biomes using Holdridge life zones model");
 
@@ -413,12 +488,16 @@ public class NativePlateSimulator : IPlateSimulator
             hydrology.Lakes,
             hydrology.HumidityMap,       // ✅ NEW: Include humidity in result
             hydrology.WatermapData,      // ✅ NEW: Include watermap in result
-            hydrology.IrrigationMap);    // ✅ NEW: Include irrigation in result
+            hydrology.IrrigationMap,
+            rawHeightmap,
+            platesMap);    // ✅ NEW: Include irrigation in result
     }
 
     // ═══════════════════════════════════════════════════════════════════════
     // Helper Records for Internal Pipeline
     // ═══════════════════════════════════════════════════════════════════════
+
+    private record NativeOut(float[,] Heightmap, uint[,] Plates);
 
     private record ElevationData(float[,] Heightmap, bool[,] OceanMask);
 

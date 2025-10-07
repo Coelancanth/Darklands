@@ -11,6 +11,16 @@ namespace Darklands.Core.Features.WorldGen.Application.DTOs;
 public record PlateSimulationResult
 {
     /// <summary>
+    /// Raw heightmap directly from the plate-tectonics native simulation (no post-process).
+    /// Useful for diagnostics and visualization of native output.
+    /// </summary>
+    public float[,] RawHeightmap { get; init; }
+
+    /// <summary>
+    /// Plate ownership map (plate id per cell) from the native simulation.
+    /// </summary>
+    public uint[,] PlatesMap { get; init; }
+    /// <summary>
     /// Heightmap with elevation values (0.0 = lowest, 1.0 = highest).
     /// Values below SeaLevel are underwater.
     /// NOTE: After erosion, this heightmap has carved valleys around rivers.
@@ -95,7 +105,9 @@ public record PlateSimulationResult
         List<(int x, int y)> lakes,
         float[,] humidityMap,
         float[,] watermapData,
-        float[,] irrigationMap)
+        float[,] irrigationMap,
+        float[,] rawHeightmap,
+        uint[,] platesMap)
     {
         Heightmap = heightmap;
         OceanMask = oceanMask;
@@ -107,5 +119,7 @@ public record PlateSimulationResult
         HumidityMap = humidityMap;
         WatermapData = watermapData;
         IrrigationMap = irrigationMap;
+        RawHeightmap = rawHeightmap;
+        PlatesMap = platesMap;
     }
 }
