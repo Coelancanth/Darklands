@@ -16,5 +16,12 @@ public enum MapViewMode
     /// Display tectonic plates ownership map.
     /// Each plate ID rendered with a unique color.
     /// </summary>
-    Plates
+    Plates,
+
+    /// <summary>
+    /// Display elevation with terrain-like color gradient.
+    /// Colors range from deep blue (low) through green to white (high),
+    /// similar to WorldEngine visualization style.
+    /// </summary>
+    ColoredElevation
 }

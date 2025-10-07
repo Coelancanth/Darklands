@@ -27,7 +27,7 @@ public partial class WorldMapUINode : Control
     private Button? _regenerateButton;
 
     // State
-    private int _currentSeed = 12345;
+    private int _currentSeed = 42;
     private bool _isGenerating = false;
 
     [Signal]
@@ -91,6 +91,7 @@ public partial class WorldMapUINode : Control
         _viewModeDropdown = new OptionButton();
         _viewModeDropdown.AddItem("Raw Elevation (Grayscale)", (int)MapViewMode.RawElevation);
         _viewModeDropdown.AddItem("Plates (Colored)", (int)MapViewMode.Plates);
+        _viewModeDropdown.AddItem("Colored Elevation (Terrain)", (int)MapViewMode.ColoredElevation);
         _viewModeDropdown.Selected = 0;
         _viewModeDropdown.ItemSelected += OnViewModeSelected;
         container.AddChild(_viewModeDropdown);
@@ -136,7 +137,7 @@ public partial class WorldMapUINode : Control
         // Instructions
         var instructionsLabel = new Label
         {
-            Text = "Controls:\nP: Probe cell\nWASD: Pan (if camera enabled)\nMouse Wheel: Zoom (if camera enabled)",
+            Text = "Controls:\nQ: Probe cell\nMiddle Mouse (hold): Pan\nMouse Wheel: Zoom",
             AutowrapMode = TextServer.AutowrapMode.WordSmart,
             CustomMinimumSize = new Vector2(200, 0)
         };

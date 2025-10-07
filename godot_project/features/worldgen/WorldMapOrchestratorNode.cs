@@ -30,7 +30,7 @@ public partial class WorldMapOrchestratorNode : Node
 
     // Initial seed
     [Export]
-    public int InitialSeed { get; set; } = 12345;
+    public int InitialSeed { get; set; } = 42;
 
     public override void _Ready()
     {

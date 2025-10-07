@@ -22,7 +22,7 @@ public partial class WorldMapCameraNode : Node
     private bool _isPanning = false;
     private bool _middleMouseDown = false;
     private double _middleMouseDownTime = 0;
-    private const double PAN_ACTIVATION_THRESHOLD = 0.2; // 200ms hold to activate pan
+    private const double PAN_ACTIVATION_THRESHOLD = 0.05; // 200ms hold to activate pan
 
     /// <summary>
     /// Returns true if currently in pan mode.

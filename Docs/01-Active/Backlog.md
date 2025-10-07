@@ -10,8 +10,8 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 008
-- **Next TD**: 012
-- **Next VS**: 030
+- **Next TD**: 018
+- **Next VS**: 023
 
 
 **Protocol**: Check your type's counter → Use that number → Increment the counter → Update timestamp
@@ -182,17 +182,17 @@
 2. Tech Lead: Break down Phase 1 into detailed tasks
 3. Dev Engineer: Implement Phase 1 (elevation normalization)
 
-**Prerequisite Issues** (VS_023-029):
-Before starting pipeline phases, fix visualization foundation issues discovered during testing.
+**Prerequisite Issues** (now TD_012-014):
+Before starting pipeline phases, fix visualization foundation technical debt discovered during testing.
 
 ---
 
-### VS_023: WorldMap Visualization - Dynamic Legends
+### TD_012: WorldMap Visualization - Dynamic Legends
 **Status**: Proposed
 **Owner**: Dev Engineer
 **Size**: S (~2h)
 **Priority**: Ideas
-**Markers**: [WORLDGEN] [UI] [VISUALIZATION]
+**Markers**: [WORLDGEN] [UI] [VISUALIZATION] [TECHNICAL-DEBT]
 
 **What**: Fix WorldMapLegendNode to properly display color keys for each view mode
 
@@ -206,36 +206,50 @@ Before starting pipeline phases, fix visualization foundation issues discovered 
 **Done When**:
 - Legend displays for RawElevation (black/gray/white gradient)
 - Legend displays for Plates ("Each color = unique plate")
+- Legend displays for ColoredElevation (terrain gradient bands)
 - Legend updates when switching view modes
 - Visual verification in Godot
 
 ---
 
-### VS_024: WorldMap Visualization - Raw Elevation Colored Rendering
+### TD_013: WorldMap Visualization - Fix Colored Elevation Rendering
 **Status**: Proposed
 **Owner**: Dev Engineer
-**Size**: S (~3h)
+**Size**: S (~2h)
 **Priority**: Ideas
-**Markers**: [WORLDGEN] [VISUALIZATION]
+**Markers**: [WORLDGEN] [VISUALIZATION] [TECHNICAL-DEBT] [BUG]
 
-**What**: Add RawElevationColored view mode using WorldEngine color gradient
+**What**: Fix colored elevation view - currently shows only blue/brown, missing intermediate colors (cyan, green, yellow)
 
-**Why**: Grayscale is hard to read. WorldEngine-style coloring (blue ocean → green land → brown mountains → white peaks) is much clearer.
+**Why**: Quantile-based color mapping implementation has a bug. Only shows ocean (blue) and land (brown), no intermediate terrain colors (shallows, grass, hills, mountains).
 
-**Technical Approach**:
-- Add `RawElevationColored` to MapViewMode enum
-- Implement rendering in WorldMapRendererNode
-- Use WorldEngine elevation colorization (without needing ocean mask)
-- Alternative: Simple blue-to-green gradient for [0,1] normalized values
+**Current Issue** (from VS_024 attempt):
+- ColoredElevation view mode exists but colors are incorrect
+- Only 2 colors visible: blue (ocean) and brown (land)
+- Missing: cyan (shallows), green (grass/lowlands), yellow-green (hills), yellow (mountains)
+- Likely quantile calculation or gradient interpolation bug
+- Reference: `References/plate-tectonics/examples/map_drawing.cpp` (lines 162-222)
+
+**What Was Implemented**:
+- ✅ Added `ColoredElevation` to MapViewMode enum
+- ✅ Implemented quantile calculation (FindQuantile method)
+- ✅ Added 7-band color gradient system
+- ✅ Integrated with UI dropdown
+- ⚠️ **BUG**: Colors not rendering correctly (only 2 colors instead of 7)
 
 **Done When**:
-- New view mode in dropdown
-- Colors match WorldEngine style (or reasonable approximation)
-- Visual clarity improvement verified
+- Colored elevation shows full gradient (blue → cyan → green → yellow → brown)
+- Colors match plate-tectonics reference implementation
+- All 7 quantile bands visible and distinct
+- Visual verification in Godot matches reference output
+
+**Related Work**:
+- VS_024 added infrastructure but has rendering bug
+- Probe input fixed (Q key) - working correctly
 
 ---
 
-### ~~VS_025: WorldMap UI - Flexible Layout System~~ ✅ COMPLETE
+### ~~TD_014: WorldMap UI - Flexible Layout System~~ ✅ COMPLETE
 **Status**: Done (2025-10-08)
 **Owner**: Dev Engineer
 **Size**: M (~3h actual)
@@ -260,12 +274,12 @@ Before starting pipeline phases, fix visualization foundation issues discovered 
 
 ---
 
-### VS_026: WorldMap Persistence - Disk Serialization
+### TD_015: WorldMap Persistence - Disk Serialization
 **Status**: Proposed
 **Owner**: Dev Engineer
 **Size**: M (~6h)
 **Priority**: Ideas
-**Markers**: [WORLDGEN] [PERFORMANCE] [SERIALIZATION]
+**Markers**: [WORLDGEN] [PERFORMANCE] [SERIALIZATION] [TECHNICAL-DEBT]
 
 **What**: Serialize generated world data to disk by seed, quick-load if file exists (avoid regeneration)
 
@@ -322,7 +336,7 @@ private void SaveWorldToDisk(PlateSimulationResult data, string path)
 
 ---
 
-### ~~VS_027: WorldMap Probe - Fix Cell Inspection & Highlight~~ ✅ COMPLETE
+### ~~TD_016: WorldMap Probe - Fix Cell Inspection & Highlight~~ ✅ COMPLETE
 **Status**: Done (2025-10-08)
 **Owner**: Dev Engineer
 **Size**: M (~4h actual)
@@ -355,7 +369,7 @@ private void SaveWorldToDisk(PlateSimulationResult data, string path)
 
 ---
 
-### ~~VS_028: WorldMap Camera - Mouse Zoom & Drag Pan~~ ✅ COMPLETE
+### ~~TD_017: WorldMap Camera - Mouse Zoom & Drag Pan~~ ✅ COMPLETE
 **Status**: Done (2025-10-08)
 **Owner**: Dev Engineer
 **Size**: M (~3h actual)
@@ -384,12 +398,12 @@ private void SaveWorldToDisk(PlateSimulationResult data, string path)
 
 ---
 
-### VS_029: WorldGen Pipeline - GenerateWorldPipeline Architecture
+### VS_023: WorldGen Pipeline - GenerateWorldPipeline Architecture
 **Status**: Proposed
 **Owner**: Tech Lead → Dev Engineer
 **Size**: M (~6h)
 **Priority**: Ideas
-**Markers**: [WORLDGEN] [ARCHITECTURE] [FOUNDATION]
+**Markers**: [WORLDGEN] [ARCHITECTURE] [FOUNDATION] [TECHNICAL-DEBT]
 
 **What**: Create GenerateWorldPipeline class that orchestrates post-processing stages, calling NativePlateSimulator directly
 

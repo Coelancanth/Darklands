@@ -81,14 +81,11 @@ public partial class WorldMapProbeNode : Node
             UpdateHighlight();
         }
 
-        // Click to probe (left mouse button, not while panning)
-        if (@event is InputEventMouseButton mouseEvent && mouseEvent.Pressed && !isPanModeActive)
+        // Probe on key press (default: Q key, remappable via InputMap)
+        if (@event.IsActionPressed("probe_cell") && !isPanModeActive)
         {
-            if (mouseEvent.ButtonIndex == MouseButton.Left)
-            {
-                ProbeAtMousePosition();
-                GetViewport().SetInputAsHandled();
-            }
+            ProbeAtMousePosition();
+            GetViewport().SetInputAsHandled();
         }
     }
 
@@ -141,6 +138,8 @@ public partial class WorldMapProbeNode : Node
                 $"Cell ({x},{y}) | Elevation: {elevation:F3}",
             MapViewMode.Plates =>
                 $"Cell ({x},{y}) | Plate ID: {plateId} | Elevation: {elevation:F3}",
+            MapViewMode.ColoredElevation =>
+                $"Cell ({x},{y}) | Elevation: {elevation:F3}",
             _ => $"Cell ({x},{y}) | Unknown view"
         };
 
