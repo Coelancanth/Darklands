@@ -199,6 +199,29 @@ public class NativePlateSimulator : IPlateSimulator
             // 3. Flood fill from borders to mark ocean cells
             var oceanMask = ElevationPostProcessor.FillOcean(heightmap, p.SeaLevel);
 
+            // Diagnostics: ocean vs land counts and elevation ranges
+            int oceanCount = 0, landCount = 0;
+            float minLand = float.PositiveInfinity, maxLand = float.NegativeInfinity;
+            float minSea = float.PositiveInfinity, maxSea = float.NegativeInfinity;
+            int h = heightmap.GetLength(0), w = heightmap.GetLength(1);
+            for (int y = 0; y < h; y++)
+            {
+                for (int x = 0; x < w; x++)
+                {
+                    float e = heightmap[y, x];
+                    if (oceanMask[y, x])
+                    {
+                        oceanCount++; if (e < minSea) minSea = e; if (e > maxSea) maxSea = e;
+                    }
+                    else
+                    {
+                        landCount++; if (e < minLand) minLand = e; if (e > maxLand) maxLand = e;
+                    }
+                }
+            }
+            _logger.LogInformation("PostProcess: seaLevel={SeaLevel:F3} ocean={Ocean} land={Land} sea[min={MinS:F3},max={MaxS:F3}] land[min={MinL:F3},max={MaxL:F3}]",
+                p.SeaLevel, oceanCount, landCount, minSea, maxSea, minLand, maxLand);
+
             // 4. Normalize land elevation distribution (correct skew to high mountains)
             ElevationPostProcessor.NormalizeLandDistribution(heightmap, oceanMask, gamma: 1.8f);
 
@@ -368,6 +391,15 @@ public class NativePlateSimulator : IPlateSimulator
             seaLevel: NativeSeaLevelFallback(hydrology));
 
         _logger.LogInformation("Biome classification complete (using humidity-based moisture)");
+
+        // Diagnostics: count water vs land cells
+        int h = hydrology.Heightmap.GetLength(0);
+        int w = hydrology.Heightmap.GetLength(1);
+        int water = 0, land = 0;
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+                if (biomes[y, x] == Domain.BiomeType.Ocean || biomes[y, x] == Domain.BiomeType.ShallowWater) water++; else land++;
+        _logger.LogInformation("Biome counts: water={Water} land={Land}", water, land);
 
         return new PlateSimulationResult(
             hydrology.Heightmap,
