@@ -307,10 +307,11 @@ public class NativePlateSimulator : IPlateSimulator
             _logger.LogInformation("PostProcess: seaLevel={SeaLevel:F3} ocean={Ocean} land={Land} sea[min={MinS:F3},max={MaxS:F3}] land[min={MinL:F3},max={MaxL:F3}]",
                 p.SeaLevel, oceanCount, landCount, minSea, maxSea, minLand, maxLand);
 
-            // 4. Normalize land elevation distribution (correct skew to high mountains):
-            //    First gamma compress, then rank-based remap for stronger effect.
-            ElevationPostProcessor.NormalizeLandDistribution(heightmap, oceanMask, gamma: 1.8f);
-            ElevationPostProcessor.RemapLandByRank(heightmap, oceanMask, alpha: 1.6f);
+            // 4. DISABLED: Normalize land elevation distribution
+            //    These experimental algorithms were creating latitude-based artifacts (horizontal banding)
+            //    Removing them fixes TD_011 elevation distribution bug
+            // ElevationPostProcessor.NormalizeLandDistribution(heightmap, oceanMask, gamma: 1.8f);
+            // ElevationPostProcessor.RemapLandByRank(heightmap, oceanMask, alpha: 1.6f);
 
             _logger.LogInformation("Elevation post-processing complete");
 
