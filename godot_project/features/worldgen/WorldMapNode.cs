@@ -363,92 +363,78 @@ public partial class WorldMapNode : Node2D
         // Create Image from elevation data
         var image = Image.CreateEmpty(data.Width, data.Height, false, Image.Format.Rgb8);
 
-        // Our heightmap is 0.0-1.0 normalized, but WorldEngine's _elevation_color expects:
-        // - Ocean: 0.0-1.0 (sea level)
-        // - Land: 1.0-12.0+ (above sea level, measured in "color step" units)
-        // We need to rescale our normalized data to match WorldEngine's expected range.
+        // WorldEngine draw_simple_elevation exact rescaling:
+        // - If there is ocean: c[ocean] = (e - minSea) / (maxSea - minSea)
+        //                      c[land]  = (e - minLand) / ((maxLand - minLand) / 11) + 1
+        // - Else:               c        = (e - minLand) / ((maxLand - minLand) / 11) + 1
 
-        // Step 1: Calculate ocean/land statistics from ocean mask
-        float minOceanElev = float.MaxValue;
-        float maxOceanElev = float.MinValue;
-        float minLandElev = float.MaxValue;
-        float maxLandElev = float.MinValue;
+        bool hasOcean = false;
+        for (int y = 0; y < data.Height && !hasOcean; y++)
+            for (int x = 0; x < data.Width && !hasOcean; x++)
+                if (data.OceanMask[y, x]) hasOcean = true;
 
-        for (int y = 0; y < data.Height; y++)
-        {
-            for (int x = 0; x < data.Width; x++)
-            {
-                var elev = data.Heightmap[y, x];
-                var isOcean = data.OceanMask[y, x];
-
-                if (isOcean)
-                {
-                    minOceanElev = Math.Min(minOceanElev, elev);
-                    maxOceanElev = Math.Max(maxOceanElev, elev);
-                }
-                else
-                {
-                    minLandElev = Math.Min(minLandElev, elev);
-                    maxLandElev = Math.Max(maxLandElev, elev);
-                }
-            }
-        }
-
-        _logger?.LogInformation("Elevation stats: Ocean [{MinOcean:F3}-{MaxOcean:F3}], Land [{MinLand:F3}-{MaxLand:F3}]",
-            minOceanElev, maxOceanElev, minLandElev, maxLandElev);
-
-        // Calculate elevation distribution for better debugging
-        var elevRange = maxLandElev - minLandElev;
-        _logger?.LogInformation("Land elevation range: {Range:F3} (spread: {Percent:F1}% of heightmap)",
-            elevRange, elevRange * 100);
-
-        // Step 2: Render using WorldEngine's EXACT rescaling formula (draw.py lines 340-350)
-        // Ocean: normalize to [0.0, 1.0]
-        // Land: normalize to [1.0, 12.0] by dividing range by 11
-        const float SeaLevel = 1.0f; // WorldEngine's sea level threshold
-
-        var oceanRange = maxOceanElev - minOceanElev;
-        var landRange = maxLandElev - minLandElev;
-        var landDelta = landRange / 11.0f; // WorldEngine divides by 11 to map land to 1-12 range
+        float minLand = float.PositiveInfinity;
+        float maxLand = float.NegativeInfinity;
+        float minSea = float.PositiveInfinity;
+        float maxSea = float.NegativeInfinity;
 
         for (int y = 0; y < data.Height; y++)
         {
             for (int x = 0; x < data.Width; x++)
             {
-                var elev = data.Heightmap[y, x];
-                var isOcean = data.OceanMask[y, x];
-
-                // WorldEngine's exact formula from draw.py
-                float rescaledElev;
-                if (isOcean && oceanRange > 0)
+                float e = data.Heightmap[y, x];
+                if (data.OceanMask[y, x])
                 {
-                    // Ocean: c[ocean] = ((e[ocean] - min_elev_sea) / elev_delta_sea)
-                    rescaledElev = (elev - minOceanElev) / oceanRange;
-                }
-                else if (!isOcean && landDelta > 0)
-                {
-                    // Land: c[land] = ((e[land] - min_elev_land) / elev_delta_land) + 1
-                    rescaledElev = ((elev - minLandElev) / landDelta) + 1.0f;
+                    if (e < minSea) minSea = e;
+                    if (e > maxSea) maxSea = e;
                 }
                 else
                 {
-                    // Fallback for edge cases (flat terrain)
-                    rescaledElev = isOcean ? 0.5f : 6.5f;
+                    if (e < minLand) minLand = e;
+                    if (e > maxLand) maxLand = e;
                 }
-
-                // Get WorldEngine color gradient (matching draw.py exactly)
-                var (r, g, b) = ElevationMapColorizer.GetElevationColor(rescaledElev, SeaLevel);
-
-                // Convert float (0.0-1.0) to Godot Color
-                var color = new Color(r, g, b);
-                image.SetPixel(x, y, color);
             }
         }
 
-        // Convert Image to Texture2D and assign to sprite
+        float elevDeltaSea = Math.Max(1e-6f, maxSea - minSea);
+        float elevDeltaLand = Math.Max(1e-6f, (maxLand - minLand) / 11.0f);
+
+        _logger?.LogInformation("Elevation stats (WE rescale): Ocean[{MinS:F3}-{MaxS:F3}] ΔS={DS:F3}, Land[{MinL:F3}-{MaxL:F3}] ΔL/11={DL:F3}",
+            minSea, maxSea, elevDeltaSea, minLand, maxLand, elevDeltaLand);
+
+        const float SeaLevel = 1.0f; // WorldEngine uses 1.0 threshold after rescaling
+
+        for (int y = 0; y < data.Height; y++)
+        {
+            for (int x = 0; x < data.Width; x++)
+            {
+                float e = data.Heightmap[y, x];
+                bool isOcean = data.OceanMask[y, x];
+
+                float c;
+                if (hasOcean)
+                {
+                    if (isOcean)
+                    {
+                        c = (e - minSea) / elevDeltaSea; // [0,1]
+                    }
+                    else
+                    {
+                        c = ((e - minLand) / elevDeltaLand) + 1.0f; // [1,12]
+                    }
+                }
+                else
+                {
+                    c = ((e - minLand) / elevDeltaLand) + 1.0f;
+                }
+
+                var (r, g, b) = ElevationMapColorizer.GetElevationColor(c, SeaLevel);
+                image.SetPixel(x, y, new Color(r, g, b));
+            }
+        }
+
         var texture = ImageTexture.CreateFromImage(image);
         _terrainSprite.Texture = texture;
-
         _logger?.LogDebug("Elevation map texture created and assigned to sprite");
     }
 
