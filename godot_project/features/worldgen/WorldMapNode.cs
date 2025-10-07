@@ -30,6 +30,7 @@ public partial class WorldMapNode : Node2D
     private Control? _legendPanel;
     private HashSet<(int x, int y)> _riverCells = new HashSet<(int x, int y)>();
     private HashSet<(int x, int y)> _lakeCells = new HashSet<(int x, int y)>();
+    private ProbeHighlighter? _probeHighlighter;
 
     // Cached world data (session-scoped, enables instant view switching)
     private PlateSimulationResult? _cachedWorldData;
@@ -77,6 +78,15 @@ public partial class WorldMapNode : Node2D
             Centered = false // Position at (0, 0) for easier camera alignment
         };
         AddChild(_terrainSprite);
+
+        // Highlighter overlay
+        _probeHighlighter = new ProbeHighlighter
+        {
+            Name = "ProbeHighlighter",
+            ZAsRelative = false,
+            ZIndex = 1000
+        };
+        AddChild(_probeHighlighter);
 
         _logger.LogInformation("WorldMapNode ready, generating world with seed {Seed}", Seed);
 
@@ -251,6 +261,7 @@ public partial class WorldMapNode : Node2D
         if (x < 0 || y < 0 || x >= _cachedWorldData.Width || y >= _cachedWorldData.Height)
         {
             _logger.LogInformation("Probe: outside map at ({X},{Y})", x, y);
+            _probeHighlighter?.SetRect(new Rect2());
             return;
         }
 
@@ -268,6 +279,8 @@ public partial class WorldMapNode : Node2D
         _logger.LogInformation(
             "Probe ({X},{Y}) | ocean={Ocean} elev={Elev:F3} temp={Temp:F3} precip={Precip:F3} humidity={Hum:F3} irr={Irr:F3} watermap={Water:F3} biome={Biome} river_cell={River} lake_cell={Lake}",
             x, y, isOcean, elev, temp, precip, humidity, irrigation, watermap, biome, inRiver, inLake);
+
+        _probeHighlighter?.SetRect(new Rect2(x, y, 1, 1));
     }
 
     /// <summary>
@@ -353,11 +366,11 @@ public partial class WorldMapNode : Node2D
                 break;
 
             case MapViewMode.Precipitation:
-                _logger?.LogWarning("Precipitation view not yet implemented (TD_010 Phase 2)");
+                RenderPrecipitationMap(_cachedWorldData);
                 break;
 
             case MapViewMode.Temperature:
-                _logger?.LogWarning("Temperature view not yet implemented (TD_010 Phase 2)");
+                RenderTemperatureMap(_cachedWorldData);
                 break;
 
             default:
@@ -497,6 +510,102 @@ public partial class WorldMapNode : Node2D
         _terrainSprite.Texture = texture;
         _logger?.LogDebug("Elevation map texture created and assigned to sprite");
     }
+
+    // Render humidity (precipitation) view using WorldEngine quantiles/colors
+    private void RenderPrecipitationMap(PlateSimulationResult data)
+    {
+        if (_terrainSprite == null)
+        {
+            _logger?.LogError("Cannot render precipitation map: Terrain sprite is null");
+            return;
+        }
+        _logger?.LogDebug("Rendering precipitation map: {Width}x{Height} cells", data.Width, data.Height);
+        var image = Image.CreateEmpty(data.Width, data.Height, false, Image.Format.Rgb8);
+        var q = ComputeHumidityQuantiles(data.HumidityMap, data.OceanMask);
+        for (int y = 0; y < data.Height; y++)
+        {
+            for (int x = 0; x < data.Width; x++)
+            {
+                if (data.OceanMask[y, x])
+                {
+                    image.SetPixel(x, y, new Color(0f, 0f, 1f));
+                }
+                else
+                {
+                    image.SetPixel(x, y, GetHumidityColor(data.HumidityMap[y, x], q));
+                }
+            }
+        }
+        var texture = ImageTexture.CreateFromImage(image);
+        _terrainSprite.Texture = texture;
+        _logger?.LogDebug("Precipitation map texture created and assigned to sprite");
+    }
+
+    // Render temperature bands using fixed thresholds
+    private void RenderTemperatureMap(PlateSimulationResult data)
+    {
+        if (_terrainSprite == null)
+        {
+            _logger?.LogError("Cannot render temperature map: Terrain sprite is null");
+            return;
+        }
+        _logger?.LogDebug("Rendering temperature map: {Width}x{Height} cells", data.Width, data.Height);
+        var image = Image.CreateEmpty(data.Width, data.Height, false, Image.Format.Rgb8);
+        float[] t = new float[] { 0.124f, 0.366f, 0.439f, 0.594f, 0.765f, 0.874f };
+        for (int y = 0; y < data.Height; y++)
+        {
+            for (int x = 0; x < data.Width; x++)
+            {
+                image.SetPixel(x, y, GetTemperatureColor(data.TemperatureMap[y, x], t));
+            }
+        }
+        var texture = ImageTexture.CreateFromImage(image);
+        _terrainSprite.Texture = texture;
+        _logger?.LogDebug("Temperature map texture created and assigned to sprite");
+    }
+
+    private static Color GetTemperatureColor(float v, float[] th)
+    {
+        if (v < th[0]) return new Color(0f, 0f, 1f);
+        if (v < th[1]) return FromByte(42, 0, 213);
+        if (v < th[2]) return FromByte(85, 0, 170);
+        if (v < th[3]) return FromByte(128, 0, 128);
+        if (v < th[4]) return FromByte(170, 0, 85);
+        if (v < th[5]) return FromByte(213, 0, 42);
+        return FromByte(255, 0, 0);
+    }
+
+    private static Color GetHumidityColor(float h, (float q12, float q25, float q37, float q50, float q62, float q75, float q87) q)
+    {
+        if (h < q.q87) return FromByte(0, 32, 32);
+        if (h < q.q75) return FromByte(0, 64, 64);
+        if (h < q.q62) return FromByte(0, 96, 96);
+        if (h < q.q50) return FromByte(0, 128, 128);
+        if (h < q.q37) return FromByte(0, 160, 160);
+        if (h < q.q25) return FromByte(0, 192, 192);
+        if (h < q.q12) return FromByte(0, 224, 224);
+        return FromByte(0, 255, 255);
+    }
+
+    private static (float q12, float q25, float q37, float q50, float q62, float q75, float q87) ComputeHumidityQuantiles(float[,] humidity, bool[,] ocean)
+    {
+        int h = humidity.GetLength(0);
+        int w = humidity.GetLength(1);
+        var land = new List<float>(h * w);
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+                if (!ocean[y, x]) land.Add(humidity[y, x]);
+        land.Sort();
+        float P(float p)
+        {
+            if (land.Count == 0) return 0f;
+            int idx = Math.Clamp((int)(land.Count * p), 0, land.Count - 1);
+            return land[idx];
+        }
+        return (P(0.002f), P(0.014f), P(0.073f), P(0.236f), P(0.507f), P(0.778f), P(0.941f));
+    }
+
+    private static Color FromByte(int r, int g, int b) => new Color(r / 255f, g / 255f, b / 255f);
 
     /// <summary>
     /// Maps Ricklefs biome categories (9 types) to colors using field-tested ecology textbook palette.
@@ -708,5 +817,24 @@ public partial class WorldMapNode : Node2D
         entry.AddChild(labelNode);
 
         _legendPanel.AddChild(entry);
+    }
+
+    // Simple overlay to highlight a probed cell
+    private partial class ProbeHighlighter : Node2D
+    {
+        private Rect2 _rect;
+        public void SetRect(Rect2 rect)
+        {
+            _rect = rect;
+            QueueRedraw();
+        }
+        public override void _Draw()
+        {
+            if (_rect.Size.X <= 0 || _rect.Size.Y <= 0) return;
+            var border = new Color(1f, 1f, 0f, 1f);
+            var fill = new Color(1f, 1f, 0f, 0.15f);
+            DrawRect(_rect, fill, filled: true);
+            DrawRect(_rect, border, filled: false, width: 2);
+        }
     }
 }
