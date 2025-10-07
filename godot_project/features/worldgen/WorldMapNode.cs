@@ -715,11 +715,11 @@ public partial class WorldMapNode : Node2D
         _legendPanel = new VBoxContainer
         {
             Name = "LegendPanel",
-            Position = new Vector2(10, 400), // Bottom-left corner
+            Position = new Vector2(10, 120), // Below header label, top-left corner
         };
 
         // Add to UI layer (not world space)
-        var uiLayer = GetParent().GetNode<CanvasLayer>("../UI");
+        var uiLayer = GetParent().GetNode<CanvasLayer>("UI");
         uiLayer?.AddChild(_legendPanel);
 
         UpdateLegend(); // Initialize with current view mode

@@ -21,4 +21,5 @@ offset_bottom = 100.0
 text = "WorldGen Test Scene
 WASD: Pan camera
 Mouse Wheel: Zoom
+Keys 1-4: Switch Views | P: Probe under cursor
 Generating world..."
