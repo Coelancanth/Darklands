@@ -272,6 +272,12 @@ public class NativePlateSimulator : IPlateSimulator
             // Make a copy to avoid modifying raw data
             var heightmap = (float[,])rawHeightmap.Clone();
 
+            // 0. CRITICAL: Normalize raw data to [0, 1] range FIRST
+            //    The native library outputs unnormalized values (can be 0-20+)
+            //    All subsequent algorithms expect [0-1] input
+            ElevationPostProcessor.NormalizeToUnitRange(heightmap);
+            _logger.LogDebug("Normalized heightmap to [0, 1] range");
+
             // 1. Lower elevation at map borders for realistic coastlines
             ElevationPostProcessor.PlaceOceansAtBorders(heightmap, borderReduction: 0.8f);
 

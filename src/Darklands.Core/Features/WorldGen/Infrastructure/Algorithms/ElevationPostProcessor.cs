@@ -283,6 +283,60 @@ public static class ElevationPostProcessor
         }
     }
 
+    /// <summary>
+    /// Normalizes heightmap to [0.0, 1.0] range if it exceeds those bounds.
+    /// The native plate tectonics library outputs unnormalized values (can exceed 1.0),
+    /// so this ensures all subsequent algorithms receive expected [0-1] input.
+    /// </summary>
+    /// <param name="heightmap">Elevation data (modified in-place)</param>
+    public static void NormalizeToUnitRange(float[,] heightmap)
+    {
+        int height = heightmap.GetLength(0);
+        int width = heightmap.GetLength(1);
+
+        // Find global min/max
+        float min = float.PositiveInfinity;
+        float max = float.NegativeInfinity;
+
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                float e = heightmap[y, x];
+                if (e < min) min = e;
+                if (e > max) max = e;
+            }
+        }
+
+        // Check if normalization is needed
+        if (min >= 0f && max <= 1f)
+        {
+            // Already in [0, 1] range, no normalization needed
+            return;
+        }
+
+        // Normalize to [0, 1] range
+        float range = max - min;
+        if (range < 1e-6f)
+        {
+            // Degenerate case: all values are the same
+            // Set everything to 0.5 (middle of range)
+            for (int y = 0; y < height; y++)
+                for (int x = 0; x < width; x++)
+                    heightmap[y, x] = 0.5f;
+            return;
+        }
+
+        // Linear rescale: (value - min) / (max - min)
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                heightmap[y, x] = (heightmap[y, x] - min) / range;
+            }
+        }
+    }
+
     // ═══════════════════════════════════════════════════════════════════════
     // Helper: Simple Perlin Noise Implementation
     // ═══════════════════════════════════════════════════════════════════════
