@@ -18,6 +18,7 @@ public record PlateSimulationParams
     /// <summary>
     /// Sea level threshold (0.0-1.0).
     /// Lower = more land, higher = more ocean.
+    /// NOTE: This value is normalized after raw heightmap processing to account for native library output scale.
     /// </summary>
     public float SeaLevel { get; init; } = 0.65f;
 

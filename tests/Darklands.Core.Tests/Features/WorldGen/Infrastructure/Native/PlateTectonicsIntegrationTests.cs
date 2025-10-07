@@ -246,17 +246,12 @@ public class PlateTectonicsIntegrationTests
 
         hasNonZeroValues.Should().BeTrue("Heightmap should contain terrain data from simulation");
 
-        // Validate ocean mask is populated (stub logic in Phase 2.1)
-        worldData.OceanMask.GetLength(0).Should().Be(128);
-        worldData.OceanMask.GetLength(1).Should().Be(128);
-
-        // Validate climate maps exist (stub data in Phase 2.1)
-        worldData.PrecipitationMap.Should().NotBeNull();
-        worldData.TemperatureMap.Should().NotBeNull();
-        worldData.BiomeMap.Should().NotBeNull();
+        // Validate plates map is populated
+        worldData.PlatesMap.GetLength(0).Should().Be(128);
+        worldData.PlatesMap.GetLength(1).Should().Be(128);
 
         _output.WriteLine($"World generated successfully: {worldData.Width}x{worldData.Height}");
         _output.WriteLine($"Heightmap sample [64,64]: {worldData.Heightmap[64, 64]:F3}");
-        _output.WriteLine($"Ocean at [64,64]: {worldData.OceanMask[64, 64]}");
+        _output.WriteLine($"Plate ID at [64,64]: {worldData.PlatesMap[64, 64]}");
     }
 }

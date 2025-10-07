@@ -37,14 +37,14 @@ public class GenerateWorldCommandHandler : IRequestHandler<GenerateWorldCommand,
             worldSize: command.WorldSize,
             plateCount: command.PlateCount);
 
-        // Delegate to simulator (handles all plate tectonics, post-processing, climate, biomes)
+        // Delegate to simulator (pure native plate tectonics simulation)
         var result = _simulator.Generate(parameters);
 
         if (result.IsSuccess)
         {
             _logger.LogInformation(
-                "World generation complete: {Width}x{Height}, {BiomeCount} biome types classified",
-                result.Value.Width, result.Value.Height, CountUniqueBiomes(result.Value));
+                "World generation complete: {Width}x{Height} heightmap generated",
+                result.Value.Width, result.Value.Height);
         }
         else
         {
@@ -52,16 +52,5 @@ public class GenerateWorldCommandHandler : IRequestHandler<GenerateWorldCommand,
         }
 
         return await Task.FromResult(result);
-    }
-
-    private static int CountUniqueBiomes(PlateSimulationResult world)
-    {
-        var uniqueBiomes = new HashSet<Domain.BiomeType>();
-
-        for (int y = 0; y < world.Height; y++)
-            for (int x = 0; x < world.Width; x++)
-                uniqueBiomes.Add(world.BiomeMap[y, x]);
-
-        return uniqueBiomes.Count;
     }
 }

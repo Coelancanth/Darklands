@@ -1,25 +1,30 @@
-[gd_scene load_steps=3 format=3 uid="uid://cjcq3mxl1mxvx"]
+[gd_scene load_steps=6 format=3 uid="uid://cjcq3mxl1mxvx"]
 
-[ext_resource type="Script" uid="uid://blyxpx1jtoe4y" path="res://godot_project/features/worldgen/WorldMapNode.cs" id="1_worldmap"]
-[ext_resource type="TileSet" uid="uid://bw8qxm3yw7h8y" path="res://godot_project/assets/tilesets/worldgen/worldgen_tileset.tres" id="2_tileset"]
+[ext_resource type="Script" uid="uid://ddcimomghucvy" path="res://godot_project/features/worldgen/WorldMapOrchestratorNode.cs" id="1_orchestrator"]
+[ext_resource type="Script" uid="uid://bms60h25uj1yo" path="res://godot_project/features/worldgen/WorldMapRendererNode.cs" id="2_renderer"]
+[ext_resource type="Script" uid="uid://oyiaoox43c6c" path="res://godot_project/features/worldgen/WorldMapProbeNode.cs" id="3_probe"]
+[ext_resource type="Script" uid="uid://wxtt8b14u4rv" path="res://godot_project/features/worldgen/WorldMapUINode.cs" id="4_ui"]
+[ext_resource type="Script" uid="uid://cdhfj1b6roxjk" path="res://godot_project/features/worldgen/WorldMapLegendNode.cs" id="5_legend"]
 
 [node name="WorldMapTestScene" type="Node2D"]
 
 [node name="Camera2D" type="Camera2D" parent="."]
 
-[node name="WorldMapNode" type="Node2D" parent="."]
-script = ExtResource("1_worldmap")
+[node name="Orchestrator" type="Node" parent="."]
+script = ExtResource("1_orchestrator")
 
-[node name="TileMapLayer" type="TileMapLayer" parent="WorldMapNode"]
-tile_set = ExtResource("2_tileset")
+[node name="Renderer" type="Sprite2D" parent="Orchestrator"]
+script = ExtResource("2_renderer")
 
-[node name="UI" type="CanvasLayer" parent="."]
+[node name="Probe" type="Node" parent="Orchestrator"]
+script = ExtResource("3_probe")
 
-[node name="Label" type="Label" parent="UI"]
-offset_right = 400.0
-offset_bottom = 100.0
-text = "WorldGen Test Scene
-WASD: Pan camera
-Mouse Wheel: Zoom
-Keys 1-4: Switch Views | P: Probe under cursor
-Generating world..."
+[node name="UI" type="Control" parent="Orchestrator"]
+layout_mode = 3
+anchors_preset = 0
+script = ExtResource("4_ui")
+
+[node name="Legend" type="Control" parent="Orchestrator"]
+layout_mode = 3
+anchors_preset = 0
+script = ExtResource("5_legend")
