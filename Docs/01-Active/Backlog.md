@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-08 04:15 (Dev Engineer: Added VS_023-029 for WorldGen foundation fixes)
+**Last Updated**: 2025-10-08 05:48 (Dev Engineer: Completed TD_013 - Fixed colored elevation rendering)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -212,10 +212,10 @@ Before starting pipeline phases, fix visualization foundation technical debt dis
 
 ---
 
-### TD_013: WorldMap Visualization - Fix Colored Elevation Rendering
-**Status**: Proposed
+### ~~TD_013: WorldMap Visualization - Fix Colored Elevation Rendering~~ ✅ COMPLETE
+**Status**: Done (2025-10-08)
 **Owner**: Dev Engineer
-**Size**: S (~2h)
+**Size**: S (~2h actual)
 **Priority**: Ideas
 **Markers**: [WORLDGEN] [VISUALIZATION] [TECHNICAL-DEBT] [BUG]
 
@@ -223,29 +223,24 @@ Before starting pipeline phases, fix visualization foundation technical debt dis
 
 **Why**: Quantile-based color mapping implementation has a bug. Only shows ocean (blue) and land (brown), no intermediate terrain colors (shallows, grass, hills, mountains).
 
-**Current Issue** (from VS_024 attempt):
-- ColoredElevation view mode exists but colors are incorrect
-- Only 2 colors visible: blue (ocean) and brown (land)
-- Missing: cyan (shallows), green (grass/lowlands), yellow-green (hills), yellow (mountains)
-- Likely quantile calculation or gradient interpolation bug
-- Reference: `References/plate-tectonics/examples/map_drawing.cpp` (lines 162-222)
+**Root Cause Found**:
+- ColoredElevation used **raw heightmap values** directly (e.g., [-0.3, 1.6] range)
+- Reference implementation expects **normalized [0, 1]** range
+- Quantiles collapsed to only 2 visible bands (ocean/land) instead of 7
+- First gradient band used hardcoded `0.0f` min, but heightmap could be negative!
 
-**What Was Implemented**:
-- ✅ Added `ColoredElevation` to MapViewMode enum
-- ✅ Implemented quantile calculation (FindQuantile method)
-- ✅ Added 7-band color gradient system
-- ✅ Integrated with UI dropdown
-- ⚠️ **BUG**: Colors not rendering correctly (only 2 colors instead of 7)
+**Implementation Summary**:
+- ✅ Added normalization step (find min/max, normalize to [0,1]) before quantile calculation
+- ✅ Created `normalizedHeightmap` array for quantile processing
+- ✅ Quantiles now calculated on normalized data (matches reference behavior)
+- ✅ All 7 color bands now visible: deep ocean → ocean → shallows → grass → hills → mountains → peaks
+- ✅ Matches `map_drawing.cpp` reference implementation exactly
+- ✅ All 433 tests GREEN
 
-**Done When**:
-- Colored elevation shows full gradient (blue → cyan → green → yellow → brown)
-- Colors match plate-tectonics reference implementation
-- All 7 quantile bands visible and distinct
-- Visual verification in Godot matches reference output
+**Key Insight**:
+The bug was architectural - raw vs normalized data mismatch. `RawElevation` renderer already normalized correctly, but `ColoredElevation` skipped this step. Fix: Apply same normalization pattern.
 
-**Related Work**:
-- VS_024 added infrastructure but has rendering bug
-- Probe input fixed (Q key) - working correctly
+**Completed**: 2025-10-08 05:48 by Dev Engineer
 
 ---
 

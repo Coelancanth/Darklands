@@ -166,6 +166,7 @@ public partial class WorldMapRendererNode : Sprite2D
     /// Renders elevation with quantile-based color gradient.
     /// Matches plate-tectonics library reference implementation (map_drawing.cpp).
     /// Uses quantiles to adapt colors to heightmap distribution.
+    /// IMPORTANT: Normalizes heightmap to [0,1] range before applying quantile-based gradient.
     /// </summary>
     private void RenderColoredElevation(PlateSimulationResult data)
     {
@@ -173,23 +174,48 @@ public partial class WorldMapRendererNode : Sprite2D
         int w = data.Width;
         var image = Image.CreateEmpty(w, h, false, Image.Format.Rgb8);
 
-        // Calculate quantiles (matches reference implementation)
-        float q15 = FindQuantile(data.Heightmap, 0.15f);
-        float q70 = FindQuantile(data.Heightmap, 0.70f);
-        float q75 = FindQuantile(data.Heightmap, 0.75f);
-        float q90 = FindQuantile(data.Heightmap, 0.90f);
-        float q95 = FindQuantile(data.Heightmap, 0.95f);
-        float q99 = FindQuantile(data.Heightmap, 0.99f);
-
-        _logger?.LogDebug("ColoredElevation quantiles: q15={Q15:F3} q70={Q70:F3} q75={Q75:F3} q90={Q90:F3} q95={Q95:F3} q99={Q99:F3}",
-            q15, q70, q75, q90, q95, q99);
-
-        // Render with quantile-based terrain colors
+        // Step 1: Normalize heightmap to [0, 1] range (reference implementation expects this!)
+        float min = float.MaxValue, max = float.MinValue;
         for (int y = 0; y < h; y++)
         {
             for (int x = 0; x < w; x++)
             {
-                float elevation = data.Heightmap[y, x];
+                float v = data.Heightmap[y, x];
+                if (v < min) min = v;
+                if (v > max) max = v;
+            }
+        }
+
+        float delta = Math.Max(1e-6f, max - min);
+        _logger?.LogDebug("ColoredElevation: min={Min:F3} max={Max:F3} delta={Delta:F3}", min, max, delta);
+
+        // Create normalized heightmap [0, 1]
+        var normalizedHeightmap = new float[h, w];
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                normalizedHeightmap[y, x] = (data.Heightmap[y, x] - min) / delta;
+            }
+        }
+
+        // Step 2: Calculate quantiles on NORMALIZED data
+        float q15 = FindQuantile(normalizedHeightmap, 0.15f);
+        float q70 = FindQuantile(normalizedHeightmap, 0.70f);
+        float q75 = FindQuantile(normalizedHeightmap, 0.75f);
+        float q90 = FindQuantile(normalizedHeightmap, 0.90f);
+        float q95 = FindQuantile(normalizedHeightmap, 0.95f);
+        float q99 = FindQuantile(normalizedHeightmap, 0.99f);
+
+        _logger?.LogDebug("ColoredElevation quantiles: q15={Q15:F3} q70={Q70:F3} q75={Q75:F3} q90={Q90:F3} q95={Q95:F3} q99={Q99:F3}",
+            q15, q70, q75, q90, q95, q99);
+
+        // Step 3: Render with quantile-based terrain colors using normalized values
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                float elevation = normalizedHeightmap[y, x];  // Use normalized [0,1] value
                 Color color = GetQuantileTerrainColor(elevation, q15, q70, q75, q90, q95, q99);
                 image.SetPixel(x, y, color);
             }
