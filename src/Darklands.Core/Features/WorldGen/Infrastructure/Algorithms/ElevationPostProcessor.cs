@@ -173,12 +173,18 @@ public static class ElevationPostProcessor
     /// <param name="seed">Random seed for reproducibility</param>
     /// <param name="scale">Noise frequency (lower = larger features, default 0.05)</param>
     /// <param name="amplitude">Noise strength (default 0.1 = ±10% elevation change)</param>
-    public static void AddNoise(float[,] heightmap, int seed, float scale = 0.05f, float amplitude = 0.1f)
+    public static void AddNoise(float[,] heightmap, int seed, float scale = 0.05f, float amplitude = 0.06f)
     {
         int height = heightmap.GetLength(0);
         int width = heightmap.GetLength(1);
 
         var noise = new PerlinNoise(seed);
+
+        // Compute into a scratch buffer to avoid per-pixel clamping saturation,
+        // then renormalize result globally to [0,1].
+        var modified = new float[height, width];
+        float minVal = float.PositiveInfinity;
+        float maxVal = float.NegativeInfinity;
 
         for (int y = 0; y < height; y++)
         {
@@ -187,9 +193,21 @@ public static class ElevationPostProcessor
                 // Sample Perlin noise at scaled coordinates
                 float noiseValue = noise.Sample(x * scale, y * scale);
 
-                // Add noise to elevation (clamped to [0, 1])
+                // Add noise (no clamping here)
                 float newElevation = heightmap[y, x] + noiseValue * amplitude;
-                heightmap[y, x] = Math.Clamp(newElevation, 0f, 1f);
+                modified[y, x] = newElevation;
+                if (newElevation < minVal) minVal = newElevation;
+                if (newElevation > maxVal) maxVal = newElevation;
+            }
+        }
+
+        // Renormalize globally to [0,1]
+        float range = Math.Max(1e-6f, maxVal - minVal);
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                heightmap[y, x] = Math.Clamp((modified[y, x] - minVal) / range, 0f, 1f);
             }
         }
     }
