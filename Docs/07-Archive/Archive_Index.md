@@ -1,21 +1,22 @@
 # Backlog Archive Index
 
-**Last Updated**: 2025-10-08 06:09
-**Current Active Archive**: Completed_Backlog_2025-10_Part3.md (Lines: 192/1000)
+**Last Updated**: 2025-10-08 06:37
+**Current Active Archive**: Completed_Backlog_2025-10_Part3.md (Lines: 302/1000)
 
 ## Archive Files (Newest First)
 
 ### Completed_Backlog_2025-10_Part3.md (✅ ACTIVE - October 2025 Part 4)
 - **Created**: 2025-10-08 06:09 (after rotation)
-- **Line Count**: 192/1000
+- **Line Count**: 302/1000
 - **Date Range**: 2025-10-08 to 2025-10-08
-- **Status**: ✅ Active (808 lines remaining)
-- **Extraction Status**: 0/3 extracted (3 NOT EXTRACTED ⚠️)
+- **Status**: ✅ Active (698 lines remaining)
+- **Extraction Status**: 0/4 extracted (4 NOT EXTRACTED ⚠️)
 
 **Items**:
 - **TD_012**: WorldMap Visualization - Dynamic Legends (Fixed legend positioning, 7-band color key, reordered view modes with ColoredElevation as default, 433 tests GREEN) [NOT EXTRACTED ⚠️]
 - **TD_013**: WorldMap Visualization - Fix Colored Elevation Rendering (Fixed quantile bug via normalization, all 7 color bands visible, matches reference implementation, 433 tests GREEN) [NOT EXTRACTED ⚠️]
 - **TD_015**: WorldMap Persistence - Disk Serialization (Binary format with magic number, manual save/load UI, user://worldgen_saves/ directory, 433 tests GREEN) [NOT EXTRACTED ⚠️]
+- **VS_023**: WorldGen Pipeline - GenerateWorldPipeline Architecture (Three-layer architecture Handler→Pipeline→Simulator, WorldGenerationResult DTO with optional post-processing fields, IWorldGenerationPipeline abstraction, 433 tests GREEN) [NOT EXTRACTED ⚠️]
 
 ### Completed_Backlog_2025-10_Part2.md (🔒 SEALED - October 2025 Part 3)
 - **Created**: 2025-10-04 14:15 (after rotation)
@@ -89,5 +90,5 @@
 2. Open that specific archive file (newest first: Completed_Backlog_2025-10_Part2.md)
 3. Use Ctrl+F to search for item ID
 
-**Current Active Capacity**: 192/1000 lines (808 lines remaining)
-**Total Archived Items**: 27 (24 in Oct 2025, 3 in Sept 2025)
+**Current Active Capacity**: 302/1000 lines (698 lines remaining)
+**Total Archived Items**: 28 (25 in Oct 2025, 3 in Sept 2025)

@@ -126,7 +126,6 @@ public partial class WorldMapCameraNode : Node
         if (newZoom.X <= MAX_ZOOM)
         {
             _camera.Zoom = newZoom;
-            _logger?.LogDebug("Zoomed in: {Zoom}", _camera.Zoom.X);
         }
     }
 
@@ -138,7 +137,6 @@ public partial class WorldMapCameraNode : Node
         if (newZoom.X >= MIN_ZOOM)
         {
             _camera.Zoom = newZoom;
-            _logger?.LogDebug("Zoomed out: {Zoom}", _camera.Zoom.X);
         }
     }
 }

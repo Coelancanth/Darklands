@@ -214,3 +214,88 @@ Data Section:
 - [ ] Performance insight: Binary vs text formats (~2.1 MB binary vs ~10+ MB CSV for 512×512 world)
 
 ---
+
+### VS_023: WorldGen Pipeline - GenerateWorldPipeline Architecture
+**Extraction Status**: NOT EXTRACTED ⚠️
+**Completed**: 2025-10-08
+**Archive Note**: Created three-layer architecture (Handler → Pipeline → Simulator) with WorldGenerationResult DTO supporting optional post-processing fields. Pipeline currently pass-through (Stage 0), ready for incremental VS_022 phases. Introduced IWorldGenerationPipeline abstraction, registered in GameStrapper. All 433 tests GREEN.
+
+---
+
+**Status**: Done (2025-10-08)
+**Owner**: Tech Lead → Dev Engineer
+**Size**: M (~4h actual)
+**Priority**: Ideas
+**Markers**: [WORLDGEN] [ARCHITECTURE] [FOUNDATION]
+
+**What**: Create GenerateWorldPipeline class that orchestrates post-processing stages, calling NativePlateSimulator directly
+
+**Why**: Need clear architecture for incremental pipeline phases (VS_022). Pipeline should call native sim, then apply stages one by one.
+
+**Implementation Summary**:
+
+**Three-Layer Architecture** (Handler → Pipeline → Simulator):
+```
+GenerateWorldCommandHandler
+    ↓ (depends on IWorldGenerationPipeline)
+GenerateWorldPipeline
+    ↓ (depends on IPlateSimulator)
+NativePlateSimulator
+    ↓ (wraps native C++ library)
+```
+
+**Key Design Decisions**:
+1. **WorldGenerationResult** - Pipeline output DTO with optional post-processing fields
+   - `Heightmap`, `PlatesMap` (always present)
+   - `OceanMask?`, `TemperatureMap?`, `PrecipitationMap?` (null until phases implement)
+   - `RawNativeOutput` (preserved for debugging/visualization)
+
+2. **IWorldGenerationPipeline** - High-level abstraction for complete generation
+   - Orchestrates: native sim + post-processing stages
+   - Currently pass-through (Stage 0 only)
+   - Ready for VS_022 Phase 1 (normalization + ocean mask)
+
+3. **Separation of Concerns**:
+   - `PlateSimulationResult` - Raw native output only (unchanged)
+   - `WorldGenerationResult` - Pipeline output with optional processed data
+   - Presentation layer extracts `RawNativeOutput` for rendering
+
+**Files Created**:
+- ✅ `WorldGenerationResult.cs` - Pipeline output DTO
+- ✅ `IWorldGenerationPipeline.cs` - Pipeline interface
+- ✅ `GenerateWorldPipeline.cs` - Pipeline implementation (Stage 0)
+
+**Files Modified**:
+- ✅ `GenerateWorldCommand.cs` - Return type changed to WorldGenerationResult
+- ✅ `GenerateWorldCommandHandler.cs` - Now depends on IWorldGenerationPipeline
+- ✅ `WorldMapOrchestratorNode.cs` - Extracts RawNativeOutput for presentation
+- ✅ `GameStrapper.cs` - Registered IWorldGenerationPipeline (Transient)
+
+**Current Behavior** (Stage 0 - Pass-Through):
+- Pipeline calls native simulator
+- Returns raw heightmap + plates
+- Optional fields all null
+- Ready for incremental VS_022 phases
+
+**Next Steps** (VS_022 Phase 1):
+1. Add `NormalizeElevation()` stage to pipeline
+2. Add `CalculateOceanMask()` stage
+3. Populate `OceanMask` field in result
+4. Tests verify normalization + ocean detection
+
+**Tests**: All 433 tests GREEN ✅
+
+**Completed**: 2025-10-08 06:21 by Dev Engineer
+
+---
+
+**Extraction Targets**:
+- [ ] ADR needed for: Three-layer worldgen architecture (Handler → Pipeline → Simulator separation of concerns)
+- [ ] ADR needed for: Optional field pattern for incremental pipeline features (null until phase implemented)
+- [ ] HANDBOOK update: Pipeline pattern for multi-stage processing (orchestration vs execution)
+- [ ] HANDBOOK update: DTO evolution pattern (WorldGenerationResult extends PlateSimulationResult semantics)
+- [ ] Reference implementation: GenerateWorldPipeline as template for incremental feature delivery
+- [ ] Architecture pattern: DI registration for transient vs singleton services (Pipeline = Transient, correct choice)
+- [ ] Testing insight: Zero new tests needed when refactoring to cleaner architecture (433 existing tests validated behavior preservation)
+
+---
