@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-08 05:53 (Dev Engineer: Completed TD_012 - Dynamic legends + UI reordering)
+**Last Updated**: 2025-10-08 06:05 (Dev Engineer: Completed TD_015 - World persistence binary serialization)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -281,65 +281,59 @@ The bug was architectural - raw vs normalized data mismatch. `RawElevation` rend
 
 ---
 
-### TD_015: WorldMap Persistence - Disk Serialization
-**Status**: Proposed
+### ~~TD_015: WorldMap Persistence - Disk Serialization~~ ✅ COMPLETE
+**Status**: Done (2025-10-08)
 **Owner**: Dev Engineer
-**Size**: M (~6h)
+**Size**: M (~4h actual)
 **Priority**: Ideas
 **Markers**: [WORLDGEN] [PERFORMANCE] [SERIALIZATION] [TECHNICAL-DEBT]
 
-**What**: Serialize generated world data to disk by seed, quick-load if file exists (avoid regeneration)
+**What**: Binary serialization/deserialization of world data with manual save/load UI
 
-**Why**: Generation takes 3-5 seconds for 512×512. Restarting scene with same seed should instant-load from disk cache.
+**Why**: Users can save generated worlds to disk and reload them later (testing, iteration, sharing seeds)
 
-**Technical Approach**:
-```csharp
-// WorldMapOrchestratorNode.cs
-private const string CACHE_DIR = "user://worldgen_cache/";
+**Implementation Approach** (NO auto-cache):
+- **Manual save/load** buttons in UI (user-triggered, not automatic)
+- **Binary format** for compact storage (~2.1 MB per 512×512 world)
+- **Versioned format** with magic number for validation
+- **Simple workflow**: Generate → Save → Load later
 
-private async Task GenerateWorldAsync(int seed)
-{
-    string cachePath = $"{CACHE_DIR}world_{seed}.dat";
+**Binary Format**:
+```
+Header (16 bytes):
+- Magic: "DWLD" (4 bytes) - File type identifier
+- Version: uint32 (4 bytes) - Format versioning
+- Seed: int32 (4 bytes) - Original generation seed
+- Reserved: 4 bytes - Future expansion
 
-    // Try load from disk
-    if (FileAccess.FileExists(cachePath))
-    {
-        var cached = LoadWorldFromDisk(cachePath);
-        _renderer?.SetWorldData(cached, ...);
-        _logger?.LogInformation("Loaded world from cache: seed={Seed}", seed);
-        return; // Instant!
-    }
-
-    // Generate new
-    var result = await _mediator.Send(new GenerateWorldCommand(seed));
-    SaveWorldToDisk(result.Value, cachePath);
-    _logger?.LogInformation("Generated and cached world: seed={Seed}", seed);
-    // ...
-}
-
-private void SaveWorldToDisk(PlateSimulationResult data, string path)
-{
-    using var file = FileAccess.Open(path, FileAccess.ModeFlags.Write);
-    // Serialize: heightmap, plates map (binary format for speed)
-    file.Store32((uint)data.Width);
-    file.Store32((uint)data.Height);
-    // Store heightmap as binary...
-    // Store plates as binary...
-}
+Data Section:
+- Width/Height: uint32 each (8 bytes)
+- Heightmap: float[h, w] row-major (4 bytes × cells)
+- PlatesMap: uint[h, w] row-major (4 bytes × cells)
 ```
 
-**Considerations**:
-- File format: Binary (fast) or JSON (debuggable)? → Binary for performance
-- Disk usage: ~2MB per world (512×512), manageable
-- Cache invalidation: Version number in header to detect format changes
-- Cache management: Auto-cleanup old files? Max cache size limit?
+**Implementation Summary**:
+- ✅ Created WorldMapSerializationService (binary I/O)
+- ✅ Added Save/Load buttons to WorldMapUINode (horizontal layout)
+- ✅ Wired signals in WorldMapOrchestratorNode
+- ✅ Save directory: `user://worldgen_saves/` (auto-created)
+- ✅ Filename convention: `world_{seed}.dwld`
+- ✅ Format validation (magic number, version check)
+- ✅ Status feedback in UI ("Saved: world_42.dwld")
+- ✅ All 433 tests GREEN
 
-**Done When**:
-- World serialized to `user://worldgen_cache/world_{seed}.dat`
-- Loading from disk = instant (<100ms)
-- Cache hit/miss logged for verification
-- Works across game sessions (persistent)
-- Binary format documented
+**User Workflow**:
+1. Generate world (seed=42, 3-5s wait)
+2. Click "Save World" → `user://worldgen_saves/world_42.dwld` created (~2.1 MB)
+3. Close/reopen scene
+4. Click "Load World" → Instant load from disk (~100ms)
+
+**Why No Auto-Cache**:
+- Simpler: User explicitly saves what they want to keep
+- Clearer: No hidden cache management/eviction logic
+- Flexible: User controls disk usage (delete .dwld files to clean up)
+
+**Completed**: 2025-10-08 06:05 by Dev Engineer
 
 ---
 

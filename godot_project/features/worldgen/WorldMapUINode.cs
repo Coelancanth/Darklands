@@ -25,6 +25,8 @@ public partial class WorldMapUINode : Control
     private Label? _statusLabel;
     private LineEdit? _seedInput;
     private Button? _regenerateButton;
+    private Button? _saveButton;
+    private Button? _loadButton;
 
     // State
     private int _currentSeed = 42;
@@ -35,6 +37,12 @@ public partial class WorldMapUINode : Control
 
     [Signal]
     public delegate void RegenerateRequestedEventHandler(int seed);
+
+    [Signal]
+    public delegate void SaveRequestedEventHandler();
+
+    [Signal]
+    public delegate void LoadRequestedEventHandler();
 
     public override void _Ready()
     {
@@ -123,6 +131,28 @@ public partial class WorldMapUINode : Control
 
         container.AddChild(new HSeparator());
 
+        // Save/Load buttons
+        var saveLoadContainer = new HBoxContainer();
+        container.AddChild(saveLoadContainer);
+
+        _saveButton = new Button
+        {
+            Text = "Save World",
+            SizeFlagsHorizontal = SizeFlags.ExpandFill
+        };
+        _saveButton.Pressed += OnSavePressed;
+        saveLoadContainer.AddChild(_saveButton);
+
+        _loadButton = new Button
+        {
+            Text = "Load World",
+            SizeFlagsHorizontal = SizeFlags.ExpandFill
+        };
+        _loadButton.Pressed += OnLoadPressed;
+        saveLoadContainer.AddChild(_loadButton);
+
+        container.AddChild(new HSeparator());
+
         // Status label
         _statusLabel = new Label
         {
@@ -169,6 +199,14 @@ public partial class WorldMapUINode : Control
         {
             _seedInput.Editable = !isGenerating;
         }
+        if (_saveButton != null)
+        {
+            _saveButton.Disabled = isGenerating;
+        }
+        if (_loadButton != null)
+        {
+            _loadButton.Disabled = isGenerating;
+        }
     }
 
     private void OnViewModeSelected(long index)
@@ -202,6 +240,18 @@ public partial class WorldMapUINode : Control
 
         _logger?.LogInformation("Regenerate requested with seed: {Seed}", _currentSeed);
         EmitSignal(SignalName.RegenerateRequested, _currentSeed);
+    }
+
+    private void OnSavePressed()
+    {
+        _logger?.LogInformation("Save world requested");
+        EmitSignal(SignalName.SaveRequested);
+    }
+
+    private void OnLoadPressed()
+    {
+        _logger?.LogInformation("Load world requested");
+        EmitSignal(SignalName.LoadRequested);
     }
 
     /// <summary>

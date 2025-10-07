@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using Darklands.Core.Application.Infrastructure;
 using Darklands.Core.Features.WorldGen.Application.Commands;
 using Darklands.Core.Features.WorldGen.Application.Common;
+using Darklands.Core.Features.WorldGen.Application.DTOs;
 using Darklands.Core.Infrastructure.DependencyInjection;
 using MediatR;
 using Microsoft.Extensions.Logging;
@@ -27,6 +28,11 @@ public partial class WorldMapOrchestratorNode : Node
     // Services
     private ILogger<WorldMapOrchestratorNode>? _logger;
     private IMediator? _mediator;
+    private WorldMapSerializationService? _serializationService;
+
+    // State
+    private PlateSimulationResult? _currentWorld;
+    private int _currentSeed = 42;
 
     // Initial seed
     [Export]
@@ -37,6 +43,8 @@ public partial class WorldMapOrchestratorNode : Node
         // Get services
         _logger = ServiceLocator.Get<ILogger<WorldMapOrchestratorNode>>();
         _mediator = ServiceLocator.Get<IMediator>();
+        _serializationService = new WorldMapSerializationService(
+            ServiceLocator.Get<ILogger<WorldMapSerializationService>>());
 
         // Find child nodes
         _renderer = GetNode<WorldMapRendererNode>("Renderer");
@@ -78,6 +86,8 @@ public partial class WorldMapOrchestratorNode : Node
         {
             _ui.ViewModeChanged += OnViewModeChanged;
             _ui.RegenerateRequested += OnRegenerateRequested;
+            _ui.SaveRequested += OnSaveRequested;
+            _ui.LoadRequested += OnLoadRequested;
         }
 
         // Connect probe signal to UI
@@ -125,6 +135,62 @@ public partial class WorldMapOrchestratorNode : Node
         _ui?.SetStatus(probeData);
     }
 
+    private void OnSaveRequested()
+    {
+        if (_currentWorld == null)
+        {
+            _logger?.LogWarning("Cannot save: No world loaded");
+            _ui?.SetStatus("Error: No world to save");
+            return;
+        }
+
+        string filename = $"world_{_currentSeed}.dwld";
+        bool success = _serializationService!.SaveWorld(_currentWorld, _currentSeed, filename);
+
+        if (success)
+        {
+            _ui?.SetStatus($"Saved: {filename}");
+        }
+        else
+        {
+            _ui?.SetStatus("Save failed (check logs)");
+        }
+    }
+
+    private void OnLoadRequested()
+    {
+        // Simple approach: Load most recent save
+        // Future: Add file picker UI
+        var savedFiles = _serializationService!.ListSavedWorlds();
+        if (savedFiles.Length == 0)
+        {
+            _logger?.LogWarning("No saved worlds found");
+            _ui?.SetStatus("No saved worlds found");
+            return;
+        }
+
+        // Load first file (alphabetically)
+        string filename = savedFiles[0];
+        var (success, world, seed) = _serializationService.LoadWorld(filename);
+
+        if (success && world != null)
+        {
+            _currentWorld = world;
+            _currentSeed = seed;
+
+            // Update renderer and UI
+            _renderer?.SetWorldData(world, ServiceLocator.Get<ILogger<WorldMapRendererNode>>());
+            _ui?.SetSeed(seed);
+            _ui?.SetStatus($"Loaded: {filename} (seed: {seed})");
+
+            _logger?.LogInformation("Loaded world from file: {Filename}", filename);
+        }
+        else
+        {
+            _ui?.SetStatus("Load failed (check logs)");
+        }
+    }
+
     // ═══════════════════════════════════════════════════════════════════════
     // World Generation
     // ═══════════════════════════════════════════════════════════════════════
@@ -150,6 +216,10 @@ public partial class WorldMapOrchestratorNode : Node
         {
             _logger?.LogInformation("World generation succeeded: {Width}x{Height}",
                 result.Value.Width, result.Value.Height);
+
+            // Store current world and seed
+            _currentWorld = result.Value;
+            _currentSeed = seed;
 
             // Send data to renderer
             _renderer?.SetWorldData(result.Value, ServiceLocator.Get<ILogger<WorldMapRendererNode>>());
