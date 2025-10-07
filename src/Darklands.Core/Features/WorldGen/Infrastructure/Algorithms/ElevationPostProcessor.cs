@@ -87,6 +87,52 @@ public static class ElevationPostProcessor
     }
 
     /// <summary>
+    /// Rank-based redistribution of land elevations.
+    /// Sorts land elevations ascending and remaps them to a target CDF by applying a power to the rank.
+    /// This is more effective than simple gamma on values when the distribution is highly top-heavy.
+    /// alpha > 1.0 biases toward lower elevations (more plains/hills). alpha = 1.0 preserves distribution.
+    /// </summary>
+    public static void RemapLandByRank(float[,] heightmap, bool[,] oceanMask, float alpha = 1.6f)
+    {
+        int height = heightmap.GetLength(0);
+        int width = heightmap.GetLength(1);
+
+        var landPoints = new List<(int x, int y, float e)>(width * height);
+        float minLand = float.PositiveInfinity;
+        float maxLand = float.NegativeInfinity;
+
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                if (oceanMask[y, x])
+                    continue;
+                float e = heightmap[y, x];
+                landPoints.Add((x, y, e));
+                if (e < minLand) minLand = e;
+                if (e > maxLand) maxLand = e;
+            }
+        }
+
+        if (landPoints.Count == 0 || maxLand - minLand <= 1e-6f)
+            return;
+
+        landPoints.Sort((a, b) => a.e.CompareTo(b.e));
+
+        int n = landPoints.Count;
+        float range = maxLand - minLand;
+
+        for (int i = 0; i < n; i++)
+        {
+            var (x, y, _) = landPoints[i];
+            float r = n == 1 ? 1f : i / (float)(n - 1); // rank in [0,1]
+            float rPrime = (float)Math.Pow(r, alpha);
+            float newE = minLand + rPrime * range;
+            heightmap[y, x] = Math.Clamp(newE, 0f, 1f);
+        }
+    }
+
+    /// <summary>
     /// Marks ocean cells using flood fill from map borders.
     /// Any cell connected to border by cells below sea level is ocean.
     /// </summary>
