@@ -806,9 +806,16 @@
 - Status: Awaiting visual confirmation from user testing
 
 ⏳ **Remaining Work**:
-- Test visual output confirms Stage2 now shows geological features (not latitude bands)
-- Verify probe data shows correct raw vs processed elevation values
-- Document final status and close TD_011
+- ~~Test visual output confirms Stage2 now shows geological features (not latitude bands)~~ ✅ TESTED
+- ~~Verify probe data shows correct raw vs processed elevation values~~ ✅ VERIFIED
+- **NEW ISSUE DISCOVERED**: Sea level threshold mismatch after normalization
+  - Normalization working correctly, but reveals 99.998% ocean (only 6 land cells!)
+  - Root cause: Hardcoded seaLevel=0.650 calibrated for OLD buggy data
+  - After normalization: Ocean[0.0-0.627], Land[0.637-1.0], threshold at 0.650 cuts off most land
+  - **Solution (Option A)**: Calculate sea level dynamically from normalized distribution
+  - Implementation: Add CalculateSeaLevelFromDistribution() to find natural ocean/land threshold
+  - **Deferred to next session** (context limit reached)
+- Document final status and close TD_011 after sea level fix
 
 **Done When**:
 - ✅ `NativePlateSimulator` uses explicit 10-stage pipeline (no monolithic method)
@@ -833,11 +840,39 @@
 
 **Dependencies**: TD_010 complete ✅ (multi-view rendering infrastructure ready)
 
+**Technical Notes for Next Session** (2025-10-08 03:42):
+
+**Sea Level Threshold Fix (Option A - Dynamic Calculation):**
+```csharp
+// In PostProcessElevation(), after NormalizeToUnitRange():
+// Current issue: seaLevel=0.650 is hardcoded, but after normalization
+// the actual ocean/land boundary is around 0.63 (varies by seed)
+
+// Proposed solution:
+float seaLevel = CalculateSeaLevelFromDistribution(heightmap);
+
+// Algorithm:
+// 1. Find bimodal distribution peaks (ocean cluster vs land cluster)
+// 2. Calculate threshold at valley between peaks (Otsu's method or simple histogram)
+// 3. Alternative: Use percentile (e.g., 90th percentile = ocean/land boundary)
+// 4. Validate threshold is reasonable (0.5-0.7 range)
+
+// Evidence from logs:
+// Raw: Ocean[0.041-12.022], Land[12.182-19.164] → clear separation at ~12.0
+// Normalized: Ocean[0.0-0.627], Land[0.637-1.0] → threshold should be ~0.63
+// Current: seaLevel=0.650 → cuts off 0.637-0.649 range (most land!)
+```
+
+**Files to modify:**
+- `NativePlateSimulator.cs::PostProcessElevation()` - Call new method after normalization
+- `ElevationPostProcessor.cs` - Add `CalculateSeaLevelFromDistribution()` method
+
 **Next Steps After TD_011**:
-1. Render each stage visually (Keys 1-10)
-2. Compare outputs to WorldEngine reference images
-3. Identify divergence point (likely Stage 2 or Stage 3)
-4. Create targeted bug fix TD item (e.g., "TD_012: Fix ElevationPostProcessor distribution")
+1. ~~Render each stage visually~~ ✅ DONE (14 view modes working)
+2. ~~Compare outputs to identify divergence~~ ✅ DONE (found normalization + sea level bugs)
+3. Implement dynamic sea level calculation (Option A)
+4. Test worlds have reasonable land/ocean ratio (target: 30-50% land)
+5. Close TD_011 and document learnings
 
 ---
 
