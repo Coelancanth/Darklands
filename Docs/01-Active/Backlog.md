@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-08 03:58 (Dev Engineer: Cleanup complete, VS-022 created for WorldGen pipeline)
+**Last Updated**: 2025-10-08 04:15 (Dev Engineer: Added VS_023-029 for WorldGen foundation fixes)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -11,7 +11,7 @@
 
 - **Next BR**: 008
 - **Next TD**: 012
-- **Next VS**: 023
+- **Next VS**: 030
 
 
 **Protocol**: Check your type's counter → Use that number → Increment the counter → Update timestamp
@@ -181,6 +181,290 @@
 1. Product Owner: Review and approve scope
 2. Tech Lead: Break down Phase 1 into detailed tasks
 3. Dev Engineer: Implement Phase 1 (elevation normalization)
+
+**Prerequisite Issues** (VS_023-029):
+Before starting pipeline phases, fix visualization foundation issues discovered during testing.
+
+---
+
+### VS_023: WorldMap Visualization - Dynamic Legends
+**Status**: Proposed
+**Owner**: Dev Engineer
+**Size**: S (~2h)
+**Priority**: Ideas
+**Markers**: [WORLDGEN] [UI] [VISUALIZATION]
+
+**What**: Fix WorldMapLegendNode to properly display color keys for each view mode
+
+**Why**: Current legend renders but may not update correctly when switching views. Essential for understanding what colors mean.
+
+**Current Issue**:
+- Legend node exists but not verified working
+- Need proper color swatches + labels
+- Should update dynamically on view mode change
+
+**Done When**:
+- Legend displays for RawElevation (black/gray/white gradient)
+- Legend displays for Plates ("Each color = unique plate")
+- Legend updates when switching view modes
+- Visual verification in Godot
+
+---
+
+### VS_024: WorldMap Visualization - Raw Elevation Colored Rendering
+**Status**: Proposed
+**Owner**: Dev Engineer
+**Size**: S (~3h)
+**Priority**: Ideas
+**Markers**: [WORLDGEN] [VISUALIZATION]
+
+**What**: Add RawElevationColored view mode using WorldEngine color gradient
+
+**Why**: Grayscale is hard to read. WorldEngine-style coloring (blue ocean → green land → brown mountains → white peaks) is much clearer.
+
+**Technical Approach**:
+- Add `RawElevationColored` to MapViewMode enum
+- Implement rendering in WorldMapRendererNode
+- Use WorldEngine elevation colorization (without needing ocean mask)
+- Alternative: Simple blue-to-green gradient for [0,1] normalized values
+
+**Done When**:
+- New view mode in dropdown
+- Colors match WorldEngine style (or reasonable approximation)
+- Visual clarity improvement verified
+
+---
+
+### VS_025: WorldMap UI - Flexible Layout System
+**Status**: Proposed
+**Owner**: Dev Engineer
+**Size**: M (~4h)
+**Priority**: Ideas
+**Markers**: [WORLDGEN] [UI] [GODOT]
+
+**What**: Make WorldMapUINode layout configurable in Godot scene editor (not hardcoded positions)
+
+**Why**: Current UI positions are hardcoded in C# (line 52: `Position = new Vector2(10, 10)`). Should use Godot anchors/containers for player-configurable layouts.
+
+**Current Issue**:
+- UI position hardcoded in WorldMapUINode._Ready()
+- Legend position hardcoded in WorldMapLegendNode._Ready()
+- Not flexible for different screen sizes
+- Players can't rearrange UI
+
+**Technical Approach**:
+- Use Godot anchors (AnchorPreset) in .tscn file
+- Remove hardcoded Position settings from C#
+- Let Godot handle layout via Control nodes
+- Document layout customization in scene
+
+**Done When**:
+- UI elements positioned via .tscn (not C#)
+- Anchors work correctly in Godot editor
+- Layout adapts to screen size
+- Documentation shows how to customize
+
+---
+
+### VS_026: WorldMap Persistence - Disk Serialization
+**Status**: Proposed
+**Owner**: Dev Engineer
+**Size**: M (~6h)
+**Priority**: Ideas
+**Markers**: [WORLDGEN] [PERFORMANCE] [SERIALIZATION]
+
+**What**: Serialize generated world data to disk by seed, quick-load if file exists (avoid regeneration)
+
+**Why**: Generation takes 3-5 seconds for 512×512. Restarting scene with same seed should instant-load from disk cache.
+
+**Technical Approach**:
+```csharp
+// WorldMapOrchestratorNode.cs
+private const string CACHE_DIR = "user://worldgen_cache/";
+
+private async Task GenerateWorldAsync(int seed)
+{
+    string cachePath = $"{CACHE_DIR}world_{seed}.dat";
+
+    // Try load from disk
+    if (FileAccess.FileExists(cachePath))
+    {
+        var cached = LoadWorldFromDisk(cachePath);
+        _renderer?.SetWorldData(cached, ...);
+        _logger?.LogInformation("Loaded world from cache: seed={Seed}", seed);
+        return; // Instant!
+    }
+
+    // Generate new
+    var result = await _mediator.Send(new GenerateWorldCommand(seed));
+    SaveWorldToDisk(result.Value, cachePath);
+    _logger?.LogInformation("Generated and cached world: seed={Seed}", seed);
+    // ...
+}
+
+private void SaveWorldToDisk(PlateSimulationResult data, string path)
+{
+    using var file = FileAccess.Open(path, FileAccess.ModeFlags.Write);
+    // Serialize: heightmap, plates map (binary format for speed)
+    file.Store32((uint)data.Width);
+    file.Store32((uint)data.Height);
+    // Store heightmap as binary...
+    // Store plates as binary...
+}
+```
+
+**Considerations**:
+- File format: Binary (fast) or JSON (debuggable)? → Binary for performance
+- Disk usage: ~2MB per world (512×512), manageable
+- Cache invalidation: Version number in header to detect format changes
+- Cache management: Auto-cleanup old files? Max cache size limit?
+
+**Done When**:
+- World serialized to `user://worldgen_cache/world_{seed}.dat`
+- Loading from disk = instant (<100ms)
+- Cache hit/miss logged for verification
+- Works across game sessions (persistent)
+- Binary format documented
+
+---
+
+### VS_027: WorldMap Probe - Fix Cell Inspection & Highlight
+**Status**: Proposed
+**Owner**: Dev Engineer
+**Size**: M (~5h)
+**Priority**: Ideas
+**Markers**: [WORLDGEN] [UI] [DEBUGGING]
+
+**What**: Fix WorldMapProbeNode cell detection and add visual highlight preview
+
+**Why**: Probe not working correctly (coordinate transformation issue?). Also need visual feedback showing which cell will be probed.
+
+**Current Issues**:
+1. Probe coordinate transformation may be incorrect
+2. No visual feedback (which cell am I hovering?)
+3. 'P' key press feels clunky (click-to-probe better?)
+
+**Technical Approach**:
+- Debug coordinate transformation (viewport → sprite → texture coords)
+- Add hover highlight (ColorRect overlay at cell position)
+- Optional: Click-to-probe instead of 'P' key
+- Show probe data in UI status label (already wired)
+
+**Done When**:
+- Probe reports correct cell coordinates
+- Visual highlight shows hovered cell
+- Probe data displays in UI status label
+- Coordinate edge cases handled (out of bounds)
+
+---
+
+### VS_028: WorldMap Camera - Mouse Zoom & Drag Pan
+**Status**: Proposed
+**Owner**: Dev Engineer
+**Size**: M (~4h)
+**Priority**: Ideas
+**Markers**: [WORLDGEN] [UI] [CAMERA]
+
+**What**: Add mouse wheel zoom and middle-mouse drag to pan camera
+
+**Why**: Current Camera2D exists but has no controls. Essential for exploring large 512×512 maps.
+
+**Technical Approach**:
+Option A: Extend WorldMapProbeNode to handle camera
+```csharp
+public override void _UnhandledInput(InputEvent @event)
+{
+    // Mouse wheel → zoom
+    if (@event is InputEventMouseButton mouse && mouse.Pressed)
+    {
+        if (mouse.ButtonIndex == MouseButton.WheelUp)
+            _camera.Zoom *= 1.1f;
+        else if (mouse.ButtonIndex == MouseButton.WheelDown)
+            _camera.Zoom /= 1.1f;
+    }
+
+    // Middle mouse → drag
+    if (@event is InputEventMouseMotion motion && Input.IsMouseButtonPressed(MouseButton.Middle))
+    {
+        _camera.Position -= motion.Relative / _camera.Zoom;
+    }
+}
+```
+
+Option B: Create separate WorldMapCameraNode
+
+**Done When**:
+- Mouse wheel zooms in/out smoothly
+- Middle mouse drag pans camera
+- Zoom limits enforced (min/max)
+- Camera resets when regenerating world
+
+---
+
+### VS_029: WorldGen Pipeline - GenerateWorldPipeline Architecture
+**Status**: Proposed
+**Owner**: Tech Lead → Dev Engineer
+**Size**: M (~6h)
+**Priority**: Ideas
+**Markers**: [WORLDGEN] [ARCHITECTURE] [FOUNDATION]
+
+**What**: Create GenerateWorldPipeline class that orchestrates post-processing stages, calling NativePlateSimulator directly
+
+**Why**: Need clear architecture for incremental pipeline phases (VS_022). Pipeline should call native sim, then apply stages one by one.
+
+**Architectural Decision**:
+```csharp
+// NEW: WorldGenerationResult (pipeline output)
+public record WorldGenerationResult(
+    float[,] Heightmap,           // Normalized [0,1]
+    bool[,]? OceanMask,           // Optional (Phase 1)
+    float[,]? TemperatureMap,     // Optional (Phase 2)
+    // ... add fields as phases progress
+
+    PlateSimulationResult NativeOutput  // Keep raw data
+);
+
+// NEW: GenerateWorldPipeline
+public class GenerateWorldPipeline
+{
+    private readonly NativePlateSimulator _nativeSim;
+
+    public Result<WorldGenerationResult> Generate(PlateSimulationParams p)
+    {
+        // Call native directly
+        var nativeResult = _nativeSim.Generate(p);
+
+        // Stage 1: Normalize (when Phase 1 implemented)
+        // var normalized = NormalizeElevation(nativeResult.Heightmap);
+
+        // Stage 2: Ocean mask (when Phase 1 implemented)
+        // var oceanMask = CalculateOceanMask(normalized);
+
+        return new WorldGenerationResult(
+            nativeResult.Value.Heightmap,  // Raw for now
+            OceanMask: null,  // TODO: Phase 1
+            TemperatureMap: null,  // TODO: Phase 2
+            NativeOutput: nativeResult.Value
+        );
+    }
+}
+```
+
+**Naming Decisions**:
+- ✅ Keep `PlateSimulationParams` (native library params)
+- ✅ Keep `PlateSimulationResult` (raw native output)
+- ✅ Add `WorldGenerationResult` (pipeline output with post-processing)
+- ✅ Add `GenerateWorldPipeline` (orchestrator)
+
+**Done When**:
+- GenerateWorldPipeline class created
+- Calls NativePlateSimulator directly
+- Returns WorldGenerationResult with optional fields
+- Clear separation: native types vs pipeline types
+- Ready for Phase 1 implementation
+- Update GenerateWorldCommand to use pipeline
+
+**Depends On**: None (foundation work)
 
 ---
 
