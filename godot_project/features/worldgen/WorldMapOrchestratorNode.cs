@@ -31,7 +31,7 @@ public partial class WorldMapOrchestratorNode : Node
     private WorldMapSerializationService? _serializationService;
 
     // State
-    private PlateSimulationResult? _currentWorld;
+    private WorldGenerationResult? _currentWorld;
     private int _currentSeed = 42;
 
     // Initial seed
@@ -146,7 +146,8 @@ public partial class WorldMapOrchestratorNode : Node
         }
 
         string filename = $"world_{_currentSeed}.dwld";
-        bool success = _serializationService!.SaveWorld(_currentWorld, _currentSeed, filename);
+        // Save raw native output (serialization uses PlateSimulationResult)
+        bool success = _serializationService!.SaveWorld(_currentWorld.RawNativeOutput, _currentSeed, filename);
 
         if (success)
         {
@@ -176,7 +177,15 @@ public partial class WorldMapOrchestratorNode : Node
 
         if (success && world != null)
         {
-            _currentWorld = world;
+            // Wrap loaded PlateSimulationResult into WorldGenerationResult (no post-processing)
+            _currentWorld = new WorldGenerationResult(
+                heightmap: world.Heightmap,
+                platesMap: world.PlatesMap,
+                rawNativeOutput: world,
+                oceanMask: null,
+                temperatureMap: null,
+                precipitationMap: null
+            );
             _currentSeed = seed;
 
             // Update renderer and UI
@@ -222,8 +231,8 @@ public partial class WorldMapOrchestratorNode : Node
             _currentWorld = result.Value;
             _currentSeed = seed;
 
-            // Send data to renderer
-            _renderer?.SetWorldData(result.Value, ServiceLocator.Get<ILogger<WorldMapRendererNode>>());
+            // Send raw native output to renderer (Presentation layer uses PlateSimulationResult)
+            _renderer?.SetWorldData(result.Value.RawNativeOutput, ServiceLocator.Get<ILogger<WorldMapRendererNode>>());
 
             _ui?.SetSeed(seed);
             _ui?.SetStatus($"World generated: {result.Value.Width}x{result.Value.Height}");

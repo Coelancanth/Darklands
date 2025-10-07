@@ -5,10 +5,10 @@ using MediatR;
 namespace Darklands.Core.Features.WorldGen.Application.Commands;
 
 /// <summary>
-/// Command to generate a complete world using plate tectonics simulation.
-/// Returns heightmap, ocean mask, climate data, and biome classification.
+/// Command to generate a complete world using plate tectonics simulation and post-processing.
+/// Returns heightmap, plates, and optional post-processing data (climate, biomes, etc.).
 /// </summary>
-public record GenerateWorldCommand : IRequest<Result<PlateSimulationResult>>
+public record GenerateWorldCommand : IRequest<Result<WorldGenerationResult>>
 {
     /// <summary>Random seed for reproducible world generation</summary>
     public int Seed { get; init; }

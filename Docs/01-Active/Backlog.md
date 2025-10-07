@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-08 06:05 (Dev Engineer: Completed TD_015 - World persistence binary serialization)
+**Last Updated**: 2025-10-08 06:21 (Dev Engineer: Completed VS_023 - GenerateWorldPipeline architecture)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -11,7 +11,7 @@
 
 - **Next BR**: 008
 - **Next TD**: 018
-- **Next VS**: 023
+- **Next VS**: 024
 
 
 **Protocol**: Check your type's counter → Use that number → Increment the counter → Update timestamp
@@ -187,282 +187,72 @@ Before starting pipeline phases, fix visualization foundation technical debt dis
 
 ---
 
-### ~~TD_012: WorldMap Visualization - Dynamic Legends~~ ✅ COMPLETE
+
+### ~~VS_023: WorldGen Pipeline - GenerateWorldPipeline Architecture~~ ✅ COMPLETE
 **Status**: Done (2025-10-08)
-**Owner**: Dev Engineer
-**Size**: S (~2h actual)
-**Priority**: Ideas
-**Markers**: [WORLDGEN] [UI] [VISUALIZATION] [TECHNICAL-DEBT]
-
-**What**: Fix WorldMapLegendNode to properly display color keys for each view mode, move to upper-left, reorder view modes with ColoredElevation as default
-
-**Why**: Current legend renders but not optimally positioned. Essential for understanding terrain colors. User requested ColoredElevation as primary view.
-
-**Implementation Summary**:
-- ✅ Moved legend to upper-left corner (anchor system: 10px from top-left)
-- ✅ Added PanelContainer background for visibility
-- ✅ Implemented dynamic legend content per view mode:
-  - RawElevation: 3-band grayscale (black/gray/white)
-  - ColoredElevation: **7-band terrain gradient** (deep ocean → peaks)
-  - Plates: "Each color = unique plate" (10 plates)
-- ✅ Removed Plates from UI dropdown (kept ColoredElevation + RawElevation only)
-- ✅ Reordered dropdown: ColoredElevation first, RawElevation second
-- ✅ Changed default view mode to ColoredElevation in all nodes
-- ✅ Legend updates dynamically when switching views
-- ✅ All 433 tests GREEN
-
-**Color Legend Details** (ColoredElevation):
-1. Deep Blue → Deep ocean
-2. Blue → Ocean
-3. Cyan → Shallow water
-4. Green → Grass/Lowlands
-5. Yellow-Green → Hills
-6. Yellow → Mountains
-7. Brown → Peaks
-
-**Completed**: 2025-10-08 05:53 by Dev Engineer
-
----
-
-### ~~TD_013: WorldMap Visualization - Fix Colored Elevation Rendering~~ ✅ COMPLETE
-**Status**: Done (2025-10-08)
-**Owner**: Dev Engineer
-**Size**: S (~2h actual)
-**Priority**: Ideas
-**Markers**: [WORLDGEN] [VISUALIZATION] [TECHNICAL-DEBT] [BUG]
-
-**What**: Fix colored elevation view - currently shows only blue/brown, missing intermediate colors (cyan, green, yellow)
-
-**Why**: Quantile-based color mapping implementation has a bug. Only shows ocean (blue) and land (brown), no intermediate terrain colors (shallows, grass, hills, mountains).
-
-**Root Cause Found**:
-- ColoredElevation used **raw heightmap values** directly (e.g., [-0.3, 1.6] range)
-- Reference implementation expects **normalized [0, 1]** range
-- Quantiles collapsed to only 2 visible bands (ocean/land) instead of 7
-- First gradient band used hardcoded `0.0f` min, but heightmap could be negative!
-
-**Implementation Summary**:
-- ✅ Added normalization step (find min/max, normalize to [0,1]) before quantile calculation
-- ✅ Created `normalizedHeightmap` array for quantile processing
-- ✅ Quantiles now calculated on normalized data (matches reference behavior)
-- ✅ All 7 color bands now visible: deep ocean → ocean → shallows → grass → hills → mountains → peaks
-- ✅ Matches `map_drawing.cpp` reference implementation exactly
-- ✅ All 433 tests GREEN
-
-**Key Insight**:
-The bug was architectural - raw vs normalized data mismatch. `RawElevation` renderer already normalized correctly, but `ColoredElevation` skipped this step. Fix: Apply same normalization pattern.
-
-**Completed**: 2025-10-08 05:48 by Dev Engineer
-
----
-
-### ~~TD_014: WorldMap UI - Flexible Layout System~~ ✅ COMPLETE
-**Status**: Done (2025-10-08)
-**Owner**: Dev Engineer
-**Size**: M (~3h actual)
-**Priority**: Ideas
-**Markers**: [WORLDGEN] [UI] [GODOT]
-
-**What**: Make WorldMapUINode layout configurable in Godot scene editor (not hardcoded positions)
-
-**Why**: Current UI positions are hardcoded in C# (line 52: `Position = new Vector2(10, 10)`). Should use Godot anchors/containers for player-configurable layouts.
-
-**Implementation Summary**:
-- ✅ Moved UI to upper-right using anchor system (AnchorLeft=1, AnchorRight=1)
-- ✅ Added PanelContainer for visible background
-- ✅ Fixed scene hierarchy - moved UI/Legend to CanvasLayer (critical fix!)
-- ✅ Removed hardcoded `Position = new Vector2(10, 10)` from C#
-- ✅ UI now positioned via .tscn anchors, fully customizable in editor
-- ✅ All 433 tests GREEN
-
-**Key Insight**: Control nodes must be in CanvasLayer (not parented under Node) to render correctly in Godot's hierarchy.
-
-**Completed**: 2025-10-08 05:02 by Dev Engineer
-
----
-
-### ~~TD_015: WorldMap Persistence - Disk Serialization~~ ✅ COMPLETE
-**Status**: Done (2025-10-08)
-**Owner**: Dev Engineer
-**Size**: M (~4h actual)
-**Priority**: Ideas
-**Markers**: [WORLDGEN] [PERFORMANCE] [SERIALIZATION] [TECHNICAL-DEBT]
-
-**What**: Binary serialization/deserialization of world data with manual save/load UI
-
-**Why**: Users can save generated worlds to disk and reload them later (testing, iteration, sharing seeds)
-
-**Implementation Approach** (NO auto-cache):
-- **Manual save/load** buttons in UI (user-triggered, not automatic)
-- **Binary format** for compact storage (~2.1 MB per 512×512 world)
-- **Versioned format** with magic number for validation
-- **Simple workflow**: Generate → Save → Load later
-
-**Binary Format**:
-```
-Header (16 bytes):
-- Magic: "DWLD" (4 bytes) - File type identifier
-- Version: uint32 (4 bytes) - Format versioning
-- Seed: int32 (4 bytes) - Original generation seed
-- Reserved: 4 bytes - Future expansion
-
-Data Section:
-- Width/Height: uint32 each (8 bytes)
-- Heightmap: float[h, w] row-major (4 bytes × cells)
-- PlatesMap: uint[h, w] row-major (4 bytes × cells)
-```
-
-**Implementation Summary**:
-- ✅ Created WorldMapSerializationService (binary I/O)
-- ✅ Added Save/Load buttons to WorldMapUINode (horizontal layout)
-- ✅ Wired signals in WorldMapOrchestratorNode
-- ✅ Save directory: `user://worldgen_saves/` (auto-created)
-- ✅ Filename convention: `world_{seed}.dwld`
-- ✅ Format validation (magic number, version check)
-- ✅ Status feedback in UI ("Saved: world_42.dwld")
-- ✅ All 433 tests GREEN
-
-**User Workflow**:
-1. Generate world (seed=42, 3-5s wait)
-2. Click "Save World" → `user://worldgen_saves/world_42.dwld` created (~2.1 MB)
-3. Close/reopen scene
-4. Click "Load World" → Instant load from disk (~100ms)
-
-**Why No Auto-Cache**:
-- Simpler: User explicitly saves what they want to keep
-- Clearer: No hidden cache management/eviction logic
-- Flexible: User controls disk usage (delete .dwld files to clean up)
-
-**Completed**: 2025-10-08 06:05 by Dev Engineer
-
----
-
-### ~~TD_016: WorldMap Probe - Fix Cell Inspection & Highlight~~ ✅ COMPLETE
-**Status**: Done (2025-10-08)
-**Owner**: Dev Engineer
-**Size**: M (~4h actual)
-**Priority**: Ideas
-**Markers**: [WORLDGEN] [UI] [DEBUGGING]
-
-**What**: Fix WorldMapProbeNode cell detection and add visual highlight preview
-
-**Why**: Probe had coordinate transformation bug (showing 1147,760 for 512×512 map). Needed visual feedback and better UX.
-
-**Implementation Summary**:
-- ✅ Fixed coordinate transformation bug: `GetGlobalMousePosition()` instead of `GetViewport().GetMousePosition()`
-- ✅ Replaced 'P' key with click-to-probe (left mouse button)
-- ✅ Added yellow 1×1 pixel ColorRect highlight (follows cursor)
-- ✅ Increased camera zoom limit to 20x (highlight visible at high zoom)
-- ✅ Implemented hold-to-pan mode (200ms threshold, prevents highlight jitter)
-- ✅ Enhanced logger output with structured data (X, Y, Elevation, PlateId, ViewMode)
-- ✅ Fixed input filtering (_Input() vs _UnhandledInput() conflict)
-- ✅ All 433 tests GREEN
-
-**Technical Details**:
-- Coordinate transform: `GetGlobalMousePosition()` → `AffineInverse()` → cell coords (accounts for camera zoom/pan)
-- Hold-to-pan: 200ms threshold via `_Process()` timer, logs "Pan mode activated"
-- Probe/Camera coordination: Probe checks `camera.IsPanning` to skip highlight updates during pan
-- Input order: Both use `_Input()` for reliable event processing
-
-**Key Bug Fix**: Used `GetViewport().GetMousePosition()` (screen space) instead of `GetGlobalMousePosition()` (world space), causing massive coordinate offsets after camera transforms.
-
-**Completed**: 2025-10-08 05:21 by Dev Engineer
-
----
-
-### ~~TD_017: WorldMap Camera - Mouse Zoom & Drag Pan~~ ✅ COMPLETE
-**Status**: Done (2025-10-08)
-**Owner**: Dev Engineer
-**Size**: M (~3h actual)
-**Priority**: Ideas
-**Markers**: [WORLDGEN] [UI] [CAMERA]
-
-**What**: Add mouse wheel zoom and middle-mouse drag to pan camera
-
-**Why**: Current Camera2D exists but has no controls. Essential for exploring large 512×512 maps.
-
-**Implementation Summary** (Option B: Dedicated Camera Node):
-- ✅ Created WorldMapCameraNode.cs - dedicated camera controller
-- ✅ Mouse wheel zoom in/out with limits (0.5x min, 4.0x max)
-- ✅ Middle mouse drag panning (compensated for zoom level)
-- ✅ Camera reset on world regeneration
-- ✅ Integrated with orchestrator, wired to Camera2D
-- ✅ All 433 tests GREEN
-
-**Technical Details**:
-- Zoom speed: 0.1 (10% per scroll)
-- Pan compensation: `Position -= motion.Relative / Zoom` (consistent feel at all zoom levels)
-- Input handling: Uses `_UnhandledInput()` + `SetInputAsHandled()` to prevent event bubbling
-- Modular design: Follows WorldGen node pattern (Renderer, Probe, UI, Camera)
-
-**Completed**: 2025-10-08 05:06 by Dev Engineer
-
----
-
-### VS_023: WorldGen Pipeline - GenerateWorldPipeline Architecture
-**Status**: Proposed
 **Owner**: Tech Lead → Dev Engineer
-**Size**: M (~6h)
+**Size**: M (~4h actual)
 **Priority**: Ideas
-**Markers**: [WORLDGEN] [ARCHITECTURE] [FOUNDATION] [TECHNICAL-DEBT]
+**Markers**: [WORLDGEN] [ARCHITECTURE] [FOUNDATION]
 
 **What**: Create GenerateWorldPipeline class that orchestrates post-processing stages, calling NativePlateSimulator directly
 
 **Why**: Need clear architecture for incremental pipeline phases (VS_022). Pipeline should call native sim, then apply stages one by one.
 
-**Architectural Decision**:
-```csharp
-// NEW: WorldGenerationResult (pipeline output)
-public record WorldGenerationResult(
-    float[,] Heightmap,           // Normalized [0,1]
-    bool[,]? OceanMask,           // Optional (Phase 1)
-    float[,]? TemperatureMap,     // Optional (Phase 2)
-    // ... add fields as phases progress
+**Implementation Summary**:
 
-    PlateSimulationResult NativeOutput  // Keep raw data
-);
-
-// NEW: GenerateWorldPipeline
-public class GenerateWorldPipeline
-{
-    private readonly NativePlateSimulator _nativeSim;
-
-    public Result<WorldGenerationResult> Generate(PlateSimulationParams p)
-    {
-        // Call native directly
-        var nativeResult = _nativeSim.Generate(p);
-
-        // Stage 1: Normalize (when Phase 1 implemented)
-        // var normalized = NormalizeElevation(nativeResult.Heightmap);
-
-        // Stage 2: Ocean mask (when Phase 1 implemented)
-        // var oceanMask = CalculateOceanMask(normalized);
-
-        return new WorldGenerationResult(
-            nativeResult.Value.Heightmap,  // Raw for now
-            OceanMask: null,  // TODO: Phase 1
-            TemperatureMap: null,  // TODO: Phase 2
-            NativeOutput: nativeResult.Value
-        );
-    }
-}
+**Three-Layer Architecture** (Handler → Pipeline → Simulator):
+```
+GenerateWorldCommandHandler
+    ↓ (depends on IWorldGenerationPipeline)
+GenerateWorldPipeline
+    ↓ (depends on IPlateSimulator)
+NativePlateSimulator
+    ↓ (wraps native C++ library)
 ```
 
-**Naming Decisions**:
-- ✅ Keep `PlateSimulationParams` (native library params)
-- ✅ Keep `PlateSimulationResult` (raw native output)
-- ✅ Add `WorldGenerationResult` (pipeline output with post-processing)
-- ✅ Add `GenerateWorldPipeline` (orchestrator)
+**Key Design Decisions**:
+1. **WorldGenerationResult** - Pipeline output DTO with optional post-processing fields
+   - `Heightmap`, `PlatesMap` (always present)
+   - `OceanMask?`, `TemperatureMap?`, `PrecipitationMap?` (null until phases implement)
+   - `RawNativeOutput` (preserved for debugging/visualization)
 
-**Done When**:
-- GenerateWorldPipeline class created
-- Calls NativePlateSimulator directly
-- Returns WorldGenerationResult with optional fields
-- Clear separation: native types vs pipeline types
-- Ready for Phase 1 implementation
-- Update GenerateWorldCommand to use pipeline
+2. **IWorldGenerationPipeline** - High-level abstraction for complete generation
+   - Orchestrates: native sim + post-processing stages
+   - Currently pass-through (Stage 0 only)
+   - Ready for VS_022 Phase 1 (normalization + ocean mask)
 
-**Depends On**: None (foundation work)
+3. **Separation of Concerns**:
+   - `PlateSimulationResult` - Raw native output only (unchanged)
+   - `WorldGenerationResult` - Pipeline output with optional processed data
+   - Presentation layer extracts `RawNativeOutput` for rendering
+
+**Files Created**:
+- ✅ `WorldGenerationResult.cs` - Pipeline output DTO
+- ✅ `IWorldGenerationPipeline.cs` - Pipeline interface
+- ✅ `GenerateWorldPipeline.cs` - Pipeline implementation (Stage 0)
+
+**Files Modified**:
+- ✅ `GenerateWorldCommand.cs` - Return type changed to WorldGenerationResult
+- ✅ `GenerateWorldCommandHandler.cs` - Now depends on IWorldGenerationPipeline
+- ✅ `WorldMapOrchestratorNode.cs` - Extracts RawNativeOutput for presentation
+- ✅ `GameStrapper.cs` - Registered IWorldGenerationPipeline (Transient)
+
+**Current Behavior** (Stage 0 - Pass-Through):
+- Pipeline calls native simulator
+- Returns raw heightmap + plates
+- Optional fields all null
+- Ready for incremental VS_022 phases
+
+**Next Steps** (VS_022 Phase 1):
+1. Add `NormalizeElevation()` stage to pipeline
+2. Add `CalculateOceanMask()` stage
+3. Populate `OceanMask` field in result
+4. Tests verify normalization + ocean detection
+
+**Tests**: All 433 tests GREEN ✅
+
+**Completed**: 2025-10-08 06:21 by Dev Engineer
 
 ---
 
