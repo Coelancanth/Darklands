@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-08 02:47 (Dev Engineer: TD_010 complete, TD_011 created for pipeline refactor)
+**Last Updated**: 2025-10-08 03:58 (Dev Engineer: Cleanup complete, VS-022 created for WorldGen pipeline)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -11,7 +11,7 @@
 
 - **Next BR**: 008
 - **Next TD**: 012
-- **Next VS**: 022
+- **Next VS**: 023
 
 
 **Protocol**: Check your type's counter → Use that number → Increment the counter → Update timestamp
@@ -103,6 +103,84 @@
 ## 💡 Ideas (Future Work)
 *Future features, nice-to-haves, deferred work*
 
+### VS_022: World Generation Pipeline (Incremental Post-Processing)
+**Status**: Proposed
+**Owner**: Product Owner → Tech Lead (breakdown)
+**Size**: XL (multi-phase, build incrementally)
+**Priority**: Ideas
+**Markers**: [WORLDGEN] [ARCHITECTURE] [INCREMENTAL]
+
+**What**: Build post-processing pipeline on top of native plate tectonics output - elevation normalization, climate, erosion, biomes - **one algorithm at a time** with proper testing
+
+**Why**: Current system outputs raw heightmap only. Need processed terrain data (ocean masks, climate zones, biomes) for gameplay. Clean foundation (native-only) established in refactor commit f84515d.
+
+**Current State** (2025-10-08):
+- ✅ Native library wrapper working (heightmap + plates)
+- ✅ Modular visualization (5 focused nodes, ~700 lines)
+- ✅ 433 tests GREEN
+- ✅ Clean architecture (no premature complexity)
+- ❌ No post-processing (intentional - start simple!)
+
+**Proposed Incremental Approach:**
+1. **Phase 1: Elevation Normalization** (S, ~4h)
+   - Normalize raw heightmap to [0, 1] range
+   - Calculate dynamic sea level threshold (Otsu's method)
+   - Add ocean mask generation
+   - Tests: Verify normalization, sea level calculation
+
+2. **Phase 2: Climate - Temperature** (M, ~6h)
+   - Temperature calculation (latitude + elevation cooling)
+   - Temperature map visualization
+   - Tests: Temperature gradient validation
+
+3. **Phase 3: Climate - Precipitation** (M, ~6h)
+   - Precipitation calculation (with rain shadow)
+   - Precipitation map visualization
+   - Tests: Precipitation patterns
+
+4. **Phase 4: Hydraulic Erosion** (L, ~12h)
+   - River generation (flow accumulation)
+   - Valley carving around rivers
+   - Lake formation
+   - Tests: River connectivity, erosion effects
+
+5. **Phase 5: Hydrology** (M, ~8h)
+   - Watermap (droplet simulation)
+   - Irrigation (moisture spreading)
+   - Humidity (combined moisture metric)
+   - Tests: Flow patterns, moisture distribution
+
+6. **Phase 6: Biome Classification** (M, ~6h)
+   - Holdridge life zones model
+   - Biome map generation
+   - Biome visualization + legends
+   - Tests: Biome distribution validation
+
+**Technical Principles:**
+- ✅ **One algorithm at a time** - No big-bang integration
+- ✅ **Test coverage for each phase** - Regression protection
+- ✅ **Visual validation** - Probe + view modes for each stage
+- ✅ **Algorithm independence** - Each phase self-contained
+- ✅ **ADR documentation** - Capture design decisions
+
+**References:**
+- [TD_009: Pipeline Gap Analysis](../08-Learnings/WorldEngine/TD_009-Pipeline-Gap-Analysis.md) - WorldEngine algorithms inventory
+- [TD_011 completion notes](../08-Learnings/WorldEngine/TD_011-completion-notes.md) - Sea level bug + cleanup lessons
+- Refactor commit: `f84515d` (removed 5808 lines, modular nodes)
+
+**Done When:**
+- All 6 phases complete with tests
+- Each algorithm has visual validation mode
+- Biome map renders correctly
+- Performance acceptable (<10s for 512×512 world)
+- Documentation updated with architecture decisions
+
+**Depends On**: None (foundation ready)
+
+**Next Steps:**
+1. Product Owner: Review and approve scope
+2. Tech Lead: Break down Phase 1 into detailed tasks
+3. Dev Engineer: Implement Phase 1 (elevation normalization)
 
 ---
 
