@@ -255,20 +255,92 @@ public partial class WorldMapNode : Node2D
             return;
         }
 
-        bool isOcean = _cachedWorldData.OceanMask[y, x];
-        float elev = _cachedWorldData.Heightmap[y, x];
-        float temp = _cachedWorldData.TemperatureMap[y, x];
-        float precip = _cachedWorldData.PrecipitationMap[y, x];
-        float humidity = _cachedWorldData.HumidityMap[y, x];
-        float irrigation = _cachedWorldData.IrrigationMap[y, x];
-        float watermap = _cachedWorldData.WatermapData[y, x];
-        var biome = _cachedWorldData.BiomeMap[y, x];
-        bool inRiver = _riverCells.Contains((x, y));
-        bool inLake = _lakeCells.Contains((x, y));
+        // Show stage-specific data based on current view mode
+        switch (_currentViewMode)
+        {
+            case MapViewMode.RawElevation:
+            case MapViewMode.RawElevationColored:
+                {
+                    // Stage 1 data (raw native output)
+                    float rawElev = _cachedWorldData.RawHeightmap?[y, x] ?? 0f;
+                    uint plateId = _cachedWorldData.PlatesMap?[y, x] ?? 0;
+                    _logger.LogInformation(
+                        "Probe ({X},{Y}) [Stage 1 RAW] | elevation={RawElev:F3} plate_id={PlateId}",
+                        x, y, rawElev, plateId);
+                }
+                break;
 
-        _logger.LogInformation(
-            "Probe ({X},{Y}) | ocean={Ocean} elev={Elev:F3} temp={Temp:F3} precip={Precip:F3} humidity={Hum:F3} irr={Irr:F3} watermap={Water:F3} biome={Biome} river_cell={River} lake_cell={Lake}",
-            x, y, isOcean, elev, temp, precip, humidity, irrigation, watermap, biome, inRiver, inLake);
+            case MapViewMode.Plates:
+                {
+                    // Plate ownership view
+                    float rawElev = _cachedWorldData.RawHeightmap?[y, x] ?? 0f;
+                    uint plateId = _cachedWorldData.PlatesMap?[y, x] ?? 0;
+                    _logger.LogInformation(
+                        "Probe ({X},{Y}) [Plates] | plate_id={PlateId} raw_elev={RawElev:F3}",
+                        x, y, plateId, rawElev);
+                }
+                break;
+
+            case MapViewMode.Stage2_ProcessedElevation:
+                {
+                    // Stage 2 data (post-processed elevation)
+                    if (_cachedWorldData.Stage2 != null)
+                    {
+                        float stage2Elev = _cachedWorldData.Stage2.Heightmap[y, x];
+                        bool stage2Ocean = _cachedWorldData.Stage2.OceanMask[y, x];
+                        _logger.LogInformation(
+                            "Probe ({X},{Y}) [Stage 2] | elevation={Elev:F3} ocean={Ocean}",
+                            x, y, stage2Elev, stage2Ocean);
+                    }
+                }
+                break;
+
+            case MapViewMode.Stage3_Temperature:
+                {
+                    // Stage 3 data
+                    if (_cachedWorldData.Stage3 != null)
+                    {
+                        float temp = _cachedWorldData.Stage3.TemperatureMap[y, x];
+                        _logger.LogInformation(
+                            "Probe ({X},{Y}) [Stage 3] | temperature={Temp:F3}",
+                            x, y, temp);
+                    }
+                }
+                break;
+
+            case MapViewMode.Stage4_Precipitation:
+                {
+                    // Stage 4 data
+                    if (_cachedWorldData.Stage4 != null)
+                    {
+                        float precip = _cachedWorldData.Stage4.PrecipitationMap[y, x];
+                        _logger.LogInformation(
+                            "Probe ({X},{Y}) [Stage 4] | precipitation={Precip:F3}",
+                            x, y, precip);
+                    }
+                }
+                break;
+
+            default:
+                {
+                    // Final processed data (all stages complete)
+                    bool isOcean = _cachedWorldData.OceanMask[y, x];
+                    float elev = _cachedWorldData.Heightmap[y, x];
+                    float temp = _cachedWorldData.TemperatureMap[y, x];
+                    float precip = _cachedWorldData.PrecipitationMap[y, x];
+                    float humidity = _cachedWorldData.HumidityMap[y, x];
+                    float irrigation = _cachedWorldData.IrrigationMap[y, x];
+                    float watermap = _cachedWorldData.WatermapData[y, x];
+                    var biome = _cachedWorldData.BiomeMap[y, x];
+                    bool inRiver = _riverCells.Contains((x, y));
+                    bool inLake = _lakeCells.Contains((x, y));
+
+                    _logger.LogInformation(
+                        "Probe ({X},{Y}) [FINAL] | ocean={Ocean} elev={Elev:F3} temp={Temp:F3} precip={Precip:F3} humidity={Hum:F3} irr={Irr:F3} watermap={Water:F3} biome={Biome} river_cell={River} lake_cell={Lake}",
+                        x, y, isOcean, elev, temp, precip, humidity, irrigation, watermap, biome, inRiver, inLake);
+                }
+                break;
+        }
 
         _probeHighlighter?.SetRect(new Rect2(x, y, 1, 1));
     }
@@ -700,6 +772,13 @@ public partial class WorldMapNode : Node2D
         float elevDeltaSea = Math.Max(1e-6f, maxSea - minSea);
         float elevDeltaLand = Math.Max(1e-6f, (maxLand - minLand) / 11.0f);
 
+        _logger?.LogInformation("RawElevColored rescale: Ocean[{MinS:F3}-{MaxS:F3}] ΔS={DS:F3}, Land[{MinL:F3}-{MaxL:F3}] ΔL/11={DL:F3}",
+            minSea, maxSea, elevDeltaSea, minLand, maxLand, elevDeltaLand);
+
+        // Sample some land cells to see rescaled 'c' values
+        int samples = 0;
+        float minC = float.PositiveInfinity, maxC = float.NegativeInfinity, sumC = 0;
+
         const float SeaLevel = 1.0f;
         for (int y = 0; y < h; y++)
             for (int x = 0; x < w; x++)
@@ -712,9 +791,25 @@ public partial class WorldMapNode : Node2D
                     if (isOcean) c = (e - minSea) / elevDeltaSea; else c = ((e - minLand) / elevDeltaLand) + 1.0f;
                 }
                 else c = ((e - minLand) / elevDeltaLand) + 1.0f;
+
+                // Track land 'c' values for diagnostic
+                if (!isOcean)
+                {
+                    if (c < minC) minC = c;
+                    if (c > maxC) maxC = c;
+                    sumC += c;
+                    samples++;
+                }
+
                 var (r, g, b) = ElevationMapColorizer.GetElevationColor(c, SeaLevel);
                 image.SetPixel(x, y, new Color(r, g, b));
             }
+
+        if (samples > 0)
+        {
+            _logger?.LogInformation("RawElevColored land 'c' values (after rescale): min={MinC:F2}, max={MaxC:F2}, avg={AvgC:F2}",
+                minC, maxC, sumC / samples);
+        }
 
         _terrainSprite.Texture = ImageTexture.CreateFromImage(image);
     }
@@ -1037,11 +1132,51 @@ public partial class WorldMapNode : Node2D
                 AddLegendEntry("Tropical (hot)", new Color(1f, 0f, 0f));
                 break;
             case MapViewMode.RawElevation:
-                AddLegendEntry("Low (black)", new Color(0f, 0f, 0f));
-                AddLegendEntry("High (white)", new Color(1f, 1f, 1f));
+                AddLegendEntry("Low elevation (black)", new Color(0f, 0f, 0f));
+                AddLegendEntry("Mid elevation (gray)", new Color(0.5f, 0.5f, 0.5f));
+                AddLegendEntry("High elevation (white)", new Color(1f, 1f, 1f));
                 break;
+
+            case MapViewMode.RawElevationColored:
+            case MapViewMode.Stage2_ProcessedElevation:
+            case MapViewMode.Stage5_ErodedElevation:
+                AddLegendEntry("Deep Ocean", new Color(0f, 0f, 0.75f));
+                AddLegendEntry("Shallow Water", new Color(0f, 1f, 1f));
+                AddLegendEntry("Coastal Plains", new Color(0f, 0.5f, 0f));
+                AddLegendEntry("Lowlands", new Color(0f, 1f, 0f));
+                AddLegendEntry("Hills", new Color(1f, 1f, 0f));
+                AddLegendEntry("Uplands", new Color(1f, 0.5f, 0f));
+                AddLegendEntry("Mountains", new Color(1f, 0f, 0f));
+                AddLegendEntry("High Peaks", new Color(0.5f, 0.25f, 0f));
+                AddLegendEntry("Snow Peaks", new Color(1f, 1f, 1f));
+                break;
+
             case MapViewMode.Plates:
-                AddLegendEntry("Distinct color = plate ID", new Color(0.8f, 0.8f, 0.8f));
+                AddLegendEntry("Each color = unique plate", new Color(0.8f, 0.8f, 0.8f));
+                AddLegendEntry("(10 plates total)", new Color(0.6f, 0.6f, 0.6f));
+                break;
+
+            case MapViewMode.Stage3_Temperature:
+                AddLegendEntry("Polar (cold)", new Color(0f, 0f, 1f));
+                AddLegendEntry("Cool Temperate", new Color(0.75f, 0f, 0.5f));
+                AddLegendEntry("Warm", new Color(1f, 0f, 0.25f));
+                AddLegendEntry("Tropical (hot)", new Color(1f, 0f, 0f));
+                break;
+
+            case MapViewMode.Stage4_Precipitation:
+            case MapViewMode.Stage7_Irrigation:
+            case MapViewMode.Stage8_Humidity:
+                AddLegendEntry("Ocean", new Color(0f, 0f, 1f));
+                AddLegendEntry("Arid (dry)", new Color(0f, 0.13f, 0.13f));
+                AddLegendEntry("Moderate", new Color(0f, 0.5f, 0.5f));
+                AddLegendEntry("Humid (wet)", new Color(0f, 1f, 1f));
+                break;
+
+            case MapViewMode.Stage6_Watermap:
+                AddLegendEntry("No flow (black)", new Color(0f, 0f, 0f));
+                AddLegendEntry("Creek", new Color(0.3f, 0.3f, 0.3f));
+                AddLegendEntry("River", new Color(0.7f, 0.7f, 0.7f));
+                AddLegendEntry("Main river (white)", new Color(1f, 1f, 1f));
                 break;
         }
     }
