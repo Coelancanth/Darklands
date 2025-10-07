@@ -1119,33 +1119,37 @@ public partial class WorldMapNode : Node2D
 
         _logger?.LogDebug("Rendering Stage2 Processed Elevation: {Width}x{Height} cells", data.Width, data.Height);
 
-        // Use same WorldEngine colorization logic as RenderRawElevationColoredMap
+        // Match RawElevationColored logic EXACTLY but use Stage2 data
         var image = Image.CreateEmpty(data.Width, data.Height, false, Image.Format.Rgb8);
 
-        // Compute rescale stats
+        // Use FINAL ocean mask (like RawElevationColored does) for consistent coastal rendering
         bool hasOcean = false;
         for (int y = 0; y < data.Height && !hasOcean; y++)
             for (int x = 0; x < data.Width && !hasOcean; x++)
-                if (data.Stage2.OceanMask[y, x]) hasOcean = true;
+                if (data.OceanMask[y, x]) hasOcean = true;
 
+        // Compute min/max using FINAL ocean mask but Stage2 heightmap data
         float minLand = float.PositiveInfinity, maxLand = float.NegativeInfinity;
         float minSea = float.PositiveInfinity, maxSea = float.NegativeInfinity;
         for (int y = 0; y < data.Height; y++)
             for (int x = 0; x < data.Width; x++)
             {
                 float e = data.Stage2.Heightmap[y, x];
-                if (data.Stage2.OceanMask[y, x]) { if (e < minSea) minSea = e; if (e > maxSea) maxSea = e; }
+                if (data.OceanMask[y, x]) { if (e < minSea) minSea = e; if (e > maxSea) maxSea = e; }
                 else { if (e < minLand) minLand = e; if (e > maxLand) maxLand = e; }
             }
         float elevDeltaSea = Math.Max(1e-6f, maxSea - minSea);
         float elevDeltaLand = Math.Max(1e-6f, (maxLand - minLand) / 11.0f);
+
+        _logger?.LogInformation("Stage2 elevation stats: Ocean[{MinS:F3}-{MaxS:F3}] ΔS={DS:F3}, Land[{MinL:F3}-{MaxL:F3}] ΔL/11={DL:F3}",
+            minSea, maxSea, elevDeltaSea, minLand, maxLand, elevDeltaLand);
 
         const float SeaLevel = 1.0f;
         for (int y = 0; y < data.Height; y++)
             for (int x = 0; x < data.Width; x++)
             {
                 float e = data.Stage2.Heightmap[y, x];
-                bool isOcean = data.Stage2.OceanMask[y, x];
+                bool isOcean = data.OceanMask[y, x];
                 float c;
                 if (hasOcean)
                 {
