@@ -28,6 +28,7 @@ public partial class WorldMapNode : Node2D
     private Label? _uiLabel;
     private Sprite2D? _terrainSprite;
     private Control? _legendPanel;
+    private OptionButton? _viewModeDropdown;
     private HashSet<(int x, int y)> _riverCells = new HashSet<(int x, int y)>();
     private HashSet<(int x, int y)> _lakeCells = new HashSet<(int x, int y)>();
     private ProbeHighlighter? _probeHighlighter;
@@ -67,6 +68,9 @@ public partial class WorldMapNode : Node2D
 
         _camera = GetParent().GetNode<Camera2D>("Camera2D");
         _uiLabel = GetNode<Label>("../UI/Label");
+
+        // Create view mode dropdown
+        CreateViewModeDropdown();
 
         // Create visual legend panel
         CreateLegendPanel();
@@ -120,35 +124,12 @@ public partial class WorldMapNode : Node2D
 
         if (_camera == null) return;
 
-        // Keyboard shortcuts for view mode switching (instant testing)
+        // Keyboard shortcut for probe tool
         if (@event is InputEventKey keyEvent && keyEvent.Pressed && !keyEvent.Echo)
         {
-            switch (keyEvent.Keycode)
+            if (keyEvent.Keycode == Key.P)
             {
-                case Key.Key1:
-                    SetViewMode(MapViewMode.Biomes);
-                    break;
-                case Key.Key2:
-                    SetViewMode(MapViewMode.Elevation);
-                    break;
-                case Key.Key3:
-                    SetViewMode(MapViewMode.Precipitation);
-                    break;
-                case Key.Key4:
-                    SetViewMode(MapViewMode.Temperature);
-                    break;
-                case Key.Key5:
-                    SetViewMode(MapViewMode.RawElevation);
-                    break;
-                case Key.Key6:
-                    SetViewMode(MapViewMode.Plates);
-                    break;
-                case Key.Key7:
-                    SetViewMode(MapViewMode.RawElevationColored);
-                    break;
-                case Key.P:
-                    ProbeUnderMouse();
-                    break;
+                ProbeUnderMouse();
             }
         }
 
@@ -315,8 +296,7 @@ public partial class WorldMapNode : Node2D
         };
 
         _uiLabel.Text = $"WorldGen Test Scene\n" +
-                        $"WASD: Pan | Middle Mouse: Drag | Mouse Wheel: Zoom\n" +
-                        $"Keys 1-4: Switch View Mode\n\n" +
+                        $"WASD: Pan | Middle Mouse: Drag | Mouse Wheel: Zoom | P: Probe Cell\n\n" +
                         $"World: {_cachedWorldData.Width}x{_cachedWorldData.Height} (Seed: {Seed})\n" +
                         $"View: {viewModeText}";
     }
@@ -850,6 +830,82 @@ public partial class WorldMapNode : Node2D
         int g = Convert.ToInt32(hex.Substring(2, 2), 16);
         int b = Convert.ToInt32(hex.Substring(4, 2), 16);
         return new Color(r / 255f, g / 255f, b / 255f);
+    }
+
+    /// <summary>
+    /// Creates the view mode dropdown for switching between different map visualizations.
+    /// Positioned in top-right corner of UI layer.
+    /// </summary>
+    private void CreateViewModeDropdown()
+    {
+        var uiLayer = GetParent().GetNode<CanvasLayer>("UI");
+        if (uiLayer == null)
+        {
+            _logger?.LogError("Cannot create view mode dropdown: UI CanvasLayer not found");
+            return;
+        }
+
+        // Create container for dropdown
+        var dropdownContainer = new VBoxContainer
+        {
+            Name = "ViewModeContainer"
+        };
+
+        // Position in top-right corner (will be adjusted based on viewport size)
+        dropdownContainer.Position = new Vector2(10, 10);
+        dropdownContainer.SetAnchorsPreset(Control.LayoutPreset.TopRight);
+        dropdownContainer.GrowHorizontal = Control.GrowDirection.Begin; // Grow left from right anchor
+
+        // Add label
+        var label = new Label
+        {
+            Text = "View Mode:"
+        };
+        label.AddThemeFontSizeOverride("font_size", 18);
+        dropdownContainer.AddChild(label);
+
+        // Create dropdown
+        _viewModeDropdown = new OptionButton
+        {
+            CustomMinimumSize = new Vector2(250, 0) // Wide enough for labels
+        };
+
+        // Add all view modes to dropdown (in logical order)
+        _viewModeDropdown.AddItem("Biomes (Ricklefs)", (int)MapViewMode.Biomes);
+        _viewModeDropdown.AddItem("Elevation (WorldEngine)", (int)MapViewMode.Elevation);
+        _viewModeDropdown.AddItem("Precipitation (Humidity)", (int)MapViewMode.Precipitation);
+        _viewModeDropdown.AddItem("Temperature", (int)MapViewMode.Temperature);
+        _viewModeDropdown.AddSeparator(); // Visual separator for debug views
+        _viewModeDropdown.AddItem("Raw Elevation (Grayscale)", (int)MapViewMode.RawElevation);
+        _viewModeDropdown.AddItem("Raw Elevation (Colored)", (int)MapViewMode.RawElevationColored);
+        _viewModeDropdown.AddItem("Plates (Ownership)", (int)MapViewMode.Plates);
+
+        // Set default selection to Biomes
+        _viewModeDropdown.Selected = 0;
+
+        // Connect selection change signal
+        _viewModeDropdown.ItemSelected += OnViewModeSelected;
+
+        dropdownContainer.AddChild(_viewModeDropdown);
+        uiLayer.AddChild(dropdownContainer);
+
+        _logger?.LogDebug("View mode dropdown created with {Count} options", _viewModeDropdown.ItemCount);
+    }
+
+    /// <summary>
+    /// Called when user selects a view mode from the dropdown.
+    /// </summary>
+    private void OnViewModeSelected(long index)
+    {
+        if (_viewModeDropdown == null) return;
+
+        var selectedId = _viewModeDropdown.GetItemId((int)index);
+        var viewMode = (MapViewMode)selectedId;
+
+        _logger?.LogDebug("User selected view mode: {ViewMode} (index={Index}, id={Id})",
+            viewMode, index, selectedId);
+
+        SetViewMode(viewMode);
     }
 
     /// <summary>
