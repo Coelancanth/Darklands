@@ -20,151 +20,129 @@ public static class ClimateCalculator
         _logger = logger;
     }
     /// <summary>
-    /// Calculates precipitation using multi-factor model:
-    /// - Latitude bands (ITCZ, Hadley cells, temperate fronts)
-    /// - Noise variation (breaks up horizontal banding)
-    /// - Orographic lift (mountains increase precipitation)
-    /// - Rain shadow effect (leeward sides are drier)
-    /// - Ocean proximity (moisture source)
-    ///
-    /// Inspired by WorldEngine's noise approach + realistic meteorology.
+    /// Calculates precipitation using WorldEngine-like approach:
+    /// - Base multi-octave noise field normalized per world
+    /// - Temperature gamma curve modulation: (t^gamma)*(1-curveOffset)+curveOffset
+    /// - Optional orographic/rain-shadow and coastal bonuses
     /// </summary>
     /// <param name="heightmap">Elevation data (for orographic/rain shadow effects)</param>
     /// <param name="oceanMask">Ocean mask (moisture source)</param>
-    /// <param name="seed">Random seed for noise generation</param>
-    /// <returns>Precipitation map (0.0 = arid, 1.0 = very wet)</returns>
-    public static float[,] CalculatePrecipitation(float[,] heightmap, bool[,] oceanMask, int seed = 42)
+    /// <param name="temperatureMap">Computed temperature map (0..1), must be available BEFORE precipitation</param>
+    /// <param name="seed">Random seed</param>
+    /// <param name="gammaCurve">Temperature-precip coupling (WorldEngine default 1.25)</param>
+    /// <param name="curveOffset">Minimum precipitation fraction (WorldEngine default 0.20)</param>
+    public static float[,] CalculatePrecipitation(
+        float[,] heightmap,
+        bool[,] oceanMask,
+        float[,] temperatureMap,
+        int seed = 42,
+        float gammaCurve = 1.25f,
+        float curveOffset = 0.20f)
     {
         int height = heightmap.GetLength(0);
         int width = heightmap.GetLength(1);
 
-        var precipitation = new float[height, width];
+        var noiseValues = new float[height, width];
 
-        // Initialize simple noise generator (Perlin-like)
-        var random = new Random(seed);
-        var noiseOffsetX = random.Next(0, 10000);
-        var noiseOffsetY = random.Next(0, 10000);
+        var rng = new Random(seed);
+        int baseX = rng.Next(0, 4096);
+        int baseY = rng.Next(0, 4096);
 
-        // Sample cells for detailed tracing (avoid spam - pick 3 representative cells)
-        var sampleCells = new List<(int x, int y, string desc)>
-        {
-            (width / 4, height / 2, "west-equator"),      // Western equatorial region
-            (width / 2, height / 4, "center-northern"),   // Center northern (temperate)
-            (3 * width / 4, height / 2, "east-equator")   // Eastern equatorial (potential rain shadow)
-        };
+        // WorldEngine uses 6 octaves; our SimplexNoise wrapper already sums gradients per call
+        float coarseFreq = 64.0f;       // effective frequency scaling
+        float nScale = 1024f / Math.Max(1f, height); // preserve patterns across sizes
 
-        // Statistics tracking
-        float minPrecip = float.MaxValue, maxPrecip = float.MinValue, sumPrecip = 0f;
-        int oceanCount = 0, landCount = 0;
-
+        // Generate wrap-aware noise on X edges (approximation)
+        int border = Math.Max(1, width / 4);
         for (int y = 0; y < height; y++)
         {
-            // Latitude: 0 = equator (center), ±1 = poles (edges)
-            float latitude = Math.Abs((y / (float)(height - 1)) * 2f - 1f);
-
-            // Base precipitation from latitude bands (ITCZ, Hadley cells, etc.)
-            float latitudePercip = CalculateLatitudePrecipitation(latitude);
-
             for (int x = 0; x < width; x++)
             {
-                float elevation = heightmap[y, x];
+                float nx = (x * nScale) / coarseFreq;
+                float ny = (y * nScale) / coarseFreq;
 
-                // Check if this is a sample cell for detailed tracing
-                bool isSample = sampleCells.Exists(s => s.x == x && s.y == y);
-                string sampleDesc = isSample ? sampleCells.Find(s => s.x == x && s.y == y).desc : "";
+                float n = SimplexNoise(nx + baseX, ny + baseY, seed);
 
-                if (isSample)
-                    _logger?.LogDebug("Precipitation trace [{Desc}] ({X},{Y}): elevation={Elev:F3}, latitude={Lat:F3}",
-                        sampleDesc, x, y, elevation, latitude);
-
-                // 1. Start with latitude-based precipitation
-                float precip = latitudePercip;
-
-                if (isSample)
-                    _logger?.LogDebug("  Step 1 - Latitude base: {Value:F3}", precip);
-
-                // 2. Add noise variation (WorldEngine approach - breaks up banding)
-                // Use multiple octaves for more organic variation
-                float coarseNoise = SimplexNoise(
-                    (x + noiseOffsetX) * 0.02f,
-                    (y + noiseOffsetY) * 0.02f,
-                    seed);
-
-                // Add fine-grain noise to break up straight lines (higher frequency)
-                float fineNoise = SimplexNoise(
-                    (x + noiseOffsetX) * 0.08f,
-                    (y + noiseOffsetY) * 0.08f,
-                    seed + 1000); // Different seed for variety
-
-                float precipBeforeNoise = precip;
-                precip += coarseNoise * 0.25f; // ±0.25 large-scale variation
-                precip += fineNoise * 0.15f;   // ±0.15 fine-scale variation (breaks up boundaries)
-
-                if (isSample)
-                    _logger?.LogDebug("  Step 2 - After noise (coarse={Coarse:F3}, fine={Fine:F3}): {Value:F3} (delta={Delta:+F3;-F3})",
-                        coarseNoise, fineNoise, precip, precip - precipBeforeNoise);
-
-                // 3. Orographic lift (mountains increase precipitation on windward side)
-                float precipBeforeOro = precip;
-                float orographicEffect = CalculateOrographicEffect(heightmap, x, y, width, height);
-                precip += orographicEffect;
-
-                if (isSample && Math.Abs(orographicEffect) > 0.01f)
-                    _logger?.LogDebug("  Step 3 - Orographic lift: +{Effect:F3} -> {Value:F3}",
-                        orographicEffect, precip);
-
-                // 4. Rain shadow effect (leeward side is drier)
-                float precipBeforeRainShadow = precip;
-                float rainShadowEffect = CalculateRainShadowEffect(heightmap, x, y, width, height);
-                precip *= rainShadowEffect; // Multiplicative reduction (0.6-1.0)
-
-                if (isSample && rainShadowEffect < 1.0f)
-                    _logger?.LogDebug("  Step 4 - Rain shadow: x{Effect:F3} -> {Value:F3} (reduced by {Reduction:P0})",
-                        rainShadowEffect, precip, 1.0f - rainShadowEffect);
-
-                // 5. Ocean proximity (moisture source)
-                float precipBeforeOcean = precip;
-                if (oceanMask[y, x])
+                if (x <= border)
                 {
-                    precip += 0.15f; // Oceans have more moisture
-                    if (isSample)
-                        _logger?.LogDebug("  Step 5 - Ocean cell: +0.15 -> {Value:F3}", precip);
-                }
-                else
-                {
-                    // Coastal cells get bonus (adjacent to ocean)
-                    bool isCoastal = IsAdjacentToOcean(oceanMask, x, y, width, height);
-                    if (isCoastal)
-                    {
-                        precip += 0.1f;
-                        if (isSample)
-                            _logger?.LogDebug("  Step 5 - Coastal cell: +0.10 -> {Value:F3}", precip);
-                    }
+                    // Blend with wrapped sample from the right edge to avoid seams
+                    float nRight = SimplexNoise(((x * nScale) + width) / coarseFreq + baseX, ny + baseY, seed);
+                    float t = x / (float)border;
+                    n = n * t + nRight * (1f - t);
                 }
 
-                float finalPrecip = Math.Clamp(precip, 0f, 1f);
-                precipitation[y, x] = finalPrecip;
-
-                if (isSample)
-                    _logger?.LogDebug("  Final (clamped): {Value:F3}", finalPrecip);
-
-                // Update statistics
-                minPrecip = Math.Min(minPrecip, finalPrecip);
-                maxPrecip = Math.Max(maxPrecip, finalPrecip);
-                sumPrecip += finalPrecip;
-                if (oceanMask[y, x])
-                    oceanCount++;
-                else
-                    landCount++;
+                noiseValues[y, x] = n;
             }
         }
 
-        // Log summary statistics (one message per generation)
-        int totalCells = width * height;
-        float avgPrecip = sumPrecip / totalCells;
+        // Normalize noise to [0,1]
+        float minN = float.MaxValue, maxN = float.MinValue;
+        for (int y = 0; y < height; y++)
+            for (int x = 0; x < width; x++)
+            {
+                float v = noiseValues[y, x];
+                if (v < minN) minN = v;
+                if (v > maxN) maxN = v;
+            }
+        float deltaN = Math.Max(1e-6f, maxN - minN);
+
+        // Normalize temperature to [0,1]
+        float minT = float.MaxValue, maxT = float.MinValue;
+        for (int y = 0; y < height; y++)
+            for (int x = 0; x < width; x++)
+            {
+                float t = temperatureMap[y, x];
+                if (t < minT) minT = t;
+                if (t > maxT) maxT = t;
+            }
+        float deltaT = Math.Max(1e-6f, maxT - minT);
+
+        var precipitation = new float[height, width];
+
+        float minP = float.MaxValue, maxP = float.MinValue, sumP = 0f;
+        int oceanCells = 0, landCells = 0;
+
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                float p = (noiseValues[y, x] - minN) / deltaN; // [0,1]
+                float tNorm = (temperatureMap[y, x] - minT) / deltaT; // [0,1]
+
+                // Temperature gamma curve
+                float curve = (float)(Math.Pow(tNorm, gammaCurve) * (1f - curveOffset) + curveOffset);
+                p *= curve;
+
+                // Orographic lift and rain shadow
+                p += CalculateOrographicEffect(heightmap, x, y, width, height);
+                p *= CalculateRainShadowEffect(heightmap, x, y, width, height);
+
+                // Ocean/coastal bonuses
+                if (oceanMask[y, x])
+                {
+                    p += 0.15f;
+                    oceanCells++;
+                }
+                else
+                {
+                    bool isCoastal = IsAdjacentToOcean(oceanMask, x, y, width, height);
+                    if (isCoastal) p += 0.10f;
+                    landCells++;
+                }
+
+                // Clamp to [0,1]
+                float pc = Math.Clamp(p, 0f, 1f);
+                precipitation[y, x] = pc;
+                if (pc < minP) minP = pc;
+                if (pc > maxP) maxP = pc;
+                sumP += pc;
+            }
+        }
+
+        int total = width * height;
         _logger?.LogInformation(
             "Precipitation summary: min={Min:F3}, max={Max:F3}, avg={Avg:F3} (land={Land}, ocean={Ocean})",
-            minPrecip, maxPrecip, avgPrecip, landCount, oceanCount);
+            minP, maxP, sumP / Math.Max(1, total), landCells, oceanCells);
 
         return precipitation;
     }

@@ -23,9 +23,11 @@ public static class HumidityCalculator
     private const float PrecipitationWeight = 1.0f;
     private const float IrrigationWeight = 3.0f;
 
-    // Quantile percentiles for 8-level moisture classification
-    // Bell curve distribution (not evenly spaced) for better biome balance
-    private static readonly float[] QuantilePercentiles = { 0.941f, 0.778f, 0.507f, 0.236f, 0.073f, 0.014f, 0.002f };
+    // Quantile percentiles for 8-level moisture classification (WorldEngine defaults)
+    // IMPORTANT: Keys map as follows (see References/worldengine/simulations/humidity.py):
+    // '12' -> 0.002, '25' -> 0.014, '37' -> 0.073, '50' -> 0.236,
+    // '62' -> 0.507, '75' -> 0.778, '87' -> 0.941
+    private static readonly float[] QuantilePercentilesAscending = { 0.002f, 0.014f, 0.073f, 0.236f, 0.507f, 0.778f, 0.941f };
 
     /// <summary>
     /// Calculates humidity by combining precipitation and irrigation with weighted average.
@@ -93,17 +95,16 @@ public static class HumidityCalculator
         landHumidity.Sort();
         landHumidity.Reverse(); // Highest values first
 
-        // Calculate quantile thresholds
-        // These correspond to: 12%, 25%, 37%, 50%, 62%, 75%, 87% percentiles
-        // Creating 8 moisture levels: superarid, arid, semiarid, subhumid, humid, perhumid, superhumid
+        // Calculate quantile thresholds mapping exactly like WorldEngine
+        // Keys represent humidity buckets and are NOT direct percent values
         return new HumidityQuantiles(
-            Quantile12: GetPercentileThreshold(landHumidity, QuantilePercentiles[0]),  // 94.1% (superhumid)
-            Quantile25: GetPercentileThreshold(landHumidity, QuantilePercentiles[1]),  // 77.8% (perhumid)
-            Quantile37: GetPercentileThreshold(landHumidity, QuantilePercentiles[2]),  // 50.7% (humid)
-            Quantile50: GetPercentileThreshold(landHumidity, QuantilePercentiles[3]),  // 23.6% (subhumid)
-            Quantile62: GetPercentileThreshold(landHumidity, QuantilePercentiles[4]),  // 7.3%  (semiarid)
-            Quantile75: GetPercentileThreshold(landHumidity, QuantilePercentiles[5]),  // 1.4%  (arid)
-            Quantile87: GetPercentileThreshold(landHumidity, QuantilePercentiles[6])); // 0.2%  (superarid)
+            Quantile12: GetPercentileThreshold(landHumidity, QuantilePercentilesAscending[0]),  // 0.2% (superhumid threshold)
+            Quantile25: GetPercentileThreshold(landHumidity, QuantilePercentilesAscending[1]),  // 1.4%
+            Quantile37: GetPercentileThreshold(landHumidity, QuantilePercentilesAscending[2]),  // 7.3%
+            Quantile50: GetPercentileThreshold(landHumidity, QuantilePercentilesAscending[3]),  // 23.6%
+            Quantile62: GetPercentileThreshold(landHumidity, QuantilePercentilesAscending[4]),  // 50.7%
+            Quantile75: GetPercentileThreshold(landHumidity, QuantilePercentilesAscending[5]),  // 77.8%
+            Quantile87: GetPercentileThreshold(landHumidity, QuantilePercentilesAscending[6])); // 94.1%
     }
 
     /// <summary>

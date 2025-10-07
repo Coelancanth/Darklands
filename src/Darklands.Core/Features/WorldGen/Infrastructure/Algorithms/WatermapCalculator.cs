@@ -87,7 +87,7 @@ public static class WatermapCalculator
         int height)
     {
         // Stop if quantity too small
-        if (quantity < 0)
+        if (quantity <= MinFlowQuantity)
             return;
 
         var (x, y) = position;

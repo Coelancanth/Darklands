@@ -181,18 +181,16 @@ public static class BiomeClassifier
     /// </summary>
     private static MoistureLevel GetMoistureLevelFromHumidity(float humidity, HumidityQuantiles quantiles)
     {
-        // HumidityQuantiles are ordered from highest (wettest) to lowest (driest)
-        // Quantile12 = top 94.1% (only 5.9% of land is wetter) = Superhumid threshold
-        // Quantile87 = top 0.2% (99.8% of land is wetter) = Superarid threshold
-
-        if (humidity >= quantiles.Quantile12) return MoistureLevel.Superhumid;  // Wettest 12%
-        if (humidity >= quantiles.Quantile25) return MoistureLevel.Perhumid;    // 12-25%
-        if (humidity >= quantiles.Quantile37) return MoistureLevel.Humid;       // 25-37%
-        if (humidity >= quantiles.Quantile50) return MoistureLevel.Subhumid;    // 37-50%
-        if (humidity >= quantiles.Quantile62) return MoistureLevel.Semiarid;    // 50-62%
-        if (humidity >= quantiles.Quantile75) return MoistureLevel.Arid;        // 62-75%
-        if (humidity >= quantiles.Quantile87) return MoistureLevel.Perarid;     // 75-87%
-        return MoistureLevel.Superarid;  // Driest 13%
+        // Match WorldEngine's moisture bucket checks (see model/world.py)
+        // Order of checks increasing dryness: 12 -> 25 -> 37 -> 50 -> 62 -> 75 -> 87
+        if (humidity >= quantiles.Quantile12) return MoistureLevel.Superhumid;
+        if (humidity >= quantiles.Quantile25) return MoistureLevel.Perhumid;
+        if (humidity >= quantiles.Quantile37) return MoistureLevel.Humid;
+        if (humidity >= quantiles.Quantile50) return MoistureLevel.Subhumid;
+        if (humidity >= quantiles.Quantile62) return MoistureLevel.Semiarid;
+        if (humidity >= quantiles.Quantile75) return MoistureLevel.Arid;
+        if (humidity >= quantiles.Quantile87) return MoistureLevel.Perarid;
+        return MoistureLevel.Superarid;
     }
 
     // Temperature bands (from coldest to hottest)

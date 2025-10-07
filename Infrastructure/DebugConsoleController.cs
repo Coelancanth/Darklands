@@ -52,7 +52,7 @@ public partial class DebugConsoleController : CanvasLayer
         // Note: Can't log here - DI container not initialized yet (autoload runs before GameStrapper)
         // But we can read persisted state file to show what settings will be applied
         var stateInfo = GetPersistedStateInfo();
-        GD.Print($"🔧 Debug Console ready (F12 to toggle) | {stateInfo}");
+        GD.Print($"Debug Console ready (F12 to toggle) | {stateInfo}");
     }
 
     /// <summary>
@@ -96,7 +96,7 @@ public partial class DebugConsoleController : CanvasLayer
                     }
                 }
 
-                GD.Print($"🔧 Debug Console: {(_container.Visible ? "VISIBLE" : "HIDDEN")}");
+                GD.Print($"Debug Console: {(_container.Visible ? "VISIBLE" : "HIDDEN")}");
             }
 
             // Mark as handled to prevent propagation

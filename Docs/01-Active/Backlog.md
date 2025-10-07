@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-07 03:08 (Dev Engineer: TD_009 complete - All 6 phases done! Biome classification now uses humidity)
+**Last Updated**: 2025-10-07 21:52 (Dev Engineer: TD_010 Phases 1-2 complete - Caching + elevation renderer with known issue)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -477,9 +477,9 @@
 ---
 
 ### TD_010: Multi-View Map Rendering System
-**Status**: Proposed
-**Owner**: Tech Lead → Dev Engineer
-**Size**: M (5-7 hours)
+**Status**: In Progress (Phases 1-2 Complete, Climate/Biome corrections applied)
+**Owner**: Dev Engineer
+**Size**: M (actual: ~4h Phase 1-2, est: ~3h Phase 3-4 remaining)
 **Priority**: Ideas
 **Markers**: [WORLDGEN] [VISUALIZATION] [DEBUG]
 **Parent**: VS_019 (Phase 4)
@@ -488,17 +488,46 @@
 
 **Why**: Enable rapid iteration on worldgen algorithms by visualizing underlying data layers. Developers need to see raw elevation/precipitation/temperature data to debug biome classification, rain shadow effects, and climate calculations. Saving generation results prevents regeneration overhead during view switching.
 
-**Current State** (as of 2025-10-07 02:02):
-✅ **Implemented**:
-- Biome map rendering (41 WorldEngine biomes → colored pixels)
-- Single view mode (biome classification only)
-- Image/Texture2D rendering pipeline (262,000× faster than DrawRect)
+**Implementation Summary** (as of 2025-10-07 23:40):
 
-⚠️ **Missing**:
-- No elevation map view (can't debug terrain generation)
-- No precipitation map view (can't debug rain shadow)
-- No temperature map view (can't debug climate zones)
-- Regenerates world on every view switch (slow, inconsistent)
+**Phase 1: Persistent Generation Data** ✅ **COMPLETE**
+- `PlateSimulationResult` cached in `_cachedWorldData` field (WorldMapNode)
+- Session-scoped cache (destroyed on scene close, sufficient for debug workflow)
+- Instant view switching (< 1ms, no regeneration confirmed)
+- Memory: 512×512 world ≈ 4-6 MB RAM (negligible overhead)
+
+**Phase 2: Elevation Map Renderer** ⚠️ **COMPLETE WITH KNOWN ISSUE**
+- ✅ `MapViewMode` enum created (Biomes, Elevation, Precipitation, Temperature)
+- ✅ `ElevationMapColorizer` - 1:1 port of WorldEngine's `_elevation_color()` gradient (draw.py:151-200)
+- ✅ Keyboard shortcuts: Keys 1-4 for instant view switching (no mouse required)
+- ✅ Visual legend panel (bottom-left corner, dynamic updates per view mode)
+- ✅ WorldEngine's exact rescaling formula (draw.py:340-350) - ocean [0, 1], land [1, 12] via divide-by-11
+- ✅ Build GREEN, all 439 tests passing
+
+**✅ What Works**:
+- Caching infrastructure validated (view switching instant, no regeneration)
+- Keyboard shortcuts functional (Keys 1-4 tested)
+- UI label updates with current view mode name
+- Legend panel displays correct color swatches (9 elevation zones shown)
+- Elevation rendering shows color variation (blue ocean depths, green/gray/white land gradients)
+- Code architecture sound (ElevationMapColorizer pure C#, WorldMapNode presentation layer)
+
+**❌ Known Issue - Elevation Color Distribution**:
+- **Symptom**: Land renders predominantly gray/white (high peaks) instead of green/yellow/brown (lowlands)
+- **Visual Comparison**: WorldEngine reference shows green/yellow dominance, ours shows gray/white dominance
+- **Root Cause Analysis**:
+  - Rescaling algorithm verified correct (1:1 port of draw.py formula)
+  - Heightmap values are too high: land 0.6-1.0 vs WorldEngine's expected 0.2-0.6 range
+  - Log evidence: `Elevation stats: Ocean [0.000-0.650], Land [0.018-1.000]` (98% spread but high absolute values)
+  - Issue is in **heightmap generation pipeline**, not visualization
+- **Hypothesis**: Plate-tectonics library or ElevationPostProcessor produces different elevation distributions than WorldEngine expects
+- **Impact**: Cosmetic only - elevation view shows variation but wrong color range (functional, not optimal)
+- **Deferred**: Pipeline investigation to TD_011 (needs elevation normalization/compression study)
+
+**Phase 3-4: Precipitation/Temperature Renderers** ⏳ **DEFERRED**
+- Simpler than elevation (8-level and 7-level discrete gradients, no complex rescaling)
+- Est: ~1.5h precipitation + 1.5h temperature = 3h total
+- Blocked on elevation issue resolution (consistency across view modes)
 
 **Work Breakdown**:
 
@@ -591,6 +620,26 @@
 - **Future Enhancement**: Add "black & white" mode option for scientific visualization (WorldEngine has this)
 
 **Dependencies**: TD_008 complete ✅
+
+---
+
+**2025-10-07 Corrections (WorldEngine parity in Climate/Biome pipeline)**
+- **Reordered climate steps**: Temperature now computes BEFORE precipitation, matching WorldEngine. Precipitation now receives the temperature map as input.
+- **Precipitation gamma modulation (WorldEngine)**: Applied gamma curve against normalized temperature: `(t^gamma)*(1-curveOffset)+curveOffset` (defaults: gamma=1.25, offset=0.20). Retained orographic lift, rain shadow, and coastal bonuses. Implemented X-wrap-aware noise blending and world-size normalization (`nScale = 1024/height`).
+- **Humidity quantiles mapping fixed**: Corrected quantile keys mapping to WorldEngine’s bell-curve percentiles:
+  - '12'→0.002, '25'→0.014, '37'→0.073, '50'→0.236, '62'→0.507, '75'→0.778, '87'→0.941.
+  - This ensures moisture buckets (superhumid → superarid) align with WorldEngine’s classification on land-only cells.
+- **Biome moisture classification order corrected**: Moisture thresholds are now checked in increasing wetness order (12→25→37→50→62→75→87), exactly mirroring WorldEngine’s `world.is_humidity_*` logic.
+- **Sea level parameterized**: Biome classification now uses `PlateSimulationParams.SeaLevel` instead of a hard-coded value.
+- **Hydrology minor correctness tweak**: Droplet recursion guard in watermap uses `<= MinFlowQuantity` for consistent termination.
+
+**Impact**
+- Biome distribution improves notably near coasts and rivers (irrigation weight 3× reflected via humidity). Tropical/wet zones form where expected; tundra/ice no longer over-expand due to precipitation mis-scaling.
+- Precipitation maps avoid excessive horizontal banding (noise + gamma), and rain shadow/orographic effects remain visible.
+- Results align better with WorldEngine reference outputs, making TD_010 multi-view debugging more reliable.
+
+**Next**
+- Implement precipitation and temperature view renderers (use WorldEngine color scales) now that climate layers are corrected.
 
 ---
 

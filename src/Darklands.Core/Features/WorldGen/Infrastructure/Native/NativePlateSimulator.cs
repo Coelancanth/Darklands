@@ -223,16 +223,17 @@ public class NativePlateSimulator : IPlateSimulator
             // Enable algorithm tracing (logger will be used for sample cells + summary stats)
             ClimateCalculator.SetLogger(_logger);
 
-            // Calculate precipitation (noise + orographic lift + rain shadow)
-            var precipitation = ClimateCalculator.CalculatePrecipitation(
-                elevation.Heightmap,
-                elevation.OceanMask,
-                p.Seed);
-
             // Calculate temperature (latitude + elevation cooling + noise variation)
             var temperature = ClimateCalculator.CalculateTemperature(
                 elevation.Heightmap,
                 elevation.OceanMask,
+                p.Seed);
+
+            // Calculate precipitation AFTER temperature to apply gamma curve
+            var precipitation = ClimateCalculator.CalculatePrecipitation(
+                elevation.Heightmap,
+                elevation.OceanMask,
+                temperature,
                 p.Seed);
 
             _logger.LogInformation("Climate calculation complete");
@@ -361,7 +362,7 @@ public class NativePlateSimulator : IPlateSimulator
             hydrology.HumidityMap,       // ✅ CORRECT: Uses humidity (precip + irrigation)
             hydrology.Quantiles,          // ✅ NEW: Humidity quantiles for moisture classification
             hydrology.TemperatureMap,
-            seaLevel: 0.65f); // Use default sea level from params
+            seaLevel: NativeSeaLevelFallback(hydrology));
 
         _logger.LogInformation("Biome classification complete (using humidity-based moisture)");
 
@@ -409,4 +410,22 @@ public class NativePlateSimulator : IPlateSimulator
         float[,] IrrigationMap,        // Moisture spreading from ocean
         List<River> Rivers,
         List<(int x, int y)> Lakes);
+
+    private static float NativeSeaLevelFallback(HydrologyData hydrology)
+    {
+        // We do not carry parameters here; derive approximate sea level by land/ocean split if needed.
+        // If more precise control is required, thread sea level through the pipeline.
+        // For now, estimate sea level percentile from ocean coverage by sampling height at ocean cells' 80th percentile.
+        int h = hydrology.Heightmap.GetLength(0);
+        int w = hydrology.Heightmap.GetLength(1);
+        var oceanHeights = new List<float>();
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+                if (hydrology.OceanMask[y, x]) oceanHeights.Add(hydrology.Heightmap[y, x]);
+        if (oceanHeights.Count == 0)
+            return 0.65f;
+        oceanHeights.Sort();
+        int idx = Math.Clamp((int)(oceanHeights.Count * 0.8f), 0, oceanHeights.Count - 1);
+        return oceanHeights[idx];
+    }
 }
