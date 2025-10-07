@@ -1,10 +1,11 @@
-[gd_scene load_steps=6 format=3 uid="uid://cjcq3mxl1mxvx"]
+[gd_scene load_steps=7 format=3 uid="uid://cjcq3mxl1mxvx"]
 
 [ext_resource type="Script" uid="uid://ddcimomghucvy" path="res://godot_project/features/worldgen/WorldMapOrchestratorNode.cs" id="1_orchestrator"]
 [ext_resource type="Script" uid="uid://bms60h25uj1yo" path="res://godot_project/features/worldgen/WorldMapRendererNode.cs" id="2_renderer"]
 [ext_resource type="Script" uid="uid://oyiaoox43c6c" path="res://godot_project/features/worldgen/WorldMapProbeNode.cs" id="3_probe"]
 [ext_resource type="Script" uid="uid://wxtt8b14u4rv" path="res://godot_project/features/worldgen/WorldMapUINode.cs" id="4_ui"]
 [ext_resource type="Script" uid="uid://cdhfj1b6roxjk" path="res://godot_project/features/worldgen/WorldMapLegendNode.cs" id="5_legend"]
+[ext_resource type="Script" uid="uid://b1wxe41nn82go" path="res://godot_project/features/worldgen/WorldMapCameraNode.cs" id="6_camera"]
 
 [node name="WorldMapTestScene" type="Node2D"]
 
@@ -18,6 +19,9 @@ script = ExtResource("2_renderer")
 
 [node name="Probe" type="Node" parent="Orchestrator"]
 script = ExtResource("3_probe")
+
+[node name="CameraController" type="Node" parent="Orchestrator"]
+script = ExtResource("6_camera")
 
 [node name="UILayer" type="CanvasLayer" parent="."]
 

@@ -21,6 +21,8 @@ public partial class WorldMapOrchestratorNode : Node
     private WorldMapProbeNode? _probe;
     private WorldMapUINode? _ui;
     private WorldMapLegendNode? _legend;
+    private WorldMapCameraNode? _cameraController;
+    private Camera2D? _camera;
 
     // Services
     private ILogger<WorldMapOrchestratorNode>? _logger;
@@ -39,6 +41,10 @@ public partial class WorldMapOrchestratorNode : Node
         // Find child nodes
         _renderer = GetNode<WorldMapRendererNode>("Renderer");
         _probe = GetNode<WorldMapProbeNode>("Probe");
+        _cameraController = GetNode<WorldMapCameraNode>("CameraController");
+
+        // Camera is sibling of Orchestrator
+        _camera = GetNode<Camera2D>("../Camera2D");
 
         // UI nodes are in the UILayer (sibling of Orchestrator)
         _ui = GetNode<WorldMapUINode>("../UILayer/UI");
@@ -80,6 +86,12 @@ public partial class WorldMapOrchestratorNode : Node
             _legend.SetLogger(ServiceLocator.Get<ILogger<WorldMapLegendNode>>());
         }
 
+        // Initialize camera controller
+        if (_cameraController != null && _camera != null)
+        {
+            _cameraController.Initialize(_camera, ServiceLocator.Get<ILogger<WorldMapCameraNode>>());
+        }
+
         _logger?.LogDebug("Nodes wired together");
     }
 
@@ -98,6 +110,7 @@ public partial class WorldMapOrchestratorNode : Node
     private void OnRegenerateRequested(int seed)
     {
         _logger?.LogInformation("Regenerate requested with seed: {Seed}", seed);
+        _cameraController?.ResetCamera();
         _ = GenerateWorldAsync(seed);
     }
 

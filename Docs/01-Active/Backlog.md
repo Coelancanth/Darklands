@@ -352,10 +352,10 @@ private void SaveWorldToDisk(PlateSimulationResult data, string path)
 
 ---
 
-### VS_028: WorldMap Camera - Mouse Zoom & Drag Pan
-**Status**: Proposed
+### ~~VS_028: WorldMap Camera - Mouse Zoom & Drag Pan~~ ✅ COMPLETE
+**Status**: Done (2025-10-08)
 **Owner**: Dev Engineer
-**Size**: M (~4h)
+**Size**: M (~3h actual)
 **Priority**: Ideas
 **Markers**: [WORLDGEN] [UI] [CAMERA]
 
@@ -363,35 +363,21 @@ private void SaveWorldToDisk(PlateSimulationResult data, string path)
 
 **Why**: Current Camera2D exists but has no controls. Essential for exploring large 512×512 maps.
 
-**Technical Approach**:
-Option A: Extend WorldMapProbeNode to handle camera
-```csharp
-public override void _UnhandledInput(InputEvent @event)
-{
-    // Mouse wheel → zoom
-    if (@event is InputEventMouseButton mouse && mouse.Pressed)
-    {
-        if (mouse.ButtonIndex == MouseButton.WheelUp)
-            _camera.Zoom *= 1.1f;
-        else if (mouse.ButtonIndex == MouseButton.WheelDown)
-            _camera.Zoom /= 1.1f;
-    }
+**Implementation Summary** (Option B: Dedicated Camera Node):
+- ✅ Created WorldMapCameraNode.cs - dedicated camera controller
+- ✅ Mouse wheel zoom in/out with limits (0.5x min, 4.0x max)
+- ✅ Middle mouse drag panning (compensated for zoom level)
+- ✅ Camera reset on world regeneration
+- ✅ Integrated with orchestrator, wired to Camera2D
+- ✅ All 433 tests GREEN
 
-    // Middle mouse → drag
-    if (@event is InputEventMouseMotion motion && Input.IsMouseButtonPressed(MouseButton.Middle))
-    {
-        _camera.Position -= motion.Relative / _camera.Zoom;
-    }
-}
-```
+**Technical Details**:
+- Zoom speed: 0.1 (10% per scroll)
+- Pan compensation: `Position -= motion.Relative / Zoom` (consistent feel at all zoom levels)
+- Input handling: Uses `_UnhandledInput()` + `SetInputAsHandled()` to prevent event bubbling
+- Modular design: Follows WorldGen node pattern (Renderer, Probe, UI, Camera)
 
-Option B: Create separate WorldMapCameraNode
-
-**Done When**:
-- Mouse wheel zooms in/out smoothly
-- Middle mouse drag pans camera
-- Zoom limits enforced (min/max)
-- Camera resets when regenerating world
+**Completed**: 2025-10-08 05:06 by Dev Engineer
 
 ---
 
