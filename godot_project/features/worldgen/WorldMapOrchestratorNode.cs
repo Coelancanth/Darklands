@@ -67,6 +67,12 @@ public partial class WorldMapOrchestratorNode : Node
             _probe.SetRenderer(_renderer, ServiceLocator.Get<ILogger<WorldMapProbeNode>>());
         }
 
+        // Connect probe to camera controller (to detect pan mode)
+        if (_probe != null && _cameraController != null)
+        {
+            _probe.SetCameraController(_cameraController);
+        }
+
         // Connect UI signals
         if (_ui != null)
         {

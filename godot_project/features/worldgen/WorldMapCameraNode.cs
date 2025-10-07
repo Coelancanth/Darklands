@@ -15,11 +15,19 @@ public partial class WorldMapCameraNode : Node
 
     // Zoom settings
     private const float MIN_ZOOM = 0.5f;
-    private const float MAX_ZOOM = 4.0f;
+    private const float MAX_ZOOM = 20.0f;  // Increased for better cell highlight visibility
     private const float ZOOM_SPEED = 0.1f;
 
-    // Pan state
+    // Pan state with hold-to-activate
     private bool _isPanning = false;
+    private bool _middleMouseDown = false;
+    private double _middleMouseDownTime = 0;
+    private const double PAN_ACTIVATION_THRESHOLD = 0.2; // 200ms hold to activate pan
+
+    /// <summary>
+    /// Returns true if currently in pan mode.
+    /// </summary>
+    public bool IsPanning => _isPanning;
 
     public override void _Ready()
     {
@@ -50,7 +58,21 @@ public partial class WorldMapCameraNode : Node
         _logger?.LogDebug("Camera reset to default position and zoom");
     }
 
-    public override void _UnhandledInput(InputEvent @event)
+    public override void _Process(double delta)
+    {
+        // Check if middle-mouse has been held long enough to activate pan mode
+        if (_middleMouseDown && !_isPanning)
+        {
+            var holdTime = Time.GetTicksMsec() / 1000.0 - _middleMouseDownTime;
+            if (holdTime >= PAN_ACTIVATION_THRESHOLD)
+            {
+                _isPanning = true;
+                _logger?.LogDebug("Pan mode activated (held for {HoldTime:F2}s)", holdTime);
+            }
+        }
+    }
+
+    public override void _Input(InputEvent @event)
     {
         if (_camera == null) return;
 
@@ -69,7 +91,9 @@ public partial class WorldMapCameraNode : Node
             }
             else if (mouseButton.ButtonIndex == MouseButton.Middle)
             {
-                _isPanning = true;
+                // Start hold timer for pan activation
+                _middleMouseDown = true;
+                _middleMouseDownTime = Time.GetTicksMsec() / 1000.0;
                 GetViewport().SetInputAsHandled();
             }
         }
@@ -79,12 +103,13 @@ public partial class WorldMapCameraNode : Node
         {
             if (mouseButtonRelease.ButtonIndex == MouseButton.Middle)
             {
+                _middleMouseDown = false;
                 _isPanning = false;
                 GetViewport().SetInputAsHandled();
             }
         }
 
-        // Middle mouse drag for panning
+        // Middle mouse drag for panning (only if pan mode activated)
         if (@event is InputEventMouseMotion motion && _isPanning)
         {
             // Pan camera by mouse movement (divided by zoom for consistent feel)

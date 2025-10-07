@@ -322,33 +322,36 @@ private void SaveWorldToDisk(PlateSimulationResult data, string path)
 
 ---
 
-### VS_027: WorldMap Probe - Fix Cell Inspection & Highlight
-**Status**: Proposed
+### ~~VS_027: WorldMap Probe - Fix Cell Inspection & Highlight~~ ✅ COMPLETE
+**Status**: Done (2025-10-08)
 **Owner**: Dev Engineer
-**Size**: M (~5h)
+**Size**: M (~4h actual)
 **Priority**: Ideas
 **Markers**: [WORLDGEN] [UI] [DEBUGGING]
 
 **What**: Fix WorldMapProbeNode cell detection and add visual highlight preview
 
-**Why**: Probe not working correctly (coordinate transformation issue?). Also need visual feedback showing which cell will be probed.
+**Why**: Probe had coordinate transformation bug (showing 1147,760 for 512×512 map). Needed visual feedback and better UX.
 
-**Current Issues**:
-1. Probe coordinate transformation may be incorrect
-2. No visual feedback (which cell am I hovering?)
-3. 'P' key press feels clunky (click-to-probe better?)
+**Implementation Summary**:
+- ✅ Fixed coordinate transformation bug: `GetGlobalMousePosition()` instead of `GetViewport().GetMousePosition()`
+- ✅ Replaced 'P' key with click-to-probe (left mouse button)
+- ✅ Added yellow 1×1 pixel ColorRect highlight (follows cursor)
+- ✅ Increased camera zoom limit to 20x (highlight visible at high zoom)
+- ✅ Implemented hold-to-pan mode (200ms threshold, prevents highlight jitter)
+- ✅ Enhanced logger output with structured data (X, Y, Elevation, PlateId, ViewMode)
+- ✅ Fixed input filtering (_Input() vs _UnhandledInput() conflict)
+- ✅ All 433 tests GREEN
 
-**Technical Approach**:
-- Debug coordinate transformation (viewport → sprite → texture coords)
-- Add hover highlight (ColorRect overlay at cell position)
-- Optional: Click-to-probe instead of 'P' key
-- Show probe data in UI status label (already wired)
+**Technical Details**:
+- Coordinate transform: `GetGlobalMousePosition()` → `AffineInverse()` → cell coords (accounts for camera zoom/pan)
+- Hold-to-pan: 200ms threshold via `_Process()` timer, logs "Pan mode activated"
+- Probe/Camera coordination: Probe checks `camera.IsPanning` to skip highlight updates during pan
+- Input order: Both use `_Input()` for reliable event processing
 
-**Done When**:
-- Probe reports correct cell coordinates
-- Visual highlight shows hovered cell
-- Probe data displays in UI status label
-- Coordinate edge cases handled (out of bounds)
+**Key Bug Fix**: Used `GetViewport().GetMousePosition()` (screen space) instead of `GetGlobalMousePosition()` (world space), causing massive coordinate offsets after camera transforms.
+
+**Completed**: 2025-10-08 05:21 by Dev Engineer
 
 ---
 
