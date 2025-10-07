@@ -42,18 +42,37 @@ public partial class WorldMapUINode : Control
         _logger = ServiceLocator.Get<ILogger<WorldMapUINode>>();
         _mediator = ServiceLocator.Get<IMediator>();
 
+        // Anchor to upper-right corner
+        AnchorLeft = 1;
+        AnchorTop = 0;
+        AnchorRight = 1;
+        AnchorBottom = 0;
+        OffsetLeft = -230;  // Width of panel (negative to extend left from right edge)
+        OffsetTop = 10;
+        OffsetRight = -10;  // 10px from right edge
+        OffsetBottom = 400; // Height of panel
+
         BuildUI();
         _logger?.LogDebug("WorldMapUINode ready");
     }
 
     private void BuildUI()
     {
-        // Main container (top-left corner)
+        // Panel background for visibility
+        var panel = new PanelContainer
+        {
+            SizeFlagsHorizontal = SizeFlags.ExpandFill,
+            SizeFlagsVertical = SizeFlags.ExpandFill
+        };
+        AddChild(panel);
+
+        // Main container
         var container = new VBoxContainer
         {
-            Position = new Vector2(10, 10)
+            SizeFlagsHorizontal = SizeFlags.ExpandFill,
+            SizeFlagsVertical = SizeFlags.ExpandFill
         };
-        AddChild(container);
+        panel.AddChild(container);
 
         // Title
         var titleLabel = new Label

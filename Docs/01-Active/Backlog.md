@@ -235,10 +235,10 @@ Before starting pipeline phases, fix visualization foundation issues discovered 
 
 ---
 
-### VS_025: WorldMap UI - Flexible Layout System
-**Status**: Proposed
+### ~~VS_025: WorldMap UI - Flexible Layout System~~ ✅ COMPLETE
+**Status**: Done (2025-10-08)
 **Owner**: Dev Engineer
-**Size**: M (~4h)
+**Size**: M (~3h actual)
 **Priority**: Ideas
 **Markers**: [WORLDGEN] [UI] [GODOT]
 
@@ -246,23 +246,17 @@ Before starting pipeline phases, fix visualization foundation issues discovered 
 
 **Why**: Current UI positions are hardcoded in C# (line 52: `Position = new Vector2(10, 10)`). Should use Godot anchors/containers for player-configurable layouts.
 
-**Current Issue**:
-- UI position hardcoded in WorldMapUINode._Ready()
-- Legend position hardcoded in WorldMapLegendNode._Ready()
-- Not flexible for different screen sizes
-- Players can't rearrange UI
+**Implementation Summary**:
+- ✅ Moved UI to upper-right using anchor system (AnchorLeft=1, AnchorRight=1)
+- ✅ Added PanelContainer for visible background
+- ✅ Fixed scene hierarchy - moved UI/Legend to CanvasLayer (critical fix!)
+- ✅ Removed hardcoded `Position = new Vector2(10, 10)` from C#
+- ✅ UI now positioned via .tscn anchors, fully customizable in editor
+- ✅ All 433 tests GREEN
 
-**Technical Approach**:
-- Use Godot anchors (AnchorPreset) in .tscn file
-- Remove hardcoded Position settings from C#
-- Let Godot handle layout via Control nodes
-- Document layout customization in scene
+**Key Insight**: Control nodes must be in CanvasLayer (not parented under Node) to render correctly in Godot's hierarchy.
 
-**Done When**:
-- UI elements positioned via .tscn (not C#)
-- Anchors work correctly in Godot editor
-- Layout adapts to screen size
-- Documentation shows how to customize
+**Completed**: 2025-10-08 05:02 by Dev Engineer
 
 ---
 

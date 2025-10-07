@@ -19,12 +19,21 @@ script = ExtResource("2_renderer")
 [node name="Probe" type="Node" parent="Orchestrator"]
 script = ExtResource("3_probe")
 
-[node name="UI" type="Control" parent="Orchestrator"]
+[node name="UILayer" type="CanvasLayer" parent="."]
+
+[node name="UI" type="Control" parent="UILayer"]
 layout_mode = 3
-anchors_preset = 0
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -230.0
+offset_top = 10.0
+offset_right = -10.0
+offset_bottom = 400.0
+grow_horizontal = 0
 script = ExtResource("4_ui")
 
-[node name="Legend" type="Control" parent="Orchestrator"]
+[node name="Legend" type="Control" parent="UILayer"]
 layout_mode = 3
 anchors_preset = 0
 script = ExtResource("5_legend")

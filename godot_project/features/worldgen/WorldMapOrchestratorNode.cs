@@ -39,8 +39,10 @@ public partial class WorldMapOrchestratorNode : Node
         // Find child nodes
         _renderer = GetNode<WorldMapRendererNode>("Renderer");
         _probe = GetNode<WorldMapProbeNode>("Probe");
-        _ui = GetNode<WorldMapUINode>("UI");
-        _legend = GetNode<WorldMapLegendNode>("Legend");
+
+        // UI nodes are in the UILayer (sibling of Orchestrator)
+        _ui = GetNode<WorldMapUINode>("../UILayer/UI");
+        _legend = GetNode<WorldMapLegendNode>("../UILayer/Legend");
 
         // Wire up connections
         WireNodes();
