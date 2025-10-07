@@ -376,6 +376,35 @@ public partial class WorldMapNode : Node2D
                 RenderRawElevationColoredMap(_cachedWorldData);
                 break;
 
+            // Pipeline Stage Views
+            case MapViewMode.Stage2_ProcessedElevation:
+                RenderStage2_ProcessedElevation(_cachedWorldData);
+                break;
+
+            case MapViewMode.Stage3_Temperature:
+                RenderStage3_Temperature(_cachedWorldData);
+                break;
+
+            case MapViewMode.Stage4_Precipitation:
+                RenderStage4_Precipitation(_cachedWorldData);
+                break;
+
+            case MapViewMode.Stage5_ErodedElevation:
+                RenderStage5_ErodedElevation(_cachedWorldData);
+                break;
+
+            case MapViewMode.Stage6_Watermap:
+                RenderStage6_Watermap(_cachedWorldData);
+                break;
+
+            case MapViewMode.Stage7_Irrigation:
+                RenderStage7_Irrigation(_cachedWorldData);
+                break;
+
+            case MapViewMode.Stage8_Humidity:
+                RenderStage8_Humidity(_cachedWorldData);
+                break;
+
             default:
                 _logger?.LogError("Unknown view mode: {ViewMode}", _currentViewMode);
                 break;
@@ -870,15 +899,28 @@ public partial class WorldMapNode : Node2D
             CustomMinimumSize = new Vector2(250, 0) // Wide enough for labels
         };
 
-        // Add all view modes to dropdown (in logical order)
+        // Add all view modes to dropdown (organized by sections)
+        // Final Output Views
         _viewModeDropdown.AddItem("Biomes (Ricklefs)", (int)MapViewMode.Biomes);
         _viewModeDropdown.AddItem("Elevation (WorldEngine)", (int)MapViewMode.Elevation);
         _viewModeDropdown.AddItem("Precipitation (Humidity)", (int)MapViewMode.Precipitation);
         _viewModeDropdown.AddItem("Temperature", (int)MapViewMode.Temperature);
-        _viewModeDropdown.AddSeparator(); // Visual separator for debug views
+
+        // Debug Views
+        _viewModeDropdown.AddSeparator("─── Debug Views ───");
         _viewModeDropdown.AddItem("Raw Elevation (Grayscale)", (int)MapViewMode.RawElevation);
         _viewModeDropdown.AddItem("Raw Elevation (Colored)", (int)MapViewMode.RawElevationColored);
         _viewModeDropdown.AddItem("Plates (Ownership)", (int)MapViewMode.Plates);
+
+        // Pipeline Stage Views
+        _viewModeDropdown.AddSeparator("─── Pipeline Stages ───");
+        _viewModeDropdown.AddItem("Stage 2: Processed Elevation ⚠️", (int)MapViewMode.Stage2_ProcessedElevation);
+        _viewModeDropdown.AddItem("Stage 3: Temperature", (int)MapViewMode.Stage3_Temperature);
+        _viewModeDropdown.AddItem("Stage 4: Precipitation", (int)MapViewMode.Stage4_Precipitation);
+        _viewModeDropdown.AddItem("Stage 5: Eroded Elevation", (int)MapViewMode.Stage5_ErodedElevation);
+        _viewModeDropdown.AddItem("Stage 6: Watermap", (int)MapViewMode.Stage6_Watermap);
+        _viewModeDropdown.AddItem("Stage 7: Irrigation", (int)MapViewMode.Stage7_Irrigation);
+        _viewModeDropdown.AddItem("Stage 8: Humidity", (int)MapViewMode.Stage8_Humidity);
 
         // Set default selection to Biomes
         _viewModeDropdown.Selected = 0;
@@ -1049,5 +1091,384 @@ public partial class WorldMapNode : Node2D
             DrawRect(_rect, fill, filled: true);
             DrawRect(_rect, border, filled: false, width: 2);
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Pipeline Stage Rendering Methods
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Renders Stage 2: Processed Elevation (CRITICAL FOR BUG DIAGNOSIS).
+    /// Shows heightmap AFTER borders/noise/ocean fill but BEFORE climate/erosion.
+    /// Compare to RawElevation to isolate ElevationPostProcessor impact.
+    /// </summary>
+    private void RenderStage2_ProcessedElevation(PlateSimulationResult data)
+    {
+        if (data.Stage2 == null)
+        {
+            _logger?.LogWarning("Stage2 data not available (old save or debug disabled)");
+            RenderErrorMessage("Stage 2 data not available");
+            return;
+        }
+
+        if (_terrainSprite == null)
+        {
+            _logger?.LogError("Cannot render Stage2: Terrain sprite is null");
+            return;
+        }
+
+        _logger?.LogDebug("Rendering Stage2 Processed Elevation: {Width}x{Height} cells", data.Width, data.Height);
+
+        // Use same WorldEngine colorization logic as RenderRawElevationColoredMap
+        var image = Image.CreateEmpty(data.Width, data.Height, false, Image.Format.Rgb8);
+
+        // Compute rescale stats
+        bool hasOcean = false;
+        for (int y = 0; y < data.Height && !hasOcean; y++)
+            for (int x = 0; x < data.Width && !hasOcean; x++)
+                if (data.Stage2.OceanMask[y, x]) hasOcean = true;
+
+        float minLand = float.PositiveInfinity, maxLand = float.NegativeInfinity;
+        float minSea = float.PositiveInfinity, maxSea = float.NegativeInfinity;
+        for (int y = 0; y < data.Height; y++)
+            for (int x = 0; x < data.Width; x++)
+            {
+                float e = data.Stage2.Heightmap[y, x];
+                if (data.Stage2.OceanMask[y, x]) { if (e < minSea) minSea = e; if (e > maxSea) maxSea = e; }
+                else { if (e < minLand) minLand = e; if (e > maxLand) maxLand = e; }
+            }
+        float elevDeltaSea = Math.Max(1e-6f, maxSea - minSea);
+        float elevDeltaLand = Math.Max(1e-6f, (maxLand - minLand) / 11.0f);
+
+        const float SeaLevel = 1.0f;
+        for (int y = 0; y < data.Height; y++)
+            for (int x = 0; x < data.Width; x++)
+            {
+                float e = data.Stage2.Heightmap[y, x];
+                bool isOcean = data.Stage2.OceanMask[y, x];
+                float c;
+                if (hasOcean)
+                {
+                    if (isOcean) c = (e - minSea) / elevDeltaSea; else c = ((e - minLand) / elevDeltaLand) + 1.0f;
+                }
+                else c = ((e - minLand) / elevDeltaLand) + 1.0f;
+                var (r, g, b) = ElevationMapColorizer.GetElevationColor(c, SeaLevel);
+                image.SetPixel(x, y, new Color(r, g, b));
+            }
+
+        var texture = ImageTexture.CreateFromImage(image);
+        _terrainSprite.Texture = texture;
+        _logger?.LogDebug("Stage2 processed elevation texture created");
+    }
+
+    /// <summary>
+    /// Renders Stage 3: Temperature (before precipitation).
+    /// </summary>
+    private void RenderStage3_Temperature(PlateSimulationResult data)
+    {
+        if (data.Stage3 == null)
+        {
+            _logger?.LogWarning("Stage3 data not available");
+            RenderErrorMessage("Stage 3 data not available");
+            return;
+        }
+
+        if (_terrainSprite == null) return;
+
+        _logger?.LogDebug("Rendering Stage3 Temperature: {Width}x{Height} cells", data.Width, data.Height);
+
+        var image = Image.CreateEmpty(data.Width, data.Height, false, Image.Format.Rgb8);
+        float[] thresholds = new float[] { 0.124f, 0.366f, 0.439f, 0.594f, 0.765f, 0.874f };
+
+        for (int y = 0; y < data.Height; y++)
+        {
+            for (int x = 0; x < data.Width; x++)
+            {
+                float temp = data.Stage3.TemperatureMap[y, x];
+                var color = GetTemperatureColor(temp, thresholds);
+                image.SetPixel(x, y, color);
+            }
+        }
+
+        var texture = ImageTexture.CreateFromImage(image);
+        _terrainSprite.Texture = texture;
+    }
+
+    /// <summary>
+    /// Renders Stage 4: Precipitation (before erosion).
+    /// </summary>
+    private void RenderStage4_Precipitation(PlateSimulationResult data)
+    {
+        if (data.Stage4 == null)
+        {
+            _logger?.LogWarning("Stage4 data not available");
+            RenderErrorMessage("Stage 4 data not available");
+            return;
+        }
+
+        if (_terrainSprite == null) return;
+
+        _logger?.LogDebug("Rendering Stage4 Precipitation: {Width}x{Height} cells", data.Width, data.Height);
+
+        var image = Image.CreateEmpty(data.Width, data.Height, false, Image.Format.Rgb8);
+
+        // Compute quantiles for this precipitation data
+        var quantiles = ComputePrecipQuantiles(data.Stage4.PrecipitationMap, data.OceanMask);
+
+        for (int y = 0; y < data.Height; y++)
+        {
+            for (int x = 0; x < data.Width; x++)
+            {
+                if (data.OceanMask[y, x])
+                {
+                    image.SetPixel(x, y, new Color(0f, 0f, 1f)); // Ocean blue
+                }
+                else
+                {
+                    float precip = data.Stage4.PrecipitationMap[y, x];
+                    var color = GetHumidityColor(precip, quantiles); // Reuse humidity colorizer for cyan gradient
+                    image.SetPixel(x, y, color);
+                }
+            }
+        }
+
+        var texture = ImageTexture.CreateFromImage(image);
+        _terrainSprite.Texture = texture;
+    }
+
+    // Helper to compute precipitation quantiles (same pattern as humidity)
+    private static (float q12, float q25, float q37, float q50, float q62, float q75, float q87) ComputePrecipQuantiles(
+        float[,] precipMap, bool[,] oceanMask)
+    {
+        int h = precipMap.GetLength(0), w = precipMap.GetLength(1);
+        var land = new List<float>();
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+                if (!oceanMask[y, x]) land.Add(precipMap[y, x]);
+        land.Sort();
+        float P(float p)
+        {
+            if (land.Count == 0) return 0f;
+            int idx = Math.Clamp((int)(land.Count * p), 0, land.Count - 1);
+            return land[idx];
+        }
+        return (P(0.002f), P(0.014f), P(0.073f), P(0.236f), P(0.507f), P(0.778f), P(0.941f));
+    }
+
+    /// <summary>
+    /// Renders Stage 5: Eroded Elevation (after river valley carving).
+    /// Compare to Stage2 to see erosion impact.
+    /// </summary>
+    private void RenderStage5_ErodedElevation(PlateSimulationResult data)
+    {
+        if (data.Stage5 == null)
+        {
+            _logger?.LogWarning("Stage5 data not available");
+            RenderErrorMessage("Stage 5 data not available");
+            return;
+        }
+
+        if (_terrainSprite == null) return;
+
+        _logger?.LogDebug("Rendering Stage5 Eroded Elevation: {Width}x{Height} cells", data.Width, data.Height);
+
+        // Use same WorldEngine colorization logic
+        var image = Image.CreateEmpty(data.Width, data.Height, false, Image.Format.Rgb8);
+
+        // Compute rescale stats
+        bool hasOcean = false;
+        for (int y = 0; y < data.Height && !hasOcean; y++)
+            for (int x = 0; x < data.Width && !hasOcean; x++)
+                if (data.OceanMask[y, x]) hasOcean = true;
+
+        float minLand = float.PositiveInfinity, maxLand = float.NegativeInfinity;
+        float minSea = float.PositiveInfinity, maxSea = float.NegativeInfinity;
+        for (int y = 0; y < data.Height; y++)
+            for (int x = 0; x < data.Width; x++)
+            {
+                float e = data.Stage5.ErodedHeightmap[y, x];
+                if (data.OceanMask[y, x]) { if (e < minSea) minSea = e; if (e > maxSea) maxSea = e; }
+                else { if (e < minLand) minLand = e; if (e > maxLand) maxLand = e; }
+            }
+        float elevDeltaSea = Math.Max(1e-6f, maxSea - minSea);
+        float elevDeltaLand = Math.Max(1e-6f, (maxLand - minLand) / 11.0f);
+
+        const float SeaLevel = 1.0f;
+        for (int y = 0; y < data.Height; y++)
+            for (int x = 0; x < data.Width; x++)
+            {
+                float e = data.Stage5.ErodedHeightmap[y, x];
+                bool isOcean = data.OceanMask[y, x];
+                float c;
+                if (hasOcean)
+                {
+                    if (isOcean) c = (e - minSea) / elevDeltaSea; else c = ((e - minLand) / elevDeltaLand) + 1.0f;
+                }
+                else c = ((e - minLand) / elevDeltaLand) + 1.0f;
+                var (r, g, b) = ElevationMapColorizer.GetElevationColor(c, SeaLevel);
+                image.SetPixel(x, y, new Color(r, g, b));
+            }
+
+        var texture = ImageTexture.CreateFromImage(image);
+        _terrainSprite.Texture = texture;
+    }
+
+    /// <summary>
+    /// Renders Stage 6: Watermap (flow accumulation).
+    /// Grayscale where white = high flow (rivers/creeks).
+    /// </summary>
+    private void RenderStage6_Watermap(PlateSimulationResult data)
+    {
+        if (data.Stage6 == null)
+        {
+            _logger?.LogWarning("Stage6 data not available");
+            RenderErrorMessage("Stage 6 data not available");
+            return;
+        }
+
+        if (_terrainSprite == null) return;
+
+        _logger?.LogDebug("Rendering Stage6 Watermap: {Width}x{Height} cells", data.Width, data.Height);
+
+        var image = Image.CreateEmpty(data.Width, data.Height, false, Image.Format.Rgb8);
+
+        // Find min/max for normalization
+        float min = float.PositiveInfinity;
+        float max = float.NegativeInfinity;
+        for (int y = 0; y < data.Height; y++)
+        {
+            for (int x = 0; x < data.Width; x++)
+            {
+                float val = data.Stage6.WatermapData[y, x];
+                if (val < min) min = val;
+                if (val > max) max = val;
+            }
+        }
+
+        float range = Math.Max(1e-6f, max - min);
+
+        for (int y = 0; y < data.Height; y++)
+        {
+            for (int x = 0; x < data.Width; x++)
+            {
+                float val = data.Stage6.WatermapData[y, x];
+                float normalized = (val - min) / range;
+                var color = new Color(normalized, normalized, normalized); // Grayscale
+                image.SetPixel(x, y, color);
+            }
+        }
+
+        var texture = ImageTexture.CreateFromImage(image);
+        _terrainSprite.Texture = texture;
+    }
+
+    /// <summary>
+    /// Renders Stage 7: Irrigation (moisture spreading from ocean).
+    /// Cyan gradient where bright = high irrigation.
+    /// </summary>
+    private void RenderStage7_Irrigation(PlateSimulationResult data)
+    {
+        if (data.Stage7 == null)
+        {
+            _logger?.LogWarning("Stage7 data not available");
+            RenderErrorMessage("Stage 7 data not available");
+            return;
+        }
+
+        if (_terrainSprite == null) return;
+
+        _logger?.LogDebug("Rendering Stage7 Irrigation: {Width}x{Height} cells", data.Width, data.Height);
+
+        var image = Image.CreateEmpty(data.Width, data.Height, false, Image.Format.Rgb8);
+
+        // Find min/max for normalization
+        float min = float.PositiveInfinity;
+        float max = float.NegativeInfinity;
+        for (int y = 0; y < data.Height; y++)
+        {
+            for (int x = 0; x < data.Width; x++)
+            {
+                float val = data.Stage7.IrrigationMap[y, x];
+                if (val < min) min = val;
+                if (val > max) max = val;
+            }
+        }
+
+        float range = Math.Max(1e-6f, max - min);
+
+        for (int y = 0; y < data.Height; y++)
+        {
+            for (int x = 0; x < data.Width; x++)
+            {
+                float val = data.Stage7.IrrigationMap[y, x];
+                float normalized = (val - min) / range;
+                // Cyan gradient (moisture visualization)
+                var color = new Color(0, normalized, normalized);
+                image.SetPixel(x, y, color);
+            }
+        }
+
+        var texture = ImageTexture.CreateFromImage(image);
+        _terrainSprite.Texture = texture;
+    }
+
+    /// <summary>
+    /// Renders Stage 8: Humidity (precipitation + irrigation 1:3).
+    /// THIS is what biome classification uses!
+    /// Compare to Stage4 (precipitation) to see irrigation impact.
+    /// </summary>
+    private void RenderStage8_Humidity(PlateSimulationResult data)
+    {
+        if (data.Stage8 == null)
+        {
+            _logger?.LogWarning("Stage8 data not available");
+            RenderErrorMessage("Stage 8 data not available");
+            return;
+        }
+
+        if (_terrainSprite == null) return;
+
+        _logger?.LogDebug("Rendering Stage8 Humidity: {Width}x{Height} cells", data.Width, data.Height);
+
+        var image = Image.CreateEmpty(data.Width, data.Height, false, Image.Format.Rgb8);
+
+        for (int y = 0; y < data.Height; y++)
+        {
+            for (int x = 0; x < data.Width; x++)
+            {
+                if (data.OceanMask[y, x])
+                {
+                    image.SetPixel(x, y, new Color(0f, 0f, 1f)); // Ocean blue
+                }
+                else
+                {
+                    float humidity = data.Stage8.HumidityMap[y, x];
+                    // Convert HumidityQuantiles record to tuple for GetHumidityColor
+                    var q = data.Stage8.Quantiles;
+                    var quantilesTuple = (q.Quantile12, q.Quantile25, q.Quantile37, q.Quantile50, q.Quantile62, q.Quantile75, q.Quantile87);
+                    var color = GetHumidityColor(humidity, quantilesTuple);
+                    image.SetPixel(x, y, color);
+                }
+            }
+        }
+
+        var texture = ImageTexture.CreateFromImage(image);
+        _terrainSprite.Texture = texture;
+    }
+
+    /// <summary>
+    /// Renders an error message when stage data is unavailable.
+    /// </summary>
+    private void RenderErrorMessage(string message)
+    {
+        if (_terrainSprite == null) return;
+
+        var image = Image.CreateEmpty(512, 512, false, Image.Format.Rgb8);
+        image.Fill(new Color(0.2f, 0.2f, 0.2f)); // Dark gray background
+
+        var texture = ImageTexture.CreateFromImage(image);
+        _terrainSprite.Texture = texture;
+
+        _logger?.LogWarning("Rendered error placeholder: {Message}", message);
     }
 }
