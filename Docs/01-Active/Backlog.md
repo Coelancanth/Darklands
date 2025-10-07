@@ -477,7 +477,7 @@
 ---
 
 ### TD_010: Multi-View Map Rendering System
-**Status**: In Progress (Phases 1-2 Complete, Climate/Biome corrections applied)
+**Status**: In Progress (Phases 1-3 Complete, Climate/Biome corrections applied)
 **Owner**: Dev Engineer
 **Size**: M (actual: ~4h Phase 1-2, est: ~3h Phase 3-4 remaining)
 **Priority**: Ideas
@@ -488,7 +488,7 @@
 
 **Why**: Enable rapid iteration on worldgen algorithms by visualizing underlying data layers. Developers need to see raw elevation/precipitation/temperature data to debug biome classification, rain shadow effects, and climate calculations. Saving generation results prevents regeneration overhead during view switching.
 
-**Implementation Summary** (as of 2025-10-07 23:40):
+**Implementation Summary** (as of 2025-10-07 23:59):
 
 **Phase 1: Persistent Generation Data** ✅ **COMPLETE**
 - `PlateSimulationResult` cached in `_cachedWorldData` field (WorldMapNode)
@@ -524,7 +524,13 @@
 - **Impact**: Cosmetic only - elevation view shows variation but wrong color range (functional, not optimal)
 - **Deferred**: Pipeline investigation to TD_011 (needs elevation normalization/compression study)
 
-**Phase 3-4: Precipitation/Temperature Renderers** ⏳ **DEFERRED**
+**Phase 3: Precipitation/Temperature Renderers + Probe** ✅ **COMPLETE**
+- Views implemented: Precipitation (humidity quantiles cyan palette), Temperature (7 thermal bands).
+- Legends: Anchored to UI CanvasLayer, enlarged (1.6× scale, 24px swatches, larger fonts), always visible regardless of zoom.
+- Probe: Press `P` to log full cell data (ocean, elevation, temperature, precipitation, humidity, irrigation, watermap, biome, river/lake flags) with a yellow translucent 1×1 highlight on the probed tile.
+
+**Phase 4: Polish & UX** ⏳ **IN PROGRESS**
+- Ongoing tuning of legends and interaction.
 - Simpler than elevation (8-level and 7-level discrete gradients, no complex rescaling)
 - Est: ~1.5h precipitation + 1.5h temperature = 3h total
 - Blocked on elevation issue resolution (consistency across view modes)
@@ -638,8 +644,30 @@
 - Precipitation maps avoid excessive horizontal banding (noise + gamma), and rain shadow/orographic effects remain visible.
 - Results align better with WorldEngine reference outputs, making TD_010 multi-view debugging more reliable.
 
+**New Tools for Debugging**
+- Probe logger (`P`): Outputs per-cell values to console and highlights the tile.
+- Diagnostics in generation logs: sea/land ranges after post-process; biome water/land counts.
+
 **Next**
 - Implement precipitation and temperature view renderers (use WorldEngine color scales) now that climate layers are corrected.
+
+---
+
+**KNOWN ISSUE (Elevation View still not right)**
+- Symptom: Land shows broad horizontal bands and overdominance of high elevation colors (gray/white), only narrow coastal lowlands. After WE rescale, we log:
+  - Example: `Elevation stats (WE rescale): Ocean[0.000-0.650] ΔS=0.650, Land[0.018-1.000] ΔL/11=0.089` → Land step is small, indicating land elevations remain clustered near max.
+- Current mitigation in code:
+  - Land-only gamma compression (γ=1.8) and rank-based remap (α=1.6) after `FillOcean()` to broaden plains/hills.
+  - Stabilized noise addition (reduced amplitude, local clamp) to avoid saturating land into upper bands.
+- Likely root cause:
+  - We are not running WorldEngine’s full elevation harmonization (`initialize_ocean_and_thresholds`/`harmonize_ocean`), so post-plate elevations remain too top-heavy relative to sea-level derived thresholds.
+- Plan:
+  1) Port a faithful version of `initialize_ocean_and_thresholds` (compute elevation thresholds and sea depth) and `harmonize_ocean` to shape land/ocean distributions.
+  2) Keep rank-based remap behind a feature flag for comparison; prefer the harmonization path if results match WE references.
+  3) Expose `SeaLevel` and remap strength in debug UI for rapid tuning.
+- Acceptance for fix:
+  - After rescale, ΔL/11 increases such that plains/hills/mountains distribute visibly inland (not only at coasts).
+  - Visual parity with WorldEngine’s `draw_simple_elevation` on at least two seeds (spot checked).
 
 ---
 
