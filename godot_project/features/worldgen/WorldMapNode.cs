@@ -721,6 +721,8 @@ public partial class WorldMapNode : Node2D
         // Add to UI layer (not world space)
         var uiLayer = GetParent().GetNode<CanvasLayer>("UI");
         uiLayer?.AddChild(_legendPanel);
+        // Make legend larger for readability regardless of zoom
+        _legendPanel.Scale = new Vector2(1.6f, 1.6f);
 
         UpdateLegend(); // Initialize with current view mode
     }
@@ -745,7 +747,7 @@ public partial class WorldMapNode : Node2D
             Text = $"Legend - {_currentViewMode} View",
             Theme = new Theme()
         };
-        title.AddThemeFontSizeOverride("font_size", 16);
+        title.AddThemeFontSizeOverride("font_size", 24);
         _legendPanel.AddChild(title);
 
         // Add legend entries based on view mode
@@ -804,7 +806,7 @@ public partial class WorldMapNode : Node2D
         var swatch = new ColorRect
         {
             Color = color,
-            CustomMinimumSize = new Vector2(16, 16)
+            CustomMinimumSize = new Vector2(24, 24)
         };
         entry.AddChild(swatch);
 
@@ -813,7 +815,7 @@ public partial class WorldMapNode : Node2D
         {
             Text = label
         };
-        labelNode.AddThemeFontSizeOverride("font_size", 12);
+        labelNode.AddThemeFontSizeOverride("font_size", 18);
         entry.AddChild(labelNode);
 
         _legendPanel.AddChild(entry);
