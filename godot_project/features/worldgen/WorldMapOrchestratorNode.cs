@@ -214,12 +214,56 @@ public partial class WorldMapOrchestratorNode : Node
         }
 
         _ui?.SetGenerating(true);
-        _ui?.SetStatus($"Generating world (seed: {seed})...");
 
-        _logger?.LogInformation("Starting world generation: seed={Seed}", seed);
+        // ═══════════════════════════════════════════════════════════════════════
+        // STEP 1: Try auto-load from cache (if exists)
+        // ═══════════════════════════════════════════════════════════════════════
+
+        string cacheFilename = $"world_{seed}.dwld";
+        var (loadSuccess, cachedWorld, cachedSeed) = _serializationService!.LoadWorld(cacheFilename);
+
+        if (loadSuccess && cachedWorld != null)
+        {
+            _logger?.LogInformation("Auto-loaded world from cache: seed={Seed} (skipped generation)", seed);
+
+            // Wrap cached result
+            _currentWorld = new WorldGenerationResult(
+                heightmap: cachedWorld.Heightmap,
+                platesMap: cachedWorld.PlatesMap,
+                rawNativeOutput: cachedWorld,
+                oceanMask: null,
+                temperatureMap: null,
+                precipitationMap: null
+            );
+            _currentSeed = seed;
+
+            // Update renderer
+            _renderer?.SetWorldData(cachedWorld, ServiceLocator.Get<ILogger<WorldMapRendererNode>>());
+
+            // Sync legend and probe
+            if (_renderer != null && _legend != null)
+            {
+                _legend.UpdateForViewMode(_renderer.GetCurrentViewMode());
+            }
+            if (_renderer != null && _probe != null)
+            {
+                _probe.UpdateHighlightColor(_renderer.GetCurrentViewMode());
+            }
+
+            _ui?.SetSeed(seed);
+            _ui?.SetStatus($"Loaded from cache: {cachedWorld.Width}x{cachedWorld.Height} (instant)");
+            _ui?.SetGenerating(false);
+            return; // Skip generation!
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // STEP 2: Cache miss - Generate new world
+        // ═══════════════════════════════════════════════════════════════════════
+
+        _ui?.SetStatus($"Generating world (seed: {seed})...");
+        _logger?.LogInformation("Cache miss - starting world generation: seed={Seed}", seed);
 
         var command = new GenerateWorldCommand(seed, worldSize: 512, plateCount: 10);
-
         var result = await _mediator.Send(command);
 
         if (result.IsSuccess)
@@ -231,8 +275,15 @@ public partial class WorldMapOrchestratorNode : Node
             _currentWorld = result.Value;
             _currentSeed = seed;
 
-            // Send raw native output to renderer (Presentation layer uses PlateSimulationResult)
+            // Send raw native output to renderer
             _renderer?.SetWorldData(result.Value.RawNativeOutput, ServiceLocator.Get<ILogger<WorldMapRendererNode>>());
+
+            // Auto-save to cache for next time
+            bool saveSuccess = _serializationService.SaveWorld(result.Value.RawNativeOutput, seed, cacheFilename);
+            if (saveSuccess)
+            {
+                _logger?.LogInformation("Auto-saved world to cache: {Filename}", cacheFilename);
+            }
 
             _ui?.SetSeed(seed);
             _ui?.SetStatus($"World generated: {result.Value.Width}x{result.Value.Height}");
