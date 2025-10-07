@@ -1,12 +1,14 @@
 using Godot;
 using System;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 using Darklands.Core.Application.Infrastructure;
 using Darklands.Core.Features.WorldGen.Application.Commands;
 using Darklands.Core.Features.WorldGen.Application.Common;
 using Darklands.Core.Features.WorldGen.Application.DTOs;
 using Darklands.Core.Features.WorldGen.Application.Rendering;
 using Darklands.Core.Features.WorldGen.Domain;
+using Darklands.Core.Features.WorldGen.Infrastructure.Algorithms;
 using Darklands.Core.Infrastructure.DependencyInjection;
 using MediatR;
 using Microsoft.Extensions.Logging;
@@ -26,6 +28,8 @@ public partial class WorldMapNode : Node2D
     private Label? _uiLabel;
     private Sprite2D? _terrainSprite;
     private Control? _legendPanel;
+    private HashSet<(int x, int y)> _riverCells = new HashSet<(int x, int y)>();
+    private HashSet<(int x, int y)> _lakeCells = new HashSet<(int x, int y)>();
 
     // Cached world data (session-scoped, enables instant view switching)
     private PlateSimulationResult? _cachedWorldData;
@@ -123,6 +127,9 @@ public partial class WorldMapNode : Node2D
                 case Key.Key4:
                     SetViewMode(MapViewMode.Temperature);
                     break;
+                case Key.P:
+                    ProbeUnderMouse();
+                    break;
             }
         }
 
@@ -200,6 +207,21 @@ public partial class WorldMapNode : Node2D
         // Cache the generated world data (enables instant view switching)
         _cachedWorldData = result.Value;
 
+        // Build quick-lookup sets for rivers/lakes to support probing
+        _riverCells.Clear();
+        _lakeCells.Clear();
+        foreach (var river in _cachedWorldData.Rivers)
+        {
+            foreach (var pt in river.Path)
+            {
+                _riverCells.Add(pt);
+            }
+        }
+        foreach (var lake in _cachedWorldData.Lakes)
+        {
+            _lakeCells.Add(lake);
+        }
+
         // Render using current view mode
         RenderCurrentView();
 
@@ -208,6 +230,44 @@ public partial class WorldMapNode : Node2D
 
         // Update legend to show current view mode colors
         UpdateLegend();
+    }
+
+    /// <summary>
+    /// Logs detailed worldgen data for the cell under the mouse cursor.
+    /// Press 'P' to probe.
+    /// </summary>
+    private void ProbeUnderMouse()
+    {
+        if (_cachedWorldData == null || _terrainSprite == null || _logger == null)
+            return;
+
+        // Convert global mouse position to sprite-local pixel coordinates
+        var mouseGlobal = GetGlobalMousePosition();
+        var local = _terrainSprite.ToLocal(mouseGlobal);
+
+        int x = (int)MathF.Floor(local.X);
+        int y = (int)MathF.Floor(local.Y);
+
+        if (x < 0 || y < 0 || x >= _cachedWorldData.Width || y >= _cachedWorldData.Height)
+        {
+            _logger.LogInformation("Probe: outside map at ({X},{Y})", x, y);
+            return;
+        }
+
+        bool isOcean = _cachedWorldData.OceanMask[y, x];
+        float elev = _cachedWorldData.Heightmap[y, x];
+        float temp = _cachedWorldData.TemperatureMap[y, x];
+        float precip = _cachedWorldData.PrecipitationMap[y, x];
+        float humidity = _cachedWorldData.HumidityMap[y, x];
+        float irrigation = _cachedWorldData.IrrigationMap[y, x];
+        float watermap = _cachedWorldData.WatermapData[y, x];
+        var biome = _cachedWorldData.BiomeMap[y, x];
+        bool inRiver = _riverCells.Contains((x, y));
+        bool inLake = _lakeCells.Contains((x, y));
+
+        _logger.LogInformation(
+            "Probe ({X},{Y}) | ocean={Ocean} elev={Elev:F3} temp={Temp:F3} precip={Precip:F3} humidity={Hum:F3} irr={Irr:F3} watermap={Water:F3} biome={Biome} river_cell={River} lake_cell={Lake}",
+            x, y, isOcean, elev, temp, precip, humidity, irrigation, watermap, biome, inRiver, inLake);
     }
 
     /// <summary>
