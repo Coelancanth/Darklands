@@ -684,16 +684,16 @@
 ---
 
 ### TD_011: WorldGen Pipeline Refactor (Explicit Stages + Visual Validation)
-**Status**: Approved
+**Status**: In Progress (~80% complete - Phases 1-3 done, bug identified, testing underway)
 **Owner**: Dev Engineer
-**Size**: L (est: 6-8h)
+**Size**: L (actual: ~8h so far)
 **Priority**: Ideas
 **Markers**: [ARCHITECTURE] [WORLDGEN] [REFACTORING] [ROOT-CAUSE-FIX]
 **Parent**: VS_019 (Quality improvement)
 
 **What**: Refactor NativePlateSimulator into explicit 10-stage pipeline matching WorldEngine architecture, with each stage's output cached and renderable for visual validation
 
-**Why**: Root-cause fix for elevation color distribution bug. TD_010 confirmed RawElevation (Step 1) is correct, but processed elevation shows wrong distribution. Need to isolate which pipeline step diverges from WorldEngine expectations by rendering intermediate results.
+**Why**: Root-cause fix for elevation color distribution bug. Visual validation revealed bug was in experimental normalization algorithms (NormalizeLandDistribution + RemapLandByRank) creating latitude-based artifacts.
 
 **Dev Engineer Decision** (2025-10-08):
 - **Root Cause Approach**: Systematic visual validation beats symptom patching
@@ -778,6 +778,37 @@
 
 - Create colorizers for new stages (reuse WorldEngine color schemes)
 - Update `WorldMapNode` to render each stage's cached data
+
+**Progress Summary** (2025-10-08 03:30):
+
+✅ **Phase 1 Complete** (3h actual):
+- Created 9 pipeline stage DTOs (Stage1_RawHeightmap through Stage9_Biomes)
+- Added nullable stage properties to PlateSimulationResult
+- Refactored ClassifyBiomes() to populate all stage DTOs
+- Pipeline now threads all stages through tuple chain (functional railway pattern)
+
+✅ **Phase 2 Complete** (4h actual):
+- Expanded MapViewMode enum with 6 new pipeline stage views
+- Implemented 7 rendering methods (RenderStage2-Stage8)
+- Added stage-aware probe function (shows raw data for Stage1, processed for Stage2, etc.)
+- Created legends for all view modes (elevation gradient, temperature, moisture, etc.)
+- UI dropdown now shows 14 total views organized in 3 sections
+
+✅ **Phase 3 Complete** (1h actual):
+- UI refactored from keyboard shortcuts to dropdown (better discoverability)
+- Visual separators added ("─── Debug Views ───", "─── Pipeline Stages ───")
+- Stage2 marked with ⚠️ emoji (critical diagnostic target)
+
+🐛 **Bug Identified & Fixed**:
+- Root cause: NormalizeLandDistribution(gamma=1.8) + RemapLandByRank(alpha=1.6) created horizontal latitude banding
+- Fix: Disabled both experimental normalization algorithms in PostProcessElevation()
+- Explanation: Algorithms amplified latitude-correlated elevation patterns, converting geological features into climatic bands
+- Status: Awaiting visual confirmation from user testing
+
+⏳ **Remaining Work**:
+- Test visual output confirms Stage2 now shows geological features (not latitude bands)
+- Verify probe data shows correct raw vs processed elevation values
+- Document final status and close TD_011
 
 **Done When**:
 - ✅ `NativePlateSimulator` uses explicit 10-stage pipeline (no monolithic method)
