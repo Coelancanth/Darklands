@@ -19,7 +19,12 @@ public partial class WorldMapProbeNode : Node
 
     // Highlight overlay
     private ColorRect? _highlightRect;
-    private const float HIGHLIGHT_ALPHA = 0.3f;
+    private const float HIGHLIGHT_ALPHA = 0.4f;
+
+    // View-mode-specific highlight colors (chosen for contrast)
+    private static readonly Color HIGHLIGHT_COLOR_COLORED = new Color(1, 0, 0, HIGHLIGHT_ALPHA);     // Pure red (contrasts with all terrain colors)
+    private static readonly Color HIGHLIGHT_COLOR_RAW = new Color(1, 0, 1, HIGHLIGHT_ALPHA);         // Magenta (contrasts with grayscale)
+    private static readonly Color HIGHLIGHT_COLOR_PLATES = new Color(1, 1, 1, HIGHLIGHT_ALPHA * 1.5f); // White (contrasts with all plate colors)
 
     [Signal]
     public delegate void CellProbedEventHandler(int x, int y, string probeData);
@@ -29,7 +34,7 @@ public partial class WorldMapProbeNode : Node
         // Create highlight overlay (initially hidden)
         _highlightRect = new ColorRect
         {
-            Color = new Color(1, 1, 0, HIGHLIGHT_ALPHA), // Yellow with transparency
+            Color = HIGHLIGHT_COLOR_COLORED, // Default to ColoredElevation highlight
             Visible = false,
             ZIndex = 100 // Render on top
         };
@@ -66,6 +71,25 @@ public partial class WorldMapProbeNode : Node
     public void SetProbingEnabled(bool enabled)
     {
         _isProbingEnabled = enabled;
+    }
+
+    /// <summary>
+    /// Updates highlight color based on current view mode for better contrast.
+    /// Should be called when view mode changes.
+    /// </summary>
+    public void UpdateHighlightColor(MapViewMode viewMode)
+    {
+        if (_highlightRect == null) return;
+
+        _highlightRect.Color = viewMode switch
+        {
+            MapViewMode.ColoredElevation => HIGHLIGHT_COLOR_COLORED, // Red on colorful terrain
+            MapViewMode.RawElevation => HIGHLIGHT_COLOR_RAW,         // Magenta on grayscale
+            MapViewMode.Plates => HIGHLIGHT_COLOR_PLATES,            // White on random colors
+            _ => HIGHLIGHT_COLOR_COLORED
+        };
+
+        _logger?.LogDebug("Highlight color updated for view mode: {ViewMode}", viewMode);
     }
 
     public override void _Input(InputEvent @event)

@@ -121,6 +121,7 @@ public partial class WorldMapOrchestratorNode : Node
 
         _renderer?.SetViewMode(mode);
         _legend?.UpdateForViewMode(mode);
+        _probe?.UpdateHighlightColor(mode); // Update highlight color for contrast
     }
 
     private void OnRegenerateRequested(int seed)
