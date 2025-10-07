@@ -36,6 +36,57 @@ public static class ElevationPostProcessor
     }
 
     /// <summary>
+    /// Redistributes land elevations to correct skewed distributions where most land sits near the maximum.
+    /// Applies a gamma transform only on land cells, preserving ocean and overall min/max range.
+    /// Use gamma > 1.0 to push values down (more lowlands), gamma < 1.0 to lift values up (more highlands).
+    /// </summary>
+    /// <param name="heightmap">Elevation data (modified in-place)</param>
+    /// <param name="oceanMask">Ocean mask</param>
+    /// <param name="gamma">Gamma exponent for redistribution (default 1.8 for more plains/hills)</param>
+    public static void NormalizeLandDistribution(float[,] heightmap, bool[,] oceanMask, float gamma = 1.8f)
+    {
+        int height = heightmap.GetLength(0);
+        int width = heightmap.GetLength(1);
+
+        float minLand = float.PositiveInfinity;
+        float maxLand = float.NegativeInfinity;
+
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                if (oceanMask[y, x])
+                    continue;
+
+                float e = heightmap[y, x];
+                if (e < minLand) minLand = e;
+                if (e > maxLand) maxLand = e;
+            }
+        }
+
+        // Nothing to do if no land or degenerate range
+        if (float.IsPositiveInfinity(minLand) || maxLand - minLand <= 1e-6f)
+            return;
+
+        float range = maxLand - minLand;
+
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                if (oceanMask[y, x])
+                    continue;
+
+                float e = heightmap[y, x];
+                float t = (e - minLand) / range; // [0,1]
+                // Push high values downwards to create more plains/hills
+                float tPrime = (float)Math.Pow(Math.Clamp(t, 0f, 1f), gamma);
+                heightmap[y, x] = Math.Clamp(minLand + tPrime * range, 0f, 1f);
+            }
+        }
+    }
+
+    /// <summary>
     /// Marks ocean cells using flood fill from map borders.
     /// Any cell connected to border by cells below sea level is ocean.
     /// </summary>

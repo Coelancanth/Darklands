@@ -199,6 +199,9 @@ public class NativePlateSimulator : IPlateSimulator
             // 3. Flood fill from borders to mark ocean cells
             var oceanMask = ElevationPostProcessor.FillOcean(heightmap, p.SeaLevel);
 
+            // 4. Normalize land elevation distribution (correct skew to high mountains)
+            ElevationPostProcessor.NormalizeLandDistribution(heightmap, oceanMask, gamma: 1.8f);
+
             _logger.LogInformation("Elevation post-processing complete");
 
             return Result.Success(new ElevationData(heightmap, oceanMask));
