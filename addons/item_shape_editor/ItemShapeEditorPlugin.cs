@@ -1,3 +1,4 @@
+#if TOOLS
 using Godot;
 
 [Tool]
@@ -130,3 +131,4 @@ public partial class ShapeGridEditor : EditorProperty
         }
     }
 }
+#endif

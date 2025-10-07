@@ -210,7 +210,15 @@
       "Bash(gh issue view:*)",
       "Bash(godot:*)",
       "Bash(pwsh ./scripts/validate-templates.ps1)",
-      "Bash(./scripts/core/build.ps1 test --filter \"Category=Combat\")"
+      "Bash(./scripts/core/build.ps1 test --filter \"Category=Combat\")",
+      "Bash(cmake:*)",
+      "Bash(./scripts/core/build.ps1 test --filter \"Category=WorldGen\")",
+      "Bash(./scripts/core/build.ps1 test-only --filter \"Category=WorldGen\")",
+      "Bash(./scripts/core/build.ps1 test --filter \"NativePlateSimulatorIntegrationTests\")",
+      "Bash(./scripts/core/build.ps1 test --filter \"Category=WorldGen&Category=Integration\")",
+      "Bash(findstr:*)",
+      "Bash(convert:*)",
+      "Bash(objdump:*)"
     ],
     "deny": [],
     "ask": [],

@@ -5,6 +5,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+
+    <!-- REQUIRED: LibraryImport source generator needs unsafe code for marshaling -->
+    <!-- See ADR-007 v1.2: Native Library Integration (LibraryImport standard) -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>

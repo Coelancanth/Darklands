@@ -1,13 +1,33 @@
 # Darklands Development Roadmap
 
-**Purpose**: Sequence the complete [Vision.md](Vision.md) into actionable vertical slices with clear dependencies and milestones.
+**Purpose**: Organize all Darklands features by category for quick reference and planning.
 
-**Last Updated**: 2025-10-04 00:10 (VS_018 L-Shapes Complete)
-**Status**: Phase 1 In Progress (VS_001 Health ✅, VS_005 Grid/FOV ✅, VS_006 Movement ✅, VS_008 Inventory ✅, VS_009 Items ✅, VS_018 L-Shapes ✅ complete)
+**Last Updated**: 2025-10-06 (VS_020 Combat System Complete, VS_021 i18n Complete)
 
 ---
 
-## 📊 Overview: Vision to Shippable Game
+## Quick Navigation
+
+**Tactical Layer (Local Map - Grid Combat):**
+- [Core Systems](#core-systems) - Health, i18n, Data-Driven Infrastructure
+- [Grid & Vision](#grid--vision) - FOV, Terrain, Fog of War
+- [Movement](#movement) - Pathfinding, Click-to-Move
+- [Combat](#combat) - Turn Queue, Attacks, AI, Armor
+- [Inventory & Items](#inventory--items) - Spatial Grid, Equipment, Crafting
+- [Visual & Rendering](#visual--rendering) - Camera, TileSet, Animations
+
+**Strategic Layer (World Map - Macro Scale):**
+- [Strategic Map & History](#strategic-map--history) - WorldEngine, Factions, Civilization History
+
+**Meta Systems:**
+- [Progression](#progression) - Proficiency, Aging
+- [Economy & Quests](#economy--quests) - Trading, Quest System
+- [Narrative](#narrative) - Origins, Events, Reputation
+- [Development Info](#development-info) - Estimates, Milestones, Risks
+
+---
+
+## Vision Overview
 
 **Vision**: Darklands (1992) spiritual successor with time-unit combat, skill progression, and emergent narrative
 
@@ -17,10 +37,7 @@
 3. **Shippable at every phase** - Each phase delivers playable value
 4. **Learn before scaling** - Small vertical slices reveal design problems early
 
----
-
-## 🎯 Four Development Phases
-
+**Development Approach**: 4 development phases over 13-20 months
 ```
 Phase 1: Combat Core (3-6 months)
    ↓ Prove: Time-unit combat creates tactical decisions
@@ -39,32 +56,53 @@ Phase 4: Emergent Narrative (3-4 months)
 
 ---
 
-## 🔥 Phase 1: Combat Core (CURRENT FOCUS)
+## Core Systems
 
-**Goal**: Prove tactical positioning + time-unit combat creates deep decisions
+### VS_001: Health System (COMPLETE)
 
-**Revised Approach** (Based on Game Designer feedback):
-1. **Positioning First** - Grid + FOV creates tactical foundation (cover, line-of-sight, terrain)
-2. **Simple Turn-Based** - Validate positioning mechanics with dummy enemy testing
-3. **Add Time Complexity** - Layer time-unit queue on proven positioning system
-4. **Add Progression** - Proficiency system rewards mastery
+**Status**: Complete | **Tests**: Foundational system
+**Owner**: Dev Engineer
 
-**Success Criteria**:
-- Positioning creates meaningful decisions (smoke cover, flanking, range control)
-- FOV feels roguelike (exploration, fog of war, vision-based tactics)
-- Time-unit layer adds depth without overwhelming complexity
-- Proficiency improvement is visible and rewarding (hour 1 vs. hour 10)
-- "One more fight" addiction emerges from testing
+**Delivered**: Health value object, TakeDamageCommand, death detection
 
-**Shippable Deliverable**:
-- Grid-based arena (30x30 with walls, floors, smoke terrain)
-- FOV with fog of war (libtcod-style shadowcasting via GoRogue)
-- Turn-based then time-unit combat (incremental complexity)
-- 5 sequential encounters with proficiency progression
+**Archive**: Earlier archive file
 
 ---
 
-### VS_005: Grid, FOV & Terrain System ✅ **COMPLETE**
+### VS_021: i18n + Data-Driven Entity Infrastructure (COMPLETE)
+
+**Status**: Complete (2025-10-06) | **Size**: L (2-3 days, all 5 phases) | **Tests**: 415 passing
+**Owner**: Dev Engineer
+
+**Delivered**: Translation system (18 keys in en.csv), ActorTemplate system with GodotTemplateService, player.tres template, pre-push validation script, architecture fix (templates moved to Presentation layer for Godot API access)
+
+**What Was Built**:
+- **ADR-005**: Internationalization Architecture (translation key discipline, tr() in Presentation, keys in Domain)
+- **ADR-006**: Data-Driven Entity Design (Godot Resources for templates, three execution phases: design-time/startup/runtime)
+- **Phase 1**: Translation infrastructure (18 keys: ACTOR_*, UI_*, ERROR_*), en.csv file, project.godot configuration
+- **Phase 2**: ActorTemplate + GodotTemplateService (startup template loading, validation, caching)
+- **Phase 3**: Actor name logging enhancement (IPlayerContext integration, ActorIdLoggingExtensions uses repository)
+- **Phase 4**: Pre-push validation script (checks translation keys exist, prevents broken i18n)
+- **Phase 5**: Architecture fix (moved templates to Presentation layer - correct ADR-002 compliance)
+
+**Key Architecture Decisions**:
+- **Translation Key Discipline**: Domain returns keys ("ACTOR_GOBLIN"), Presentation translates via tr()
+- **Three Execution Phases**: Design-time (designer creates .tres) → Startup (load templates) → Runtime (create entities)
+- **Template ≠ Entity**: Templates are cookie cutters (Infrastructure), entities are cookies (Domain, no template dependency)
+- **Hot-Reload Works**: Edit .tres → save → test in <5 seconds (designer empowerment)
+
+**Integration**:
+- All actor creation now uses ActorFactory.CreateFromTemplate() with .tres files
+- Logging shows: "8c2de643 [type: Enemy, name: ACTOR_GOBLIN]" (fully translated context)
+- Validation prevents broken keys at pre-push (fail-fast on missing translations)
+
+**Archive**: [Completed_Backlog_2025-10_Part2.md](../../07-Archive/Completed_Backlog_2025-10_Part2.md) (search "VS_021")
+
+---
+
+## Grid & Vision
+
+### VS_005: Grid, FOV & Terrain System (COMPLETE)
 
 **Status**: Complete (2025-10-01) | **Size**: M (1 day, all 4 phases) | **Tests**: 189 passing
 **Owner**: Dev Engineer
@@ -77,7 +115,9 @@ Phase 4: Emergent Narrative (3-4 months)
 
 ---
 
-### VS_006: Interactive Movement System ✅ **COMPLETE**
+## Movement
+
+### VS_006: Interactive Movement System (COMPLETE)
 
 **Status**: Complete (2025-10-01) | **Size**: L (1.5 days, all 4 phases) | **Tests**: 215 passing
 **Owner**: Dev Engineer
@@ -90,7 +130,9 @@ Phase 4: Emergent Narrative (3-4 months)
 
 ---
 
-### VS_007: Time-Unit Turn Queue System ✅ **COMPLETE**
+## Combat
+
+### VS_007: Time-Unit Turn Queue System (COMPLETE)
 
 **Status**: Complete (2025-10-04) | **Size**: L (3 days, all 4 phases) | **Tests**: 359 passing (49 new)
 **Owner**: Dev Engineer
@@ -130,13 +172,45 @@ Phase 4: Emergent Narrative (3-4 months)
 
 ---
 
-### VS_011: Enemy AI & Vision System 🔮 **FUTURE**
+### VS_020: Basic Combat System (Attacks & Damage) (COMPLETE)
 
-**Status**: Planned (depends on VS_007)
+**Status**: Complete (2025-10-06) | **Size**: M (1-2 days, all 4 phases) | **Tests**: 428 passing
+**Owner**: Dev Engineer
+
+**Delivered**: Click-to-attack combat UI, component pattern (Actor + HealthComponent + WeaponComponent), ExecuteAttackCommand with range validation (melee adjacent, ranged line-of-sight), damage application via HealthComponent, death handling (actors removed from turn queue AND position service), tactical positioning matters for range/FOV
+
+**What Was Built**:
+- **Phase 0**: Component Infrastructure (IComponent, Actor container, IHealthComponent, IWeaponComponent, ActorRepository, ActorFactory with template integration)
+- **Phase 1**: Weapon value object (damage, time cost, range, weapon type)
+- **Phase 2**: ExecuteAttackCommand with range validation, damage application, death handling, turn queue integration
+- **Phase 3**: Line-of-sight validation for ranged attacks (FOV integration), melee bypasses FOV
+- **Phase 4**: Click-to-attack UI, test scene with player/enemies, visual feedback, death handling bug fix (RemoveActor() from position service)
+
+**Key Architecture Decisions**:
+- Component pattern chosen over simple entity (scales to 50+ actor types, reuse across player/enemies/NPCs)
+- ActorTemplate integration (ADR-006 compliance - designers configure components in .tres files)
+- Tactical combat: Position matters (melee=adjacent, ranged=line-of-sight), walls block ranged attacks
+
+**Combat Flow**:
+1. Player clicks enemy in range → ExecuteAttackCommand
+2. Range validation: Melee (Chebyshev distance ≤ 1), Ranged (distance check + FOV line-of-sight)
+3. Damage applied via HealthComponent.TakeDamage()
+4. Death handling: Remove from turn queue + position service
+5. Turn queue advances with weapon time cost
+
+**Testing**: TurnQueueTestScene.tscn - Click-to-attack combat with Player (100HP/melee), Goblin (30HP/melee), Orc (50HP/ranged)
+
+**Archive**: [Completed_Backlog_2025-10_Part2.md](../../07-Archive/Completed_Backlog_2025-10_Part2.md#vs_020-basic-combat-system) (lines 1148-1297)
+
+---
+
+### Enemy AI & Vision System (PLANNED - Next Priority)
+
+**Status**: Ready to Plan (all dependencies complete)
 **Owner**: Product Owner → Tech Lead (for breakdown)
 **Size**: L (2-3 days, all 4 phases)
-**Priority**: Important (enables asymmetric combat, ambushes)
-**Depends On**: VS_007 (Turn Queue System - provides scheduling infrastructure)
+**Priority**: Important (enables asymmetric combat, ambushes, autonomous enemies)
+**Depends On**: VS_007 (Turn Queue - COMPLETE), VS_020 (Combat System - COMPLETE)
 
 **What**: Enemy FOV calculation, asymmetric vision (enemy sees you before you see them), basic AI decision-making (move toward player, attack when in range)
 
@@ -153,14 +227,14 @@ Phase 4: Emergent Narrative (3-4 months)
 - **Phase 4**: Enemy activation zones (distance-based), enemy turn execution (move toward player OR attack)
 
 **Scope**:
-- ✅ Enemy FOV calculation (when within awareness radius of player)
-- ✅ PlayerDetectionEventHandler (enemy sees player → schedule enemy)
-- ✅ Asymmetric combat (enemy detects first, player discovers on move)
-- ✅ Basic AI (move toward player if not adjacent, attack if adjacent)
-- ✅ Awareness zones (only nearby enemies calculate FOV for performance)
-- ❌ Advanced AI (flanking, kiting, cover usage - future)
-- ❌ Behavior trees (simple decision tree for MVP)
-- ❌ Patrol patterns (enemies stationary until activated)
+- YES: Enemy FOV calculation (when within awareness radius of player)
+- YES: PlayerDetectionEventHandler (enemy sees player → schedule enemy)
+- YES: Asymmetric combat (enemy detects first, player discovers on move)
+- YES: Basic AI (move toward player if not adjacent, attack if adjacent)
+- YES: Awareness zones (only nearby enemies calculate FOV for performance)
+- NO: Advanced AI (flanking, kiting, cover usage - future)
+- NO: Behavior trees (simple decision tree for MVP)
+- NO: Patrol patterns (enemies stationary until activated)
 
 **Example Scenario** (Ambush):
 ```
@@ -178,198 +252,44 @@ Phase 4: Emergent Narrative (3-4 months)
 
 ---
 
-### VS_008: Slot-Based Inventory System (MVP) ✅ **COMPLETE**
+### Simplified Armor System (PLANNED)
 
-**Status**: Complete (2025-10-02) | **Size**: M (5-6.5h, all 4 phases) | **Tests**: 23 passing
-**Owner**: Dev Engineer
+**What**: Single armor layer (protection + weight values)
 
-**Delivered**: Slot-based inventory (20 slots), `ItemId` primitive in Domain/Common, add/remove operations with capacity enforcement, UI panel with GridContainer (10×2 slots), query-based refresh (no events in MVP)
-
-**Key Decision**: Inventory stores `ItemId` (not Item objects) - enables clean separation between container logic and item definitions (VS_009)
-
-**Architecture**: Explicit creation pattern (`CreateInventoryCommand`), player-controlled actors only, InMemoryInventoryRepository with auto-creation, ServiceLocator only in `_Ready()`
-
-**Archive**: [Completed_Backlog_2025-10.md](../../07-Archive/Completed_Backlog_2025-10.md#vs_008-slot-based-inventory-system) (lines 47-163)
-
----
-
-### Future: Basic Combat System (Turn-Based)
-
-**Status**: Not Yet Planned
-**Depends On**: VS_007 (Smart Interruption) OR VS_006 if auto-interruption deferred
-
-**What**: Simple turn-based combat with manually controlled dummy enemy
-
-**Why**:
-- Validate positioning tactics before adding AI complexity
-- Test FOV integration (ranged attacks require line-of-sight)
-- Foundation for AI behavior
+**Why**: Foundation for tactical combat depth
 
 **Scope**:
-- **Domain**: `Weapon` value object (damage, no time costs yet)
-- **Application**: `ExecuteAttackCommand` (uses VS_001 TakeDamageCommand), range checking
-- **Infrastructure**: Attack validation (melee = adjacent, ranged = line-of-sight from FOV)
-- **Presentation**:
-  - Attack button appears when valid target in range
-  - Turn indicator ("Player Turn" / "Dummy Turn")
-  - Still using WASD to manually control dummy
-
-**Attack Types** (Phase 1):
-- **Melee**: Must be adjacent (8 tiles: orthogonal + diagonal)
-- **Ranged**: Requires line-of-sight from FOV (max range 5 tiles)
-
-**Turn-Based Flow**:
-```
-1. Player Turn: Move (arrow keys) OR Attack (if enemy in range/sight)
-2. Dummy Turn: Manual control (WASD) OR Attack (if player in range/sight)
-3. Repeat until one actor reaches 0 health
-```
-
-**NOT in Scope**:
-- ❌ Time costs (still simple alternating turns)
-- ❌ AI behavior (dummy is manually controlled)
-- ❌ Weapon proficiency (add in VS_009)
-- ❌ Multiple weapons (just sword for now)
-
-**Done When**:
-- ✅ Unit tests: Melee attack validates adjacency, Ranged attack validates FOV line-of-sight
-- ✅ Integration tests: Attack → health reduces (uses VS_001 system)
-- ✅ Godot scene: Attack button enabled/disabled based on range + FOV
-- ✅ Manual validation:
-  - Can't ranged attack through smoke (FOV blocks line-of-sight)
-  - Can melee attack enemy in smoke (adjacency check only)
-  - Turn-based flow feels tactical (positioning before attacking)
+- Weight affects movement and action time costs
+- Foundation for future layered armor system
 
 ---
 
-### Future: Tileset & Procedural Generation System
+### Damage Type System (PLANNED)
 
-**Status**: Not Yet Planned (Ideas - Visual Polish)
-**Depends On**: None (independent of VS_006)
+**What**: Slashing, Piercing, Blunt damage types
 
-**What**: Replace ColorRect grid with Godot TileMap + Kenney assets, add procedural map generation and autotiling
-
-**Why**:
-- Professional appearance (pixel art vs. colored rectangles)
-- Visual variety (procedurally generated maps)
-- Replayability (different map layouts each time)
+**Why**: Weapon choice matters based on enemy armor
 
 **Scope**:
-- Kenney Micro Roguelike tileset (8x8 sprites, CC0 license)
-- PCG algorithm (BSP trees, cellular automata, or dungeon generation)
-- Autotiling rules for seamless wall connections
-- GridMap remains single source of truth (Presentation reads from Core)
-
-**Notes**: ColorRect is currently functional - this is polish work that can be deferred until gameplay systems are mature.
+- Armor resistance to damage types
+- Creates tactical weapon selection decisions
 
 ---
 
-### Future: Turn-Based AI
+### Layered Armor System (PLANNED)
 
-**Status**: Not Yet Planned
-**Depends On**: Basic Combat System
+**What**: Two armor layers (gambeson + chainmail)
 
-**What**: Simple AI that uses FOV and makes turn-based tactical decisions
-
-**Why**:
-- Validate positioning creates tactical depth (AI chases when visible, patrols when not)
-- Prove turn-based combat is fun before adding time-unit complexity
-- Foundation for time-aware AI in VS_008
-
-**Scope** (Minimal Viable AI):
-- **Domain**: `AIBehavior` enum (Aggressive, Defensive, Balanced)
-- **Application**: `CalculateAIActionCommand` (returns move or attack decision)
-- **Infrastructure**: Simple decision tree (no pathfinding yet)
-
-**AI Decision Logic**:
-```
-IF player visible (in AI's FOV):
-  IF player in attack range:
-    - Aggressive: Always attack
-    - Defensive: Attack if health > 50%, else move away
-    - Balanced: Attack if can kill player this turn
-  ELSE:
-    - Move toward player (closest adjacent tile)
-
-IF player not visible:
-  - Patrol (random adjacent tile) OR Idle
-```
-
-**NOT in Scope**:
-- ❌ Pathfinding around obstacles (just move toward player, may get stuck)
-- ❌ Tactical positioning (flanking, cover usage)
-- ❌ Memory (doesn't remember last seen player position)
-- ❌ Time-aware decisions (add in VS_008)
-
-**Done When**:
-- ✅ Unit tests: Aggressive AI attacks when player in range + visible
-- ✅ Unit tests: Defensive AI retreats when health < 50%
-- ✅ Unit tests: AI doesn't chase player if not in FOV
-- ✅ Integration tests: AI uses CalculateFOVQuery to check visibility
-- ✅ Manual playtest:
-  - Hide behind smoke → AI doesn't chase (can't see you)
-  - Step into AI's FOV → AI immediately moves toward you
-  - 3 enemy types feel different (rat aggressive, bandit balanced, ogre defensive)
-
----
-
-### Future: Time-Unit Queue Refactoring
-
-**Status**: Not Yet Planned
-**Depends On**: Turn-Based AI
-
-**What**: Replace alternating turns with priority queue based on action time costs
-
-**Why**:
-- **Decision point**: Does turn-based positioning need timing complexity?
-- If VS_007 playtesting shows positioning alone creates depth → maybe time-unit is YAGNI
-- If turn-based feels too simple → time-unit adds "fast vs powerful" decisions
-- This is a **refactoring** of working systems, not net-new features
+**Why**: Deep tactical equipment decisions
 
 **Scope**:
-- **Domain**: `ActionQueue` entity, `TimeCost` value object
-- **Application**: `EnqueueActionCommand`, `ProcessNextActionQuery`
-- **Infrastructure**: Refactor turn manager to use priority queue
-- **Presentation**: Queue visualization (timeline showing next 5 actions)
-
-**Time Costs** (Phase 1 baseline):
-- **Movement**: 100 units per tile
-- **Melee Attack**: 100 units (sword baseline)
-- **Ranged Attack**: 75 units (faster, less damage)
-- **Wait**: 50 units (skip turn, regain initiative)
-
-**Refactoring Tasks**:
-1. Add time costs to existing MoveActorCommand
-2. Add time costs to existing ExecuteAttackCommand
-3. Replace turn manager with priority queue
-4. Update AI to be time-aware (don't waste fast actions)
-5. Add queue visualization UI
-
-**NOT in Scope**:
-- ❌ Weapon variety yet (just melee/ranged, add proficiency in VS_009)
-- ❌ Variable time passage (environmental effects)
-- ❌ Action interrupts/cancellation
-
-**Done When**:
-- ✅ Unit tests: Priority queue orders actions correctly by time
-- ✅ Integration tests: Fast actions get more turns (rat attacks 2x before ogre attacks 1x)
-- ✅ UI test: Queue timeline shows upcoming 5 actions
-- ✅ Manual playtest: Time-unit adds tactical depth vs. turn-based (A/B test with VS_007)
-- ✅ **Decision**: Keep time-unit OR revert to turn-based if complexity doesn't justify value
-
-**Phase**: Refactoring (touches all 4 layers)
-
-**Risk Mitigation**:
-- Keep turn-based version in git branch
-- If time-unit doesn't add value → revert and simplify
-- Only proceed to proficiency if time-unit proves fun
+- Hit location system (head/torso/limbs)
+- Damage penetration mechanics
+- Depends on: Simplified Armor System, Damage Type System
 
 ---
 
-### Future: Weapon Proficiency Tracking
-
-**Status**: Not Yet Planned
-**Depends On**: Time-Unit Queue (if that system is kept)
+### Weapon Proficiency Tracking (PLANNED)
 
 **What**: Track weapon usage and improve proficiency, reducing action time costs
 
@@ -408,70 +328,30 @@ Time to mastery ≈ 50-70 attacks (5-10 fights)
 ```
 
 **Done When**:
-- ✅ Unit tests: Attack with dagger → skill increases, time cost reduces
-- ✅ Integration tests: 50 sword attacks → 15% faster
-- ✅ Manual playtest: Progression feels rewarding (visible every 2-3 fights)
+- Unit tests: Attack with dagger → skill increases, time cost reduces
+- Integration tests: 50 sword attacks → 15% faster
+- Manual playtest: Progression feels rewarding (visible every 2-3 fights)
 
 ---
 
-### Future: Arena Combat Integration (Phase 1 Complete)
+## Inventory & Items
 
-**Status**: Not Yet Planned
-**Depends On**: Combat systems + AI + (optionally) Proficiency
+### VS_008: Slot-Based Inventory System (MVP) (COMPLETE)
 
-**What**: Fully playable arena with 5 waves, complete progression loop
+**Status**: Complete (2025-10-02) | **Size**: M (5-6.5h, all 4 phases) | **Tests**: 23 passing
+**Owner**: Dev Engineer
 
-**Why**:
-- First shippable milestone (can gather real user feedback)
-- Validates Phase 1 hypothesis: "Is tactical combat fun?"
-- Decision point: Proceed to Phase 2 OR pivot
+**Delivered**: Slot-based inventory (20 slots), `ItemId` primitive in Domain/Common, add/remove operations with capacity enforcement, UI panel with GridContainer (10×2 slots), query-based refresh (no events in MVP)
 
-**Scope**:
-- **Presentation**: Arena scene with:
-  - 30x30 grid (walls + smoke terrain)
-  - Player + 3 weapon types (dagger/sword/axe)
-  - Enemy spawner (5 waves: rat → rat×2 → bandit → bandit×2 → ogre)
-  - FOV visualization + fog of war
-  - If VS_008 kept: Queue timeline, proficiency panel
-  - If VS_008 skipped: Just turn indicator, simpler UI
+**Key Decision**: Inventory stores `ItemId` (not Item objects) - enables clean separation between container logic and item definitions (VS_009)
 
-**Victory/Defeat**:
-- Victory: Survive 5 waves, show stats (proficiency gains, time survived)
-- Defeat: Show progress, encourage retry with different strategy
+**Architecture**: Explicit creation pattern (`CreateInventoryCommand`), player-controlled actors only, InMemoryInventoryRepository with auto-creation, ServiceLocator only in `_Ready()`
 
-**Done When**:
-- ✅ Manual playtest: Complete run feels fun, creates tactical decisions
-- ✅ FOV + terrain create interesting positioning puzzles
-- ✅ If time-unit: Timing adds depth, proficiency feels rewarding
-- ✅ If turn-based: Positioning alone creates sufficient depth
-- ✅ Players want to retry ("one more run" addiction)
-
-**Phase**: 4 (Presentation integration)
-
-**Playtest Questions**:
-1. Do you make meaningful tactical decisions?
-2. Does FOV + smoke create interesting scenarios?
-3. [If time-unit] Does timing layer add enough value?
-4. [If proficiency] Does progression feel rewarding?
-5. Do you want to play again? Why?
-
-**Phase 1 Decision Point**:
-- ✅ **Proceed to Phase 2** if playtesters report combat is fun
-- ⚠️ **Pivot** if combat feels shallow or tedious
+**Archive**: [Completed_Backlog_2025-10.md](../../07-Archive/Completed_Backlog_2025-10.md#vs_008-slot-based-inventory-system) (lines 47-163)
 
 ---
 
-## 🎨 Phase 2: Itemization & Depth (Future)
-
-**Goal**: Prove build variety creates different playstyles and replay value
-
-**When to Start**: After VS_007 playtesting confirms combat is fun
-
-**Estimated Duration**: 3-4 months
-
-### Completed & Planned Vertical Slices
-
-**VS_009: Item Definition System (TileSet Metadata-Driven) ✅ COMPLETE**
+### VS_009: Item Definition System (TileSet Metadata-Driven) (COMPLETE)
 
 **Status**: Complete (2025-10-02) | **Size**: M (6-7h, all 4 phases) | **Tests**: 57 passing
 **Owner**: Dev Engineer
@@ -486,64 +366,7 @@ Time to mastery ≈ 50-70 attacks (5-10 fights)
 
 ---
 
-**VS_010: Item Stacking System**
-- Stackable item support (e.g., "5× Branch", "20× Arrow")
-- Stack limits per item type (configurable in item definitions)
-- UI displays stack count overlay on slot visuals
-- Commands: AddItemToStack, SplitStack, MergeStacks
-- Benefits: Reduces inventory clutter for consumables and ammo
-- Reference: NeoScavenger nStackLimit (branches=5, ammo=20, unique items=1)
-
-**VS_011: Equipment Slots System**
-- Actor equipment slots (main hand, off hand, head, torso, legs, ring×2)
-- Used by ALL actors (player, NPCs, enemies) - not just player-controlled
-- Player: Equips items from inventory → equipment slots (affects stats)
-- NPCs/Enemies: Spawned with pre-equipped gear (defines combat capabilities)
-- Commands: EquipItem, UnequipItem, GetEquippedItems
-- Integration: Combat system reads equipment for damage/defense calculations
-- Reference: NeoScavenger battlemoves.xml (equipment affects available moves)
-- Architecture: Separate from VS_008 Inventory (equipment = worn, inventory = carried)
-
-**VS_012: Ground Loot System**
-- Items at map positions (dungeon loot, enemy drops, player discards)
-- WorldItemRepository: Dictionary<Position, List<ItemId>>
-- Commands: DropItemAtPosition, PickupItemAtPosition, GetItemsAtPosition
-- Integration: Player picks up loot → adds to inventory (VS_008)
-- Integration: Enemy dies → drops equipped items (VS_011) to ground
-- UI: Visual indicators on tiles with loot (sparkle effect, item sprite)
-- Foundation for dungeon generation loot placement
-
-**VS_013: Container System (Nested Inventories)**
-- Items can BE containers (bags, pouches, quivers)
-- Nested spatial grids: Bag (4×6) can contain Pouch (2×2)
-- Container properties: capacity grid size, allowed item types
-- Type filtering: Quiver accepts arrows only, waterskin accepts liquids only
-- Commands: OpenContainer, MoveItemToContainer
-- Benefits: Organization (ammo in quiver), specialization (waterproof bags)
-- Reference: NeoScavenger aCapacities ("4x6"), aContentIDs (whitelisted types)
-- Decision point: May defer if VS_010 stacking reduces inventory clutter sufficiently
-
-**VS_014: Simplified Armor System**
-- Single armor layer (protection + weight values)
-- Weight affects movement and action time costs
-- Foundation for Phase 2 layered armor
-
-**VS_015: Damage Type System**
-- Slashing, Piercing, Blunt damage types
-- Armor resistance to damage types
-- Weapon choice matters based on enemy armor
-
-**VS_016: Layered Armor (Padding + Mail)**
-- Two armor layers (gambeson + chainmail)
-- Hit location system (head/torso/limbs)
-- Damage penetration mechanics
-
-**VS_017: Unique Weapons Collection**
-- 10 unique weapons with build-enabling properties
-- Angband-style itemization (situational value)
-- Constrained randomization (minor stat variance)
-
-**VS_018: Spatial Inventory System ⚙️ IN PROGRESS**
+### VS_018: Spatial Inventory System (COMPLETE)
 
 **Status**: Phase 1 Complete (2025-10-04) | **Size**: XL (ongoing) | **Tests**: 359 passing
 **Owner**: Dev Engineer
@@ -561,11 +384,9 @@ Time to mastery ≈ 50-70 attacks (5-10 fights)
 - ItemShape value object with coordinate masks
 - InventoryRenderHelper (DRY rendering across components)
 - Zero business logic in Presentation (SSOT in Core)
-- All 359 tests GREEN ✅
+- All 359 tests GREEN
 
 **Archive**: [Completed_Backlog_2025-10.md](../../07-Archive/Completed_Backlog_2025-10.md#vs_018-spatial-inventory-l-shapes) (Phase 1 documentation)
-
----
 
 **Phase 2 TODO - UX & Interaction Improvements**:
 
@@ -579,7 +400,7 @@ Time to mastery ≈ 50-70 attacks (5-10 fights)
    - Example: Swap weapon in hand directly with weapon in inventory
    - Preserves shapes, validates types
 
-3. **Item Interaction System** (may become VS_019)
+3. **Item Interaction System**
    - Right-click item → context menu (Use, Split, Examine, Drop)
    - Use consumables (potions, food) from inventory
    - Examine for detailed stats/lore
@@ -594,7 +415,6 @@ Time to mastery ≈ 50-70 attacks (5-10 fights)
    - Stackable items (arrows ×20, branches ×5)
    - Stack count overlay on sprites
    - Split/merge stack operations
-   - Links to VS_010 (Item Stacking System)
 
 6. **Auto-Sort**
    - Sort by type (weapons, consumables, tools)
@@ -608,7 +428,6 @@ Time to mastery ≈ 50-70 attacks (5-10 fights)
 8. **Ground Item Interaction**
    - Pick up items from environment (dungeon loot)
    - Visual indicators on tiles with items
-   - Links to VS_012 (Ground Loot System)
 
 9. **Rich Tooltips**
    - Item stats (damage, weight, durability)
@@ -617,88 +436,396 @@ Time to mastery ≈ 50-70 attacks (5-10 fights)
 
 **Next Steps**: Prioritize TODOs after Phase 1 playtesting feedback
 
-**VS_019: Crafting System (NeoScavenger-Style)**
-- Grid-based crafting interface (drag items to recipe slots)
+---
+
+### Item Stacking System (PLANNED)
+
+**What**: Stackable item support (e.g., "5× Branch", "20× Arrow")
+
+**Scope**:
+- Stack limits per item type (configurable in item definitions)
+- UI displays stack count overlay on slot visuals
+- Commands: AddItemToStack, SplitStack, MergeStacks
+- Benefits: Reduces inventory clutter for consumables and ammo
+- Reference: NeoScavenger nStackLimit (branches=5, ammo=20, unique items=1)
+
+---
+
+### Equipment Slots System (PLANNED)
+
+**What**: Actor equipment slots (main hand, off hand, head, torso, legs, ring×2)
+
+**Why**: Used by ALL actors (player, NPCs, enemies) - not just player-controlled
+
+**Scope**:
+- Player: Equips items from inventory → equipment slots (affects stats)
+- NPCs/Enemies: Spawned with pre-equipped gear (defines combat capabilities)
+- Commands: EquipItem, UnequipItem, GetEquippedItems
+- Integration: Combat system reads equipment for damage/defense calculations
+- Reference: NeoScavenger battlemoves.xml (equipment affects available moves)
+- Architecture: Separate from VS_008 Inventory (equipment = worn, inventory = carried)
+
+---
+
+### Ground Loot System (PLANNED)
+
+**What**: Items at map positions (dungeon loot, enemy drops, player discards)
+
+**Scope**:
+- WorldItemRepository: Dictionary<Position, List<ItemId>>
+- Commands: DropItemAtPosition, PickupItemAtPosition, GetItemsAtPosition
+- Integration: Player picks up loot → adds to inventory (VS_008)
+- Integration: Enemy dies → drops equipped items to ground
+- UI: Visual indicators on tiles with loot (sparkle effect, item sprite)
+- Foundation for dungeon generation loot placement
+
+---
+
+### Container System - Nested Inventories (PLANNED)
+
+**What**: Items can BE containers (bags, pouches, quivers)
+
+**Scope**:
+- Nested spatial grids: Bag (4×6) can contain Pouch (2×2)
+- Container properties: capacity grid size, allowed item types
+- Type filtering: Quiver accepts arrows only, waterskin accepts liquids only
+- Commands: OpenContainer, MoveItemToContainer
+- Benefits: Organization (ammo in quiver), specialization (waterproof bags)
+- Reference: NeoScavenger aCapacities ("4x6"), aContentIDs (whitelisted types)
+- Decision point: May defer if Item Stacking reduces inventory clutter sufficiently
+
+---
+
+### Crafting System (NeoScavenger-Style) (PLANNED)
+
+**What**: Grid-based crafting interface (drag items to recipe slots)
+
+**Scope**:
 - Tool vs. Consumed separation (lighter stays, tinder burns)
 - Time-based crafting (recipes take hours, not instant)
 - Recipe discovery (try combinations, learn new recipes)
 - Reference: NeoScavenger recipes.xml (tool/consumed/destroyed separation)
 - Benefits: Survival depth (repair gear, purify water, cook food)
 
-**Integration Milestone**: Phase 2 complete when 3+ viable builds emerge from playtesting
+---
+
+### Unique Weapons Collection (PLANNED)
+
+**What**: 10 unique weapons with build-enabling properties
+
+**Scope**:
+- Angband-style itemization (situational value)
+- Constrained randomization (minor stat variance)
+- Creates build variety and replayability
 
 ---
 
-## 🗺️ Phase 3: Strategic Layer (Future)
+## Visual & Rendering
 
-**Goal**: Demonstrate macro/micro loop integration works
+### Camera System (PLANNED - Infrastructure)
 
-**When to Start**: After Phase 2 builds are balanced and fun
+**What**: Camera2D for scalable viewport and player tracking
 
-**Estimated Duration**: 4-6 months
+**Why**:
+- Current test scene: 30×30 grid at 48px = 1440×1440 pixels (fits screen NOW, but won't scale)
+- Larger dungeons (50×50, 100×100) require camera to follow player off-screen
+- Professional feel: Player-centered camera with smooth transitions
+- Foundation for screen shake, zoom, cutscenes
 
-### Planned Vertical Slices (High-Level)
+**Scope**:
+- Add Camera2D to TurnQueueTestScene.tscn
+- Configure follow behavior (player stays centered or uses drag margins)
+- Enable smoothing for professional camera movement
+- Zero changes to combat/movement logic (presentation-only)
 
-**VS_020: Overworld Map**
-- Simple node-based map (3 towns, 2 dungeons)
-- Travel system with time passage
-- Location-based encounters
+**Implementation Approach**:
+- Phase 1: Basic camera following player position (30 minutes)
+- Phase 2: Smooth camera with drag margins (15 minutes)
+- Phase 3: Zoom support for testing large maps (15 minutes)
 
-**VS_021: Quest System**
-- Basic contracts (clear dungeon, deliver item)
-- Quest giver NPCs in towns
-- Rewards (money, reputation)
-
-**VS_022: Economy System**
-- Money from quests and loot
-- Equipment purchases in towns
-- Repair costs for gear degradation
-
-**VS_023: Simple Reputation System**
-- 2-3 factions with standing values
-- Reputation affects prices and quest availability
-- Foundation for Phase 4 emergent narrative
-
-**Integration Milestone**: Phase 3 complete when macro → micro → macro loop feels cohesive
+**Priority**: Infrastructure for scalability - should be added BEFORE large map testing
 
 ---
 
-## 📖 Phase 4: Emergent Narrative (Future)
+### TileSet Migration & Autotiling (PLANNED)
 
-**Goal**: Create "memorable run stories" like RimWorld
+**What**: Replace ColorRect grid rendering with TileMapLayer + TileSet autotiling
 
-**When to Start**: After Phase 3 macro/micro integration works
+**Why**:
+- Performance: TileMap optimized for grid rendering (ColorRect = UI elements abused for game grid)
+- Designer empowerment: Visual scene editing in Godot editor (aligns with ADR-006 philosophy)
+- Professional appearance: Autotiling for seamless wall connections
+- Foundation for pixel art sprites (Kenney assets)
 
-**Estimated Duration**: 3-4 months
+**Current State**:
+- TurnQueueTestScene.tscn has TileMapLayer nodes DEFINED but UNUSED
+- Controller creates ColorRect grid programmatically (lines 136-182 in TurnQueueTestSceneController.cs)
+- Terrain/FOV/Actor layers exist as ColorRect arrays
 
-### Planned Vertical Slices (High-Level)
+**Migration Scope**:
+- Replace ColorRect grid creation with TileMapLayer.set_cell() API
+- Use existing TerrainLayer/FOVLayer nodes from scene
+- Keep actor overlay as Sprite2D nodes (better for moving entities than tiles)
+- Update rendering methods: SetCellColor() → SetCell() with tile IDs
+- Preserve all fog of war logic (3-state system: unexplored, explored, visible)
 
-**VS_024: Origins System**
-- 3-5 starting backgrounds (noble, soldier, peasant, scholar, merchant)
+**Estimated Effort**: 2-3 hours (refactoring existing rendering, preserving all combat/FOV logic)
+
+**Dependencies**:
+- None (can be done independently of gameplay systems)
+- Recommended: Add Camera first (infrastructure)
+
+**Decision Point**: Defer UNTIL Enemy AI (next priority) complete OR performance becomes issue
+
+---
+
+### Procedural Map Generation (PLANNED)
+
+**What**: PCG algorithms for dungeon/map generation
+
+**Why**:
+- Visual variety (no more hardcoded test maps)
+- Replayability (different layouts each playthrough)
+- Testing scalability at various map sizes
+
+**Scope**:
+- PCG algorithm selection: BSP trees, cellular automata, or drunkard's walk
+- Integration with existing GridMap/terrain system (GridMap = SSOT in Core)
+- Room/corridor generation with guaranteed connectivity
+- Parametric generation (room sizes, density, complexity)
+
+**Dependencies**:
+- Camera System (required for large generated maps)
+- Recommended: TileSet Migration first (better visual feedback during generation testing)
+
+**Notes**: Pure generation FIRST (no sprites), then visual polish with TileSet
+
+---
+
+### TileSet Visual Assets (PLANNED)
+
+**What**: Pixel art sprites for terrain using Kenney assets
+
+**Why**: Professional appearance (pixel art vs. colored rectangles)
+
+**Scope**:
+- Kenney Micro Roguelike tileset (8x8 sprites, CC0 license)
+- Autotiling rules for seamless wall connections
+- Terrain variants (floor, wall, smoke/bushes)
+
+**Dependencies**: TileSet Migration complete (uses TileMapLayer API)
+
+**Notes**: Separate from procedural generation - can use ColorRects OR tiles with PCG
+
+---
+
+### Attack Animations (PLANNED)
+
+**What**: Visual feedback for combat actions
+
+**Scope**:
+- Weapon swing animations
+- Damage numbers/effects
+- Death animations
+- Currently: Instant damage with console logging
+
+---
+
+## Progression
+
+### Weapon Proficiency Tracking (PLANNED)
+
+*See Combat section above - listed here for cross-reference*
+
+---
+
+### Character Aging & Time Pressure (PLANNED)
+
+**What**: Character ages over time with stat degradation
+
+**Why**: Creates natural run duration (2-4 hours before retirement/death)
+
+**Scope**:
+- Stat degradation with age (realism)
+- Time pressure mechanic
+- Natural end condition for runs
+
+---
+
+## Strategic Map & History
+
+**Vision**: Two-map architecture (UnReal World, Dwarf Fortress, RimWorld pattern)
+
+```
+Strategic Layer (Macro)          Tactical Layer (Micro)
+┌──────────────────────┐         ┌──────────────────────┐
+│ WorldEngine Map      │         │ Grid Combat (30×30+) │
+│ 512×512 world tiles  │ ◄─────► │ Turn-based tactical  │
+│ Factions, History    │  Zoom   │ FOV, Positioning     │
+│ Travel, Quests       │  In/Out │ Looting, Encounters  │
+└──────────────────────┘         └──────────────────────┘
+```
+
+**Current State**: Tactical layer complete (VS_001-VS_021). Strategic layer experimental.
+
+---
+
+### WorldEngine Integration (PLANNED - Port to C#)
+
+**What**: Port WorldEngine physics-driven world generation from Python to C# for runtime generation
+
+**Why**:
+- Realistic geography (plate tectonics, climate, rivers) creates strategic depth
+- Seed-based reproducibility for balanced gameplay
+- 48 biome types provide terrain-driven economy (Legends Mod pattern)
+- Eliminates Python dependency for distribution
+
+**Approach**: Study WorldEngine Python source, port core algorithms to C# in Darklands.Core
+**Status**: Experimental - validate with Python CLI first, then port if successful
+
+---
+
+### Settlement Economy System (PLANNED - Legends Mod Pattern)
+
+**What**: Dynamic settlement system inspired by Battle Brothers Legends Mod
+
+**Core Concepts**:
+
+**Wealth & Tier Upgrades**:
+- Settlements have wealth (0-100%) that grows/shrinks based on economy
+- Organic progression: Hamlet → Village → Town → City
+- Player actions affect growth (completing quests increases wealth, raids decrease it)
+
+**Settlement Status Effects** (20+ temporary conditions):
+- Economic: Ambushed Trade Routes, Prosperous, Conquered
+- Military: Besieged, Raided Recently
+- Events: Plague, Harvest Festival, Archery Contest
+- Effects modify prices, recruit availability, quest options
+
+**Attached Buildings** (Terrain-Driven):
+- Buildings determined by WorldEngine biome data
+- Coastal: Fishing Huts, Harbors
+- Mountains: Iron Mines, Stone Quarries, Gold Mines (rare)
+- Forests: Lumber Camps, Hunter's Cabins, Herbalist Groves
+- Farmland: Breweries, Orchards, Beekeepers
+- Desert: Incense Dryers, Spice Markets
+- Each building produces resources and attracts specific recruits
+
+**Integration**: Settlements placed on WorldEngine map, buildings driven by biome/elevation data
+
+**Reference**: Battle Brothers Legends Mod settlement system (wealth-driven upgrades, dynamic statuses, terrain economy)
+
+---
+
+### Civilization History Simulation (PLANNED - Dwarf Fortress Pattern)
+
+**What**: Generate 500 years of procedural faction history
+
+**Why**:
+- Dungeons have backstory (ruined cities from historical wars)
+- Faction relations shaped by historical events
+- Quest hooks from legends ("Recover lost crown from Battle of Redforge, Year 423")
+- Emergent narrative from procedural events
+
+**Approach**: Simulate wars, territorial expansion, legendary figures, artifact creation
+**Output**: History ledger, ruined cities (dungeon sites), faction relationships, legendary items
+
+---
+
+### Strategic Travel & Tactical Bridge (PLANNED)
+
+**What**: Travel system linking strategic map (512×512 tiles) to tactical encounters (30×30 grids)
+
+**Gameplay**:
+- Click destination on world map (town, dungeon, wilderness)
+- Travel with time passage (terrain affects speed: mountains slower, roads faster)
+- Random encounters during travel (faction patrols, bandits, wildlife)
+- Arrive → zoom into tactical combat (seamless scene transition)
+- Complete encounter → return to strategic map
+
+**Reference**: UnReal World zoom in/out, Dwarf Fortress embark screen, RimWorld world tiles
+
+---
+
+## Economy & Quests
+
+### Quest System (PLANNED)
+
+**What**: Dynamic quest generation from settlement context and historical events
+
+**Scope**:
+- Quests tied to settlement statuses (relieve siege, cure plague, defend from raid)
+- Historical quests from civilization simulation (recover lost artifacts, avenge betrayals)
+- Faction-aligned quest givers in settlements
+- Quest types: Clear dungeon, recover artifact, escort, assassination
+
+**Integration**: Settlement status effects + history ledger create contextual quests
+
+---
+
+### Economy System (PLANNED)
+
+**What**: Resource-based economy driven by settlement buildings and status effects
+
+**Scope**:
+- Trade goods produced by attached buildings (fish, iron ore, lumber, spices)
+- Settlement status modifies prices (Besieged = +100% food, Prosperous = -10% all)
+- Faction reputation affects prices and access
+- Equipment purchases, repairs, consumables
+
+**Integration**: Settlement wealth system + attached buildings + Legends Mod status effects
+
+---
+
+## Narrative
+
+### Origins System (PLANNED)
+
+**What**: 3-5 starting backgrounds (noble, soldier, peasant, scholar, merchant)
+
+**Scope**:
 - Affects starting proficiencies, equipment, faction standings
 - Defines early viable strategies
-
-**VS_025: Event System**
-- Random encounters with branching choices
-- Consequences affect character state and reputation
-- RimWorld-style procedural storytelling
-
-**VS_026: Full Reputation System (N×N Matrix)**
-- Origin-specific quest lines unlock
-- Faction relationships create emergent conflicts (enemy of my enemy)
-- Dynamic world reacts to player choices
-- Reference: NeoScavenger factions.xml (cross-faction reputation matrix)
-
-**VS_027: Character Aging & Time Pressure**
-- Character ages over time
-- Stat degradation with age (realism)
-- Creates natural run duration (2-4 hours before retirement/death)
-
-**Integration Milestone**: Phase 4 complete when players share "remember when..." stories
+- Creates different playthroughs
 
 ---
 
-## 📊 Development Velocity Estimates
+### Event System (PLANNED)
+
+**What**: Random encounters with branching choices
+
+**Scope**:
+- Consequences affect character state and reputation
+- RimWorld-style procedural storytelling
+- Creates memorable "remember when..." moments
+
+---
+
+### Reputation System - N×N Matrix (PLANNED)
+
+**What**: Complex inter-faction relationship system
+
+**Scope**:
+- N×N reputation matrix (each faction has opinion of every other faction)
+- Origin-specific quest lines unlock based on starting faction
+- Dynamic relationships: Enemy of my enemy becomes ally
+- Player actions affect multiple faction standings simultaneously
+- Reference: NeoScavenger factions.xml (cross-faction reputation matrix)
+
+**Example**:
+```
+Player helps Dwarves → +reputation with Dwarves
+                    → -reputation with Orcs (dwarf enemies)
+                    → +reputation with Humans (dwarf allies)
+```
+
+**Depends On**: Strategic Map Phase 2 (faction placement and basic relations)
+
+---
+
+## Development Info
+
+### Development Velocity Estimates
 
 **Assumptions**:
 - Working solo or small team
@@ -729,7 +856,7 @@ Time to mastery ≈ 50-70 attacks (5-10 fights)
 
 ---
 
-## 🎯 Success Milestones
+### Success Milestones
 
 **Phase 1 Success**:
 - 10+ playtesters report "combat is fun"
@@ -753,39 +880,39 @@ Time to mastery ≈ 50-70 attacks (5-10 fights)
 
 ---
 
-## ⚠️ Risk Management
+### Risk Management
 
-### Risk 1: Time-Unit Combat Isn't Fun
-**Mitigation**: Extensive playtesting after VS_007, pivot to simpler turn-based if needed
+**Risk 1: Time-Unit Combat Isn't Fun**
+- **Mitigation**: Extensive playtesting after VS_007, pivot to simpler turn-based if needed
 
-### Risk 2: Proficiency Grind Feels Tedious
-**Mitigation**: Tunable formulas in VS_005, balance for 2-4 hour runs
+**Risk 2: Proficiency Grind Feels Tedious**
+- **Mitigation**: Tunable formulas, balance for 2-4 hour runs
 
-### Risk 3: Scope Creep (Kitchen Sink Syndrome)
-**Mitigation**: Strict phase gates - don't start Phase 2 until Phase 1 proves fun
+**Risk 3: Scope Creep (Kitchen Sink Syndrome)**
+- **Mitigation**: Strict phase gates - don't start Phase 2 until Phase 1 proves fun
 
-### Risk 4: Layered Armor Too Complex
-**Mitigation**: Phase 2 starts with simple armor (VS_008), only add layers if needed
+**Risk 4: Layered Armor Too Complex**
+- **Mitigation**: Phase 2 starts with simple armor, only add layers if needed
 
-### Risk 5: Solo Development Burnout
-**Mitigation**: Shippable milestones every phase create motivation, early playtesting validates direction
+**Risk 5: Solo Development Burnout**
+- **Mitigation**: Shippable milestones every phase create motivation, early playtesting validates direction
 
 ---
 
-## 📋 Next Actions
+### Next Actions
 
 **Immediate (Product Owner)**:
-1. ✅ Review roadmap with user for approval
-2. Create VS_002 detailed specification using VerticalSlice_Template.md
-3. Add VS_002 to Backlog.md with Critical priority
+1. Review reorganized roadmap structure
+2. Decide on next priority: Enemy AI & Vision System (natural next step)
+3. Create detailed VS specification when ready
 
 **After Approval (Tech Lead)**:
-1. Review VS_002 architecture implications
+1. Review architecture implications
 2. Approve implementation approach
 3. Hand off to Dev Engineer for phased implementation
 
-**Current Status**: Awaiting user approval of roadmap structure and Phase 1 scope
+**Current Status**: Awaiting user approval of category-based roadmap structure
 
 ---
 
-*This roadmap sequences the complete [Vision.md](Vision.md) into 27+ vertical slices across 4 phases, balancing ambition with pragmatic incremental delivery. Each phase proves a core hypothesis before adding complexity.*
+*This roadmap organizes all Darklands features by category for quick reference. Completed items retain their VS_XXX numbers. Planned items are organized by feature area without assigned numbers.*

@@ -50,8 +50,9 @@ public partial class DebugConsoleController : CanvasLayer
         ProcessMode = ProcessModeEnum.Always;
 
         // Note: Can't log here - DI container not initialized yet (autoload runs before GameStrapper)
-        // First log message will appear on lazy initialization when F12 is pressed
-        GD.Print("🎮 DebugConsoleController autoload ready (press F12 to toggle)");
+        // But we can read persisted state file to show what settings will be applied
+        var stateInfo = GetPersistedStateInfo();
+        GD.Print($"Debug Console ready (F12 to toggle) | {stateInfo}");
     }
 
     /// <summary>
@@ -95,7 +96,7 @@ public partial class DebugConsoleController : CanvasLayer
                     }
                 }
 
-                GD.Print($"🔧 Debug Console: {(_container.Visible ? "VISIBLE" : "HIDDEN")}");
+                GD.Print($"Debug Console: {(_container.Visible ? "VISIBLE" : "HIDDEN")}");
             }
 
             // Mark as handled to prevent propagation
@@ -240,7 +241,7 @@ public partial class DebugConsoleController : CanvasLayer
 
     /// <summary>
     /// Handle log level dropdown selection change.
-    /// Maps OptionButton index to Serilog level and updates global log level switch.
+    /// Maps OptionButton index to Serilog level, updates global switch, and persists to disk.
     /// </summary>
     private void OnLogLevelChanged(long index)
     {
@@ -253,6 +254,9 @@ public partial class DebugConsoleController : CanvasLayer
         var newLevel = DebugConsoleConfig.IndexToSerilogLevel((int)index);
         _levelSwitch.MinimumLevel = newLevel;
         _logger?.LogInformation("Log level changed to {Level}", newLevel);
+
+        // Persist log level change to disk (survives restarts)
+        SaveCategoryState();
     }
 
     /// <summary>
@@ -321,8 +325,8 @@ public partial class DebugConsoleController : CanvasLayer
     }
 
     /// <summary>
-    /// Load saved category filter state from user://debug_console_state.json.
-    /// If file doesn't exist or is corrupted, uses default enabled categories.
+    /// Load saved category filter state AND log level from user://debug_console_state.json.
+    /// If file doesn't exist or is corrupted, uses default enabled categories and log level.
     ///
     /// WHY: Persist developer preferences across game restarts.
     /// FILE LOCATION: user:// maps to OS-specific user data directory:
@@ -348,26 +352,44 @@ public partial class DebugConsoleController : CanvasLayer
             var json = File.ReadAllText(godotPath);
             var state = JsonSerializer.Deserialize<DebugConsoleState>(json);
 
-            if (state?.EnabledCategories != null && state.EnabledCategories.Count > 0)
+            if (state != null)
             {
-                // Get current enabled categories
-                var currentEnabled = _loggingService.GetEnabledCategories().ToHashSet();
-
-                // Disable all current categories
-                foreach (var category in currentEnabled)
+                // Restore category filters
+                if (state.EnabledCategories != null && state.EnabledCategories.Count > 0)
                 {
-                    _loggingService.DisableCategory(category);
+                    // Get current enabled categories
+                    var currentEnabled = _loggingService.GetEnabledCategories().ToHashSet();
+
+                    // Disable all current categories
+                    foreach (var category in currentEnabled)
+                    {
+                        _loggingService.DisableCategory(category);
+                    }
+
+                    // Enable saved categories
+                    foreach (var category in state.EnabledCategories)
+                    {
+                        _loggingService.EnableCategory(category);
+                    }
+
+                    _logger?.LogInformation("Loaded saved categories: {Count} enabled [{Categories}]",
+                        state.EnabledCategories.Count,
+                        string.Join(", ", state.EnabledCategories));
                 }
 
-                // Enable saved categories
-                foreach (var category in state.EnabledCategories)
+                // Restore log level
+                if (!string.IsNullOrEmpty(state.LogLevel) && _levelSwitch != null)
                 {
-                    _loggingService.EnableCategory(category);
+                    if (Enum.TryParse<Serilog.Events.LogEventLevel>(state.LogLevel, out var logLevel))
+                    {
+                        _levelSwitch.MinimumLevel = logLevel;
+                        _logger?.LogInformation("Loaded saved log level: {Level}", logLevel);
+                    }
+                    else
+                    {
+                        _logger?.LogWarning("Invalid log level in saved state: {Level}, using current level", state.LogLevel);
+                    }
                 }
-
-                _logger?.LogInformation("Loaded saved state: {Count} categories enabled [{Categories}]",
-                    state.EnabledCategories.Count,
-                    string.Join(", ", state.EnabledCategories));
             }
         }
         catch (Exception ex)
@@ -377,11 +399,11 @@ public partial class DebugConsoleController : CanvasLayer
     }
 
     /// <summary>
-    /// Save current category filter state to user://debug_console_state.json.
-    /// Called automatically on every checkbox toggle.
+    /// Save current category filter state AND log level to user://debug_console_state.json.
+    /// Called automatically on every checkbox toggle or log level change.
     ///
     /// WHY: Persist preferences so they survive game restarts.
-    /// FORMAT: Simple JSON {"EnabledCategories": ["Combat", "Infrastructure"]}
+    /// FORMAT: JSON {"EnabledCategories": ["Combat"], "LogLevel": "Debug"}
     /// </summary>
     private void SaveCategoryState()
     {
@@ -394,7 +416,8 @@ public partial class DebugConsoleController : CanvasLayer
         {
             var state = new DebugConsoleState
             {
-                EnabledCategories = _loggingService.GetEnabledCategories().OrderBy(c => c).ToList()
+                EnabledCategories = _loggingService.GetEnabledCategories().OrderBy(c => c).ToList(),
+                LogLevel = _levelSwitch?.MinimumLevel.ToString() // Save current log level
             };
 
             var json = JsonSerializer.Serialize(state, new JsonSerializerOptions
@@ -410,7 +433,8 @@ public partial class DebugConsoleController : CanvasLayer
             }
 
             File.WriteAllText(godotPath, json);
-            _logger?.LogDebug("Saved state: {Count} enabled categories", state.EnabledCategories.Count);
+            _logger?.LogDebug("Saved state: {Count} categories, log level: {Level}",
+                state.EnabledCategories.Count, state.LogLevel ?? "default");
         }
         catch (Exception ex)
         {
@@ -419,10 +443,49 @@ public partial class DebugConsoleController : CanvasLayer
     }
 
     /// <summary>
+    /// Read persisted state file to display current settings in startup message.
+    /// Called during _Ready() before DI container is available.
+    /// </summary>
+    private string GetPersistedStateInfo()
+    {
+        try
+        {
+            var godotPath = ProjectSettings.GlobalizePath(StateFilePath);
+
+            if (!File.Exists(godotPath))
+            {
+                return "Log: Information (default), Categories: All (default)";
+            }
+
+            var json = File.ReadAllText(godotPath);
+            var state = JsonSerializer.Deserialize<DebugConsoleState>(json);
+
+            if (state == null)
+            {
+                return "Log: Information (default), Categories: All (default)";
+            }
+
+            var logLevel = state.LogLevel ?? "Information";
+            var categoryCount = state.EnabledCategories?.Count ?? 0;
+            var categoryNames = state.EnabledCategories != null && state.EnabledCategories.Count > 0
+                ? string.Join(", ", state.EnabledCategories.Take(3)) + (state.EnabledCategories.Count > 3 ? $" +{state.EnabledCategories.Count - 3} more" : "")
+                : "All";
+
+            return $"Log: {logLevel}, Categories: {categoryNames} ({categoryCount} enabled)";
+        }
+        catch
+        {
+            return "Log: Information (default), Categories: All (default)";
+        }
+    }
+
+    /// <summary>
     /// Simple data structure for JSON persistence.
+    /// Stores both category filters AND log level preference.
     /// </summary>
     private class DebugConsoleState
     {
         public List<string> EnabledCategories { get; set; } = new();
+        public string? LogLevel { get; set; } // Serilog level name: "Debug", "Information", "Warning", "Error"
     }
 }

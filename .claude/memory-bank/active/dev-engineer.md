@@ -6,12 +6,26 @@
 
 ## 🔄 Workflow Protocol
 
-**MANDATORY: Update Backlog BEFORE Committing Each Phase**
+**MANDATORY: Update Backlog BEFORE Committing**
 
-1. Complete phase implementation + tests
-2. Update `Docs/01-Active/Backlog.md` with progress (5-7 lines)
-3. Stage files: `git add` (code + tests + backlog)
-4. Commit: `feat(feature): Description [Phase X/4]`
+1. Complete implementation + tests (all tests GREEN)
+2. Run `date` command to get current timestamp
+3. Update `Docs/01-Active/Backlog.md` with **high-level summary**:
+   - Update TD item status: `Done ✅ (YYYY-MM-DD HH:MM)`
+   - Replace detailed "How Implemented" with concise "Implementation Summary" (5-8 bullet points)
+   - Keep architectural decisions visible (WHY choices matter)
+   - Add "Quality Note" for known issues deferred to later phases
+   - Update "Recently completed" section with 1-line summary
+   - Update backlog timestamp header
+4. Stage files: `git add` (code + tests + backlog)
+5. Commit: `feat(feature): Description`
+
+**High-Level Summary Pattern** (from TD_008):
+- Architecture choices (Image/Texture2D vs TileMapLayer - WHY?)
+- Key components (Command/Handler, WorldMapNode, Camera controls)
+- Performance wins (262,000× improvement)
+- Future extensibility (multi-layer rendering approach)
+- Deferred work (quality tuning → separate TD item)
 
 ---
 

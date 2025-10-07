@@ -19,7 +19,7 @@ public partial class Main : Node
 {
     public override void _Ready()
     {
-        GD.Print("🎮 Darklands - Initializing...");
+        GD.Print("Darklands - Initializing...");
 
         // Initialize DI container with all infrastructure services
         var result = GameStrapper.Initialize(ConfigureServices);
@@ -36,7 +36,7 @@ public partial class Main : Node
         GD.Print("✅ Logging configured");
         GD.Print("✅ MediatR registered");
         GD.Print("");
-        GD.Print("🎯 Ready to load scenes!");
+        GD.Print("Ready to load scenes!");
     }
 
     /// <summary>
@@ -53,7 +53,8 @@ public partial class Main : Node
         var enabledCategories = new HashSet<string>();
 
         // Create level switch for runtime log level control
-        var levelSwitch = new Serilog.Core.LoggingLevelSwitch(Serilog.Events.LogEventLevel.Information);
+        // TEMPORARY: Hardcoded to Debug for development (can be changed via F12 Debug Console)
+        var levelSwitch = new Serilog.Core.LoggingLevelSwitch(Serilog.Events.LogEventLevel.Debug);
 
         // Configure Serilog with category-based filtering
         Log.Logger = new LoggerConfiguration()
@@ -192,7 +193,22 @@ public partial class Main : Node
             return templateService;
         });
 
-        GD.Print("📦 Services registered:");
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // 7. WORLDGEN SYSTEM (VS_019 Phase 3) - Plate tectonics world generation
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        // Override Core's IPlateSimulator registration with correct Godot project path
+        // (Core uses Directory.GetCurrentDirectory() which doesn't work in Godot)
+        var projectPath = ProjectSettings.GlobalizePath("res://");
+        services.AddSingleton<Darklands.Core.Features.WorldGen.Application.Abstractions.IPlateSimulator>(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<Darklands.Core.Features.WorldGen.Infrastructure.Native.NativePlateSimulator>>();
+            return new Darklands.Core.Features.WorldGen.Infrastructure.Native.NativePlateSimulator(logger, projectPath);
+        });
+
+        GD.Print($"   - IPlateSimulator → NativePlateSimulator (projectPath: {projectPath})");
+
+        GD.Print("Services registered:");
         GD.Print("   - Logging (Serilog → Console + File)");
         GD.Print("   - LoggingService (category filtering for DebugConsole)");
         GD.Print("   - MediatR (command handlers + UIEventForwarder via assembly scan)");
@@ -200,5 +216,6 @@ public partial class Main : Node
         GD.Print("   - ITerrainRepository → TileSetTerrainRepository (auto-discovery from TileSet)");
         GD.Print("   - IItemRepository → TileSetItemRepository (auto-discovery from TileSet)");
         GD.Print("   - ITemplateService<ActorTemplate> → GodotTemplateService (data-driven entities)");
+        GD.Print("   - IPlateSimulator → NativePlateSimulator (plate tectonics world generation)");
     }
 }
