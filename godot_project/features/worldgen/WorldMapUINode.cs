@@ -89,10 +89,10 @@ public partial class WorldMapUINode : Control
         container.AddChild(viewLabel);
 
         _viewModeDropdown = new OptionButton();
-        _viewModeDropdown.AddItem("Raw Elevation (Grayscale)", (int)MapViewMode.RawElevation);
-        _viewModeDropdown.AddItem("Plates (Colored)", (int)MapViewMode.Plates);
+        // Reordered: ColoredElevation first (default), then RawElevation, no Plates
         _viewModeDropdown.AddItem("Colored Elevation (Terrain)", (int)MapViewMode.ColoredElevation);
-        _viewModeDropdown.Selected = 0;
+        _viewModeDropdown.AddItem("Raw Elevation (Grayscale)", (int)MapViewMode.RawElevation);
+        _viewModeDropdown.Selected = 0;  // ColoredElevation is default
         _viewModeDropdown.ItemSelected += OnViewModeSelected;
         container.AddChild(_viewModeDropdown);
 

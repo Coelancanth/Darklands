@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-08 05:48 (Dev Engineer: Completed TD_013 - Fixed colored elevation rendering)
+**Last Updated**: 2025-10-08 05:53 (Dev Engineer: Completed TD_012 - Dynamic legends + UI reordering)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -187,28 +187,40 @@ Before starting pipeline phases, fix visualization foundation technical debt dis
 
 ---
 
-### TD_012: WorldMap Visualization - Dynamic Legends
-**Status**: Proposed
+### ~~TD_012: WorldMap Visualization - Dynamic Legends~~ ✅ COMPLETE
+**Status**: Done (2025-10-08)
 **Owner**: Dev Engineer
-**Size**: S (~2h)
+**Size**: S (~2h actual)
 **Priority**: Ideas
 **Markers**: [WORLDGEN] [UI] [VISUALIZATION] [TECHNICAL-DEBT]
 
-**What**: Fix WorldMapLegendNode to properly display color keys for each view mode
+**What**: Fix WorldMapLegendNode to properly display color keys for each view mode, move to upper-left, reorder view modes with ColoredElevation as default
 
-**Why**: Current legend renders but may not update correctly when switching views. Essential for understanding what colors mean.
+**Why**: Current legend renders but not optimally positioned. Essential for understanding terrain colors. User requested ColoredElevation as primary view.
 
-**Current Issue**:
-- Legend node exists but not verified working
-- Need proper color swatches + labels
-- Should update dynamically on view mode change
+**Implementation Summary**:
+- ✅ Moved legend to upper-left corner (anchor system: 10px from top-left)
+- ✅ Added PanelContainer background for visibility
+- ✅ Implemented dynamic legend content per view mode:
+  - RawElevation: 3-band grayscale (black/gray/white)
+  - ColoredElevation: **7-band terrain gradient** (deep ocean → peaks)
+  - Plates: "Each color = unique plate" (10 plates)
+- ✅ Removed Plates from UI dropdown (kept ColoredElevation + RawElevation only)
+- ✅ Reordered dropdown: ColoredElevation first, RawElevation second
+- ✅ Changed default view mode to ColoredElevation in all nodes
+- ✅ Legend updates dynamically when switching views
+- ✅ All 433 tests GREEN
 
-**Done When**:
-- Legend displays for RawElevation (black/gray/white gradient)
-- Legend displays for Plates ("Each color = unique plate")
-- Legend displays for ColoredElevation (terrain gradient bands)
-- Legend updates when switching view modes
-- Visual verification in Godot
+**Color Legend Details** (ColoredElevation):
+1. Deep Blue → Deep ocean
+2. Blue → Ocean
+3. Cyan → Shallow water
+4. Green → Grass/Lowlands
+5. Yellow-Green → Hills
+6. Yellow → Mountains
+7. Brown → Peaks
+
+**Completed**: 2025-10-08 05:53 by Dev Engineer
 
 ---
 

@@ -15,7 +15,7 @@ public partial class WorldMapRendererNode : Sprite2D
 {
     private ILogger<WorldMapRendererNode>? _logger;
     private PlateSimulationResult? _worldData;
-    private MapViewMode _currentViewMode = MapViewMode.RawElevation;
+    private MapViewMode _currentViewMode = MapViewMode.ColoredElevation;  // Default to ColoredElevation
 
     [Signal]
     public delegate void RenderCompleteEventHandler(int width, int height);
