@@ -57,7 +57,7 @@ public class NativePlateSimulator : IPlateSimulator
             {
                 _logger.LogDebug("Step 4: Calculating climate");
                 return CalculateClimate(tuple1.elev, parameters)
-                    .Map(climate => (climate, tuple1.nativeOut));
+                    .Map(climate => (climate, tuple1.elev, tuple1.nativeOut)); // Keep elevation stage
             })
             .Tap(_ => _logger.LogDebug("Step 4 complete: Climate calculation succeeded"))
             .TapError(error => _logger.LogError("Step 4 FAILED: Climate calculation error: {Error}", error))
@@ -65,7 +65,7 @@ public class NativePlateSimulator : IPlateSimulator
             {
                 _logger.LogDebug("Step 5: Simulating hydraulic erosion (rivers, lakes, valleys)");
                 return SimulateErosion(tuple2.climate, parameters)
-                    .Map(erosion => (erosion, tuple2.nativeOut));
+                    .Map(erosion => (erosion, tuple2.climate, tuple2.elev, tuple2.nativeOut)); // Keep all stages
             })
             .Tap(_ => _logger.LogDebug("Step 5 complete: Hydraulic erosion succeeded"))
             .TapError(error => _logger.LogError("Step 5 FAILED: Hydraulic erosion error: {Error}", error))
@@ -73,14 +73,24 @@ public class NativePlateSimulator : IPlateSimulator
             {
                 _logger.LogDebug("Step 6: Simulating hydrology (watermap, irrigation, humidity)");
                 return SimulateHydrology(tuple3.erosion, parameters)
-                    .Map(hydrology => (hydrology, tuple3.nativeOut));
+                    .Map(hydrology => (hydrology, tuple3.erosion, tuple3.climate, tuple3.elev, tuple3.nativeOut)); // Keep all stages
             })
             .Tap(_ => _logger.LogDebug("Step 6 complete: Hydrology simulation succeeded"))
             .TapError(error => _logger.LogError("Step 6 FAILED: Hydrology simulation error: {Error}", error))
             .Map(tuple4 =>
             {
                 _logger.LogDebug("Step 7: Classifying biomes");
-                var result = ClassifyBiomes(tuple4.hydrology, tuple4.nativeOut.Heightmap, tuple4.nativeOut.Plates);
+
+                var result = ClassifyBiomes(
+                    tuple4.hydrology,
+                    tuple4.nativeOut.Heightmap,
+                    tuple4.nativeOut.Plates,
+                    // Pass pipeline stages for debugging
+                    elevationStage: tuple4.elev,
+                    climateStage: tuple4.climate,
+                    erosionStage: tuple4.erosion,
+                    hydrologyStage: tuple4.hydrology);
+
                 _logger.LogDebug("Step 7 complete: Biome classification succeeded");
                 return result;
             });
@@ -452,7 +462,15 @@ public class NativePlateSimulator : IPlateSimulator
     // PHASE 2.6: Biome Classification
     // ═══════════════════════════════════════════════════════════════════════
 
-    private PlateSimulationResult ClassifyBiomes(HydrologyData hydrology, float[,] rawHeightmap, uint[,] platesMap)
+    private PlateSimulationResult ClassifyBiomes(
+        HydrologyData hydrology,
+        float[,] rawHeightmap,
+        uint[,] platesMap,
+        // Pipeline stage data for visual debugging
+        ElevationData elevationStage,
+        ClimateData climateStage,
+        ErosionData erosionStage,
+        HydrologyData hydrologyStage)
     {
         _logger.LogDebug("Classifying biomes using Holdridge life zones model");
 
@@ -478,6 +496,17 @@ public class NativePlateSimulator : IPlateSimulator
                 if (biomes[y, x] == Domain.BiomeType.Ocean || biomes[y, x] == Domain.BiomeType.ShallowWater) water++; else land++;
         _logger.LogInformation("Biome counts: water={Water} land={Land}", water, land);
 
+        // Build pipeline stage DTOs for visual debugging
+        var stage1 = new Application.DTOs.Stage1_RawHeightmap(rawHeightmap, platesMap);
+        var stage2 = new Application.DTOs.Stage2_ProcessedElevation(elevationStage.Heightmap, elevationStage.OceanMask);
+        var stage3 = new Application.DTOs.Stage3_Temperature(climateStage.TemperatureMap);
+        var stage4 = new Application.DTOs.Stage4_Precipitation(climateStage.PrecipitationMap);
+        var stage5 = new Application.DTOs.Stage5_Erosion(erosionStage.Heightmap, erosionStage.Rivers, erosionStage.Lakes);
+        var stage6 = new Application.DTOs.Stage6_Watermap(hydrologyStage.WatermapData, new WatermapThresholds(0, 0, 0)); // TODO: Store thresholds
+        var stage7 = new Application.DTOs.Stage7_Irrigation(hydrologyStage.IrrigationMap);
+        var stage8 = new Application.DTOs.Stage8_Humidity(hydrologyStage.HumidityMap, hydrologyStage.Quantiles);
+        var stage9 = new Application.DTOs.Stage9_Biomes(biomes);
+
         return new PlateSimulationResult(
             hydrology.Heightmap,
             hydrology.OceanMask,
@@ -486,11 +515,21 @@ public class NativePlateSimulator : IPlateSimulator
             biomes,
             hydrology.Rivers,
             hydrology.Lakes,
-            hydrology.HumidityMap,       // ✅ NEW: Include humidity in result
-            hydrology.WatermapData,      // ✅ NEW: Include watermap in result
+            hydrology.HumidityMap,
+            hydrology.WatermapData,
             hydrology.IrrigationMap,
             rawHeightmap,
-            platesMap);    // ✅ NEW: Include irrigation in result
+            platesMap,
+            // Pipeline stages for visual debugging
+            stage1: stage1,
+            stage2: stage2,
+            stage3: stage3,
+            stage4: stage4,
+            stage5: stage5,
+            stage6: stage6,
+            stage7: stage7,
+            stage8: stage8,
+            stage9: stage9);
     }
 
     // ═══════════════════════════════════════════════════════════════════════

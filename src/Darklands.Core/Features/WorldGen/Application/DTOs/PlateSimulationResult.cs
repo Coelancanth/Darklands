@@ -95,6 +95,55 @@ public record PlateSimulationResult
     /// </summary>
     public int Height => Heightmap.GetLength(0);
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // Pipeline Stage Outputs (for visual debugging and validation)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Stage 1: Raw heightmap from plate tectonics (nullable - only populated in debug mode).
+    /// </summary>
+    public Stage1_RawHeightmap? Stage1 { get; init; }
+
+    /// <summary>
+    /// Stage 2: Processed elevation (borders, noise, ocean fill) - CRITICAL for debugging elevation distribution.
+    /// </summary>
+    public Stage2_ProcessedElevation? Stage2 { get; init; }
+
+    /// <summary>
+    /// Stage 3: Temperature calculation output.
+    /// </summary>
+    public Stage3_Temperature? Stage3 { get; init; }
+
+    /// <summary>
+    /// Stage 4: Precipitation calculation output.
+    /// </summary>
+    public Stage4_Precipitation? Stage4 { get; init; }
+
+    /// <summary>
+    /// Stage 5: Hydraulic erosion output (rivers, lakes, eroded heightmap).
+    /// </summary>
+    public Stage5_Erosion? Stage5 { get; init; }
+
+    /// <summary>
+    /// Stage 6: Watermap simulation output.
+    /// </summary>
+    public Stage6_Watermap? Stage6 { get; init; }
+
+    /// <summary>
+    /// Stage 7: Irrigation simulation output.
+    /// </summary>
+    public Stage7_Irrigation? Stage7 { get; init; }
+
+    /// <summary>
+    /// Stage 8: Humidity simulation output.
+    /// </summary>
+    public Stage8_Humidity? Stage8 { get; init; }
+
+    /// <summary>
+    /// Stage 9: Biome classification output.
+    /// </summary>
+    public Stage9_Biomes? Stage9 { get; init; }
+
     public PlateSimulationResult(
         float[,] heightmap,
         bool[,] oceanMask,
@@ -107,7 +156,17 @@ public record PlateSimulationResult
         float[,] watermapData,
         float[,] irrigationMap,
         float[,] rawHeightmap,
-        uint[,] platesMap)
+        uint[,] platesMap,
+        // Optional pipeline stages (for visual debugging)
+        Stage1_RawHeightmap? stage1 = null,
+        Stage2_ProcessedElevation? stage2 = null,
+        Stage3_Temperature? stage3 = null,
+        Stage4_Precipitation? stage4 = null,
+        Stage5_Erosion? stage5 = null,
+        Stage6_Watermap? stage6 = null,
+        Stage7_Irrigation? stage7 = null,
+        Stage8_Humidity? stage8 = null,
+        Stage9_Biomes? stage9 = null)
     {
         Heightmap = heightmap;
         OceanMask = oceanMask;
@@ -121,5 +180,16 @@ public record PlateSimulationResult
         IrrigationMap = irrigationMap;
         RawHeightmap = rawHeightmap;
         PlatesMap = platesMap;
+
+        // Pipeline stages (nullable - only populated when debugging enabled)
+        Stage1 = stage1;
+        Stage2 = stage2;
+        Stage3 = stage3;
+        Stage4 = stage4;
+        Stage5 = stage5;
+        Stage6 = stage6;
+        Stage7 = stage7;
+        Stage8 = stage8;
+        Stage9 = stage9;
     }
 }
