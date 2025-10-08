@@ -146,8 +146,8 @@ public partial class WorldMapOrchestratorNode : Node
         }
 
         string filename = $"world_{_currentSeed}.dwld";
-        // Save raw native output (serialization uses PlateSimulationResult)
-        bool success = _serializationService!.SaveWorld(_currentWorld.RawNativeOutput, _currentSeed, filename);
+        // TD_018: Save FULL WorldGenerationResult (v2 format includes post-processing data)
+        bool success = _serializationService!.SaveWorld(_currentWorld, _currentSeed, filename);
 
         if (success)
         {
@@ -177,21 +177,10 @@ public partial class WorldMapOrchestratorNode : Node
 
         if (success && world != null)
         {
-            // Wrap loaded PlateSimulationResult into WorldGenerationResult (VS_024: No post-processing cached)
-            _currentWorld = new WorldGenerationResult(
-                heightmap: world.Heightmap,
-                platesMap: world.PlatesMap,
-                rawNativeOutput: world,
-                postProcessedHeightmap: null,      // Not in saved file (will regenerate)
-                thresholds: null,                  // Not in saved file (will regenerate)
-                oceanMask: null,                   // Not in saved file
-                seaDepth: null,                    // Not in saved file
-                temperatureMap: null,              // VS_025
-                precipitationMap: null             // Stage 3
-            );
+            // TD_018: Direct assignment - no manual wrapping needed!
+            _currentWorld = world;
             _currentSeed = seed;
 
-            // VS_024: Update renderer with WorldGenerationResult
             _renderer?.SetWorldData(_currentWorld, ServiceLocator.Get<ILogger<WorldMapRendererNode>>());
             _ui?.SetSeed(seed);
             _ui?.SetStatus($"Loaded: {filename} (seed: {seed})");
@@ -229,21 +218,10 @@ public partial class WorldMapOrchestratorNode : Node
         {
             _logger?.LogInformation("Auto-loaded world from cache: seed={Seed} (skipped generation)", seed);
 
-            // Wrap cached result (VS_024: Post-processing fields null - will re-run if needed)
-            _currentWorld = new WorldGenerationResult(
-                heightmap: cachedWorld.Heightmap,
-                platesMap: cachedWorld.PlatesMap,
-                rawNativeOutput: cachedWorld,
-                postProcessedHeightmap: null,      // Not cached (re-run on load if needed)
-                thresholds: null,                  // Not cached (will regenerate)
-                oceanMask: null,                   // Not cached
-                seaDepth: null,                    // Not cached
-                temperatureMap: null,              // VS_025
-                precipitationMap: null             // Stage 3
-            );
+            // TD_018: Direct assignment - serialization handles v1/v2 format automatically
+            _currentWorld = cachedWorld;
             _currentSeed = seed;
 
-            // VS_024: Update renderer with WorldGenerationResult (not PlateSimulationResult!)
             _renderer?.SetWorldData(_currentWorld, ServiceLocator.Get<ILogger<WorldMapRendererNode>>());
 
             // Sync legend and probe
@@ -281,11 +259,10 @@ public partial class WorldMapOrchestratorNode : Node
             _currentWorld = result.Value;
             _currentSeed = seed;
 
-            // VS_024: Send FULL WorldGenerationResult to renderer (not just RawNativeOutput!)
             _renderer?.SetWorldData(result.Value, ServiceLocator.Get<ILogger<WorldMapRendererNode>>());
 
-            // Auto-save to cache for next time
-            bool saveSuccess = _serializationService.SaveWorld(result.Value.RawNativeOutput, seed, cacheFilename);
+            // TD_018: Auto-save FULL WorldGenerationResult (v2 format preserves post-processing)
+            bool saveSuccess = _serializationService.SaveWorld(result.Value, seed, cacheFilename);
             if (saveSuccess)
             {
                 _logger?.LogInformation("Auto-saved world to cache: {Filename}", cacheFilename);

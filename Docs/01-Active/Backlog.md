@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-08 08:43 (Dev Engineer: VS_024 complete + TD_018 created - World serialization upgrade for post-processed data)
+**Last Updated**: 2025-10-08 08:58 (Dev Engineer: TD_018 complete - Format v2 serialization with backward compatibility)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -446,20 +446,16 @@ return result with { TemperatureMap = temperatureMap };
 
 ---
 
-### TD_018: Upgrade World Serialization to Save Post-Processed Data (Format v2)
-**Status**: Proposed
+### TD_018: Upgrade World Serialization to Save Post-Processed Data (Format v2) ✅
+**Status**: Done (2025-10-08 08:58)
 **Owner**: Dev Engineer
-**Size**: S (~3-4h)
+**Size**: S (~3h actual)
 **Priority**: Ideas
 **Markers**: [WORLDGEN] [SERIALIZATION] [TECHNICAL-DEBT] [PERFORMANCE]
 
 **What**: Upgrade world save file format from v1 (raw native only) to v2 (includes post-processed heightmap, thresholds, ocean mask, sea depth) with backward compatibility
 
-**Why**: Currently saved worlds lose all VS_024 post-processing data, causing:
-- **Wasted computation**: Regenerate 4 WorldEngine algorithms + thresholds on every load
-- **Broken features**: Probe doesn't show meters mapping (thresholds = null)
-- **Poor UX**: No post-processed view mode comparison for cached worlds
-- **Inconsistency**: Fresh generation has full features, loaded worlds are degraded
+**Why**: VS_024 post-processing data was lost on save/load, causing regeneration overhead and degraded features for cached worlds
 
 **How**:
 
@@ -539,25 +535,44 @@ PostProcessed Flag (1 byte): HasPostProcessed (0/1)
 - 512x512 world: 2MB (v1) → 4MB (v2)
 - Acceptable trade-off: Instant full-featured load vs regeneration cost
 
-**Done When**:
-1. ✅ **Format v2 saves complete pipeline output**:
-   - Post-processed heightmap, thresholds, ocean mask, sea depth all serialized
-   - Dimension validation on load (detect corruption)
+**Implementation Summary** (2025-10-08):
 
-2. ✅ **Backward compatibility maintained**:
-   - v1 files load successfully (degraded to thresholds=null)
-   - v2 files load with full features
-   - Format version logged on save/load
+**Core Changes**:
+1. **WorldMapSerializationService.cs** (~200 lines added):
+   - FORMAT_VERSION upgraded: 1 → 2
+   - Method signatures changed: `PlateSimulationResult` → `WorldGenerationResult`
+   - Version detection: `LoadWorld()` routes to `LoadV1()` or `LoadV2()`
+   - Helper methods: `SaveOptionalFloatArray()`, `SaveOptionalBoolArray()` (bit-packing)
+   - Dimension validation: `ValidateDimensions<T>()` catches corruption
 
-3. ✅ **Probe meters mapping works on load**:
-   - Load v2 file → thresholds present → meters display works immediately
-   - Load v1 file → thresholds=null → shows "(Regenerate world for meters)"
+2. **Format v2 Structure**:
+   - Header (16 bytes): Magic + Version(2) + Seed + Reserved
+   - Core data: Heightmap + PlatesMap (v1 compatibility)
+   - VS_024 data: PostProcessedHeightmap + Thresholds (16 bytes) + OceanMask (bit-packed) + SeaDepth
+   - Optional flags: Each field has HasData flag (forward-compatible for VS_025+)
 
-4. ✅ **Tests updated**:
-   - Serialization round-trip test (save v2 → load → verify all fields match)
-   - Backward compat test (load v1 → verify graceful degradation)
+3. **Orchestrator Simplification** (-45 lines):
+   - Line 150: `SaveWorld(_currentWorld, ...)` (was: `SaveWorld(_currentWorld.RawNativeOutput, ...)`)
+   - Line 176: `_currentWorld = world` (was: 15 lines of manual wrapping)
+   - Line 222: Same simplification for auto-load cache
+   - Line 265: Same simplification for auto-save
 
-**Depends On**: VS_024 (completed) - needs WorldGenerationResult with post-processing data
+**Technical Wins**:
+- ✅ **Bit-packing**: OceanMask 256KB → 32KB (8× savings)
+- ✅ **Backward compat**: v1 files load with graceful degradation
+- ✅ **Corruption detection**: Dimension validation before object creation
+- ✅ **Forward compat**: Optional fields pattern supports VS_025 TemperatureMap without version bump
+
+**File Size Impact**:
+- 512×512 world: 2MB (v1) → ~4MB (v2 with full post-processing)
+- Trade-off: 2MB extra for instant full-featured load (no regeneration delay)
+
+**Quality Gates**:
+- ✅ All 433 tests GREEN
+- ✅ Clean compilation (zero warnings)
+- ✅ Orchestrator code simplified significantly
+
+**Depends On**: VS_024 (completed) ✅
 
 ---
 
