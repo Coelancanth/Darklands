@@ -2,7 +2,7 @@
 
 **Purpose**: Organize all Darklands features by category for quick reference and planning.
 
-**Last Updated**: 2025-10-08 (VS_025 Temperature System Complete - WorldGen Stage 2)
+**Last Updated**: 2025-10-09 01:10 (Extracted WorldGen to specialized roadmap, converted to index structure)
 
 ---
 
@@ -655,194 +655,91 @@ Time to mastery ≈ 50-70 attacks (5-10 fights)
 
 ## World Generation
 
-**Vision**: Physics-driven procedural world generation using WorldEngine algorithms (plate tectonics → elevation → climate → biomes)
+**📖 Full Details**: [Roadmap_World_Generation.md](Roadmap_World_Generation.md) - Comprehensive technical roadmap
 
-**Philosophy**: Incremental pipeline - one algorithm at a time, fully tested and visualized before moving to next stage
+**Vision**: Dwarf Fortress-inspired procedural worldgen (plate tectonics → geology → climate → hydrology → biomes → resources)
 
-**Current State**: Stage 1-2 complete (Elevation + Temperature). Ready for Stage 3-4 (Water/Erosion).
+**Current State**: Phase 1 ~75% complete (Elevation + Temperature + Precipitation pipeline)
 
----
+**Three-Phase Roadmap**:
+```
+Phase 1: Core Pipeline (MVP) - 70% complete
+  ✅ Stage 1: Tectonic Foundation (VS_024)
+  ✅ Stage 2: Atmospheric Climate (VS_025-027, VS_028 in progress)
+  🔄 Stage 3: Hydrological Processes (VS_029 next)
+  ⏳ Stage 4: Biome Classification
 
-### VS_024: WorldGen Pipeline Stage 1 - Plate Tectonics & Elevation (COMPLETE)
+Phase 2: Hydrology Extensions - Not started
+  - Swamps, creek visualization, slope maps
 
-**Status**: Complete (2025-10-08) | **Size**: M (~6h) | **Tests**: 433 passing
-**Owner**: Dev Engineer
-
-**Delivered**: Native plate tectonics simulation (C++ WorldEngine integration), elevation post-processing (quantile-based normalization + smoothing), dual-stage debug visualization (Original vs Post-Processed), serialization (Format v2 cache), WorldMapOrchestratorNode architecture
-
-**What Was Built**:
-- **Phase 1**: Native simulation integration (C++ DLL, P/Invoke marshalling)
-- **Phase 2**: Elevation post-processing (quantile thresholds, Gaussian smoothing)
-- **Phase 3**: Multi-stage visualization (2 view modes, legends, probe, UI)
-- **Phase 4**: Serialization system (Format v2 with backward compat)
-
-**Key Architecture Decisions**:
-- **Native simulation**: 83% of generation time (1.2s total for 512×512) - C# port not worth it
-- **Quantile normalization**: Adapts to per-world elevation distribution (realistic thresholds)
-- **Dual visualization**: Original vs Post-Processed (trivial debugging of normalization)
-- **Format v2 cache**: Stores both raw + processed elevation (0ms reload)
-
-**Performance**: <1.5s for 512×512 world (native sim 1.0s + post-processing 0.2s)
-
-**Archive**: [Completed_Backlog_2025-10_Part2.md](../../07-Archive/Completed_Backlog_2025-10_Part2.md) (search "VS_024")
-
----
-
-### VS_025: WorldGen Pipeline Stage 2 - Temperature Simulation (COMPLETE)
-
-**Status**: Complete (2025-10-08) | **Size**: S (~5h) | **Tests**: 447 passing
-**Owner**: Dev Engineer
-
-**Delivered**: Physics-based temperature calculation (4-component algorithm: latitude+tilt, noise, distance-to-sun, mountain-cooling), 4-stage debug visualization, per-world climate variation (hot/cold planets, shifted equator), normalized [0,1] output for future biome classification
-
-**What Was Built**:
-- **Phase 0**: Cache disable flag for development (5min)
-- **Phase 1**: Core algorithm (MathUtils: Interp/SampleGaussian, TemperatureCalculator with 4-stage output) (1h)
-- **Phase 2**: Pipeline integration (WorldGenerationResult properties, Stage 2 in GenerateWorldPipeline) (0.5h)
-- **Phase 3**: Multi-stage visualization (4 MapViewMode enums, RenderTemperatureMap, legends, probe, UI) (1.5h)
-- **Phase 4**: Visual validation + noise fix (FBm fractal + frequency scaling) (0.75h)
-
-**Key Architecture Decisions**:
-- **4-component algorithm**: Latitude (92% weight) + noise (8%) + distance-to-sun + mountain-cooling (WorldEngine validated)
-- **Per-world parameters**: AxialTilt and DistanceToSun (Gaussian-distributed) create planet variety
-- **RAW elevation + thresholds**: Mountain cooling uses PostProcessedHeightmap (raw values), not normalized
-- **Normalized output [0,1]**: Internal format for biome classification (Stage 6), UI converts to °C via TemperatureMapper
-- **Multi-stage debug**: 4 view modes isolate each component (trivial bug detection)
-- **No threading**: Native sim dominates (83%), temperature ~60-80ms (YAGNI)
-
-**Temperature Formula**:
-```csharp
-// 1. Latitude factor (92%) with axial tilt + distance-to-sun
-float latitudeFactor = Interp(y_scaled, [tilt-0.5, tilt, tilt+0.5], [0, 1, 0]);
-
-// 2. Coherent noise (8%) - FBm fractal for climate variation
-float n = FastNoiseLite.GetNoise2D(...);  // OpenSimplex2, 8 octaves, freq=128.0
-
-// 3. Combined base temperature
-float t = (latitudeFactor * 12f + n * 1f) / 13f / distanceToSun;
-
-// 4. Mountain-only cooling (RAW elevation > MountainLevel threshold)
-if (rawElevation > mountainLevel) {
-    t *= altitude_factor;  // 0.033 at extreme peaks (97% cooling)
-}
+Phase 3: Geology & Resources (DF-Inspired) - Design phase
+  - Volcanoes, minerals, thermal erosion, extended biomes
 ```
 
-**Visual Validation**:
-- ✅ Latitude Only: Smooth horizontal bands, equator shifts with axial tilt
-- ✅ With Noise: Subtle fuzzy climate variation (8% contribution, realistic!)
-- ✅ With Distance: Hot/cold planet variation (inverse-square law working)
-- ✅ Final: Mountains blue at ALL latitudes (elevation cooling working!)
+### Completed Features
 
-**Performance**: <1.5s for 512×512 (no regression from VS_024)
+**VS_024: Plate Tectonics & Elevation** ✅ COMPLETE (2025-10-08)
+- Native C++ integration (1.0s for 512×512)
+- Dual-heightmap architecture (raw + post-processed)
+- Quantile-based thresholds (adaptive per-world)
+- Archive: [Completed_Backlog_2025-10_Part2.md](../../07-Archive/Completed_Backlog_2025-10_Part2.md)
 
-**Archive**: [Backlog.md](../../01-Active/Backlog.md) (search "VS_025" - recently moved to Ideas/Done)
+**VS_025: Temperature Simulation** ✅ COMPLETE (2025-10-08)
+- 4-component algorithm (latitude + noise + distance-to-sun + mountain cooling)
+- 4-stage debug visualization
+- Per-world climate variation (hot/cold planets)
+- Archive: [Backlog.md](../../01-Active/Backlog.md) (search "VS_025")
 
----
+**VS_026: Base Precipitation** ✅ COMPLETE (2025-10-08)
+- 3-stage algorithm (noise + temperature curve + renormalization)
+- WorldEngine exact port (gamma=2.0, curveBonus=0.2)
+- Archive: [Backlog.md](../../01-Active/Backlog.md) (search "VS_026")
 
-### TD_020: Physics-Based Thermal Diffusion (DEFERRED)
+**VS_027: Rain Shadow Effect** ✅ COMPLETE (2025-10-08)
+- Latitude-based prevailing winds (Polar Easterlies / Westerlies / Trade Winds)
+- Orographic blocking (max 20 cells ≈ 1000km trace)
+- Real-world desert patterns (Sahara, Gobi, Atacama)
+- Archive: [Backlog.md](../../01-Active/Backlog.md) (search "VS_027")
 
-**Status**: Proposed → **Deferred until Water/Erosion complete**
-**Owner**: Tech Lead
-**Size**: M (~4-6h when implemented)
-**Priority**: Ideas (blocked by missing water data)
+### In Progress
 
-**What**: Iterative heat diffusion simulation with heterogeneous thermal mass (water=high, land=elevation-based) to create realistic temperature gradients and coastal moderation
+**VS_028: Coastal Moisture Enhancement** 🔄 NEXT (3-4h estimate)
+- Distance-to-ocean BFS + exponential decay
+- Completes atmospheric climate pipeline (FINAL PRECIPITATION MAP)
+- Details: [Roadmap_World_Generation.md](Roadmap_World_Generation.md#vs_028-coastal-moisture-enhancement-distance-to-ocean--in-progress)
 
-**Why Deferred**:
-- **Blocking dependency**: Requires water/land mask from Stage 3-4 (not yet implemented)
-- **Incomplete physics**: Land-only diffusion (without water) provides only 50% of value
-- **Refactor risk**: Implementing now = doing it twice (land-only, then add water later)
-- **Current maps "good enough"**: Sharp mountain boundaries not blocking biome classification (Stage 6)
+### Planned Features
 
-**Decision (Tech Lead 2025-10-08)**:
-- **Defer until VS_022 Stages 3-4 complete** (Water Table + Erosion)
-- Implement diffusion as Stage 5 with **full** land/water/elevation data
-- Single implementation path (no refactor debt)
-- Get coastal moderation + mountain smoothing in one shot
+**VS_029: Erosion & Rivers** ⏳ AFTER VS_028 (8-10h estimate)
+- Hydraulic erosion (WorldEngine port)
+- River source detection (uses FINAL precipitation)
+- Valley carving, river networks, lakes
+- Details: [Roadmap_World_Generation.md](Roadmap_World_Generation.md#vs_029-erosion--rivers-hydraulic-erosion--planned)
 
-**Future Scope (when water exists)**:
-```csharp
-// Thermal mass calculation (elevation + water)
-float CalculateThermalMass(float normalizedElevation, bool isWater) {
-    if (isWater) return 1.0f;  // Water: high thermal mass (slow temp change)
-    return 0.5f - (normalizedElevation * 0.3f);  // Land: elevation-based
-    // Lowlands: 0.5 (moderate), Mountains: 0.2 (low, fast change)
-}
+**Watermap → Irrigation → Humidity → Biomes** ⏳ PHASE 1 COMPLETION
+- Droplet flow model (20,000 droplets)
+- Moisture spreading (21×21 kernel)
+- 48 biome types (temperature + humidity)
+- Details: [Roadmap_World_Generation.md](Roadmap_World_Generation.md#stage-3-hydrological-processes)
 
-// Iterative diffusion (10 iterations)
-for (int iter = 0; iter < 10; iter++) {
-    foreach (cell in grid) {
-        float weightedAvgNeighborTemp = WeightedAverage(neighbors, thermalMass);
-        float influence = diffusionRate * (1.0f - thermalMass[cell]);
-        T_new[cell] = T_old[cell] + influence * (weightedAvgNeighborTemp - T_old[cell]);
-    }
-}
-```
+**Phase 2-3: Extended Features** (DF-Inspired Depth)
+- Swamps (poor drainage detection)
+- Volcanoes (plate boundaries, geothermal heat)
+- Geology layers (rock types, ore veins)
+- Minerals & resources (geology-based economy)
+- Details: [Roadmap_World_Generation.md](Roadmap_World_Generation.md#phase-3-geology--resources-df-inspired-depth)
 
-**Expected Benefits (when implemented)**:
-- ✅ Smooth mountain temperature gradients (no sharp boundaries)
-- ✅ Coastal moderation (milder temperatures near water)
-- ✅ Elevation-based thermal mass (mountains stay cold, realistic physics)
-- ✅ Performance: ~80-120ms for 10 iterations (acceptable overhead)
+### Performance
 
-**Cross-Reference**: See [tmp.md](../../../tmp.md) for full TD_020 proposal (Tech Lead review 2025-10-08)
+**Current**: 1.61s for 512×512 world (Phase 1-2 complete)
+**Target**: <2s total (Phase 1-4 complete)
+**Projected**: 1.93s (with optimizations)
 
----
+### Standalone Worldgen Game Potential
 
-### VS_022: WorldGen Pipeline - Incremental Post-Processing (PLANNED)
-
-**Status**: Proposed (Stage 1-2 complete, ready for Stage 3+)
-**Owner**: Product Owner → Tech Lead (breakdown)
-**Size**: XL (multi-phase, build incrementally)
-**Priority**: Ideas
-
-**What**: Continue world generation pipeline with remaining stages: water table, erosion, precipitation, biomes, resources
-
-**Why**: Each stage builds on previous (elevation → temperature → water → erosion → biomes → economy)
-
-**Remaining Stages** (after VS_024 + VS_025):
-
-**Stage 3: Water Table & Rivers** (NEXT)
-- Sea level calculation (quantile-based threshold)
-- Lake detection (elevation basins below sea level)
-- River generation (flow from high → low elevation, Dijkstra paths to ocean/lakes)
-- Output: Water mask (bool[,]), river network (List<RiverSegment>)
-
-**Stage 4: Erosion Simulation**
-- River erosion (carve valleys along river paths)
-- Coastal erosion (smooth coastlines)
-- Mountain weathering (reduce extreme peaks slightly)
-- Output: Eroded elevation map (more realistic terrain)
-
-**Stage 5: Thermal Diffusion** (TD_020 - AFTER Stage 3-4 complete)
-- Physics-based heat diffusion with water/land thermal mass
-- Coastal moderation + smooth mountain gradients
-- Output: Diffused temperature map (realistic climate)
-
-**Stage 6: Precipitation & Climate**
-- Rain shadow effect (mountains block moisture)
-- Distance from water (coastal = wet, inland = dry)
-- Temperature influence (hot = evaporation, cold = snow)
-- Output: Precipitation map (mm/year)
-
-**Stage 7: Biome Classification**
-- 48 biome types (WorldEngine catalog)
-- Classification based on: elevation, temperature, precipitation
-- Biome transitions (smooth gradients, not hard borders)
-- Output: Biome map (BiomeType[,])
-
-**Stage 8: Resource Distribution**
-- Biome-driven resource placement (iron in mountains, fish near coast)
-- Strategic resource rarity (gold, gems, rare herbs)
-- Foundation for settlement economy (Legends Mod pattern)
-- Output: Resource map (Dictionary<Position, ResourceType>)
-
-**Philosophy**: One stage at a time, fully tested + visualized before next. Multi-stage debug rendering for each (like VS_024/VS_025).
-
-**Dependencies**:
-- Stage 3-4: VS_024 elevation complete ✅, VS_025 temperature complete ✅
-- Stage 5: VS_022 Stages 3-4 complete (water data required)
-- Stage 6-8: Sequential (each depends on previous)
+**Vision**: Extract worldgen as standalone exploration game (separate from Darklands tactical RPG)
+**Timeline**: +2-3 weeks after Phase 3 complete
+**Details**: [Roadmap_World_Generation.md](Roadmap_World_Generation.md#standalone-worldgen-game-potential)
 
 ---
 
@@ -850,49 +747,59 @@ for (int iter = 0; iter < 10; iter++) {
 
 **Vision**: Two-map architecture (UnReal World, Dwarf Fortress, RimWorld pattern)
 
+**Architecture**:
 ```
-Strategic Layer (Macro)          Tactical Layer (Micro)
-┌──────────────────────┐         ┌──────────────────────┐
-│ WorldEngine Map      │         │ Grid Combat (30×30+) │
-│ 512×512 world tiles  │ ◄─────► │ Turn-based tactical  │
-│ Factions, History    │  Zoom   │ FOV, Positioning     │
-│ Travel, Quests       │  In/Out │ Looting, Encounters  │
-└──────────────────────┘         └──────────────────────┘
+┌────────────────────────────────────────────────┐
+│ Worldgen Layer (Terrain Foundation)           │
+│ - Plate tectonics, climate, rivers, biomes    │
+│ - Geology, minerals, volcanoes                │
+│ - Standalone game: Explore generated worlds   │
+└─────────────────┬──────────────────────────────┘
+                  │ Provides terrain data
+                  ↓
+┌────────────────────────────────────────────────┐
+│ Strategic Layer (Civilization)                 │
+│ - Settlements (placed on biomes/resources)    │
+│ - Factions, territorial control, wars         │
+│ - History simulation (500 years)              │
+│ - Economy (settlement buildings → resources)  │
+└─────────────────┬──────────────────────────────┘
+                  │ Zoom in
+                  ↓
+┌────────────────────────────────────────────────┐
+│ Tactical Layer (Grid Combat)                   │
+│ - VS_001-021 systems (combat, inventory, AI)  │
+│ - Encounters at strategic locations           │
+└────────────────────────────────────────────────┘
 ```
 
-**Current State**: Tactical layer complete (VS_001-VS_021). Strategic layer experimental.
+**Current State**:
+- ✅ Tactical layer complete (VS_001-VS_021)
+- 🔄 Worldgen layer in progress (Phase 1 ~75% complete)
+- ⏳ Strategic layer planned (blocked by worldgen completion)
 
----
-
-### WorldEngine Integration (IN PROGRESS - Incremental Port)
-
-**What**: Incremental port of WorldEngine physics-driven algorithms from Python to C# for runtime generation
-
-**Status**: **Stage 1-2 COMPLETE** (VS_024 + VS_025) - See [World Generation](#world-generation) section for details
-
-**Completed**:
-- ✅ **Stage 1**: Plate tectonics + elevation (VS_024) - Native C++ integration via P/Invoke
-- ✅ **Stage 2**: Temperature simulation (VS_025) - Full C# port, 4-component algorithm
-
-**Next Steps**:
-- **Stage 3-4**: Water table + erosion (VS_022) - Next priority
-- **Stage 5**: Thermal diffusion (TD_020) - Deferred until water data exists
-- **Stage 6-8**: Precipitation, biomes, resources - Sequential implementation
-
-**Why**:
-- Realistic geography (plate tectonics, climate, rivers) creates strategic depth
-- Seed-based reproducibility for balanced gameplay
-- 48 biome types provide terrain-driven economy (Legends Mod pattern)
-- Runtime generation eliminates Python dependency for distribution
-
-**Approach**: Incremental pipeline (one stage at a time), fully tested + visualized before moving to next
-**Performance**: <1.5s for 512×512 world (native sim + post-processing)
+**Worldgen Integration**: See [Roadmap_World_Generation.md](Roadmap_World_Generation.md#strategic-layer-integration) for settlement placement algorithms
 
 ---
 
 ### Settlement Economy System (PLANNED - Legends Mod Pattern)
 
 **What**: Dynamic settlement system inspired by Battle Brothers Legends Mod
+
+**Integration with Worldgen**:
+- **Attached Buildings** driven by biome + geology data:
+  - Coastal (ocean biome): Fishing Huts, Harbors
+  - Mountains (high elevation): Iron Mines, Stone Quarries
+  - Volcanic Mountains (Phase 3): Gold Mines (rare), Obsidian Quarries
+  - Forests (forest biome): Lumber Camps, Hunter's Cabins
+  - Swamps (Phase 2): Herbalist Groves (rare plants)
+  - Farmland (temperate + fertile): Breweries, Orchards
+  - Desert (arid biome): Incense Dryers, Spice Markets
+
+- **Resource Production** based on geology (Phase 3):
+  - Iron Mines: Require sedimentary/metamorphic rock
+  - Gold Mines: Require igneous rock + volcanic proximity
+  - Stone Quarries: Any high-elevation mountain
 
 **Core Concepts**:
 
@@ -907,16 +814,9 @@ Strategic Layer (Macro)          Tactical Layer (Micro)
 - Events: Plague, Harvest Festival, Archery Contest
 - Effects modify prices, recruit availability, quest options
 
-**Attached Buildings** (Terrain-Driven):
-- Buildings determined by WorldEngine biome data
-- Coastal: Fishing Huts, Harbors
-- Mountains: Iron Mines, Stone Quarries, Gold Mines (rare)
-- Forests: Lumber Camps, Hunter's Cabins, Herbalist Groves
-- Farmland: Breweries, Orchards, Beekeepers
-- Desert: Incense Dryers, Spice Markets
-- Each building produces resources and attracts specific recruits
-
-**Integration**: Settlements placed on WorldEngine map, buildings driven by biome/elevation data
+**Dependencies**:
+- Worldgen Phase 1 (biomes) ✅ Planned
+- Worldgen Phase 3 (geology, volcanoes) → Enables mineral-driven economy
 
 **Reference**: Battle Brothers Legends Mod settlement system (wealth-driven upgrades, dynamic statuses, terrain economy)
 

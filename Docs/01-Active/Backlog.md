@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-08 16:55 (Tech Lead: Created VS_026-028 precipitation pipeline - base + rain shadow + coastal moisture)
+**Last Updated**: 2025-10-09 00:53 (Tech Lead: Restructured VS_022 pipeline with correct logical order, created VS_028 coastal moisture + VS_029 erosion placeholder)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -11,7 +11,7 @@
 
 - **Next BR**: 008
 - **Next TD**: 019
-- **Next VS**: 029
+- **Next VS**: 030
 
 
 **Protocol**: Check your type's counter → Use that number → Increment the counter → Update timestamp
@@ -483,6 +483,265 @@ for (int y = 0; y < height; y++) {
 
 ---
 
+### VS_028: WorldGen Stage 5 - Coastal Moisture Enhancement (Distance-to-Ocean)
+**Status**: Proposed
+**Owner**: Product Owner → Tech Lead (for breakdown)
+**Size**: S (3-4h estimate)
+**Priority**: Ideas
+**Markers**: [WORLDGEN] [PIPELINE] [STAGE-5] [COASTAL-CLIMATE]
+
+**What**: Enhance precipitation near oceans using **distance-to-ocean BFS + exponential decay** (continentality effect), with **2-stage debug visualization** (with-rain-shadow, with-coastal-moisture)
+
+**Why**: Continental interiors are significantly drier than coasts in reality (Sahara interior vs West Africa coast, central Asia vs maritime climates). Completes atmospheric climate pipeline - creates FINAL PRECIPITATION MAP for erosion/rivers (VS_029).
+
+**How** (distance-based moisture enhancement, physics-validated):
+
+**Two-Stage Algorithm**:
+
+**1. Input: Rain Shadow Precipitation** (from VS_027):
+```csharp
+// Input: VS_027 precipitation with rain shadow (mountain blocking applied)
+float[,] rainShadowPrecipitation = result.WithRainShadowPrecipitationMap;
+```
+
+**2. Distance-to-Ocean Calculation** (BFS from ocean cells):
+```csharp
+// BFS from all ocean cells (similar to VS_024 ocean fill pattern)
+int[,] distanceToOcean = new int[height, width];
+
+Queue<(int x, int y)> queue = new Queue<(int, int)>();
+
+// Seed: All ocean cells start at distance 0
+for (int y = 0; y < height; y++) {
+    for (int x = 0; x < width; x++) {
+        if (oceanMask[y, x]) {
+            distanceToOcean[y, x] = 0;
+            queue.Enqueue((x, y));
+        } else {
+            distanceToOcean[y, x] = int.MaxValue;  // Unreached
+        }
+    }
+}
+
+// BFS: Propagate distance inland (4-directional neighbors)
+while (queue.Count > 0) {
+    var (x, y) = queue.Dequeue();
+    int currentDist = distanceToOcean[y, x];
+
+    foreach (var (dx, dy) in Neighbors) {
+        int nx = x + dx, ny = y + dy;
+        if (InBounds(nx, ny) && distanceToOcean[ny, nx] > currentDist + 1) {
+            distanceToOcean[ny, nx] = currentDist + 1;
+            queue.Enqueue((nx, ny));
+        }
+    }
+}
+```
+
+**3. Exponential Moisture Decay** (physics-based coastal effect):
+```csharp
+// Configuration (realistic atmospheric moisture transport)
+const float maxCoastalBonus = 0.8f;       // 80% increase at coast (maritime climates)
+const float decayRange = 30f;             // 30 cells ≈ 1500km penetration (realistic)
+const float elevationResistance = 0.02f;  // Mountains resist coastal penetration
+
+for (int y = 0; y < height; y++) {
+    for (int x = 0; x < width; x++) {
+        if (oceanMask[y, x]) continue;  // Skip ocean cells
+
+        float dist = distanceToOcean[y, x];
+        float elevation = heightmap[y, x];
+
+        // Exponential decay: e^(-dist/range)
+        // dist=0 (coast) → bonus=0.8 (80% increase)
+        // dist=30 (1500km) → bonus≈0.29 (37% of max, realistic drop-off)
+        // dist=60 (3000km) → bonus≈0.11 (14% of max, deep interior)
+        float coastalBonus = maxCoastalBonus * MathF.Exp(-dist / decayRange);
+
+        // Elevation resistance: High mountains block coastal moisture penetration
+        // Sea level (1.0) → resistance=0 (full coastal effect)
+        // Peak (10.0) → resistance=0.18 (82% reduction, mountain plateau effect)
+        float elevationFactor = 1f - MathF.Min(1f, elevation * elevationResistance);
+
+        // Apply coastal moisture enhancement
+        float basePrecip = rainShadowPrecipitation[y, x];
+        precipitationFinal[y, x] = basePrecip * (1f + coastalBonus * elevationFactor);
+    }
+}
+```
+
+**Key Physics Insights**:
+- ✅ **Exponential decay**: Realistic atmospheric moisture drop-off (not linear)
+- ✅ **30-cell range**: ~1500km oceanic influence (matches real-world maritime climates)
+- ✅ **80% coastal bonus**: Maritime climates 2× wetter than interior (e.g., UK vs central Asia)
+- ✅ **Elevation resistance**: Tibetan Plateau stays dry despite ocean proximity (altitude blocks moisture)
+- ✅ **BFS distance**: Handles complex coastlines naturally (islands, peninsulas, inland seas)
+
+**Real-World Validation**:
+- ✅ **West Africa Coast** (wet) vs **Sahara Interior** (dry) - Same latitude, different distance
+- ✅ **Pacific Northwest** (wet) vs **Great Basin** (dry) - Coastal vs continental climate
+- ✅ **UK Maritime** (wet) vs **Central Asia** (dry) - Ocean proximity dominates
+
+**YAGNI Skipped**:
+- ❌ **Directional winds**: Prevailing wind from ocean (complex, low ROI for MVP)
+- ❌ **Seasonal variation**: Monsoons, trade wind shifts (over-engineering)
+- ❌ **Salinity gradient**: Distance affects rainfall salinity (irrelevant for gameplay)
+
+**Visualization Integration** (2-stage rendering):
+1. **Renderer** (WorldMapRendererNode.cs):
+   - MapViewMode.PrecipitationWithRainShadow (VS_027 output)
+   - MapViewMode.PrecipitationFinal (VS_028 output - FINAL MAP)
+   - Same Yellow → Green → Blue gradient (consistent scale)
+
+2. **Legend** (WorldMapLegendNode.cs):
+   ```csharp
+   case MapViewMode.PrecipitationFinal:
+       AddLegendEntry("Brown", ..., "Arid (interior deserts)");
+       AddLegendEntry("Yellow", ..., "Semi-arid (continental)");
+       AddLegendEntry("Green", ..., "Moderate (temperate)");
+       AddLegendEntry("Blue", ..., "Wet (maritime coasts)");
+   ```
+
+3. **Probe** (WorldMapProbeNode.cs):
+   - Show distance to ocean: `"Distance: 15 cells (750km)"`
+   - Show coastal bonus: `"Coastal Bonus: +42% (+0.25 precip)"`
+   - Show elevation resistance: `"Elevation Factor: 0.88 (mountain plateau)"`
+   - Show rain-shadow vs final: `"Shadow: 0.45 → Final: 0.64 (+42%)"`
+
+4. **UI** (WorldMapUINode.cs):
+   - Rename existing "Precipitation: 4. + Rain Shadow" → "Precipitation: 4. Rain Shadow"
+   - Add "Precipitation: 5. Final (+ Coastal)" dropdown item
+
+**Pipeline Changes** (GenerateWorldPipeline.cs):
+```csharp
+// Stage 5: Coastal moisture enhancement (FINAL PRECIPITATION)
+var precipitationFinal = CoastalMoistureCalculator.Calculate(
+    rainShadowPrecipitation: result.WithRainShadowPrecipitationMap!,  // Stage 4 output
+    oceanMask: result.OceanMask!,
+    heightmap: result.PostProcessedHeightmap!,
+    width: result.Width,
+    height: result.Height);
+
+return result with {
+    FinalPrecipitationMap = precipitationFinal  // ← READY FOR EROSION (VS_029)!
+};
+```
+
+**Implementation Phases**:
+
+**Phase 0: Update WorldGenerationResult DTOs** (~15min)
+- Rename `WithRainShadowPrecipitationMap` → keep as intermediate
+- Add `FinalPrecipitationMap` property (after coastal enhancement)
+- Update MapViewMode enum (add PrecipitationFinal)
+- All 481 tests GREEN (no breaking changes)
+
+**Phase 1: Core Algorithm** (~1.5-2h, TDD)
+1. Create `CoastalMoistureCalculator.cs` with BFS distance calculation
+2. Implement exponential decay (e^(-dist/range), realistic moisture drop-off)
+3. Implement elevation resistance (high mountains block coastal penetration)
+4. Handle edge cases (landlocked maps, small islands, elevation extremes)
+5. 8-10 unit tests (BFS correctness, decay curve, elevation resistance, coastal bonus validation)
+6. All tests GREEN
+
+**Phase 2: Pipeline Integration** (~30min)
+7. Update `GenerateWorldPipeline` Stage 5 to call CoastalMoistureCalculator
+8. Update serialization service (Format v3? or extend v2 with new optional field)
+9. All 481 tests GREEN (no regressions)
+
+**Phase 3: Visualization** (~1h)
+10. Update MapViewMode enum (rename PrecipitationWithRainShadow → PrecipitationRainShadow, add PrecipitationFinal)
+11. Update renderer to handle PrecipitationFinal view mode (same gradient, different data source)
+12. Update WorldMapLegendNode with final precipitation legend (maritime vs continental labels)
+13. Update WorldMapProbeNode to display distance + bonus + elevation resistance
+14. Update UI dropdown ("Precipitation: 5. Final (+ Coastal)")
+15. All 481 tests GREEN
+
+**Done When**:
+1. ✅ **BFS distance-to-ocean calculated** for all land cells (O(n) performance)
+2. ✅ **Exponential decay working** (coast = 80% boost, interior = minimal boost)
+3. ✅ **Elevation resistance applied** (mountain plateaus resist coastal moisture)
+4. ✅ **Visual validation passes**:
+   - Coastal regions significantly wetter than interior (at same latitude)
+   - Mountain ranges create "moisture shadow" even from coasts (elevation resistance)
+   - Islands show strong coastal effect (all cells near ocean)
+   - Inland seas spread moisture (BFS handles complex coastlines)
+5. ✅ **FinalPrecipitationMap populated** in WorldGenerationResult (ready for VS_029 erosion!)
+6. ✅ **Performance acceptable** (<50ms for BFS + per-cell calculation on 512×512)
+7. ✅ **All tests GREEN** (8-10 new unit tests + 481 existing regression tests)
+
+**Depends On**: VS_027 ✅ (rain shadow precipitation required as input)
+
+**Blocks**: VS_029 (erosion needs FINAL precipitation to spawn rivers realistically)
+
+**Tech Lead Decision** (2025-10-09):
+- **Distance calculation**: BFS (proven pattern from VS_024, handles complex coastlines)
+- **Decay function**: Exponential e^(-x/30) (physically realistic, 1500km range matches Earth)
+- **Coastal bonus**: 80% max (maritime climates 2× wetter, e.g., Seattle vs Spokane)
+- **Elevation resistance**: Linear factor (simple but effective, mountain plateaus stay dry)
+- **Performance**: BFS O(n), per-cell calc O(n) → ~30-50ms total (acceptable)
+- **Architecture**: Final stage of atmospheric climate (Stage 2d) before hydrological processes (Stage 3+)
+- **Next steps**: Dev Engineer implements after review, validates with real-world climate comparisons
+
+---
+
+### VS_029: WorldGen Stage 6 - Erosion & Rivers (Hydraulic Erosion)
+**Status**: Proposed
+**Owner**: Product Owner → Tech Lead (for breakdown)
+**Size**: M (8-10h estimate)
+**Priority**: Ideas
+**Markers**: [WORLDGEN] [PIPELINE] [STAGE-6] [HYDROLOGY]
+
+**What**: Generate rivers and carve realistic valleys using **hydraulic erosion simulation** (river source detection, path tracing, valley carving) - WorldEngine erosion.py port
+
+**Why**: Realistic terrain requires water erosion (valleys, river networks). Rivers spawn in wet mountains, flow to ocean/lakes, carve valleys over geological time. Critical for gameplay (river resources, navigation, terrain tactics).
+
+**How** (WorldEngine-validated algorithm):
+
+**Three-Phase Erosion Process**:
+
+1. **River Source Detection** (mountains + high precipitation)
+   - Uses **FINAL PRECIPITATION** from VS_028 (all geographic effects applied)
+   - Finds high-elevation cells with accumulated rainfall > threshold
+   - Filters sources (min 9-cell spacing to prevent overlap)
+
+2. **River Path Tracing** (downhill flow to ocean/lakes)
+   - Traces steepest descent from source to ocean
+   - A* pathfinding fallback for challenging terrain (local minima)
+   - Merges into existing rivers when encountered (tributary system)
+   - Dead-ends form lakes (endorheic basins)
+
+3. **Valley Carving** (gentle erosion around river paths)
+   - Radius 2 erosion around each river cell (subtle valleys)
+   - Curve factors: 0.2 (adjacent), 0.05 (diagonal) - gentle shaping
+   - Elevation monotonicity cleanup (rivers flow downhill smoothly)
+
+**Key Outputs**:
+- Eroded heightmap (valleys carved, realistic terrain)
+- River network (List<River>, path coordinates + ocean-reached flag)
+- Lakes (List<(int x, int y)>, endorheic basin locations)
+
+**Implementation**: Port WorldEngine `erosion.py` (403 lines → ~500 lines C#) - See TD_009 Phase 1 for detailed breakdown
+
+**Done When**:
+1. Rivers spawn in realistically wet locations (FINAL precipitation input)
+2. Rivers flow downhill to ocean or form lakes
+3. Valleys carved around river paths (subtle, radius 2)
+4. Eroded heightmap smoother than input (realistic weathering)
+5. All tests GREEN + 10-12 new erosion/river tests
+
+**Depends On**: VS_028 ✅ (FINAL precipitation required for realistic river sources)
+
+**Blocks**: VS_022 Phase 4-6 (watermap, irrigation, humidity, biomes all need eroded terrain + rivers)
+
+**Tech Lead Decision** (2025-10-09):
+- **Algorithm**: Direct port of WorldEngine erosion.py (proven, well-tested)
+- **Precipitation input**: FINAL (VS_028 output) - ensures leeward deserts don't spawn rivers, coastal mountains do
+- **Complexity**: Medium (M, 8-10h) - river tracing is most complex part (A* fallback needed)
+- **Architecture**: First stage of hydrological processes (Stage 3), modifies heightmap (geological timescale)
+- **Next steps**: Create detailed breakdown after VS_028 complete
+
+---
+
 ### VS_022: World Generation Pipeline (Incremental Post-Processing)
 **Status**: Proposed
 **Owner**: Product Owner → Tech Lead (breakdown)
@@ -502,6 +761,8 @@ for (int y = 0; y < height; y++) {
 - ❌ No post-processing (intentional - start simple!)
 
 **Proposed Incremental Approach:**
+
+**STAGE 1: TECTONIC FOUNDATION**
 1. **Phase 1: Elevation Post-Processing** ✅ COMPLETE (VS_024, M, ~8h actual)
    - ✅ Ported 4 WorldEngine algorithms (~150 lines): add_noise, fill_ocean, harmonize_ocean, sea_depth
    - ✅ Dual-heightmap architecture: Original raw + Post-processed raw (both [0.1-20] range)
@@ -511,9 +772,12 @@ for (int y = 0; y < height; y++) {
    - ✅ FastNoiseLite integration: 8-octave OpenSimplex2 noise for terrain variation
    - ✅ Three colored elevation views: Original, Post-Processed, Normalized (visual validation)
    - ✅ Format v2 serialization: Saves post-processed data with backward compatibility (TD_018)
-   - **Outcome**: Foundation complete for Stages 2-6, all 433 tests GREEN
+   - **Outcome**: Foundation complete for climate stages, all 433 tests GREEN
 
-2. **Phase 2: Climate - Temperature** ✅ COMPLETE (VS_025, S, ~5h actual)
+**STAGE 2: ATMOSPHERIC CLIMATE (Instantaneous processes, no terrain modification)**
+2. **Phase 2: Climate - Complete Precipitation Pipeline** (PARTIALLY COMPLETE)
+
+   **2a. Temperature** ✅ COMPLETE (VS_025, S, ~5h actual)
    - ✅ 4-component temperature algorithm: Latitude (92%, with axial tilt) + Noise (8%, FBm fractal) + Distance-to-sun (inverse-square) + Mountain-cooling (RAW elevation thresholds)
    - ✅ Per-world climate variation: AxialTilt and DistanceToSun (Gaussian-distributed) create hot/cold planets with shifted equators
    - ✅ 4-stage debug visualization: LatitudeOnly → WithNoise → WithDistance → Final (isolates each component for visual validation)
@@ -522,36 +786,55 @@ for (int y = 0; y < height; y++) {
    - ✅ Multi-stage testing: 14 unit tests (Interp edge cases, Gaussian distribution validation, temperature ranges)
    - ✅ Visual validation passed: Smooth latitude bands, subtle noise variation, hot/cold planets, mountains blue at all latitudes
    - ✅ Performance: ~60-80ms for temperature calculation (no threading needed, native sim dominates at 83%)
-   - **Outcome**: Temperature maps ready for biome classification (Stage 6), all 447 tests GREEN
-   - **Deferred**: TD_020 Thermal Diffusion (requires water mask from Phase 3-4, will be implemented as part of Phase 5)
+   - **Outcome**: Temperature maps ready, all 447 tests GREEN
 
-3. **Phase 3: Water Table & Rivers** (M, ~6-8h)
-   - Sea level calculation (quantile-based threshold, extends Phase 1 pattern)
-   - Lake detection (elevation basins below sea level)
-   - River generation (flow from high → low elevation, Dijkstra paths to ocean/lakes)
-   - Water mask output (bool[,]) - BLOCKS TD_020 thermal diffusion
-   - Tests: Water table accuracy, river connectivity
+   **2b. Base Precipitation** ✅ COMPLETE (VS_026, S, ~3.5h actual)
+   - ✅ 3-stage algorithm: Noise (6 octaves) → Temperature gamma curve → Renormalization
+   - ✅ Multi-stage debug visualization: NoiseOnly → TemperatureShaped → Final
+   - ✅ Quantile-based thresholds (30th/70th/95th percentiles for classification)
+   - ✅ WorldEngine algorithm exact match (gamma=2.0, curveBonus=0.2)
+   - **Outcome**: Base precipitation ready for geographic modifiers, all 457 tests GREEN
 
-4. **Phase 4: Hydraulic Erosion** (L, ~10-12h)
-   - River erosion (carve valleys along river paths)
-   - Coastal erosion (smooth coastlines)
-   - Mountain weathering (reduce extreme peaks slightly)
-   - Eroded elevation map output (more realistic terrain)
-   - Tests: Erosion effects, valley formation
+   **2c. Rain Shadow Effect** ✅ COMPLETE (VS_027, S, ~3h actual)
+   - ✅ Latitude-based prevailing winds (Polar Easterlies / Westerlies / Trade Winds)
+   - ✅ Orographic blocking: Upwind mountain trace (max 20 cells ≈ 1000km)
+   - ✅ Accumulative reduction (5% per mountain, max 80% total blocking)
+   - ✅ Real-world desert patterns (Sahara, Gobi, Atacama validation)
+   - **Outcome**: Rain shadow precipitation ready, 481/482 tests GREEN (99.8%)
 
-5. **Phase 5: Thermal Diffusion & Climate Polish** (M, ~6-8h)
-   - TD_020: Physics-based heat diffusion (water/land thermal mass from Phase 3)
-   - Coastal moderation + smooth mountain temperature gradients
-   - Precipitation calculation (rain shadow, distance from water)
-   - Precipitation map visualization
-   - Tests: Coastal moderation validation, precipitation patterns
+   **2d. Coastal Moisture Enhancement** (VS_028, S, ~3-4h) ← NEXT
+   - Distance-to-ocean BFS (similar to VS_024 ocean fill pattern)
+   - Exponential decay (realistic moisture drop-off with distance)
+   - Coastal bonus (~50-100% increase at shoreline)
+   - Elevation resistance (mountains resist coastal penetration)
+   - **Output**: FINAL PRECIPITATION MAP (all geographic effects applied)
+
+**STAGE 3: HYDROLOGICAL PROCESSES (Slow geological processes, terrain modification)**
+3. **Phase 3: Erosion & Rivers** (VS_029, M, ~8-10h) ← AFTER VS_028
+   - River source detection (uses FINAL PRECIPITATION from VS_028)
+   - River path tracing (downhill flow to ocean/lakes)
+   - Valley carving (erosion around river paths, radius 2, gentle curves)
+   - **Output**: Eroded heightmap, rivers[], lakes[]
+   - **Critical**: Uses final precipitation (rivers spawn in realistically wet locations)
+
+4. **Phase 4: Watermap Simulation** (M, ~3-4h)
+   - Droplet flow model (20,000 droplets weighted by final precipitation)
+   - Flow accumulation (recursive downhill distribution)
+   - Quantile thresholds (creek 5%, river 2%, main river 0.7%)
+   - **Output**: Watermap (flow intensity per cell)
+
+5. **Phase 5: Irrigation & Humidity** (M, ~3-4h)
+   - Irrigation: Logarithmic kernel (21×21 neighborhood, moisture spreading from watermap)
+   - Humidity: Combine precipitation × 1 + irrigation × 3 (hydrologic moisture boost)
+   - Quantile-based classification (8-level moisture: superarid → superhumid)
+   - **Output**: Humidity map (final moisture for biome classification)
 
 6. **Phase 6: Biome Classification** (M, ~6h)
    - 48 biome types (WorldEngine catalog)
-   - Classification based on: elevation, temperature, precipitation
+   - Classification: temperature + humidity + elevation
    - Biome transitions (smooth gradients, not hard borders)
    - Biome visualization + legends
-   - Tests: Biome distribution validation
+   - **Output**: Biome map
 
 **Technical Principles:**
 - ✅ **One algorithm at a time** - No big-bang integration
