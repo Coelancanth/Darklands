@@ -103,238 +103,12 @@
 ## 💡 Ideas (Future Work)
 *Future features, nice-to-haves, deferred work*
 
-### VS_025: WorldGen Pipeline Stage 2 - Temperature Simulation
-**Status**: Done ✅ (2025-10-08 15:42)
-**Owner**: Dev Engineer
-**Size**: S (~4-5h, revised for multi-stage debug rendering)
-**Priority**: Ideas
-**Markers**: [WORLDGEN] [PIPELINE] [STAGE-2] [CLIMATE]
+**No items in Ideas!** ✅ VS_025 completed and archived.
 
-**What**: Implement Stage 2 of world generation pipeline: temperature map calculation using latitude + noise + elevation cooling, with **4-stage debug visualization** (latitude-only, +noise, +distance, +mountain-cooling)
+---
 
-**Why**: Temperature map needed for biome classification (Stage 6) and strategic terrain decisions. Multi-stage rendering enables **trivial debugging** of complex 4-component algorithm (mirrors VS_024's Original vs Post-Processed elevation pattern).
-
-**How** (ultra-think 2025-10-08, WorldEngine temperature.py validated):
-
-**Question: Use noise again after elevation post-processing?**
-**Answer: YES!** Elevation noise (terrain variation) and temperature noise (climate variation) are **independent physical phenomena**. Two mountain valleys at same elevation can have different temperatures due to microclimates. WorldEngine does this intentionally.
-
-**Four-Component Temperature Algorithm** (WorldEngine proven pattern):
-
-**1. Latitude Factor (92% weight)** - with axial tilt:
-```csharp
-// Per-world parameters (Gaussian-distributed for variety)
-float axialTilt = SampleGaussian(mean: 0.0f, hwhm: 0.07f);  // shift equator
-axialTilt = Math.Clamp(axialTilt, -0.5f, 0.5f);
-
-float distanceToSun = SampleGaussian(mean: 1.0f, hwhm: 0.12f);
-distanceToSun = Math.Max(0.1f, distanceToSun);
-distanceToSun *= distanceToSun;  // inverse-square law
-
-// Per-cell latitude factor
-float y_scaled = (float)y / height - 0.5f;  // [-0.5, 0.5]
-float latitudeFactor = Interp(y_scaled,
-    xp: [axialTilt - 0.5f, axialTilt, axialTilt + 0.5f],
-    fp: [0.0f, 1.0f, 0.0f]);  // cold poles, hot equator, cold poles
-```
-
-**2. Coherent Noise (8% weight)** - climate variation:
-```csharp
-int octaves = 8;
-float freq = 16.0f * octaves;  // 128.0
-float n_scale = 1024f / height;  // For 512×512: 2.0
-
-var noise = new FastNoiseLite(seed);
-noise.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
-noise.SetFractalOctaves(octaves);
-
-float n = noise.GetNoise2D((x * n_scale) / freq, (y * n_scale) / freq);
-// Range: [-1, 1], contributes 1/13 of final temperature
-```
-
-**3. Combined Base Temperature** (normalized [0, 1]):
-```csharp
-float t = (latitudeFactor * 12f + n * 1f) / 13f / distanceToSun;
-// latitudeFactor: 92% weight (latitude banding)
-// n: 8% weight (climate variation)
-// distanceToSun: global multiplier (hot vs cold planets)
-```
-
-**4. Elevation Cooling (mountain-only!)** - RAW elevation with thresholds:
-```csharp
-float rawElevation = postProcessedHeightmap[y, x];  // Use RAW, not normalized!
-
-if (rawElevation > thresholds.MountainLevel) {
-    float altitude_factor;
-    if (rawElevation > thresholds.MountainLevel + 29f) {
-        altitude_factor = 0.033f;  // extreme peaks (97% cooling)
-    } else {
-        // Linear cooling from mountain base to +29 units above
-        altitude_factor = 1.0f - (rawElevation - thresholds.MountainLevel) / 30f;
-    }
-    t *= altitude_factor;  // mountains get MUCH colder
-}
-temperatureMap[y, x] = t;  // Store normalized [0, 1]
-```
-
-**5. UI Display Conversion** (Presentation layer - TemperatureMapper utility):
-```csharp
-public static class TemperatureMapper
-{
-    private const float MIN_TEMP = -60f;
-    private const float MAX_TEMP = 40f;
-
-    public static float ToCelsius(float normalizedTemp) =>
-        normalizedTemp * (MAX_TEMP - MIN_TEMP) + MIN_TEMP;  // [0,1] → [-60°C, +40°C]
-
-    public static string FormatTemperature(float normalizedTemp) =>
-        $"{ToCelsius(normalizedTemp):F1}°C";  // "Temp: -15.2°C"
-}
-
-// Renderer usage: Convert [0,1] to °C for gradient colors
-// Probe usage: TemperatureMapper.FormatTemperature(temp)
-```
-
-**Key WorldEngine Insights Adopted:**
-- ✅ **Axial tilt**: Shifts equator position (more interesting than fixed cosine)
-- ✅ **Distance to sun**: Per-world hot/cold variation (inverse-square law)
-- ✅ **Latitude interpolation**: More realistic than simple cosine
-- ✅ **8% noise weight**: Subtle climate variation (not 50/50)
-- ✅ **Mountain-only cooling**: Lowlands unaffected (realistic!)
-- ✅ **RAW elevation + thresholds**: Uses actual heightmap values (adaptive per-world)
-- ✅ **Normalized output [0,1]**: Consistent internal format, UI converts to °C
-
-**YAGNI Skipped (from WorldEngine):**
-- ❌ **Border wrapping**: Seamless east-west complexity, not needed for single-world game
-- ❌ **Atmosphere factor**: TODO in WorldEngine, not implemented yet
-
-**Visualization Integration** (add Temperature view):
-1. **Renderer** (WorldMapRendererNode.cs):
-   - Add `RenderTemperature(float[,] temperatureMap)` method
-   - Input: normalized [0, 1] temperature values
-   - Convert to °C for gradient: `tempC = t * 100f - 60f`
-   - 5-stop color gradient:
-     ```
-     Blue   (-60°C) → Cyan (-20°C) → Green (0°C) → Yellow (+20°C) → Red (+40°C)
-     ```
-
-2. **Legend** (WorldMapLegendNode.cs):
-   ```csharp
-   case MapViewMode.Temperature:
-       AddLegendEntry("Blue", ..., "-60°C (Frozen peaks)");
-       AddLegendEntry("Cyan", ..., "-20°C (Cold)");
-       AddLegendEntry("Green", ..., "0°C (Mild)");
-       AddLegendEntry("Yellow", ..., "+20°C (Warm)");
-       AddLegendEntry("Red", ..., "+40°C (Hot)");
-   ```
-
-3. **Probe** (WorldMapProbeNode.cs):
-   - Display converted temperature: `"Temp: {temp:F1}°C"` (from [0,1] → °C)
-   - Show raw normalized value for debugging: `"Normalized: {t:F3}"`
-
-4. **UI** (WorldMapUINode.cs):
-   - Add "Temperature" view mode button
-
-**Pipeline Changes** (GenerateWorldPipeline.cs):
-```csharp
-// Stage 2: Temperature calculation
-var temperatureMap = TemperatureCalculator.Calculate(
-    postProcessedHeightmap: result.PostProcessedHeightmap!,  // RAW elevation for cooling
-    thresholds: result.Thresholds!,                          // MountainLevel threshold
-    width: result.Width,
-    height: result.Height,
-    seed: parameters.Seed);
-
-return result with { TemperatureMap = temperatureMap };
-```
-
-**Implementation Notes**:
-- Store `axialTilt` and `distanceToSun` in `WorldGenerationResult` (per-world parameters)
-- Use RAW `PostProcessedHeightmap` for elevation cooling (not normalized!)
-- **Output normalized [0,1]** temperature - WHY? For future biome classification (Stage 6)
-  - Biome algorithms use quantile thresholds on [0,1] data (same pattern as elevation)
-  - UI converts to °C via TemperatureMapper (same pattern as ElevationMapper)
-- `Interp()` utility needed: linear interpolation matching numpy.interp
-- `SampleGaussian()` utility: Gaussian distribution with HWHM parameter
-- Create `TemperatureMapper` class (analogous to ElevationMapper pattern)
-
-**Performance** (multi-threading decision):
-- ❌ **NO threading**: Native sim dominates (83% of 1.2s total), temperature only ~60-80ms
-- ✅ Format v2 cache saves full temperature map (0ms reload)
-- ✅ Simple = fast enough (<1.5s total for 512×512)
-
-**Implementation Phases** (Dev Engineer 2025-10-08):
-
-**Phase 0: Disable Cache During Development** ✅ COMPLETE (~5min actual)
-- Added `DISABLE_CACHE_FOR_DEV = true` flag to WorldMapOrchestratorNode.cs (line 45)
-- Wrapped cache load logic in conditional (lines 223-257)
-- Wrapped cache save logic in conditional (line 283)
-- Used `static readonly` (not `const`) to avoid "unreachable code" compiler warnings
-- All 433 tests GREEN, build succeeds
-
-**Phase 1: Core Algorithm with Multi-Stage Output** ✅ COMPLETE (~1h actual, TDD)
-1. ✅ Created `MathUtils.cs` with `Interp()` and `SampleGaussian()` (Box-Muller transform)
-2. ✅ Created `TemperatureCalculator.cs` with 4-stage output:
-   - LatitudeOnlyMap (axial tilt interpolation)
-   - WithNoiseMap (92% latitude, 8% noise - WorldEngine ratio)
-   - WithDistanceMap (inverse-square law)
-   - FinalMap (mountain cooling with RAW elevation thresholds)
-3. ✅ 14 comprehensive unit tests (Interp edge cases, Gaussian distribution validation)
-4. ✅ All 447 tests GREEN, build succeeds
-
-**Phase 2: Pipeline Integration** ✅ COMPLETE (~0.5h actual)
-4. ✅ Updated `WorldGenerationResult` with 4 temperature properties + per-world params
-5. ✅ Updated `GenerateWorldPipeline` Stage 2 to call TemperatureCalculator
-6. ✅ Fixed backward compat in serialization service (Format v1/v2 still load)
-7. ✅ All 447 tests GREEN (no regressions), build succeeds
-
-**Phase 3: Multi-Stage Visualization** ✅ COMPLETE (~1.5h actual)
-7. ✅ Added 4 MapViewMode enum values (TemperatureLatitudeOnly, WithNoise, WithDistance, Final)
-8. ✅ Implemented RenderTemperatureMap() with 5-stop gradient (Blue → Red via Cyan/Green/Yellow)
-9. ✅ Updated WorldMapLegendNode with stage-specific legends (°C labels, debug hints)
-10. ✅ Updated WorldMapProbeNode to display all 4 temperature values + AxialTilt/DistanceToSun params
-11. ✅ Added 4 UI dropdown items with separator (Temperature Debug section)
-12. ✅ All 447 tests GREEN, build succeeds
-
-**Phase 4: Visual Validation** ✅ COMPLETE (~0.75h actual)
-12. ✅ Fixed noise configuration bug (missing SetFractalType(FBm) + SetFrequency)
-    - Root cause: Elevation pattern had FBm+frequency, temperature was missing both
-    - Result: Smooth natural gradients matching WorldEngine (no more discrete bands!)
-13. ✅ Validated all 4 temperature stages visually:
-    - Latitude Only: Smooth horizontal bands, equator shifts with axial tilt ✅
-    - With Noise: Subtle fuzzy climate variation (8% contribution, realistic!) ✅
-    - With Distance: Hot/cold planet variation (inverse-square law working) ✅
-    - Final: Mountains blue at **all latitudes** (elevation cooling working!) ✅
-14. ✅ Performance: <1.5s for 512×512 world generation (no regression)
-15. ✅ All 447 tests GREEN
-
-**Done When**:
-1. ✅ **4 temperature maps populated** in WorldGenerationResult (latitude-only, +noise, +distance, final)
-2. ✅ **Algorithm correct** (WorldEngine-validated, each component isolated for debugging)
-3. ✅ **Multi-stage visualization working** (4 view modes, stage-specific legends, probe shows all values)
-4. ✅ **Visual validation passes** for each stage independently
-5. ✅ **Quality gates**: Per-world variation visible, no performance regression, all tests GREEN
-
-**Depends On**: VS_024 ✅ - needs `PostProcessedHeightmap` (RAW) + `Thresholds.MountainLevel`
-
-**Tech Lead Decision** (2025-10-08 09:30 - Updated after WorldEngine analysis):
-- **Algorithm**: 4 components (latitude+tilt, noise, distance-to-sun, mountain-cooling). Matches WorldEngine temperature.py exactly.
-- **Noise YES**: Independent from elevation noise (climate vs terrain). 8% weight per WorldEngine.
-- **RAW elevation**: Use `PostProcessedHeightmap` (raw [0.1-20]) with `MountainLevel` threshold, NOT normalized.
-- **Per-world parameters**: `axialTilt` and `distanceToSun` create planet variety (hot/cold, shifted equator).
-- **Mountain-only cooling**: Realistic - lowlands unaffected by altitude, peaks extremely cold.
-- **Normalized output**: Store [0,1], UI converts to °C. Consistent with WorldEngine pattern.
-- **Performance**: Skip threading (YAGNI), cache + simple algorithm = fast enough.
-- **Next steps**: Dev Engineer implements after VS_024 merged, use WorldEngine temperature.py as reference.
-
-**Dev Engineer Decision** (2025-10-08 14:52 - Multi-stage debug rendering):
-- **Pattern**: Mirror VS_024's Original vs Post-Processed elevation visualization (proven debugging approach)
-- **4 view modes**: LatitudeOnly → +Noise → +Distance → Final (isolates each component for visual validation)
-- **Why**: Complex 4-component algorithm needs per-stage debugging to catch bugs immediately (not guess!)
-- **Trade-off**: Store 4 maps instead of 1 (~2MB extra for 512×512, negligible), but debugging becomes **trivial**
-- **Implementation**: TemperatureCalculator returns all 4 intermediate stages + per-world params
-- **Validation**: Each stage has **visual signature** (bands → fuzz → hot/cold → blue mountains)
-- **Revised estimate**: ~4-5h (was 3-4h), extra hour for multi-stage rendering infrastructure
+*Recently completed and archived (2025-10-08):*
+- **VS_025**: WorldGen Pipeline Stage 2 - Temperature Simulation - 4 phases complete! 4-component WorldEngine algorithm (latitude+tilt 92%, noise 8%, distance-to-sun, mountain-cooling), 4-stage debug visualization, per-world climate variation via AxialTilt/DistanceToSun, noise config bug fix. All 447 tests GREEN. ✅ (2025-10-08 15:42) *See: [Completed_Backlog_2025-10_Part3.md](../07-Archive/Completed_Backlog_2025-10_Part3.md) for full archive*
 
 ---
 
@@ -368,32 +142,43 @@ return result with { TemperatureMap = temperatureMap };
    - ✅ Format v2 serialization: Saves post-processed data with backward compatibility (TD_018)
    - **Outcome**: Foundation complete for Stages 2-6, all 433 tests GREEN
 
-2. **Phase 2: Climate - Temperature** (VS_025, S, ~3-4h)
-   - Temperature calculation (latitude + noise + elevation cooling)
-   - Temperature map visualization (5-stop gradient: -40°C to +40°C)
-   - Tests: Temperature gradient validation
-   - **Status**: Approved, ready for Dev Engineer after VS_024 ✅
+2. **Phase 2: Climate - Temperature** ✅ COMPLETE (VS_025, S, ~5h actual)
+   - ✅ 4-component temperature algorithm: Latitude (92%, with axial tilt) + Noise (8%, FBm fractal) + Distance-to-sun (inverse-square) + Mountain-cooling (RAW elevation thresholds)
+   - ✅ Per-world climate variation: AxialTilt and DistanceToSun (Gaussian-distributed) create hot/cold planets with shifted equators
+   - ✅ 4-stage debug visualization: LatitudeOnly → WithNoise → WithDistance → Final (isolates each component for visual validation)
+   - ✅ Normalized [0,1] output: Internal format for biome classification (Stage 6), UI converts to °C via TemperatureMapper
+   - ✅ MathUtils library: Interp() for latitude interpolation, SampleGaussian() for per-world parameters
+   - ✅ Multi-stage testing: 14 unit tests (Interp edge cases, Gaussian distribution validation, temperature ranges)
+   - ✅ Visual validation passed: Smooth latitude bands, subtle noise variation, hot/cold planets, mountains blue at all latitudes
+   - ✅ Performance: ~60-80ms for temperature calculation (no threading needed, native sim dominates at 83%)
+   - **Outcome**: Temperature maps ready for biome classification (Stage 6), all 447 tests GREEN
+   - **Deferred**: TD_020 Thermal Diffusion (requires water mask from Phase 3-4, will be implemented as part of Phase 5)
 
-3. **Phase 3: Climate - Precipitation** (M, ~6h)
-   - Precipitation calculation (with rain shadow)
+3. **Phase 3: Water Table & Rivers** (M, ~6-8h)
+   - Sea level calculation (quantile-based threshold, extends Phase 1 pattern)
+   - Lake detection (elevation basins below sea level)
+   - River generation (flow from high → low elevation, Dijkstra paths to ocean/lakes)
+   - Water mask output (bool[,]) - BLOCKS TD_020 thermal diffusion
+   - Tests: Water table accuracy, river connectivity
+
+4. **Phase 4: Hydraulic Erosion** (L, ~10-12h)
+   - River erosion (carve valleys along river paths)
+   - Coastal erosion (smooth coastlines)
+   - Mountain weathering (reduce extreme peaks slightly)
+   - Eroded elevation map output (more realistic terrain)
+   - Tests: Erosion effects, valley formation
+
+5. **Phase 5: Thermal Diffusion & Climate Polish** (M, ~6-8h)
+   - TD_020: Physics-based heat diffusion (water/land thermal mass from Phase 3)
+   - Coastal moderation + smooth mountain temperature gradients
+   - Precipitation calculation (rain shadow, distance from water)
    - Precipitation map visualization
-   - Tests: Precipitation patterns
-
-4. **Phase 4: Hydraulic Erosion** (L, ~12h)
-   - River generation (flow accumulation)
-   - Valley carving around rivers
-   - Lake formation
-   - Tests: River connectivity, erosion effects
-
-5. **Phase 5: Hydrology** (M, ~8h)
-   - Watermap (droplet simulation)
-   - Irrigation (moisture spreading)
-   - Humidity (combined moisture metric)
-   - Tests: Flow patterns, moisture distribution
+   - Tests: Coastal moderation validation, precipitation patterns
 
 6. **Phase 6: Biome Classification** (M, ~6h)
-   - Holdridge life zones model
-   - Biome map generation
+   - 48 biome types (WorldEngine catalog)
+   - Classification based on: elevation, temperature, precipitation
+   - Biome transitions (smooth gradients, not hard borders)
    - Biome visualization + legends
    - Tests: Biome distribution validation
 
