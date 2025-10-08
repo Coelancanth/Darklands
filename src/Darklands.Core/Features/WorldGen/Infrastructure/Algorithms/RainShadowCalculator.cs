@@ -119,15 +119,15 @@ public static class RainShadowCalculator
                 // ───────────────────────────────────────────────────────────────
                 // Trace UPWIND (direction varies by latitude!)
                 // ───────────────────────────────────────────────────────────────
-                // Wind direction: +1 = eastward (trace eastward to find upwind), -1 = westward (trace westward)
-                // Example: Westerlies (windX = +1) → Trace eastward (x + 1, x + 2, ...) to find upwind mountains (moisture source)
+                // Wind direction: +1 = eastward (trace WEST to find upwind), -1 = westward (trace EAST to find upwind)
+                // Example: Westerlies (windX = +1) → Trace westward (x - 1, x - 2, ...) to find upwind mountains (moisture source)
 
                 for (int step = 1; step <= maxUpwindDistance; step++)
                 {
-                    // Calculate upwind position (trace IN direction of wind to find moisture source)
-                    // windX = +1 (eastward wind) → upwindX = x + step (look east for moisture source / upwind mountains)
-                    // windX = -1 (westward wind) → upwindX = x - step (look west for moisture source / upwind mountains)
-                    int upwindX = x + (int)(windX * step);
+                    // Calculate upwind position (trace OPPOSITE to wind direction to find moisture source)
+                    // windX = +1 (eastward wind) → upwindX = x - step (look WEST for upwind mountains blocking moisture)
+                    // windX = -1 (westward wind) → upwindX = x + step (look EAST for upwind mountains blocking moisture)
+                    int upwindX = x - (int)(windX * step);
                     int upwindY = y;  // Horizontal-only trace (windY = 0 always)
 
                     // Boundary check (stop if we hit map edge)

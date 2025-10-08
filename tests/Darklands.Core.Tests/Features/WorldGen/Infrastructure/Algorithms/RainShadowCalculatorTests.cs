@@ -8,6 +8,13 @@ namespace Darklands.Core.Tests.Features.WorldGen.Infrastructure.Algorithms;
 /// Tests for RainShadowCalculator (VS_027 Phase 1).
 /// Validates latitude-based orographic precipitation blocking.
 /// </summary>
+/// <remarks>
+/// CRITICAL: Gradient blending creates calm belts (zero wind) at 30° and 60° latitude boundaries.
+/// Tests use latitudes clearly INSIDE pure wind bands:
+/// - **Trade Winds**: height=20, y=11 → 14°N (pure Trade Winds, windX=-1)
+/// - **Westerlies**: height=5, y=3 → 45°N (pure Westerlies, windX=+1)
+/// - **Polar Easterlies**: height=20, y=18 → 80.5°N (pure Polar Easterlies, windX=-1)
+/// </remarks>
 public class RainShadowCalculatorTests
 {
     // ═══════════════════════════════════════════════════════════════════════
@@ -19,9 +26,9 @@ public class RainShadowCalculatorTests
     {
         // WHY: Rain shadow basics - single upwind mountain blocks 5% precipitation
 
-        // Arrange: 4x5 map with mountain at x=1, test at mid-latitude row (y=3 = Westerlies)
+        // Arrange: 5×5 map with mountain at x=1, test at Westerlies latitude (y=3 = 45°N)
         // Westerlies (eastward wind) → upwind is WEST (left side)
-        int width = 5, height = 4;
+        int width = 5, height = 5;  // y=3: 3/4 = 0.75 → 45°N (pure Westerlies)
         float seaLevel = 1.0f, maxElevation = 10.0f;
         float threshold = (maxElevation - seaLevel) * 0.05f;  // 0.45
 
@@ -33,20 +40,19 @@ public class RainShadowCalculatorTests
             for (int x = 0; x < width; x++)
                 elevation[y, x] = seaLevel;
 
-        // Mountain at Westerlies row (y=3, normalized 0.75 = 45°N), column x=1
-        elevation[2, 1] = seaLevel + threshold + 0.5f;
+        // Mountain at Westerlies row (y=3), column x=1
+        elevation[3, 1] = seaLevel + threshold + 0.5f;
 
-        // Act: Calculate rain shadow at mid-latitude (Westerlies, eastward wind)
+        // Act
         var result = RainShadowCalculator.Calculate(
             basePrecip, elevation, seaLevel, maxElevation, width, height);
 
         // Assert: x=3 is 2 cells downwind of mountain at x=1 → 5% reduction
-        float leesidePrecip = result.WithRainShadowMap[2, 3];
-        leesidePrecip.Should().BeApproximately(0.95f, 0.001f,
+        result.WithRainShadowMap[3, 3].Should().BeApproximately(0.95f, 0.001f,
             because: "Single upwind mountain (x=1) blocks 5% precipitation at leeward position (x=3)");
 
         // Sanity check: x=0 (upwind of mountain) should be unchanged
-        result.WithRainShadowMap[2, 0].Should().Be(1.0f,
+        result.WithRainShadowMap[3, 0].Should().Be(1.0f,
             because: "Upwind side of mountain has no rain shadow (no blocking)");
     }
 
@@ -82,8 +88,8 @@ public class RainShadowCalculatorTests
     {
         // WHY: Hills below threshold don't create rain shadow (only significant mountains)
 
-        // Arrange: 4x5 map with small hill (below 5% threshold) at Westerlies latitude
-        int width = 5, height = 4;
+        // Arrange: 5×5 map with small hill (below 5% threshold) at Westerlies latitude
+        int width = 5, height = 5;
         float seaLevel = 1.0f, maxElevation = 10.0f;
         float threshold = (maxElevation - seaLevel) * 0.05f;  // 0.45
 
@@ -95,15 +101,15 @@ public class RainShadowCalculatorTests
             for (int x = 0; x < width; x++)
                 elevation[y, x] = seaLevel;
 
-        // Hill at Westerlies row (y=3), column x=1 (below threshold)
-        elevation[2, 1] = seaLevel + threshold - 0.1f;
+        // Hill at Westerlies row (y=3 = 45°N), column x=1 (below threshold)
+        elevation[3, 1] = seaLevel + threshold - 0.1f;
 
         // Act
         var result = RainShadowCalculator.Calculate(
             basePrecip, elevation, seaLevel, maxElevation, width, height);
 
         // Assert: No blocking (hill too small)
-        result.WithRainShadowMap[2, 3].Should().Be(1.0f,
+        result.WithRainShadowMap[3, 3].Should().Be(1.0f,
             because: "Hill at x=1 is below elevation threshold (0.35 < 0.45), doesn't block precipitation");
     }
 
@@ -116,8 +122,8 @@ public class RainShadowCalculatorTests
     {
         // WHY: Multiple mountain ranges stack blocking (Himalayas → Gobi effect)
 
-        // Arrange: 4x10 map, 3 upwind mountains at Westerlies latitude (15% total blocking)
-        int width = 10, height = 4;
+        // Arrange: 5×10 map, 3 upwind mountains at Westerlies latitude (15% total blocking)
+        int width = 10, height = 5;
         float seaLevel = 1.0f, maxElevation = 10.0f;
         float threshold = (maxElevation - seaLevel) * 0.05f;
 
@@ -129,17 +135,17 @@ public class RainShadowCalculatorTests
             for (int x = 0; x < width; x++)
                 elevation[y, x] = seaLevel;
 
-        // 3 mountains at Westerlies row (y=3), columns x=0, x=2, x=4
-        elevation[2, 0] = seaLevel + threshold + 1;
-        elevation[2, 2] = seaLevel + threshold + 1;
-        elevation[2, 4] = seaLevel + threshold + 1;
+        // 3 mountains at Westerlies row (y=3 = 45°N), columns x=0, x=2, x=4
+        elevation[3, 0] = seaLevel + threshold + 1;
+        elevation[3, 2] = seaLevel + threshold + 1;
+        elevation[3, 4] = seaLevel + threshold + 1;
 
         // Act
         var result = RainShadowCalculator.Calculate(
             basePrecip, elevation, seaLevel, maxElevation, width, height);
 
         // Assert: 3 mountains × 5% = 15% reduction → 85% rainfall remains at x=8
-        result.WithRainShadowMap[2, 8].Should().BeApproximately(0.85f, 0.001f,
+        result.WithRainShadowMap[3, 8].Should().BeApproximately(0.85f, 0.001f,
             because: "3 upwind mountains accumulate 15% blocking (5% each)");
     }
 
@@ -148,8 +154,9 @@ public class RainShadowCalculatorTests
     {
         // WHY: Even worst deserts get occasional rainfall (cap at 80% reduction, min 20% rainfall)
 
-        // Arrange: 4x30 map, 20+ upwind mountains at Westerlies (would be 100%+ blocking if uncapped)
-        int width = 30, height = 4;
+        // Arrange: 5×25 map, 20 upwind mountains at Westerlies (would be 100% blocking if uncapped)
+        // maxUpwindDistance=20, so test at x=20 to see all 20 mountains (x=0-19)
+        int width = 25, height = 5;
         float seaLevel = 1.0f, maxElevation = 10.0f;
         float threshold = (maxElevation - seaLevel) * 0.05f;
 
@@ -162,17 +169,20 @@ public class RainShadowCalculatorTests
                 elevation[y, x] = seaLevel;
 
         // Fill first 20 cells of Westerlies row (y=3) with mountains (all above threshold)
-        for (int x = 9; x < 29; x++)
+        // Mountains at x=0-19 (20 total), test at x=20 (can see all 20 upwind)
+        for (int x = 0; x < 20; x++)
         {
-            elevation[2, x] = seaLevel + threshold + 1;
+            elevation[3, x] = seaLevel + threshold + 1;
         }
 
         // Act
         var result = RainShadowCalculator.Calculate(
             basePrecip, elevation, seaLevel, maxElevation, width, height);
 
-        // Assert: Capped at 80% reduction → 20% rainfall minimum at x=29
-        result.WithRainShadowMap[2, 29].Should().BeApproximately(0.20f, 0.001f,
+        // Assert: Capped at 80% reduction → 20% rainfall minimum
+        // Test at x=20: Looking back westward, sees all 20 mountains at x=0-19
+        // 20 mountains × 5% = 100% blocking → capped at 80% → 20% rainfall remains
+        result.WithRainShadowMap[3, 20].Should().BeApproximately(0.20f, 0.001f,
             because: "Maximum blocking is capped at 80% reduction (20% minimum rainfall even in extreme deserts)");
     }
 
@@ -183,12 +193,12 @@ public class RainShadowCalculatorTests
     [Fact]
     public void Calculate_TradeWindsLatitude_ShouldBlockFromEast()
     {
-        // WHY: Trade Winds (westward) → deserts EAST of mountains (Sahara pattern)
+        // WHY: Trade Winds (westward) → deserts WEST of mountains (Sahara pattern)
 
-        // Arrange: Mountain at x=3, test leeward (east) at x=1
-        // At equator (y=height/2): Trade Winds blow westward (wind X=-1)
+        // Arrange: Mountain at x=3, test leeward (west) at x=1
+        // At 14°N: Trade Winds blow westward (wind X=-1)
         // Upwind is EAST → mountain at x=3 blocks positions west of it (x=0,1,2)
-        int width = 5, height = 5;  // height=5 → equator at y=2
+        int width = 5, height = 20;  // y=11: 11/19 = 0.579 → 14°N (pure Trade Winds)
         float seaLevel = 1.0f, maxElevation = 10.0f;
         float threshold = (maxElevation - seaLevel) * 0.05f;
 
@@ -200,31 +210,31 @@ public class RainShadowCalculatorTests
             for (int x = 0; x < width; x++)
                 elevation[y, x] = seaLevel;
 
-        // Mountain at equator row (y=2), column x=3
-        elevation[2, 3] = seaLevel + threshold + 1;
+        // Mountain at Trade Winds row (y=11 = 14°N), column x=3
+        elevation[11, 3] = seaLevel + threshold + 1;
 
         // Act
         var result = RainShadowCalculator.Calculate(
             basePrecip, elevation, seaLevel, maxElevation, width, height);
 
         // Assert: Leeward (west) side has rain shadow
-        result.WithRainShadowMap[2, 1].Should().BeApproximately(0.95f, 0.001f,
+        result.WithRainShadowMap[11, 1].Should().BeApproximately(0.95f, 0.001f,
             because: "Trade Winds (westward): Mountain at x=3 blocks precipitation at leeward x=1 (5% reduction)");
 
         // Windward (east) side unchanged
-        result.WithRainShadowMap[2, 4].Should().Be(1.0f,
+        result.WithRainShadowMap[11, 4].Should().Be(1.0f,
             because: "Windward side (east of mountain) has no rain shadow");
     }
 
     [Fact]
     public void Calculate_WesterliesLatitude_ShouldBlockFromWest()
     {
-        // WHY: Westerlies (eastward) → deserts WEST of mountains (Gobi pattern)
+        // WHY: Westerlies (eastward) → deserts EAST of mountains (Gobi pattern)
 
-        // Arrange: Mountain at x=1, test leeward (west) at x=3
-        // At 45°N (y=3/4 of height): Westerlies blow eastward (wind X=+1)
+        // Arrange: Mountain at x=1, test leeward (east) at x=3
+        // At 45°N: Westerlies blow eastward (wind X=+1)
         // Upwind is WEST → mountain at x=1 blocks positions east of it (x=2,3,4)
-        int width = 5, height = 4;  // height=4 → 45°N at y=3 (0.75 normalized)
+        int width = 5, height = 5;  // y=3: 3/4 = 0.75 → 45°N (pure Westerlies)
         float seaLevel = 1.0f, maxElevation = 10.0f;
         float threshold = (maxElevation - seaLevel) * 0.05f;
 
@@ -237,30 +247,30 @@ public class RainShadowCalculatorTests
                 elevation[y, x] = seaLevel;
 
         // Mountain at Westerlies row (y=3), column x=1
-        elevation[2, 1] = seaLevel + threshold + 1;
+        elevation[3, 1] = seaLevel + threshold + 1;
 
         // Act
         var result = RainShadowCalculator.Calculate(
             basePrecip, elevation, seaLevel, maxElevation, width, height);
 
         // Assert: Leeward (east) side has rain shadow
-        result.WithRainShadowMap[2, 3].Should().BeApproximately(0.95f, 0.001f,
+        result.WithRainShadowMap[3, 3].Should().BeApproximately(0.95f, 0.001f,
             because: "Westerlies (eastward): Mountain at x=1 blocks precipitation at leeward x=3 (5% reduction)");
 
         // Windward (west) side unchanged
-        result.WithRainShadowMap[2, 0].Should().Be(1.0f,
+        result.WithRainShadowMap[3, 0].Should().Be(1.0f,
             because: "Windward side (west of mountain) has no rain shadow");
     }
 
     [Fact]
     public void Calculate_PolarEasterliesLatitude_ShouldBlockFromEast()
     {
-        // WHY: Polar Easterlies (westward) → deserts EAST of mountains (Arctic pattern)
+        // WHY: Polar Easterlies (westward) → deserts WEST of mountains (Arctic pattern)
 
-        // Arrange: Mountain at x=3, test leeward (east) at x=1
-        // At 75°N (y=height-1): Polar Easterlies blow westward (wind X=-1)
+        // Arrange: Mountain at x=3, test leeward (west) at x=1
+        // At 80.5°N: Polar Easterlies blow westward (wind X=-1)
         // Upwind is EAST → mountain at x=3 blocks positions west of it
-        int width = 5, height = 6;  // height=6 → 75°N at y=5 (0.83 normalized → Polar)
+        int width = 5, height = 20;  // y=18: 18/19 = 0.947 → 80.5°N (pure Polar Easterlies)
         float seaLevel = 1.0f, maxElevation = 10.0f;
         float threshold = (maxElevation - seaLevel) * 0.05f;
 
@@ -272,19 +282,19 @@ public class RainShadowCalculatorTests
             for (int x = 0; x < width; x++)
                 elevation[y, x] = seaLevel;
 
-        // Mountain at Polar row (y=5), column x=3
-        elevation[5, 3] = seaLevel + threshold + 1;
+        // Mountain at Polar row (y=18 = 80.5°N), column x=3
+        elevation[18, 3] = seaLevel + threshold + 1;
 
         // Act
         var result = RainShadowCalculator.Calculate(
             basePrecip, elevation, seaLevel, maxElevation, width, height);
 
         // Assert: Leeward (west) side has rain shadow
-        result.WithRainShadowMap[5, 1].Should().BeApproximately(0.95f, 0.001f,
+        result.WithRainShadowMap[18, 1].Should().BeApproximately(0.95f, 0.001f,
             because: "Polar Easterlies (westward): Mountain at x=3 blocks precipitation at leeward x=1");
 
         // Windward (east) side unchanged
-        result.WithRainShadowMap[5, 4].Should().Be(1.0f,
+        result.WithRainShadowMap[18, 4].Should().Be(1.0f,
             because: "Windward side (east of mountain) has no rain shadow");
     }
 
@@ -297,8 +307,8 @@ public class RainShadowCalculatorTests
     {
         // WHY: Mountains at map edges shouldn't cause index out of bounds
 
-        // Arrange: 4x5 map, mountain at western edge (x=0) at Westerlies latitude
-        int width = 5, height = 4;
+        // Arrange: 5×5 map, mountain at western edge (x=0) at Westerlies latitude
+        int width = 5, height = 5;
         float seaLevel = 1.0f, maxElevation = 10.0f;
         float threshold = (maxElevation - seaLevel) * 0.05f;
 
@@ -311,7 +321,7 @@ public class RainShadowCalculatorTests
                 elevation[y, x] = seaLevel;
 
         // Mountain at Westerlies row (y=3), western edge (x=0)
-        elevation[2, 0] = seaLevel + threshold + 1;
+        elevation[3, 0] = seaLevel + threshold + 1;
 
         // Act: Should not throw exception
         var result = RainShadowCalculator.Calculate(
@@ -321,7 +331,7 @@ public class RainShadowCalculatorTests
         result.WithRainShadowMap.Should().NotBeNull();
 
         // Mountain at edge blocks cells to the east (Westerlies eastward wind)
-        result.WithRainShadowMap[2, 2].Should().BeApproximately(0.95f, 0.001f,
+        result.WithRainShadowMap[3, 2].Should().BeApproximately(0.95f, 0.001f,
             because: "Mountain at x=0 blocks eastward positions (Westerlies pattern)");
     }
 
@@ -330,22 +340,22 @@ public class RainShadowCalculatorTests
     {
         // WHY: Rain shadow reduces precipitation proportionally (not by fixed amount)
 
-        // Arrange: 4x5 map, varied base precipitation, test at Westerlies latitude
-        int width = 5, height = 4;
+        // Arrange: 5×5 map, varied base precipitation, test at Westerlies latitude
+        int width = 5, height = 5;
         float seaLevel = 1.0f, maxElevation = 10.0f;
         float threshold = (maxElevation - seaLevel) * 0.05f;
 
         var basePrecip = new float[height, width];
-        // Row 0-1: Low base precipitation (0.5)
-        for (int y = 0; y < 2; y++)
+        // Row 0-2: Low base precipitation (0.5)
+        for (int y = 0; y < 3; y++)
             for (int x = 0; x < width; x++)
                 basePrecip[y, x] = 0.5f;
-        // Row 2 (Westerlies): High base precipitation (1.0)
+        // Row 3 (Westerlies): High base precipitation (1.0)
         for (int x = 0; x < width; x++)
-            basePrecip[2, x] = 1.0f;
-        // Row 3: Medium base precipitation (0.7)
+            basePrecip[3, x] = 1.0f;
+        // Row 4: Medium base precipitation (0.7)
         for (int x = 0; x < width; x++)
-            basePrecip[3, x] = 0.7f;
+            basePrecip[4, x] = 0.7f;
 
         var elevation = new float[height, width];
         for (int y = 0; y < height; y++)
@@ -361,7 +371,7 @@ public class RainShadowCalculatorTests
             basePrecip, elevation, seaLevel, maxElevation, width, height);
 
         // Assert: 5% reduction applies proportionally to base values (test Westerlies row only)
-        result.WithRainShadowMap[2, 3].Should().BeApproximately(1.0f * 0.95f, 0.001f,
+        result.WithRainShadowMap[3, 3].Should().BeApproximately(1.0f * 0.95f, 0.001f,
             because: "5% reduction on 1.0 base precipitation = 0.95 (Westerlies eastward wind)");
     }
 
@@ -370,8 +380,8 @@ public class RainShadowCalculatorTests
     {
         // WHY: Flat vs mountainous worlds need different blocking thresholds
 
-        // Arrange: 4x5 maps (Westerlies latitude), different max elevations
-        int width = 5, height = 4;
+        // Arrange: 5×5 maps (Westerlies latitude), different max elevations
+        int width = 5, height = 5;
         float seaLevel = 1.0f;
 
         var basePrecip = CreateUniformPrecipitation(width, height, 1.0f);
@@ -402,11 +412,11 @@ public class RainShadowCalculatorTests
             basePrecip, mountainousElevation, seaLevel, mountainousMaxElev, width, height);
 
         // Assert: Flat world blocks (0.15 > 0.1 threshold)
-        flatResult.WithRainShadowMap[2, 3].Should().BeApproximately(0.95f, 0.001f,
+        flatResult.WithRainShadowMap[3, 3].Should().BeApproximately(0.95f, 0.001f,
             because: "In flat world, 0.15 elevation delta exceeds 0.1 threshold → blocks");
 
         // Mountainous world doesn't block (0.5 < 0.7 threshold)
-        mountainousResult.WithRainShadowMap[2, 3].Should().Be(1.0f,
+        mountainousResult.WithRainShadowMap[3, 3].Should().Be(1.0f,
             because: "In mountainous world, 0.5 elevation delta is below 0.7 threshold → no blocking");
     }
 
