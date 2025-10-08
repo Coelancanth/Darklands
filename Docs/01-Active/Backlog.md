@@ -272,14 +272,15 @@ return result with { TemperatureMap = temperatureMap };
 - Used `static readonly` (not `const`) to avoid "unreachable code" compiler warnings
 - All 433 tests GREEN, build succeeds
 
-**Phase 1: Core Algorithm with Multi-Stage Output** (~1.5-2h, TDD)
-1. Create `MathUtils.cs` with `Interp()` (numpy.interp) and `SampleGaussian()` (Box-Muller transform)
-2. Create `TemperatureCalculator.cs` returning **4 intermediate maps**:
-   - `LatitudeOnlyMap` (Step 1: Pure latitude banding with axial tilt)
-   - `WithNoiseMap` (Step 2: + 8% climate variation)
-   - `WithDistanceMap` (Step 3: + distance-to-sun multiplier)
-   - `FinalMap` (Step 4: + mountain cooling)
-3. Unit tests for edge cases (Interp boundaries, Gaussian distribution)
+**Phase 1: Core Algorithm with Multi-Stage Output** ✅ COMPLETE (~1h actual, TDD)
+1. ✅ Created `MathUtils.cs` with `Interp()` and `SampleGaussian()` (Box-Muller transform)
+2. ✅ Created `TemperatureCalculator.cs` with 4-stage output:
+   - LatitudeOnlyMap (axial tilt interpolation)
+   - WithNoiseMap (92% latitude, 8% noise - WorldEngine ratio)
+   - WithDistanceMap (inverse-square law)
+   - FinalMap (mountain cooling with RAW elevation thresholds)
+3. ✅ 14 comprehensive unit tests (Interp edge cases, Gaussian distribution validation)
+4. ✅ All 447 tests GREEN, build succeeds
 
 **Phase 2: Pipeline Integration** (~0.5h)
 4. Update `WorldGenerationResult` to store **4 temperature maps** + per-world params (AxialTilt, DistanceToSun)
