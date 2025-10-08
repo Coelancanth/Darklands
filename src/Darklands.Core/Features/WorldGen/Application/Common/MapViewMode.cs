@@ -93,5 +93,16 @@ public enum MapViewMode
     /// Sahara (trade winds), Gobi (westerlies), Atacama (trade winds) patterns.
     /// Colors: Brown (rain shadow deserts) → Yellow (moderate) → Blue (windward coasts).
     /// </summary>
-    PrecipitationWithRainShadow
+    PrecipitationWithRainShadow,
+
+    /// <summary>
+    /// Display precipitation - Stage 5: FINAL (VS_028 production).
+    /// Complete precipitation with coastal moisture enhancement.
+    /// Visual signature: Coastal regions wetter than interior (maritime vs continental climates).
+    /// Physics: Exponential decay with distance from ocean, elevation resistance.
+    /// Real-world: Seattle (wet coast) vs Spokane (dry interior), UK maritime vs central Asia.
+    /// Colors: Brown (continental interior) → Yellow (moderate) → Blue (maritime coasts).
+    /// THIS IS THE FINAL PRECIPITATION used by erosion/rivers (VS_029).
+    /// </summary>
+    PrecipitationFinal
 }

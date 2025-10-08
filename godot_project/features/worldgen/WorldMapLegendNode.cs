@@ -207,6 +207,14 @@ public partial class WorldMapLegendNode : Control
                 AddLegendEntry("Blue", new Color(0f, 0f, 1f), "Wet (windward coasts)");
                 break;
 
+            case MapViewMode.PrecipitationFinal:
+                // 3-band moisture gradient FINAL (VS_028: Production Stage 5 - coastal moisture)
+                AddLegendEntry("FINAL (+ Coastal)", new Color(0.8f, 0.8f, 0.8f), "(maritime vs continental)");
+                AddLegendEntry("Yellow", new Color(255f/255f, 255f/255f, 0f), "Arid (interior)");
+                AddLegendEntry("Green", new Color(0f, 200f/255f, 0f), "Moderate");
+                AddLegendEntry("Blue", new Color(0f, 0f, 1f), "Wet (maritime coasts)");
+                break;
+
             default:
                 AddLegendEntry("Unknown view", new Color(1, 0, 0), "");
                 break;

@@ -101,6 +101,7 @@ public partial class WorldMapProbeNode : Node
             MapViewMode.PrecipitationTemperatureShaped => HIGHLIGHT_COLOR_COLORED,
             MapViewMode.PrecipitationBase => HIGHLIGHT_COLOR_COLORED,
             MapViewMode.PrecipitationWithRainShadow => HIGHLIGHT_COLOR_COLORED,
+            MapViewMode.PrecipitationFinal => HIGHLIGHT_COLOR_COLORED,
 
             _ => HIGHLIGHT_COLOR_COLORED
         };
@@ -217,6 +218,10 @@ public partial class WorldMapProbeNode : Node
             // VS_027: Rain shadow mode - show stage 4 with wind direction + blocking info
             MapViewMode.PrecipitationWithRainShadow =>
                 BuildRainShadowProbeData(x, y, worldData),
+
+            // VS_028: Coastal moisture mode - show stage 5 with distance + bonus info
+            MapViewMode.PrecipitationFinal =>
+                BuildCoastalMoistureProbeData(x, y, worldData),
 
             _ => $"Cell ({x},{y})\nUnknown view"
         };
@@ -536,5 +541,55 @@ public partial class WorldMapProbeNode : Node
             : $"Blocking: None (windward/flat)\n";
 
         return header + wind + precip + shadow + reduction;
+    }
+
+    /// <summary>
+    /// Builds coastal moisture probe data (VS_028 Stage 5).
+    /// Shows: rain shadow input, final precipitation, distance-to-ocean, coastal bonus %, elevation resistance.
+    /// </summary>
+    private string BuildCoastalMoistureProbeData(
+        int x,
+        int y,
+        Core.Features.WorldGen.Application.DTOs.WorldGenerationResult worldData)
+    {
+        float? rainShadowPrecip = worldData.WithRainShadowPrecipitationMap?[y, x];
+        float? finalPrecip = worldData.PrecipitationFinal?[y, x];
+        var thresholds = worldData.PrecipitationThresholds;
+        bool? isOcean = worldData.OceanMask?[y, x];
+        float? elevation = worldData.PostProcessedHeightmap?[y, x];
+
+        string header = $"Cell ({x},{y})\nStage 5: FINAL (+ Coastal)\n\n";
+
+        // Ocean cells have no coastal enhancement
+        if (isOcean == true)
+        {
+            string oceanNote = "Ocean Cell:\n(No coastal enhancement)\n\n";
+            string precip = $"Precipitation:\n{FormatPrecipitation(finalPrecip ?? 0f, thresholds)}\n";
+            return header + oceanNote + precip;
+        }
+
+        // Calculate distance-to-ocean (estimate based on BFS - we don't store it in WorldGenerationResult)
+        // For probe display, show relative enhancement instead
+        float enhancement = 0f;
+        if (rainShadowPrecip.HasValue && finalPrecip.HasValue && rainShadowPrecip.Value > 0)
+        {
+            enhancement = ((finalPrecip.Value - rainShadowPrecip.Value) / rainShadowPrecip.Value) * 100f;
+        }
+
+        // Build probe display
+        string rainShadow = $"Rain Shadow:\n{FormatPrecipitation(rainShadowPrecip ?? 0f, thresholds)}\n\n";
+        string final = $"Final (+ Coastal):\n{FormatPrecipitation(finalPrecip ?? 0f, thresholds)}\n\n";
+        string bonus = enhancement > 0.1f
+            ? $"Coastal Bonus: +{enhancement:F1}%\n(Maritime climate effect)\n"
+            : $"Coastal Bonus: None\n(Deep interior)\n";
+
+        // Show elevation if high (resistance effect)
+        string elevInfo = "";
+        if (elevation.HasValue && elevation.Value > 5.0f)
+        {
+            elevInfo = $"\nElevation: {elevation.Value:F1}\n(High altitude resists coastal moisture)\n";
+        }
+
+        return header + rainShadow + final + bonus + elevInfo;
     }
 }

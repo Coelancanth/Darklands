@@ -152,6 +152,17 @@ public record WorldGenerationResult
     public float[,]? WithRainShadowPrecipitationMap { get; init; }
 
     /// <summary>
+    /// Precipitation map - Stage 5: FINAL (VS_028 Stage 5 - production).
+    /// Complete precipitation with coastal moisture enhancement. Normalized [0,1].
+    /// Visual signature: Coastal regions wetter than interior (maritime vs continental climates).
+    /// Physics: Exponential decay with distance from ocean (e^(-dist/30 cells)), elevation resistance.
+    /// Real-world: Seattle wet coast vs Spokane dry interior, UK maritime vs central Asia continental.
+    /// THIS IS THE FINAL PRECIPITATION MAP used by erosion/rivers (VS_029).
+    /// UI displays as mm/year: Arid (&lt;200), Low (200-400), Medium (400-800), High (&gt;800).
+    /// </summary>
+    public float[,]? PrecipitationFinal { get; init; }
+
+    /// <summary>
     /// Precipitation map in mm/year (Stage 3 - future).
     /// Available after precipitation simulation (with rain shadow).
     /// DEPRECATED: Use FinalPrecipitationMap instead (VS_026+).
@@ -195,6 +206,7 @@ public record WorldGenerationResult
         float[,]? finalPrecipitationMap = null,
         PrecipitationThresholds? precipitationThresholds = null,
         float[,]? withRainShadowPrecipitationMap = null,
+        float[,]? precipitationFinal = null,
         float[,]? precipitationMap = null)
     {
         Heightmap = heightmap;
@@ -216,6 +228,7 @@ public record WorldGenerationResult
         FinalPrecipitationMap = finalPrecipitationMap;
         PrecipitationThresholds = precipitationThresholds;
         WithRainShadowPrecipitationMap = withRainShadowPrecipitationMap;
+        PrecipitationFinal = precipitationFinal;
         PrecipitationMap = precipitationMap;
         RawNativeOutput = rawNativeOutput;
     }

@@ -123,6 +123,22 @@ public class GenerateWorldPipeline : IWorldGenerationPipeline
             "Stage 4 complete: Rain shadow effect applied (latitude-based prevailing winds)");
 
         // ═══════════════════════════════════════════════════════════════════════
+        // STAGE 5: Coastal Moisture Enhancement (VS_028)
+        // ═══════════════════════════════════════════════════════════════════════
+        // Distance-to-ocean BFS + exponential decay + elevation resistance
+        // Produces: PrecipitationFinal (THE final precipitation map for erosion/rivers)
+
+        var coastalMoistureResult = Algorithms.CoastalMoistureCalculator.Calculate(
+            rainShadowPrecipitation: rainShadowResult.WithRainShadowMap,
+            oceanMask: postProcessed.OceanMask!,
+            heightmap: postProcessed.ProcessedHeightmap,
+            width: nativeResult.Value.Width,
+            height: nativeResult.Value.Height);
+
+        _logger.LogInformation(
+            "Stage 5 complete: Coastal moisture enhancement applied (maritime vs continental climates)");
+
+        // ═══════════════════════════════════════════════════════════════════════
         // ASSEMBLE RESULT (VS_024: Dual-heightmap + thresholds architecture)
         // ═══════════════════════════════════════════════════════════════════════
 
@@ -144,14 +160,15 @@ public class GenerateWorldPipeline : IWorldGenerationPipeline
             distanceToSun: tempResult.DistanceToSun,                       // Per-world param
             baseNoisePrecipitationMap: precipResult.NoiseOnlyMap,          // VS_026 Stage 1 (debug)
             temperatureShapedPrecipitationMap: precipResult.TemperatureShapedMap, // VS_026 Stage 2 (debug)
-            finalPrecipitationMap: precipResult.FinalMap,                  // VS_026 Stage 3 (production)
+            finalPrecipitationMap: precipResult.FinalMap,                  // VS_026 Stage 3 (base precip)
             precipitationThresholds: precipResult.Thresholds,              // Quantile-based classification
-            withRainShadowPrecipitationMap: rainShadowResult.WithRainShadowMap, // VS_027 Stage 4 (production)
+            withRainShadowPrecipitationMap: rainShadowResult.WithRainShadowMap, // VS_027 Stage 4 (+ rain shadow)
+            precipitationFinal: coastalMoistureResult.FinalMap,            // VS_028 Stage 5 (FINAL - for erosion!)
             precipitationMap: null   // Deprecated (use finalPrecipitationMap)
         );
 
         _logger.LogInformation(
-            "Pipeline complete: {Width}x{Height} world with Stage 1 (elevation) + Stage 2 (temperature) + Stage 3 (precipitation) + Stage 4 (rain shadow)",
+            "Pipeline complete: {Width}x{Height} world with Stage 1 (elevation) + Stage 2 (temperature) + Stage 3 (precipitation) + Stage 4 (rain shadow) + Stage 5 (coastal moisture)",
             result.Width, result.Height);
 
         return Result.Success(result);

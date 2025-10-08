@@ -179,6 +179,17 @@ public partial class WorldMapRendererNode : Sprite2D
                 }
                 break;
 
+            case MapViewMode.PrecipitationFinal:
+                if (_worldData.PrecipitationFinal != null)
+                {
+                    RenderPrecipitationMap(_worldData.PrecipitationFinal);
+                }
+                else
+                {
+                    _logger?.LogWarning("Precipitation (Final) not available");
+                }
+                break;
+
             default:
                 _logger?.LogError("Unknown view mode: {ViewMode}", _currentViewMode);
                 break;
