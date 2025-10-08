@@ -286,11 +286,11 @@ return result with {
 ---
 
 ### VS_027: WorldGen Stage 4 - Rain Shadow Effect (Latitude-Based Prevailing Winds)
-**Status**: Phase 0+1 Done ✅ (Phase 2 pending)
+**Status**: Done ✅
 **Owner**: Dev Engineer
-**Size**: S (2h actual for Phase 0+1)
-**Priority**: In Progress (Phase 2: visualization integration)
-**Completed**: Phase 0+1 - 2025-10-08
+**Size**: S (3h actual - all 3 phases)
+**Priority**: Completed
+**Completed**: 2025-10-08
 **Markers**: [WORLDGEN] [PIPELINE] [STAGE-4] [RAIN-SHADOW]
 
 **What**: Add rain shadow effect to precipitation using **latitude-based prevailing winds** + orographic blocking (mountains block moisture from upwind), with **2-stage debug visualization** (base-precipitation, with-rain-shadow)
@@ -465,12 +465,21 @@ for (int y = 0; y < height; y++) {
 - Phase 0: 14/14 ✅ (100%)
 - Phase 1: 10/11 ✅ (90.9%)
 
-**Phase 2: Visualization Integration** (pending, ~0.5-1h)
-- 🔲 Add MapViewMode values (PrecipitationBase, WithRainShadow)
-- 🔲 Update renderer/legend/probe with wind direction + blocking info
-- 🔲 UI dropdown integration
+**Phase 2: Visualization Integration** ✅ (1h actual)
+- ✅ **MapViewMode**: Added `PrecipitationWithRainShadow` enum value
+- ✅ **WorldGenerationResult**: Added `WithRainShadowPrecipitationMap` property
+- ✅ **Pipeline**: Stage 4 integration (after VS_026 precipitation)
+- ✅ **Renderer**: [WorldMapRendererNode.cs](../../godot_project/features/worldgen/WorldMapRendererNode.cs) - Rain shadow map display
+- ✅ **Legend**: [WorldMapLegendNode.cs](../../godot_project/features/worldgen/WorldMapLegendNode.cs) - "Dry (leeward) → Wet (windward)" gradient
+- ✅ **Probe**: [WorldMapProbeNode.cs](../../godot_project/features/worldgen/WorldMapProbeNode.cs) - Wind direction + blocking % display
+- ✅ **UI**: [WorldMapUINode.cs](../../godot_project/features/worldgen/WorldMapUINode.cs) - "Precipitation: 4. + Rain Shadow" dropdown
 
-**Next Steps**: Phase 2 visualization, then mark VS_027 fully complete
+**Final Test Results**: 481/482 tests GREEN ✅ (99.8% success rate)
+- All 3 phases complete
+- Zero regressions
+- Only 1 known edge case from Phase 1 (minimal impact)
+
+**Next Steps**: VS_027 complete! Ready for VS_028 (coastal moisture enhancement) or other features
 
 ---
 
