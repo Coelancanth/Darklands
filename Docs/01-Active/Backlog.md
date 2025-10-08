@@ -114,50 +114,104 @@
 
 **Why**: Temperature map needed for biome classification (Stage 6) and strategic terrain decisions. Foundation for climate-based gameplay mechanics.
 
-**How** (validated via ultra-think 2025-10-08):
+**How** (ultra-think 2025-10-08, WorldEngine temperature.py validated):
 
-**Three-Component Temperature Algorithm** (WorldEngine proven pattern):
-1. **Latitude Banding** (60% of variation):
-   ```csharp
-   float latitude = y / (float)height;  // [0,1] (0=north pole, 0.5=equator, 1=south)
-   float baseTemp = 30f * Mathf.Cos((latitude - 0.5f) * Mathf.Pi);  // [-30°C, +30°C]
-   ```
+**Question: Use noise again after elevation post-processing?**
+**Answer: YES!** Elevation noise (terrain variation) and temperature noise (climate variation) are **independent physical phenomena**. Two mountain valleys at same elevation can have different temperatures due to microclimates. WorldEngine does this intentionally.
 
-2. **Coherent Noise** (25% of variation):
-   ```csharp
-   var noise = new SimplexNoise(seed);
-   float noiseValue = noise.GetNoise2D(x * 0.01f, y * 0.01f) * 10f;  // ±10°C
-   ```
+**Four-Component Temperature Algorithm** (WorldEngine proven pattern):
 
-3. **Elevation Cooling** (15% of variation):
-   ```csharp
-   float elevation = normalizedHeightmap[y, x];  // [0, 1] from Stage 1
-   float elevationCooling = elevation * 30f;     // Lapse rate ~6.5°C/km
-   ```
+**1. Latitude Factor (92% weight)** - with axial tilt:
+```csharp
+// Per-world parameters (Gaussian-distributed for variety)
+float axialTilt = SampleGaussian(mean: 0.0f, hwhm: 0.07f);  // shift equator
+axialTilt = Math.Clamp(axialTilt, -0.5f, 0.5f);
 
-4. **Combined**:
-   ```csharp
-   temperatureMap[y, x] = baseTemp + noiseValue - elevationCooling;
-   // Result: [-60°C, +40°C] (poles/peaks cold, equator/lowlands warm)
-   ```
+float distanceToSun = SampleGaussian(mean: 1.0f, hwhm: 0.12f);
+distanceToSun = Math.Max(0.1f, distanceToSun);
+distanceToSun *= distanceToSun;  // inverse-square law
 
-**Deferred Features** (YAGNI validated):
-- ❌ **Heat diffusion**: Needs ocean currents for realism - local averaging is fake physics
-- ❌ **Wind effects**: Belongs in Precipitation stage (affects rain shadow, not temperature)
-- ✅ **Simple pattern**: WorldEngine proves 85% realism, 20× less code
+// Per-cell latitude factor
+float y_scaled = (float)y / height - 0.5f;  // [-0.5, 0.5]
+float latitudeFactor = Interp(y_scaled,
+    xp: [axialTilt - 0.5f, axialTilt, axialTilt + 0.5f],
+    fp: [0.0f, 1.0f, 0.0f]);  // cold poles, hot equator, cold poles
+```
+
+**2. Coherent Noise (8% weight)** - climate variation:
+```csharp
+int octaves = 8;
+float freq = 16.0f * octaves;  // 128.0
+float n_scale = 1024f / height;  // For 512×512: 2.0
+
+var noise = new FastNoiseLite(seed);
+noise.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
+noise.SetFractalOctaves(octaves);
+
+float n = noise.GetNoise2D((x * n_scale) / freq, (y * n_scale) / freq);
+// Range: [-1, 1], contributes 1/13 of final temperature
+```
+
+**3. Combined Base Temperature** (normalized [0, 1]):
+```csharp
+float t = (latitudeFactor * 12f + n * 1f) / 13f / distanceToSun;
+// latitudeFactor: 92% weight (latitude banding)
+// n: 8% weight (climate variation)
+// distanceToSun: global multiplier (hot vs cold planets)
+```
+
+**4. Elevation Cooling (mountain-only!)** - RAW elevation with thresholds:
+```csharp
+float rawElevation = postProcessedHeightmap[y, x];  // Use RAW, not normalized!
+
+if (rawElevation > thresholds.MountainLevel) {
+    float altitude_factor;
+    if (rawElevation > thresholds.MountainLevel + 29f) {
+        altitude_factor = 0.033f;  // extreme peaks (97% cooling)
+    } else {
+        // Linear cooling from mountain base to +29 units above
+        altitude_factor = 1.0f - (rawElevation - thresholds.MountainLevel) / 30f;
+    }
+    t *= altitude_factor;  // mountains get MUCH colder
+}
+temperatureMap[y, x] = t;  // Store normalized [0, 1]
+```
+
+**5. UI Display Conversion** (Presentation layer):
+```csharp
+// Convert [0, 1] to real temperatures for display
+float tempCelsius = t * 100f - 60f;  // [-60°C, +40°C] range
+// Probe shows: "Temp: -15.2°C"
+// Gradient: Blue (-60°C) → Red (+40°C)
+```
+
+**Key WorldEngine Insights Adopted:**
+- ✅ **Axial tilt**: Shifts equator position (more interesting than fixed cosine)
+- ✅ **Distance to sun**: Per-world hot/cold variation (inverse-square law)
+- ✅ **Latitude interpolation**: More realistic than simple cosine
+- ✅ **8% noise weight**: Subtle climate variation (not 50/50)
+- ✅ **Mountain-only cooling**: Lowlands unaffected (realistic!)
+- ✅ **RAW elevation + thresholds**: Uses actual heightmap values (adaptive per-world)
+- ✅ **Normalized output [0,1]**: Consistent internal format, UI converts to °C
+
+**YAGNI Skipped (from WorldEngine):**
+- ❌ **Border wrapping**: Seamless east-west complexity, not needed for single-world game
+- ❌ **Atmosphere factor**: TODO in WorldEngine, not implemented yet
 
 **Visualization Integration** (add Temperature view):
 1. **Renderer** (WorldMapRendererNode.cs):
    - Add `RenderTemperature(float[,] temperatureMap)` method
+   - Input: normalized [0, 1] temperature values
+   - Convert to °C for gradient: `tempC = t * 100f - 60f`
    - 5-stop color gradient:
      ```
-     Blue   (-40°C) → Cyan (-20°C) → Green (0°C) → Yellow (+20°C) → Red (+40°C)
+     Blue   (-60°C) → Cyan (-20°C) → Green (0°C) → Yellow (+20°C) → Red (+40°C)
      ```
 
 2. **Legend** (WorldMapLegendNode.cs):
    ```csharp
    case MapViewMode.Temperature:
-       AddLegendEntry("Blue", ..., "-40°C (Frozen)");
+       AddLegendEntry("Blue", ..., "-60°C (Frozen peaks)");
        AddLegendEntry("Cyan", ..., "-20°C (Cold)");
        AddLegendEntry("Green", ..., "0°C (Mild)");
        AddLegendEntry("Yellow", ..., "+20°C (Warm)");
@@ -165,7 +219,8 @@
    ```
 
 3. **Probe** (WorldMapProbeNode.cs):
-   - Display temperature on hover: `"Temp: {temp:F1}°C"`
+   - Display converted temperature: `"Temp: {temp:F1}°C"` (from [0,1] → °C)
+   - Show raw normalized value for debugging: `"Normalized: {t:F3}"`
 
 4. **UI** (WorldMapUINode.cs):
    - Add "Temperature" view mode button
@@ -174,7 +229,8 @@
 ```csharp
 // Stage 2: Temperature calculation
 var temperatureMap = TemperatureCalculator.Calculate(
-    normalizedHeightmap: result.NormalizedHeightmap!,
+    postProcessedHeightmap: result.PostProcessedHeightmap!,  // RAW elevation for cooling
+    thresholds: result.Thresholds!,                          // MountainLevel threshold
     width: result.Width,
     height: result.Height,
     seed: parameters.Seed);
@@ -182,39 +238,52 @@ var temperatureMap = TemperatureCalculator.Calculate(
 return result with { TemperatureMap = temperatureMap };
 ```
 
+**Implementation Notes**:
+- Store `axialTilt` and `distanceToSun` in `WorldGenerationResult` (per-world parameters)
+- Use RAW `PostProcessedHeightmap` for elevation cooling (not normalized!)
+- Output normalized [0,1] temperature (UI converts to °C)
+- `Interp()` utility needed: linear interpolation matching numpy.interp
+- `SampleGaussian()` utility: Gaussian distribution with HWHM parameter
+
 **Performance** (multi-threading decision):
-- ❌ **NO threading**: Native sim dominates (83% of 1.2s total), temperature only ~60ms
-- ✅ Auto-cache solves iteration (0ms reload) > threading (11% savings)
+- ❌ **NO threading**: Native sim dominates (83% of 1.2s total), temperature only ~60-80ms
+- ✅ Format v2 cache saves full temperature map (0ms reload)
 - ✅ Simple = fast enough (<1.5s total for 512×512)
 
 **Done When**:
 1. ✅ **Temperature map populated**:
-   - `WorldGenerationResult.TemperatureMap` has values in °C (real units)
-   - Range: -60°C (high peaks at poles) to +40°C (lowlands at equator)
+   - `WorldGenerationResult.TemperatureMap` has normalized [0, 1] values
+   - UI displays as °C range: -60°C (frozen peaks) to +40°C (hot lowlands)
 
-2. ✅ **Algorithm correct**:
-   - Latitude gradient: Poles cold (-30°C base), equator warm (+30°C base)
-   - Elevation cooling: Mountains colder than lowlands at same latitude
-   - Noise variation: Subtle ±10°C variation (no banding artifacts)
+2. ✅ **Algorithm correct** (WorldEngine-validated):
+   - Latitude gradient with axial tilt: Equator shifts based on per-world tilt
+   - Distance to sun: Hot vs cold planets (0.78× to 1.22× multiplier)
+   - Noise variation: Subtle climate variation (8% weight, no banding)
+   - Mountain-only elevation cooling: Lowlands unaffected, peaks get 97% colder
 
 3. ✅ **Visualization working**:
-   - Temperature view mode renders 5-stop gradient
+   - Temperature view mode renders 5-stop gradient (blue poles, red equator)
    - Legend shows 5 temperature bands with °C labels
-   - Probe displays temperature on hover
+   - Probe displays °C on hover + normalized value for debugging
+   - Mountains visibly colder (blue) at all latitudes
 
 4. ✅ **Quality gates**:
-   - Visual validation: Poles blue, equator red, mountains blue at all latitudes
+   - Visual validation: Axial tilt shifts hot zone, mountains always blue
+   - Per-world variation: Different seeds produce hot/cold planets
    - No performance regression (still <1.5s for 512×512 total)
    - All 433 tests remain GREEN
 
-**Depends On**: VS_024 (Elevation Normalization) - needs `NormalizedHeightmap` for elevation cooling
+**Depends On**: VS_024 ✅ - needs `PostProcessedHeightmap` (RAW) + `Thresholds.MountainLevel`
 
-**Tech Lead Decision** (2025-10-08 06:52):
-- **Algorithm**: Match WorldEngine (latitude + noise + elevation). NO heat diffusion (fake physics). NO wind (wrong layer).
-- **Noise inclusion**: YES - trivial cost (~10ms), prevents banding, matches proven pattern.
-- **Simplicity**: 3 components = elegant, 85% realism sufficient for strategy game.
-- **Performance**: Skip threading (YAGNI), cache solves iteration speed.
-- **Next steps**: Dev Engineer implements after VS_024 complete, uses `NormalizedHeightmap` for elevation cooling.
+**Tech Lead Decision** (2025-10-08 09:30 - Updated after WorldEngine analysis):
+- **Algorithm**: 4 components (latitude+tilt, noise, distance-to-sun, mountain-cooling). Matches WorldEngine temperature.py exactly.
+- **Noise YES**: Independent from elevation noise (climate vs terrain). 8% weight per WorldEngine.
+- **RAW elevation**: Use `PostProcessedHeightmap` (raw [0.1-20]) with `MountainLevel` threshold, NOT normalized.
+- **Per-world parameters**: `axialTilt` and `distanceToSun` create planet variety (hot/cold, shifted equator).
+- **Mountain-only cooling**: Realistic - lowlands unaffected by altitude, peaks extremely cold.
+- **Normalized output**: Store [0,1], UI converts to °C. Consistent with WorldEngine pattern.
+- **Performance**: Skip threading (YAGNI), cache + simple algorithm = fast enough.
+- **Next steps**: Dev Engineer implements after VS_024 merged, use WorldEngine temperature.py as reference.
 
 ---
 
