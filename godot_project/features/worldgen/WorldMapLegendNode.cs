@@ -13,7 +13,7 @@ public partial class WorldMapLegendNode : Control
 {
     private ILogger<WorldMapLegendNode>? _logger;
     private VBoxContainer? _container;
-    private MapViewMode _currentViewMode = MapViewMode.ColoredElevation;  // Default to ColoredElevation
+    private MapViewMode _currentViewMode = MapViewMode.ColoredOriginalElevation;  // Default to original elevation (VS_024)
 
     public override void _Ready()
     {
@@ -98,8 +98,21 @@ public partial class WorldMapLegendNode : Control
                 AddLegendEntry("White", new Color(1, 1, 1), "High elevation");
                 break;
 
-            case MapViewMode.ColoredElevation:
-                // 7-band terrain gradient (matches WorldMapRendererNode color palette)
+            case MapViewMode.ColoredOriginalElevation:
+                // 7-band terrain gradient (VS_024: Original native output)
+                AddLegendEntry("Original Elevation", new Color(0.8f, 0.8f, 0.8f), "(native raw, unmodified)");
+                AddLegendEntry("Deep Blue", new Color(0f, 0f, 1f), "Deep ocean");
+                AddLegendEntry("Blue", new Color(0f, 0.078f, 0.784f), "Ocean");
+                AddLegendEntry("Cyan", new Color(0.529f, 0.929f, 0.922f), "Shallow water");
+                AddLegendEntry("Green", new Color(0.345f, 0.678f, 0.192f), "Grass/Lowlands");
+                AddLegendEntry("Yellow-Green", new Color(0.855f, 0.886f, 0.227f), "Hills");
+                AddLegendEntry("Yellow", new Color(0.984f, 0.988f, 0.165f), "Mountains");
+                AddLegendEntry("Brown", new Color(0.357f, 0.110f, 0.051f), "Peaks");
+                break;
+
+            case MapViewMode.ColoredPostProcessedElevation:
+                // 7-band terrain gradient (VS_024: After 4 WorldEngine algorithms)
+                AddLegendEntry("Post-Processed", new Color(0.8f, 0.8f, 0.8f), "(noise + smooth ocean)");
                 AddLegendEntry("Deep Blue", new Color(0f, 0f, 1f), "Deep ocean");
                 AddLegendEntry("Blue", new Color(0f, 0.078f, 0.784f), "Ocean");
                 AddLegendEntry("Cyan", new Color(0.529f, 0.929f, 0.922f), "Shallow water");

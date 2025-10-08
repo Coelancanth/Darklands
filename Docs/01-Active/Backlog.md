@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-08 07:20 (Tech Lead: Finalized VS_024 - 4 post-processing steps, triple heightmap with raw rendering)
+**Last Updated**: 2025-10-08 08:58 (Dev Engineer: TD_018 complete - Format v2 serialization with backward compatibility)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 008
-- **Next TD**: 018
+- **Next TD**: 019
 - **Next VS**: 026
 
 
@@ -103,217 +103,6 @@
 ## 💡 Ideas (Future Work)
 *Future features, nice-to-haves, deferred work*
 
-### VS_024: WorldGen Pipeline Stage 1 - Elevation Post-Processing & Normalization (WorldEngine Quality)
-**Status**: Approved
-**Owner**: Tech Lead → Dev Engineer
-**Size**: M (~6-8h)
-**Priority**: Ideas
-**Markers**: [WORLDGEN] [PIPELINE] [STAGE-1] [FOUNDATION] [WORLDENGINE-COMPLETE]
-
-**What**: Implement Stage 1 of world generation pipeline: WorldEngine elevation post-processing (4 steps: add_noise, fill_ocean, harmonize_ocean, sea_depth) + normalization to [0, 1] range + ocean mask generation with triple-heightmap architecture preserving both original and post-processed baselines
-
-**Why**: Foundation for ALL downstream pipeline stages (temperature, precipitation, biomes). WorldEngine post-processing produces high-quality baseline: varied terrain (noise), realistic oceans (flood-fill + smoothing), depth maps. Normalized elevation enables consistent algorithms. Preserves BOTH original native AND post-processed baselines for comparison/validation.
-
-**How** (validated via ultra-think 2025-10-08):
-
-**Triple-Heightmap Architecture** (KEY INSIGHT - renders at each processing stage):
-```
-Original Heightmap (raw native [0-20])       → ColoredOriginalElevation (native, unmodified)
-Post-Processed Heightmap (raw [0-20])        → ColoredPostProcessedElevation (after 4 steps, raw range)
-Post-Processed Normalized [0, 1]             → ColoredNormalizedElevation (validation) + Stages 2+
-```
-
-**Stage 1 Algorithm** (4 WorldEngine steps, ~150 lines ported):
-
-**Step 1: Post-Processing** (4 algorithms, skip center_land + place_oceans_at_map_borders):
-
-1. **add_noise_to_elevation()**:
-   - Clone original heightmap (preserve original!)
-   - Add coherent Perlin noise to CLONED heightmap
-   - Prevents monotone terrain, adds variety
-   - Result: Varied terrain (~10% noise variation)
-
-2. **fill_ocean()** (BFS flood fill):
-   - Start from border cells below sea level
-   - Flood-fill connected regions
-   - Mark all reachable cells as ocean
-   - Result: `oceanMask` (true=ocean, false=land)
-
-3. **harmonize_ocean()**:
-   - Smooth ocean floor (reduce jaggedness)
-   - Calculate elevation class thresholds (deep/shallow/shore)
-   - Result: Realistic ocean bathymetry
-
-4. **sea_depth()**:
-   - Calculate normalized depth below sea level
-   - Modulate by distance to nearest land
-   - Anti-alias depth transitions
-   - Result: `seaDepth` map (for future ocean rendering)
-
-**Step 2: Normalization** (ONE normalization - only post-processed):
-
-**Post-Processed Normalization**:
-- Scan post-processed heightmap (after 4 steps above)
-- Calculate min/max elevation
-- Normalize: `normalized[y, x] = (postProcessed[y, x] - min) / (max - min)` → [0, 1]
-- **Original heightmap NOT normalized** (render raw with quantiles)
-
-**Step 3: Output Assembly**:
-- `Heightmap` (raw native [0-20]) - unchanged, preserved for rendering original
-- `PostProcessedHeightmap` (raw [0-20]) - after 4 steps, NOT normalized (for rendering post-processed)
-- `NormalizedHeightmap` (normalized [0, 1]) - post-processed + normalized (for validation + Stages 2+)
-- `OceanMask` - flood-filled (not simple threshold!)
-- `SeaDepth` - normalized depth map (optional, for future ocean views)
-
-**WorldGenerationResult DTO Update**:
-```csharp
-public record WorldGenerationResult
-{
-    // NATIVE BASELINE (never modified - render original)
-    public float[,] Heightmap { get; init; }  // Raw [0-20] from C++ library - SACRED!
-
-    // POST-PROCESSED RAW (Stage 1 output - render post-processed comparison)
-    public float[,]? PostProcessedHeightmap { get; init; }  // Raw [0-20] after 4 steps ← NEW!
-
-    // POST-PROCESSED NORMALIZED (validation + downstream stages)
-    public float[,]? NormalizedHeightmap { get; init; }  // [0, 1] normalized post-processed ← NEW!
-    public bool[,]? OceanMask { get; init; }             // Flood-filled ocean ← NEW!
-    public float[,]? SeaDepth { get; init; }             // Normalized depth map (optional) ← NEW!
-
-    public uint[,] PlatesMap { get; init; }
-    public float[,]? TemperatureMap { get; init; }       // Stage 2 (VS_025)
-    public PlateSimulationResult RawNativeOutput { get; init; }
-}
-```
-
-**Visualization Integration** (3 colored elevation views):
-1. **View Mode Enum Updates**:
-   ```csharp
-   public enum MapViewMode
-   {
-       ColoredOriginalElevation,          // Quantile colors on ORIGINAL (raw [0-20]) ← NEW!
-       ColoredPostProcessedElevation,     // Quantile colors on POST-PROCESSED (raw [0-20]) ← NEW!
-       ColoredNormalizedElevation,        // Quantile colors on NORMALIZED ([0, 1]) ← NEW! (validation)
-       Plates,
-       Temperature,                       // VS_025 will add
-       SeaDepth                           // Optional: ocean depth visualization (future)
-   }
-   ```
-
-2. **Renderer Changes** (WorldMapRendererNode.cs):
-   - Change signature: `SetWorldData(WorldGenerationResult data)` (not PlateSimulationResult!)
-   - `RenderColoredElevation()` accepts `float[,] heightmap` parameter (normalizes internally if needed)
-   - `ColoredOriginalElevation` calls `RenderColoredElevation(data.Heightmap)` ← ORIGINAL RAW!
-   - `ColoredPostProcessedElevation` calls `RenderColoredElevation(data.PostProcessedHeightmap!)` ← POST-PROCESSED RAW!
-   - `ColoredNormalizedElevation` calls `RenderColoredElevation(data.NormalizedHeightmap!)` ← NORMALIZED!
-
-3. **Legend Updates** (WorldMapLegendNode.cs):
-   - `ColoredOriginalElevation` legend: "Original Elevation (native output, raw)"
-   - `ColoredPostProcessedElevation` legend: "Post-Processed Elevation (noise + smooth oceans, raw)"
-   - `ColoredNormalizedElevation` legend: "Normalized Elevation (post-processed, [0,1])"
-   - ColoredPostProcessed vs ColoredNormalized should look identical (validation)
-
-4. **Probe Updates** (WorldMapProbeNode.cs):
-   - Show original (raw): `"Original: {rawHeight:F2}"`
-   - Show post-processed (raw): `"PostProc: {postProcHeight:F2}"`
-   - Show normalized: `"Normalized: {normalized:F3}"`
-   - Show ocean status: `"Ocean: {isOcean}"` (flood-filled)
-   - Show sea depth: `"Depth: {depth:F2}"` (if ocean, optional)
-
-5. **UI Updates** (WorldMapUINode.cs):
-   - Add "Colored Original" button (original raw, native baseline)
-   - Add "Colored Post-Processed" button (post-processed raw, see noise/smoothing effect)
-   - Add "Colored Normalized" button (normalized [0,1], validation - should match post-processed)
-
-**Orchestrator Changes** (WorldMapOrchestratorNode.cs):
-- Pass full `WorldGenerationResult` to renderer (not `RawNativeOutput`!)
-- Update serialization to save/load full result
-
-**Pipeline Changes** (GenerateWorldPipeline.cs):
-```csharp
-// Stage 1: WorldEngine elevation post-processing (4 steps, NO center_land/place_oceans)
-var original = nativeResult.Value.Heightmap;
-
-// Post-process (4 steps: add_noise, fill_ocean, harmonize_ocean, sea_depth)
-var postProcessed = ElevationPostProcessor.Process(
-    heightmap: original,  // Clone internally to preserve original!
-    seaLevel: parameters.SeaLevel,
-    seed: parameters.Seed);
-
-// postProcessed contains:
-//   - ProcessedHeightmap (after 4 steps, still raw [0-20] range)
-//   - OceanMask (flood-filled)
-//   - SeaDepth (optional)
-
-// Normalize ONLY post-processed (original stays raw for rendering)
-var normalized = NormalizeHeightmap(postProcessed.ProcessedHeightmap);
-
-return new WorldGenerationResult(
-    heightmap: original,                              // ← Keep raw native (render original)!
-    platesMap: nativeResult.Value.PlatesMap,
-    rawNativeOutput: nativeResult.Value,
-    postProcessedHeightmap: postProcessed.ProcessedHeightmap,  // ← NEW! Raw post-processed (render)
-    normalizedHeightmap: normalized,                  // ← NEW! Normalized (validation + Stages 2+)
-    oceanMask: postProcessed.OceanMask,              // ← NEW! Flood-filled
-    seaDepth: postProcessed.SeaDepth,                // ← NEW! Optional
-    temperatureMap: null                             // ← Stage 2 (VS_025)
-);
-```
-
-**Done When**:
-1. ✅ **WorldEngine post-processing complete** (4 algorithms ported, ~150 lines):
-   - `add_noise_to_elevation()` - Perlin variation added
-   - `fill_ocean()` - BFS flood fill ocean detection
-   - `harmonize_ocean()` - ocean floor smoothed
-   - `sea_depth()` - depth map calculated
-   - SKIPPED: center_land, place_oceans_at_map_borders (not needed)
-
-2. ✅ **Triple heightmap working**:
-   - `Heightmap` field unchanged (raw native [0-20], render original)
-   - `PostProcessedHeightmap` field populated (raw [0-20], render post-processed)
-   - `NormalizedHeightmap` field populated ([0, 1], validation + Stages 2+)
-   - `OceanMask` field populated (flood-filled, not threshold!)
-   - `SeaDepth` field populated (optional, for future ocean views)
-
-3. ✅ **3 colored elevation views working**:
-   - ColoredOriginalElevation: Quantile colors on original raw (native baseline)
-   - ColoredPostProcessedElevation: Quantile colors on post-processed raw (see noise/smoothing)
-   - ColoredNormalizedElevation: Quantile colors on normalized (validation - matches post-processed!)
-
-4. ✅ **Visual validation**:
-   - ColoredOriginalElevation vs ColoredPostProcessedElevation: Should differ (post-processing adds noise/smoothing)
-   - ColoredPostProcessedElevation vs ColoredNormalizedElevation: Should be **identical** (proves normalization correct)
-   - Visual QA: Post-processed has varied terrain (noise), smoother oceans, flood-filled ocean mask
-
-5. ✅ **Architecture clean**:
-   - Renderer accepts `WorldGenerationResult` (not `PlateSimulationResult`)
-   - Orchestrator passes full pipeline output
-   - `ElevationPostProcessor.cs` exists with 4 WorldEngine algorithms
-   - `GenerateWorldPipeline.cs` has clear Stage 1 section with TODO Stage 2
-   - All 433 tests remain GREEN
-
-6. ✅ **Memory acceptable**:
-   - +3 MB for `PostProcessedHeightmap` + `NormalizedHeightmap` + `SeaDepth` (512×512 world)
-   - Total cache size ~9-12 MB (acceptable)
-
-**Depends On**: VS_023 (GenerateWorldPipeline architecture) ✅ Complete
-
-**Tech Lead Decision** (2025-10-08 07:20 - Final: 4 Steps + Raw Rendering):
-- **Triple heightmap**: Preserve raw native (render original) + raw post-processed (render post-processed) + normalized post-processed (validation + Stages 2+). Memory cost acceptable (+3 MB).
-- **Three render targets**: Original (raw [0-20]), PostProcessed (raw [0-20]), Normalized ([0, 1]).
-- **View modes**: 3 colored elevation variants (OriginalColor, PostProcessedColor, NormalizedColor) - all use quantile renderer.
-- **WorldEngine selective**: 4 post-processing steps included (add_noise, fill_ocean, harmonize, sea_depth). SKIP center_land + place_oceans_at_map_borders (not needed).
-- **Size estimate**: M (~5-6h) due to 4 algorithm ports (~150 lines) + single normalization + 3 view modes.
-- **Quality + Comparison**: Render BOTH original and post-processed (raw) for visual comparison. Normalized validates post-processing correctness.
-- **Architecture shift**: Renderer signature changes to `WorldGenerationResult` - affects Orchestrator, tests (~3 files).
-- **Validation strategy**:
-  - Toggle OriginalColor ↔ PostProcessedColor: See post-processing impact (noise, smoother oceans)
-  - Toggle PostProcessedColor ↔ NormalizedColor: Should be **identical** (proves normalization correct)
-- **References**: WorldEngine `basic.py` (elevation post-processing module) - port 4 algorithms to C# `ElevationPostProcessor.cs`.
-- **Next steps**: Dev Engineer implements 4 post-processing algorithms → normalization → 3 view modes → visual comparison + validation, then unblocks VS_025 (Temperature uses NormalizedHeightmap).
-
----
-
 ### VS_025: WorldGen Pipeline Stage 2 - Temperature Simulation
 **Status**: Approved
 **Owner**: Tech Lead → Dev Engineer
@@ -325,50 +114,114 @@ return new WorldGenerationResult(
 
 **Why**: Temperature map needed for biome classification (Stage 6) and strategic terrain decisions. Foundation for climate-based gameplay mechanics.
 
-**How** (validated via ultra-think 2025-10-08):
+**How** (ultra-think 2025-10-08, WorldEngine temperature.py validated):
 
-**Three-Component Temperature Algorithm** (WorldEngine proven pattern):
-1. **Latitude Banding** (60% of variation):
-   ```csharp
-   float latitude = y / (float)height;  // [0,1] (0=north pole, 0.5=equator, 1=south)
-   float baseTemp = 30f * Mathf.Cos((latitude - 0.5f) * Mathf.Pi);  // [-30°C, +30°C]
-   ```
+**Question: Use noise again after elevation post-processing?**
+**Answer: YES!** Elevation noise (terrain variation) and temperature noise (climate variation) are **independent physical phenomena**. Two mountain valleys at same elevation can have different temperatures due to microclimates. WorldEngine does this intentionally.
 
-2. **Coherent Noise** (25% of variation):
-   ```csharp
-   var noise = new SimplexNoise(seed);
-   float noiseValue = noise.GetNoise2D(x * 0.01f, y * 0.01f) * 10f;  // ±10°C
-   ```
+**Four-Component Temperature Algorithm** (WorldEngine proven pattern):
 
-3. **Elevation Cooling** (15% of variation):
-   ```csharp
-   float elevation = normalizedHeightmap[y, x];  // [0, 1] from Stage 1
-   float elevationCooling = elevation * 30f;     // Lapse rate ~6.5°C/km
-   ```
+**1. Latitude Factor (92% weight)** - with axial tilt:
+```csharp
+// Per-world parameters (Gaussian-distributed for variety)
+float axialTilt = SampleGaussian(mean: 0.0f, hwhm: 0.07f);  // shift equator
+axialTilt = Math.Clamp(axialTilt, -0.5f, 0.5f);
 
-4. **Combined**:
-   ```csharp
-   temperatureMap[y, x] = baseTemp + noiseValue - elevationCooling;
-   // Result: [-60°C, +40°C] (poles/peaks cold, equator/lowlands warm)
-   ```
+float distanceToSun = SampleGaussian(mean: 1.0f, hwhm: 0.12f);
+distanceToSun = Math.Max(0.1f, distanceToSun);
+distanceToSun *= distanceToSun;  // inverse-square law
 
-**Deferred Features** (YAGNI validated):
-- ❌ **Heat diffusion**: Needs ocean currents for realism - local averaging is fake physics
-- ❌ **Wind effects**: Belongs in Precipitation stage (affects rain shadow, not temperature)
-- ✅ **Simple pattern**: WorldEngine proves 85% realism, 20× less code
+// Per-cell latitude factor
+float y_scaled = (float)y / height - 0.5f;  // [-0.5, 0.5]
+float latitudeFactor = Interp(y_scaled,
+    xp: [axialTilt - 0.5f, axialTilt, axialTilt + 0.5f],
+    fp: [0.0f, 1.0f, 0.0f]);  // cold poles, hot equator, cold poles
+```
+
+**2. Coherent Noise (8% weight)** - climate variation:
+```csharp
+int octaves = 8;
+float freq = 16.0f * octaves;  // 128.0
+float n_scale = 1024f / height;  // For 512×512: 2.0
+
+var noise = new FastNoiseLite(seed);
+noise.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
+noise.SetFractalOctaves(octaves);
+
+float n = noise.GetNoise2D((x * n_scale) / freq, (y * n_scale) / freq);
+// Range: [-1, 1], contributes 1/13 of final temperature
+```
+
+**3. Combined Base Temperature** (normalized [0, 1]):
+```csharp
+float t = (latitudeFactor * 12f + n * 1f) / 13f / distanceToSun;
+// latitudeFactor: 92% weight (latitude banding)
+// n: 8% weight (climate variation)
+// distanceToSun: global multiplier (hot vs cold planets)
+```
+
+**4. Elevation Cooling (mountain-only!)** - RAW elevation with thresholds:
+```csharp
+float rawElevation = postProcessedHeightmap[y, x];  // Use RAW, not normalized!
+
+if (rawElevation > thresholds.MountainLevel) {
+    float altitude_factor;
+    if (rawElevation > thresholds.MountainLevel + 29f) {
+        altitude_factor = 0.033f;  // extreme peaks (97% cooling)
+    } else {
+        // Linear cooling from mountain base to +29 units above
+        altitude_factor = 1.0f - (rawElevation - thresholds.MountainLevel) / 30f;
+    }
+    t *= altitude_factor;  // mountains get MUCH colder
+}
+temperatureMap[y, x] = t;  // Store normalized [0, 1]
+```
+
+**5. UI Display Conversion** (Presentation layer - TemperatureMapper utility):
+```csharp
+public static class TemperatureMapper
+{
+    private const float MIN_TEMP = -60f;
+    private const float MAX_TEMP = 40f;
+
+    public static float ToCelsius(float normalizedTemp) =>
+        normalizedTemp * (MAX_TEMP - MIN_TEMP) + MIN_TEMP;  // [0,1] → [-60°C, +40°C]
+
+    public static string FormatTemperature(float normalizedTemp) =>
+        $"{ToCelsius(normalizedTemp):F1}°C";  // "Temp: -15.2°C"
+}
+
+// Renderer usage: Convert [0,1] to °C for gradient colors
+// Probe usage: TemperatureMapper.FormatTemperature(temp)
+```
+
+**Key WorldEngine Insights Adopted:**
+- ✅ **Axial tilt**: Shifts equator position (more interesting than fixed cosine)
+- ✅ **Distance to sun**: Per-world hot/cold variation (inverse-square law)
+- ✅ **Latitude interpolation**: More realistic than simple cosine
+- ✅ **8% noise weight**: Subtle climate variation (not 50/50)
+- ✅ **Mountain-only cooling**: Lowlands unaffected (realistic!)
+- ✅ **RAW elevation + thresholds**: Uses actual heightmap values (adaptive per-world)
+- ✅ **Normalized output [0,1]**: Consistent internal format, UI converts to °C
+
+**YAGNI Skipped (from WorldEngine):**
+- ❌ **Border wrapping**: Seamless east-west complexity, not needed for single-world game
+- ❌ **Atmosphere factor**: TODO in WorldEngine, not implemented yet
 
 **Visualization Integration** (add Temperature view):
 1. **Renderer** (WorldMapRendererNode.cs):
    - Add `RenderTemperature(float[,] temperatureMap)` method
+   - Input: normalized [0, 1] temperature values
+   - Convert to °C for gradient: `tempC = t * 100f - 60f`
    - 5-stop color gradient:
      ```
-     Blue   (-40°C) → Cyan (-20°C) → Green (0°C) → Yellow (+20°C) → Red (+40°C)
+     Blue   (-60°C) → Cyan (-20°C) → Green (0°C) → Yellow (+20°C) → Red (+40°C)
      ```
 
 2. **Legend** (WorldMapLegendNode.cs):
    ```csharp
    case MapViewMode.Temperature:
-       AddLegendEntry("Blue", ..., "-40°C (Frozen)");
+       AddLegendEntry("Blue", ..., "-60°C (Frozen peaks)");
        AddLegendEntry("Cyan", ..., "-20°C (Cold)");
        AddLegendEntry("Green", ..., "0°C (Mild)");
        AddLegendEntry("Yellow", ..., "+20°C (Warm)");
@@ -376,7 +229,8 @@ return new WorldGenerationResult(
    ```
 
 3. **Probe** (WorldMapProbeNode.cs):
-   - Display temperature on hover: `"Temp: {temp:F1}°C"`
+   - Display converted temperature: `"Temp: {temp:F1}°C"` (from [0,1] → °C)
+   - Show raw normalized value for debugging: `"Normalized: {t:F3}"`
 
 4. **UI** (WorldMapUINode.cs):
    - Add "Temperature" view mode button
@@ -385,7 +239,8 @@ return new WorldGenerationResult(
 ```csharp
 // Stage 2: Temperature calculation
 var temperatureMap = TemperatureCalculator.Calculate(
-    normalizedHeightmap: result.NormalizedHeightmap!,
+    postProcessedHeightmap: result.PostProcessedHeightmap!,  // RAW elevation for cooling
+    thresholds: result.Thresholds!,                          // MountainLevel threshold
     width: result.Width,
     height: result.Height,
     seed: parameters.Seed);
@@ -393,39 +248,55 @@ var temperatureMap = TemperatureCalculator.Calculate(
 return result with { TemperatureMap = temperatureMap };
 ```
 
+**Implementation Notes**:
+- Store `axialTilt` and `distanceToSun` in `WorldGenerationResult` (per-world parameters)
+- Use RAW `PostProcessedHeightmap` for elevation cooling (not normalized!)
+- **Output normalized [0,1]** temperature - WHY? For future biome classification (Stage 6)
+  - Biome algorithms use quantile thresholds on [0,1] data (same pattern as elevation)
+  - UI converts to °C via TemperatureMapper (same pattern as ElevationMapper)
+- `Interp()` utility needed: linear interpolation matching numpy.interp
+- `SampleGaussian()` utility: Gaussian distribution with HWHM parameter
+- Create `TemperatureMapper` class (analogous to ElevationMapper pattern)
+
 **Performance** (multi-threading decision):
-- ❌ **NO threading**: Native sim dominates (83% of 1.2s total), temperature only ~60ms
-- ✅ Auto-cache solves iteration (0ms reload) > threading (11% savings)
+- ❌ **NO threading**: Native sim dominates (83% of 1.2s total), temperature only ~60-80ms
+- ✅ Format v2 cache saves full temperature map (0ms reload)
 - ✅ Simple = fast enough (<1.5s total for 512×512)
 
 **Done When**:
 1. ✅ **Temperature map populated**:
-   - `WorldGenerationResult.TemperatureMap` has values in °C (real units)
-   - Range: -60°C (high peaks at poles) to +40°C (lowlands at equator)
+   - `WorldGenerationResult.TemperatureMap` has normalized [0, 1] values
+   - UI displays as °C range: -60°C (frozen peaks) to +40°C (hot lowlands)
 
-2. ✅ **Algorithm correct**:
-   - Latitude gradient: Poles cold (-30°C base), equator warm (+30°C base)
-   - Elevation cooling: Mountains colder than lowlands at same latitude
-   - Noise variation: Subtle ±10°C variation (no banding artifacts)
+2. ✅ **Algorithm correct** (WorldEngine-validated):
+   - Latitude gradient with axial tilt: Equator shifts based on per-world tilt
+   - Distance to sun: Hot vs cold planets (0.78× to 1.22× multiplier)
+   - Noise variation: Subtle climate variation (8% weight, no banding)
+   - Mountain-only elevation cooling: Lowlands unaffected, peaks get 97% colder
 
 3. ✅ **Visualization working**:
-   - Temperature view mode renders 5-stop gradient
+   - Temperature view mode renders 5-stop gradient (blue poles, red equator)
    - Legend shows 5 temperature bands with °C labels
-   - Probe displays temperature on hover
+   - Probe displays °C on hover + normalized value for debugging
+   - Mountains visibly colder (blue) at all latitudes
 
 4. ✅ **Quality gates**:
-   - Visual validation: Poles blue, equator red, mountains blue at all latitudes
+   - Visual validation: Axial tilt shifts hot zone, mountains always blue
+   - Per-world variation: Different seeds produce hot/cold planets
    - No performance regression (still <1.5s for 512×512 total)
    - All 433 tests remain GREEN
 
-**Depends On**: VS_024 (Elevation Normalization) - needs `NormalizedHeightmap` for elevation cooling
+**Depends On**: VS_024 ✅ - needs `PostProcessedHeightmap` (RAW) + `Thresholds.MountainLevel`
 
-**Tech Lead Decision** (2025-10-08 06:52):
-- **Algorithm**: Match WorldEngine (latitude + noise + elevation). NO heat diffusion (fake physics). NO wind (wrong layer).
-- **Noise inclusion**: YES - trivial cost (~10ms), prevents banding, matches proven pattern.
-- **Simplicity**: 3 components = elegant, 85% realism sufficient for strategy game.
-- **Performance**: Skip threading (YAGNI), cache solves iteration speed.
-- **Next steps**: Dev Engineer implements after VS_024 complete, uses `NormalizedHeightmap` for elevation cooling.
+**Tech Lead Decision** (2025-10-08 09:30 - Updated after WorldEngine analysis):
+- **Algorithm**: 4 components (latitude+tilt, noise, distance-to-sun, mountain-cooling). Matches WorldEngine temperature.py exactly.
+- **Noise YES**: Independent from elevation noise (climate vs terrain). 8% weight per WorldEngine.
+- **RAW elevation**: Use `PostProcessedHeightmap` (raw [0.1-20]) with `MountainLevel` threshold, NOT normalized.
+- **Per-world parameters**: `axialTilt` and `distanceToSun` create planet variety (hot/cold, shifted equator).
+- **Mountain-only cooling**: Realistic - lowlands unaffected by altitude, peaks extremely cold.
+- **Normalized output**: Store [0,1], UI converts to °C. Consistent with WorldEngine pattern.
+- **Performance**: Skip threading (YAGNI), cache + simple algorithm = fast enough.
+- **Next steps**: Dev Engineer implements after VS_024 merged, use WorldEngine temperature.py as reference.
 
 ---
 
@@ -448,16 +319,22 @@ return result with { TemperatureMap = temperatureMap };
 - ❌ No post-processing (intentional - start simple!)
 
 **Proposed Incremental Approach:**
-1. **Phase 1: Elevation Normalization** (S, ~4h)
-   - Normalize raw heightmap to [0, 1] range
-   - Calculate dynamic sea level threshold (Otsu's method)
-   - Add ocean mask generation
-   - Tests: Verify normalization, sea level calculation
+1. **Phase 1: Elevation Post-Processing** ✅ COMPLETE (VS_024, M, ~8h actual)
+   - ✅ Ported 4 WorldEngine algorithms (~150 lines): add_noise, fill_ocean, harmonize_ocean, sea_depth
+   - ✅ Dual-heightmap architecture: Original raw + Post-processed raw (both [0.1-20] range)
+   - ✅ Quantile-based thresholds: SeaLevel, HillLevel, MountainLevel, PeakLevel (adaptive per-world)
+   - ✅ Real-world meters mapping: ElevationMapper for UI display (Presentation layer utility)
+   - ✅ BFS flood-fill ocean detection (OceanMask, not simple threshold)
+   - ✅ FastNoiseLite integration: 8-octave OpenSimplex2 noise for terrain variation
+   - ✅ Three colored elevation views: Original, Post-Processed, Normalized (visual validation)
+   - ✅ Format v2 serialization: Saves post-processed data with backward compatibility (TD_018)
+   - **Outcome**: Foundation complete for Stages 2-6, all 433 tests GREEN
 
-2. **Phase 2: Climate - Temperature** (M, ~6h)
-   - Temperature calculation (latitude + elevation cooling)
-   - Temperature map visualization
+2. **Phase 2: Climate - Temperature** (VS_025, S, ~3-4h)
+   - Temperature calculation (latitude + noise + elevation cooling)
+   - Temperature map visualization (5-stop gradient: -40°C to +40°C)
    - Tests: Temperature gradient validation
+   - **Status**: Approved, ready for Dev Engineer after VS_024 ✅
 
 3. **Phase 3: Climate - Precipitation** (M, ~6h)
    - Precipitation calculation (with rain shadow)

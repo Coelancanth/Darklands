@@ -146,8 +146,8 @@ public partial class WorldMapOrchestratorNode : Node
         }
 
         string filename = $"world_{_currentSeed}.dwld";
-        // Save raw native output (serialization uses PlateSimulationResult)
-        bool success = _serializationService!.SaveWorld(_currentWorld.RawNativeOutput, _currentSeed, filename);
+        // TD_018: Save FULL WorldGenerationResult (v2 format includes post-processing data)
+        bool success = _serializationService!.SaveWorld(_currentWorld, _currentSeed, filename);
 
         if (success)
         {
@@ -177,19 +177,11 @@ public partial class WorldMapOrchestratorNode : Node
 
         if (success && world != null)
         {
-            // Wrap loaded PlateSimulationResult into WorldGenerationResult (no post-processing)
-            _currentWorld = new WorldGenerationResult(
-                heightmap: world.Heightmap,
-                platesMap: world.PlatesMap,
-                rawNativeOutput: world,
-                oceanMask: null,
-                temperatureMap: null,
-                precipitationMap: null
-            );
+            // TD_018: Direct assignment - no manual wrapping needed!
+            _currentWorld = world;
             _currentSeed = seed;
 
-            // Update renderer and UI
-            _renderer?.SetWorldData(world, ServiceLocator.Get<ILogger<WorldMapRendererNode>>());
+            _renderer?.SetWorldData(_currentWorld, ServiceLocator.Get<ILogger<WorldMapRendererNode>>());
             _ui?.SetSeed(seed);
             _ui?.SetStatus($"Loaded: {filename} (seed: {seed})");
 
@@ -226,19 +218,11 @@ public partial class WorldMapOrchestratorNode : Node
         {
             _logger?.LogInformation("Auto-loaded world from cache: seed={Seed} (skipped generation)", seed);
 
-            // Wrap cached result
-            _currentWorld = new WorldGenerationResult(
-                heightmap: cachedWorld.Heightmap,
-                platesMap: cachedWorld.PlatesMap,
-                rawNativeOutput: cachedWorld,
-                oceanMask: null,
-                temperatureMap: null,
-                precipitationMap: null
-            );
+            // TD_018: Direct assignment - serialization handles v1/v2 format automatically
+            _currentWorld = cachedWorld;
             _currentSeed = seed;
 
-            // Update renderer
-            _renderer?.SetWorldData(cachedWorld, ServiceLocator.Get<ILogger<WorldMapRendererNode>>());
+            _renderer?.SetWorldData(_currentWorld, ServiceLocator.Get<ILogger<WorldMapRendererNode>>());
 
             // Sync legend and probe
             if (_renderer != null && _legend != null)
@@ -275,11 +259,10 @@ public partial class WorldMapOrchestratorNode : Node
             _currentWorld = result.Value;
             _currentSeed = seed;
 
-            // Send raw native output to renderer
-            _renderer?.SetWorldData(result.Value.RawNativeOutput, ServiceLocator.Get<ILogger<WorldMapRendererNode>>());
+            _renderer?.SetWorldData(result.Value, ServiceLocator.Get<ILogger<WorldMapRendererNode>>());
 
-            // Auto-save to cache for next time
-            bool saveSuccess = _serializationService.SaveWorld(result.Value.RawNativeOutput, seed, cacheFilename);
+            // TD_018: Auto-save FULL WorldGenerationResult (v2 format preserves post-processing)
+            bool saveSuccess = _serializationService.SaveWorld(result.Value, seed, cacheFilename);
             if (saveSuccess)
             {
                 _logger?.LogInformation("Auto-saved world to cache: {Filename}", cacheFilename);
