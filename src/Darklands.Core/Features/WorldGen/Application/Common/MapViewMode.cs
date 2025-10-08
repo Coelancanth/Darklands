@@ -58,5 +58,30 @@ public enum MapViewMode
     /// Complete algorithm with mountain cooling. Normalized [0,1] → [-60°C, +40°C].
     /// Visual signature: Mountains blue at ALL latitudes (even equator).
     /// </summary>
-    TemperatureFinal
+    TemperatureFinal,
+
+    /// <summary>
+    /// Display precipitation - Stage 1: Base Noise Only (VS_026 debug).
+    /// Pure coherent noise (6 octaves). Normalized [0,1].
+    /// Visual signature: Random wet/dry patterns (no temperature correlation).
+    /// Colors: Brown (dry) → Yellow (moderate) → Blue (wet).
+    /// </summary>
+    PrecipitationNoiseOnly,
+
+    /// <summary>
+    /// Display precipitation - Stage 2: + Temperature Gamma Curve (VS_026 debug).
+    /// Base noise × gamma curve (cold = less evaporation). Normalized [0,1].
+    /// Visual signature: Tropical regions wetter, polar regions drier (strong correlation).
+    /// Colors: Brown (dry) → Yellow (moderate) → Blue (wet).
+    /// </summary>
+    PrecipitationTemperatureShaped,
+
+    /// <summary>
+    /// Display precipitation - Stage 3: FINAL (VS_026 production).
+    /// Complete base algorithm with renormalization. Normalized [0,1].
+    /// Visual signature: Full dynamic range restored after temperature shaping.
+    /// Colors: Brown (dry) → Yellow (moderate) → Blue (wet).
+    /// Display as mm/year: Low (&lt;400), Medium (400-800), High (&gt;800).
+    /// </summary>
+    PrecipitationFinal
 }

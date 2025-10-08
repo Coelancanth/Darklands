@@ -104,10 +104,11 @@
 *Future features, nice-to-haves, deferred work*
 
 ### VS_026: WorldGen Stage 3 - Base Precipitation (Noise + Temperature Curve)
-**Status**: Proposed
-**Owner**: Tech Lead → Dev Engineer (approved)
-**Size**: S (~3-4h)
-**Priority**: Ideas
+**Status**: Done ✅
+**Owner**: Dev Engineer
+**Size**: S (3.5h actual)
+**Priority**: Completed
+**Completed**: 2025-10-08
 **Markers**: [WORLDGEN] [PIPELINE] [STAGE-3] [CLIMATE]
 
 **What**: Generate global precipitation map using coherent noise shaped by temperature gamma curve (WorldEngine algorithm), with **3-stage debug visualization** (noise-only, temperature-shaped, final-normalized)
@@ -272,6 +273,15 @@ return result with {
 - **Performance**: Precipitation ~20-30ms (simple noise + per-pixel curve), no threading needed
 - **Blocks**: VS_027 (rain shadow needs base precip), VS_028 (coastal moisture needs base precip)
 - **Next steps**: Dev Engineer implements after review, use WorldEngine precipitation.py as reference
+
+**Implementation Summary** (2025-10-08):
+- ✅ **Core**: [PrecipitationCalculator.cs](../../src/Darklands.Core/Features/WorldGen/Infrastructure/Algorithms/PrecipitationCalculator.cs) with 3-stage output (noise, gamma curve, renormalization)
+- ✅ **DTOs**: [PrecipitationThresholds.cs](../../src/Darklands.Core/Features/WorldGen/Application/DTOs/PrecipitationThresholds.cs) + 4 new properties in WorldGenerationResult
+- ✅ **Pipeline**: Stage 3 integrated in [GenerateWorldPipeline.cs](../../src/Darklands.Core/Features/WorldGen/Infrastructure/Pipeline/GenerateWorldPipeline.cs) (~30ms for 512×512)
+- ✅ **Visualization**: 3 view modes (PrecipitationNoiseOnly, TemperatureShaped, Final) with Brown→Yellow→Blue gradient
+- ✅ **Tests**: 10 comprehensive tests (gamma edges, renormalization, temp correlation, thresholds) - all 457 tests GREEN
+- ✅ **Quality**: WorldEngine algorithm exact match, zero regressions, multi-stage debug working
+- **Ready for**: VS_027 (rain shadow effect can now build on base precipitation)
 
 ---
 

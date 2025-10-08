@@ -1,3 +1,4 @@
+using System;
 using Godot;
 using Darklands.Core.Features.WorldGen.Application.Common;
 using Darklands.Core.Features.WorldGen.Application.DTOs;
@@ -94,6 +95,11 @@ public partial class WorldMapProbeNode : Node
             MapViewMode.TemperatureWithNoise => HIGHLIGHT_COLOR_COLORED,
             MapViewMode.TemperatureWithDistance => HIGHLIGHT_COLOR_COLORED,
             MapViewMode.TemperatureFinal => HIGHLIGHT_COLOR_COLORED,
+
+            // VS_026: Precipitation modes use red highlight (contrasts with brown-yellow-blue gradient)
+            MapViewMode.PrecipitationNoiseOnly => HIGHLIGHT_COLOR_COLORED,
+            MapViewMode.PrecipitationTemperatureShaped => HIGHLIGHT_COLOR_COLORED,
+            MapViewMode.PrecipitationFinal => HIGHLIGHT_COLOR_COLORED,
 
             _ => HIGHLIGHT_COLOR_COLORED
         };
@@ -196,6 +202,16 @@ public partial class WorldMapProbeNode : Node
 
             MapViewMode.TemperatureFinal =>
                 BuildTemperatureProbeData(x, y, worldData, debugStage: 4),
+
+            // VS_026: Precipitation view modes - show all 3 stages + physics debug
+            MapViewMode.PrecipitationNoiseOnly =>
+                BuildPrecipitationProbeData(x, y, worldData, debugStage: 1),
+
+            MapViewMode.PrecipitationTemperatureShaped =>
+                BuildPrecipitationProbeData(x, y, worldData, debugStage: 2),
+
+            MapViewMode.PrecipitationFinal =>
+                BuildPrecipitationProbeData(x, y, worldData, debugStage: 3),
 
             _ => $"Cell ({x},{y})\nUnknown view"
         };
@@ -357,5 +373,124 @@ public partial class WorldMapProbeNode : Node
             data += $"Distance to Sun: {distanceToSun.Value:F3}×\n";
 
         return data;
+    }
+
+    /// <summary>
+    /// Builds comprehensive precipitation probe data with all 3 stages + physics debug.
+    /// VS_026: Shows progression through algorithm stages for debugging.
+    /// </summary>
+    /// <param name="x">Cell X coordinate</param>
+    /// <param name="y">Cell Y coordinate</param>
+    /// <param name="worldData">World generation result containing precipitation maps</param>
+    /// <param name="debugStage">Current debug stage (1=NoiseOnly, 2=TemperatureShaped, 3=Final)</param>
+    private string BuildPrecipitationProbeData(
+        int x, int y,
+        Core.Features.WorldGen.Application.DTOs.WorldGenerationResult worldData,
+        int debugStage)
+    {
+        var data = $"Cell ({x},{y})\n";
+
+        // Get all 3 precipitation values at this cell
+        float? noiseOnly = worldData.BaseNoisePrecipitationMap?[y, x];
+        float? tempShaped = worldData.TemperatureShapedPrecipitationMap?[y, x];
+        float? final = worldData.FinalPrecipitationMap?[y, x];
+
+        // Get temperature at this cell for gamma curve calculation
+        float? temperature = worldData.TemperatureFinal?[y, x];
+
+        // Get quantile thresholds for classification
+        var thresholds = worldData.PrecipitationThresholds;
+
+        // Show current stage prominently
+        data += debugStage switch
+        {
+            1 => $"Stage 1: Base Noise\n{noiseOnly ?? 0f:F3}\n",
+            2 => $"Stage 2: + Temp Curve\n{tempShaped ?? 0f:F3}\n",
+            3 => $"Stage 3: Final\n{FormatPrecipitation(final ?? 0f, thresholds)}\n",
+            _ => "Unknown Stage\n"
+        };
+
+        data += "\n--- Debug: All Stages ---\n";
+
+        // Show all 3 stages for comparison (normalized [0,1] values)
+        if (noiseOnly.HasValue)
+            data += $"1. Noise: {noiseOnly.Value:F3}\n";
+
+        if (tempShaped.HasValue)
+            data += $"2. Temp Shaped: {tempShaped.Value:F3}\n";
+
+        if (final.HasValue)
+            data += $"3. Final: {final.Value:F3}\n";
+
+        // Show physics debug info (gamma curve calculation)
+        if (temperature.HasValue && noiseOnly.HasValue)
+        {
+            data += "\n--- Physics Debug ---\n";
+            data += $"Temperature: {temperature.Value:F3}\n";
+
+            // Calculate gamma curve value (same formula as PrecipitationCalculator)
+            const float gamma = 2.0f;
+            const float curveBonus = 0.2f;
+            float curve = MathF.Pow(temperature.Value, gamma) * (1.0f - curveBonus) + curveBonus;
+
+            data += $"Gamma Curve: {curve:F3}\n";
+            data += $"(cold=0.2, hot=1.0)\n";
+        }
+
+        // Show classification based on thresholds
+        if (final.HasValue && thresholds != null)
+        {
+            string classification;
+            if (final.Value < thresholds.LowThreshold)
+                classification = "Arid";
+            else if (final.Value < thresholds.MediumThreshold)
+                classification = "Low";
+            else if (final.Value < thresholds.HighThreshold)
+                classification = "Medium";
+            else
+                classification = "High";
+
+            data += $"\nClassification: {classification}\n";
+        }
+
+        return data;
+    }
+
+    /// <summary>
+    /// Formats precipitation value with classification label and mm/year estimate.
+    /// </summary>
+    private string FormatPrecipitation(float precipNormalized, Core.Features.WorldGen.Application.DTOs.PrecipitationThresholds? thresholds)
+    {
+        // Classification based on quantile thresholds
+        string classification;
+        string mmPerYear;
+
+        if (thresholds == null)
+        {
+            return $"{precipNormalized:F3} (no thresholds)";
+        }
+
+        if (precipNormalized < thresholds.LowThreshold)
+        {
+            classification = "Arid";
+            mmPerYear = "<200mm/year";
+        }
+        else if (precipNormalized < thresholds.MediumThreshold)
+        {
+            classification = "Low";
+            mmPerYear = "200-400mm/year";
+        }
+        else if (precipNormalized < thresholds.HighThreshold)
+        {
+            classification = "Medium";
+            mmPerYear = "400-800mm/year";
+        }
+        else
+        {
+            classification = "High";
+            mmPerYear = ">800mm/year";
+        }
+
+        return $"{precipNormalized:F3}\n{classification}\n{mmPerYear}";
     }
 }

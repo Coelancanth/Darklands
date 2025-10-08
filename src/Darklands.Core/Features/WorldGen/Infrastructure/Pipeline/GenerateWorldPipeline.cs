@@ -89,35 +89,50 @@ public class GenerateWorldPipeline : IWorldGenerationPipeline
             tempResult.AxialTilt, tempResult.DistanceToSun);
 
         // ═══════════════════════════════════════════════════════════════════════
-        // STAGE 3: Climate - Precipitation (Future)
+        // STAGE 3: Climate - Precipitation (VS_026)
         // ═══════════════════════════════════════════════════════════════════════
-        // TODO: Calculate precipitation map (with rain shadow)
+        // WorldEngine algorithm: noise + temperature gamma curve + renormalization
+        // Produces: 3 precipitation maps (NoiseOnly, TemperatureShaped, Final) + quantile thresholds
+
+        var precipResult = Algorithms.PrecipitationCalculator.Calculate(
+            temperatureMap: tempResult.FinalMap,  // Stage 2 final temperature output
+            width: nativeResult.Value.Width,
+            height: nativeResult.Value.Height,
+            seed: parameters.Seed);
+
+        _logger.LogInformation(
+            "Stage 3 complete: Precipitation calculated (thresholds: Low={Low:F3}, Med={Med:F3}, High={High:F3})",
+            precipResult.Thresholds.LowThreshold, precipResult.Thresholds.MediumThreshold, precipResult.Thresholds.HighThreshold);
 
         // ═══════════════════════════════════════════════════════════════════════
         // ASSEMBLE RESULT (VS_024: Dual-heightmap + thresholds architecture)
         // ═══════════════════════════════════════════════════════════════════════
 
         var result = new WorldGenerationResult(
-            heightmap: nativeResult.Value.Heightmap,                   // ORIGINAL raw [0.1-20] (SACRED!)
+            heightmap: nativeResult.Value.Heightmap,                       // ORIGINAL raw [0.1-20] (SACRED!)
             platesMap: nativeResult.Value.PlatesMap,
             rawNativeOutput: nativeResult.Value,
-            postProcessedHeightmap: postProcessed.ProcessedHeightmap,  // Post-processed raw [0.1-20]
-            thresholds: thresholds,                                    // Quantile-based thresholds
-            minElevation: minElevation,                                // Actual ocean floor (for meters mapping)
-            maxElevation: maxElevation,                                // Actual peak (for meters mapping)
-            oceanMask: postProcessed.OceanMask,                        // Flood-filled ocean
-            seaDepth: postProcessed.SeaDepth,                          // Depth map
-            temperatureLatitudeOnly: tempResult.LatitudeOnlyMap,       // VS_025 Stage 1 (debug)
-            temperatureWithNoise: tempResult.WithNoiseMap,             // VS_025 Stage 2 (debug)
-            temperatureWithDistance: tempResult.WithDistanceMap,       // VS_025 Stage 3 (debug)
-            temperatureFinal: tempResult.FinalMap,                     // VS_025 Stage 4 (production)
-            axialTilt: tempResult.AxialTilt,                           // Per-world param
-            distanceToSun: tempResult.DistanceToSun,                   // Per-world param
-            precipitationMap: null   // Stage 3 (future)
+            postProcessedHeightmap: postProcessed.ProcessedHeightmap,      // Post-processed raw [0.1-20]
+            thresholds: thresholds,                                        // Quantile-based thresholds
+            minElevation: minElevation,                                    // Actual ocean floor (for meters mapping)
+            maxElevation: maxElevation,                                    // Actual peak (for meters mapping)
+            oceanMask: postProcessed.OceanMask,                            // Flood-filled ocean
+            seaDepth: postProcessed.SeaDepth,                              // Depth map
+            temperatureLatitudeOnly: tempResult.LatitudeOnlyMap,           // VS_025 Stage 1 (debug)
+            temperatureWithNoise: tempResult.WithNoiseMap,                 // VS_025 Stage 2 (debug)
+            temperatureWithDistance: tempResult.WithDistanceMap,           // VS_025 Stage 3 (debug)
+            temperatureFinal: tempResult.FinalMap,                         // VS_025 Stage 4 (production)
+            axialTilt: tempResult.AxialTilt,                               // Per-world param
+            distanceToSun: tempResult.DistanceToSun,                       // Per-world param
+            baseNoisePrecipitationMap: precipResult.NoiseOnlyMap,          // VS_026 Stage 1 (debug)
+            temperatureShapedPrecipitationMap: precipResult.TemperatureShapedMap, // VS_026 Stage 2 (debug)
+            finalPrecipitationMap: precipResult.FinalMap,                  // VS_026 Stage 3 (production)
+            precipitationThresholds: precipResult.Thresholds,              // Quantile-based classification
+            precipitationMap: null   // Deprecated (use finalPrecipitationMap)
         );
 
         _logger.LogInformation(
-            "Pipeline complete: {Width}x{Height} world with Stage 1 (elevation) + Stage 2 (temperature)",
+            "Pipeline complete: {Width}x{Height} world with Stage 1 (elevation) + Stage 2 (temperature) + Stage 3 (precipitation)",
             result.Width, result.Height);
 
         return Result.Success(result);
