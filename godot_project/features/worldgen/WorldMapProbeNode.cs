@@ -100,6 +100,7 @@ public partial class WorldMapProbeNode : Node
             MapViewMode.PrecipitationNoiseOnly => HIGHLIGHT_COLOR_COLORED,
             MapViewMode.PrecipitationTemperatureShaped => HIGHLIGHT_COLOR_COLORED,
             MapViewMode.PrecipitationFinal => HIGHLIGHT_COLOR_COLORED,
+            MapViewMode.PrecipitationWithRainShadow => HIGHLIGHT_COLOR_COLORED,
 
             _ => HIGHLIGHT_COLOR_COLORED
         };
@@ -212,6 +213,10 @@ public partial class WorldMapProbeNode : Node
 
             MapViewMode.PrecipitationFinal =>
                 BuildPrecipitationProbeData(x, y, worldData, debugStage: 3),
+
+            // VS_027: Rain shadow mode - show stage 4 with wind direction + blocking info
+            MapViewMode.PrecipitationWithRainShadow =>
+                BuildRainShadowProbeData(x, y, worldData),
 
             _ => $"Cell ({x},{y})\nUnknown view"
         };
@@ -492,5 +497,44 @@ public partial class WorldMapProbeNode : Node
         }
 
         return $"{precipNormalized:F3}\n{classification}\n{mmPerYear}";
+    }
+
+    /// <summary>
+    /// Builds rain shadow probe data (VS_027 Stage 4).
+    /// Shows: base precipitation, rain shadow reduction, latitude-based wind direction.
+    /// </summary>
+    private string BuildRainShadowProbeData(
+        int x,
+        int y,
+        Core.Features.WorldGen.Application.DTOs.WorldGenerationResult worldData)
+    {
+        float? basePrecip = worldData.FinalPrecipitationMap?[y, x];
+        float? rainShadowPrecip = worldData.WithRainShadowPrecipitationMap?[y, x];
+        var thresholds = worldData.PrecipitationThresholds;
+
+        // Calculate latitude for wind direction
+        float normalizedLatitude = worldData.Height > 1 ? (float)y / (worldData.Height - 1) : 0.5f;
+        var (windX, windY) = Core.Features.WorldGen.Infrastructure.Algorithms.PrevailingWinds.GetWindDirection(normalizedLatitude);
+
+        // Get wind band name
+        string windBand = Core.Features.WorldGen.Infrastructure.Algorithms.PrevailingWinds.GetWindBandName(normalizedLatitude);
+        string windDirection = windX < 0 ? "← Westward" : "→ Eastward";
+
+        // Calculate reduction percentage
+        float reductionPercent = 0f;
+        if (basePrecip.HasValue && rainShadowPrecip.HasValue && basePrecip.Value > 0)
+        {
+            reductionPercent = ((basePrecip.Value - rainShadowPrecip.Value) / basePrecip.Value) * 100f;
+        }
+
+        string header = $"Cell ({x},{y})\nStage 4: + Rain Shadow\n\n";
+        string wind = $"Wind: {windDirection} ({windBand})\n\n";
+        string precip = $"Base:\n{FormatPrecipitation(basePrecip ?? 0f, thresholds)}\n\n";
+        string shadow = $"Rain Shadow:\n{FormatPrecipitation(rainShadowPrecip ?? 0f, thresholds)}\n\n";
+        string reduction = reductionPercent > 0.1f
+            ? $"Blocking: -{reductionPercent:F1}% (leeward)\n"
+            : $"Blocking: None (windward/flat)\n";
+
+        return header + wind + precip + shadow + reduction;
     }
 }

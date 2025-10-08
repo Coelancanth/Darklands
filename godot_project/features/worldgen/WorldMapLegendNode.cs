@@ -199,6 +199,14 @@ public partial class WorldMapLegendNode : Control
                 AddLegendEntry("Blue", new Color(0f, 0f, 1f), "High (>800mm/year)");
                 break;
 
+            case MapViewMode.PrecipitationWithRainShadow:
+                // 3-band moisture gradient with rain shadow effects (VS_027: Production Stage 4)
+                AddLegendEntry("+ Rain Shadow", new Color(0.8f, 0.8f, 0.8f), "(orographic blocking)");
+                AddLegendEntry("Yellow", new Color(255f/255f, 255f/255f, 0f), "Dry (leeward deserts)");
+                AddLegendEntry("Green", new Color(0f, 200f/255f, 0f), "Moderate");
+                AddLegendEntry("Blue", new Color(0f, 0f, 1f), "Wet (windward coasts)");
+                break;
+
             default:
                 AddLegendEntry("Unknown view", new Color(1, 0, 0), "");
                 break;

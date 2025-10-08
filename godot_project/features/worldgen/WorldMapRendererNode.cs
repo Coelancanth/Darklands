@@ -168,6 +168,17 @@ public partial class WorldMapRendererNode : Sprite2D
                 }
                 break;
 
+            case MapViewMode.PrecipitationWithRainShadow:
+                if (_worldData.WithRainShadowPrecipitationMap != null)
+                {
+                    RenderPrecipitationMap(_worldData.WithRainShadowPrecipitationMap);
+                }
+                else
+                {
+                    _logger?.LogWarning("Precipitation (WithRainShadow) not available");
+                }
+                break;
+
             default:
                 _logger?.LogError("Unknown view mode: {ViewMode}", _currentViewMode);
                 break;

@@ -83,5 +83,14 @@ public enum MapViewMode
     /// Colors: Brown (dry) → Yellow (moderate) → Blue (wet).
     /// Display as mm/year: Low (&lt;400), Medium (400-800), High (&gt;800).
     /// </summary>
-    PrecipitationFinal
+    PrecipitationFinal,
+
+    /// <summary>
+    /// Display precipitation - Stage 4: + Rain Shadow Effect (VS_027 production).
+    /// Final precipitation WITH orographic blocking (mountains create leeward deserts).
+    /// Visual signature: Dry zones east/west of mountains (latitude-dependent winds).
+    /// Sahara (trade winds), Gobi (westerlies), Atacama (trade winds) patterns.
+    /// Colors: Brown (rain shadow deserts) → Yellow (moderate) → Blue (windward coasts).
+    /// </summary>
+    PrecipitationWithRainShadow
 }

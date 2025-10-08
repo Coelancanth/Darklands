@@ -143,6 +143,15 @@ public record WorldGenerationResult
     public PrecipitationThresholds? PrecipitationThresholds { get; init; }
 
     /// <summary>
+    /// Precipitation map - Stage 4: + Rain Shadow Effect (VS_027 Stage 4 - production).
+    /// Final precipitation WITH orographic blocking. Normalized [0,1].
+    /// Visual signature: Leeward deserts (Sahara, Gobi, Atacama patterns).
+    /// Latitude-dependent winds: Trade Winds (westward), Westerlies (eastward), Polar Easterlies (westward).
+    /// UI displays as mm/year ranges with rain shadow zones highlighted.
+    /// </summary>
+    public float[,]? WithRainShadowPrecipitationMap { get; init; }
+
+    /// <summary>
     /// Precipitation map in mm/year (Stage 3 - future).
     /// Available after precipitation simulation (with rain shadow).
     /// DEPRECATED: Use FinalPrecipitationMap instead (VS_026+).
@@ -185,6 +194,7 @@ public record WorldGenerationResult
         float[,]? temperatureShapedPrecipitationMap = null,
         float[,]? finalPrecipitationMap = null,
         PrecipitationThresholds? precipitationThresholds = null,
+        float[,]? withRainShadowPrecipitationMap = null,
         float[,]? precipitationMap = null)
     {
         Heightmap = heightmap;
@@ -205,6 +215,7 @@ public record WorldGenerationResult
         TemperatureShapedPrecipitationMap = temperatureShapedPrecipitationMap;
         FinalPrecipitationMap = finalPrecipitationMap;
         PrecipitationThresholds = precipitationThresholds;
+        WithRainShadowPrecipitationMap = withRainShadowPrecipitationMap;
         PrecipitationMap = precipitationMap;
         RawNativeOutput = rawNativeOutput;
     }

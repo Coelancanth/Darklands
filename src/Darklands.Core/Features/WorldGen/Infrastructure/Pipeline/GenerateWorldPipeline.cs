@@ -105,6 +105,24 @@ public class GenerateWorldPipeline : IWorldGenerationPipeline
             precipResult.Thresholds.LowThreshold, precipResult.Thresholds.MediumThreshold, precipResult.Thresholds.HighThreshold);
 
         // ═══════════════════════════════════════════════════════════════════════
+        // STAGE 4: Rain Shadow Effect (VS_027)
+        // ═══════════════════════════════════════════════════════════════════════
+        // Orographic blocking: Mountains create leeward deserts based on latitude-dependent prevailing winds
+        // Input: VS_026 final precipitation (base) + PostProcessedHeightmap + Thresholds
+        // Output: WithRainShadowPrecipitationMap (leeward = dry, windward = unchanged for now)
+
+        var rainShadowResult = Algorithms.RainShadowCalculator.Calculate(
+            basePrecipitation: precipResult.FinalMap,
+            elevation: postProcessed.ProcessedHeightmap,
+            seaLevel: thresholds.SeaLevel,
+            maxElevation: maxElevation,
+            width: nativeResult.Value.Width,
+            height: nativeResult.Value.Height);
+
+        _logger.LogInformation(
+            "Stage 4 complete: Rain shadow effect applied (latitude-based prevailing winds)");
+
+        // ═══════════════════════════════════════════════════════════════════════
         // ASSEMBLE RESULT (VS_024: Dual-heightmap + thresholds architecture)
         // ═══════════════════════════════════════════════════════════════════════
 
@@ -128,11 +146,12 @@ public class GenerateWorldPipeline : IWorldGenerationPipeline
             temperatureShapedPrecipitationMap: precipResult.TemperatureShapedMap, // VS_026 Stage 2 (debug)
             finalPrecipitationMap: precipResult.FinalMap,                  // VS_026 Stage 3 (production)
             precipitationThresholds: precipResult.Thresholds,              // Quantile-based classification
+            withRainShadowPrecipitationMap: rainShadowResult.WithRainShadowMap, // VS_027 Stage 4 (production)
             precipitationMap: null   // Deprecated (use finalPrecipitationMap)
         );
 
         _logger.LogInformation(
-            "Pipeline complete: {Width}x{Height} world with Stage 1 (elevation) + Stage 2 (temperature) + Stage 3 (precipitation)",
+            "Pipeline complete: {Width}x{Height} world with Stage 1 (elevation) + Stage 2 (temperature) + Stage 3 (precipitation) + Stage 4 (rain shadow)",
             result.Width, result.Height);
 
         return Result.Success(result);
