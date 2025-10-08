@@ -114,8 +114,58 @@ public record WorldGenerationResult
     public float? DistanceToSun { get; init; }
 
     /// <summary>
+    /// Precipitation map - Stage 1: Base Noise (VS_026 Stage 3 debug).
+    /// Pure coherent noise (6 octaves). Normalized [0,1].
+    /// Visual signature: Random wet/dry patterns (no temperature correlation).
+    /// </summary>
+    public float[,]? BaseNoisePrecipitationMap { get; init; }
+
+    /// <summary>
+    /// Precipitation map - Stage 2: + Temperature Gamma Curve (VS_026 Stage 3 debug).
+    /// Base noise × gamma curve (cold = less evaporation). Normalized [0,1].
+    /// Visual signature: Tropical regions wetter, polar regions drier.
+    /// </summary>
+    public float[,]? TemperatureShapedPrecipitationMap { get; init; }
+
+    /// <summary>
+    /// Precipitation map - Stage 3: FINAL (VS_026 Stage 3 - production).
+    /// Complete base algorithm with renormalization. Normalized [0,1].
+    /// Visual signature: Full dynamic range restored after temperature shaping.
+    /// UI displays as mm/year ranges (Low &lt;400, Medium 400-800, High &gt;800).
+    /// </summary>
+    public float[,]? FinalPrecipitationMap { get; init; }
+
+    /// <summary>
+    /// Quantile-based precipitation thresholds for classification (VS_026 Stage 3).
+    /// Adaptive per-world: wet worlds vs dry worlds have different thresholds.
+    /// Used for visualization and biome classification (future).
+    /// </summary>
+    public PrecipitationThresholds? PrecipitationThresholds { get; init; }
+
+    /// <summary>
+    /// Precipitation map - Stage 4: + Rain Shadow Effect (VS_027 Stage 4 - production).
+    /// Final precipitation WITH orographic blocking. Normalized [0,1].
+    /// Visual signature: Leeward deserts (Sahara, Gobi, Atacama patterns).
+    /// Latitude-dependent winds: Trade Winds (westward), Westerlies (eastward), Polar Easterlies (westward).
+    /// UI displays as mm/year ranges with rain shadow zones highlighted.
+    /// </summary>
+    public float[,]? WithRainShadowPrecipitationMap { get; init; }
+
+    /// <summary>
+    /// Precipitation map - Stage 5: FINAL (VS_028 Stage 5 - production).
+    /// Complete precipitation with coastal moisture enhancement. Normalized [0,1].
+    /// Visual signature: Coastal regions wetter than interior (maritime vs continental climates).
+    /// Physics: Exponential decay with distance from ocean (e^(-dist/30 cells)), elevation resistance.
+    /// Real-world: Seattle wet coast vs Spokane dry interior, UK maritime vs central Asia continental.
+    /// THIS IS THE FINAL PRECIPITATION MAP used by erosion/rivers (VS_029).
+    /// UI displays as mm/year: Arid (&lt;200), Low (200-400), Medium (400-800), High (&gt;800).
+    /// </summary>
+    public float[,]? PrecipitationFinal { get; init; }
+
+    /// <summary>
     /// Precipitation map in mm/year (Stage 3 - future).
     /// Available after precipitation simulation (with rain shadow).
+    /// DEPRECATED: Use FinalPrecipitationMap instead (VS_026+).
     /// </summary>
     public float[,]? PrecipitationMap { get; init; }
 
@@ -151,6 +201,12 @@ public record WorldGenerationResult
         float[,]? temperatureFinal = null,
         float? axialTilt = null,
         float? distanceToSun = null,
+        float[,]? baseNoisePrecipitationMap = null,
+        float[,]? temperatureShapedPrecipitationMap = null,
+        float[,]? finalPrecipitationMap = null,
+        PrecipitationThresholds? precipitationThresholds = null,
+        float[,]? withRainShadowPrecipitationMap = null,
+        float[,]? precipitationFinal = null,
         float[,]? precipitationMap = null)
     {
         Heightmap = heightmap;
@@ -167,6 +223,12 @@ public record WorldGenerationResult
         TemperatureFinal = temperatureFinal;
         AxialTilt = axialTilt;
         DistanceToSun = distanceToSun;
+        BaseNoisePrecipitationMap = baseNoisePrecipitationMap;
+        TemperatureShapedPrecipitationMap = temperatureShapedPrecipitationMap;
+        FinalPrecipitationMap = finalPrecipitationMap;
+        PrecipitationThresholds = precipitationThresholds;
+        WithRainShadowPrecipitationMap = withRainShadowPrecipitationMap;
+        PrecipitationFinal = precipitationFinal;
         PrecipitationMap = precipitationMap;
         RawNativeOutput = rawNativeOutput;
     }

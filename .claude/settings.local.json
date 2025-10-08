@@ -218,7 +218,15 @@
       "Bash(./scripts/core/build.ps1 test --filter \"Category=WorldGen&Category=Integration\")",
       "Bash(findstr:*)",
       "Bash(convert:*)",
-      "Bash(objdump:*)"
+      "Bash(objdump:*)",
+      "Bash(./scripts/core/build.ps1 test --filter \"PrecipitationCalculator\")",
+      "Bash(./scripts/core/build.ps1 test-only)",
+      "Bash(./scripts/core/build.ps1 test --filter \"PrevailingWinds\")",
+      "Bash(./scripts/core/build.ps1 test-only --filter \"PrevailingWinds\")",
+      "Bash(./scripts/core/build.ps1 test --filter \"RainShadow\")",
+      "Bash(./scripts/core/build.ps1 test-only:*)",
+      "Bash(pwsh:*)",
+      "Bash(awk:*)"
     ],
     "deny": [],
     "ask": [],

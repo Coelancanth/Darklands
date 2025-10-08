@@ -135,6 +135,61 @@ public partial class WorldMapRendererNode : Sprite2D
                 }
                 break;
 
+            case MapViewMode.PrecipitationNoiseOnly:
+                if (_worldData.BaseNoisePrecipitationMap != null)
+                {
+                    RenderPrecipitationMap(_worldData.BaseNoisePrecipitationMap);
+                }
+                else
+                {
+                    _logger?.LogWarning("Precipitation (NoiseOnly) not available");
+                }
+                break;
+
+            case MapViewMode.PrecipitationTemperatureShaped:
+                if (_worldData.TemperatureShapedPrecipitationMap != null)
+                {
+                    RenderPrecipitationMap(_worldData.TemperatureShapedPrecipitationMap);
+                }
+                else
+                {
+                    _logger?.LogWarning("Precipitation (TemperatureShaped) not available");
+                }
+                break;
+
+            case MapViewMode.PrecipitationBase:
+                if (_worldData.FinalPrecipitationMap != null)
+                {
+                    RenderPrecipitationMap(_worldData.FinalPrecipitationMap);
+                }
+                else
+                {
+                    _logger?.LogWarning("Precipitation (Final) not available");
+                }
+                break;
+
+            case MapViewMode.PrecipitationWithRainShadow:
+                if (_worldData.WithRainShadowPrecipitationMap != null)
+                {
+                    RenderPrecipitationMap(_worldData.WithRainShadowPrecipitationMap);
+                }
+                else
+                {
+                    _logger?.LogWarning("Precipitation (WithRainShadow) not available");
+                }
+                break;
+
+            case MapViewMode.PrecipitationFinal:
+                if (_worldData.PrecipitationFinal != null)
+                {
+                    RenderPrecipitationMap(_worldData.PrecipitationFinal);
+                }
+                else
+                {
+                    _logger?.LogWarning("Precipitation (Final) not available");
+                }
+                break;
+
             default:
                 _logger?.LogError("Unknown view mode: {ViewMode}", _currentViewMode);
                 break;
@@ -497,6 +552,64 @@ public partial class WorldMapRendererNode : Sprite2D
             return new Color(213f/255f, 0f, 42f/255f);  // Subtropical: Red-Purple
 
         return new Color(1f, 0f, 0f);               // Tropical: Red
+    }
+
+    /// <summary>
+    /// Renders precipitation map with smooth gradient (Yellow → Green → Blue).
+    /// Input: Normalized [0,1] precipitation values.
+    /// Output: 3-stop color gradient (smooth, not discrete bands like temperature).
+    /// </summary>
+    /// <remarks>
+    /// VS_026: Precipitation visualization with intuitive moisture spectrum.
+    ///
+    /// Color scheme (semantically distinct from temperature):
+    /// - Yellow (0.0): Dry desert regions
+    /// - Green (0.5): Moderate rainfall (vegetation)
+    /// - Blue (1.0): Wet tropical/rainforest
+    ///
+    /// Smooth gradient (unlike temperature's discrete quantile bands) matches elevation rendering style.
+    /// Reused by all 3 precipitation view modes (NoiseOnly, TemperatureShaped, Final).
+    /// </remarks>
+    private void RenderPrecipitationMap(float[,] precipitationMap)
+    {
+        int h = precipitationMap.GetLength(0);
+        int w = precipitationMap.GetLength(1);
+        var image = Image.CreateEmpty(w, h, false, Image.Format.Rgb8);
+
+        _logger?.LogDebug("RenderPrecipitationMap: {Width}x{Height}", w, h);
+
+        // Define 3-stop color gradient (Yellow → Green → Blue)
+        // Intuitive moisture spectrum: dry deserts → moderate vegetation → wet tropics
+        Color dryColor = new Color(255f/255f, 255f/255f, 0f);           // Yellow (RGB: 255, 255, 0)
+        Color moderateColor = new Color(0f, 200f/255f, 0f);             // Green (RGB: 0, 200, 0)
+        Color wetColor = new Color(0f, 0f, 255f/255f);                  // Blue (RGB: 0, 0, 255)
+
+        // Render with smooth 3-stop gradient
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                float p = precipitationMap[y, x];  // Normalized [0, 1]
+
+                // 3-stop gradient: Yellow (0.0) → Green (0.5) → Blue (1.0)
+                Color color;
+                if (p < 0.5f)
+                {
+                    // Dry to moderate: Yellow → Green
+                    color = Gradient(p, 0.0f, 0.5f, dryColor, moderateColor);
+                }
+                else
+                {
+                    // Moderate to wet: Green → Blue
+                    color = Gradient(p, 0.5f, 1.0f, moderateColor, wetColor);
+                }
+
+                image.SetPixel(x, y, color);
+            }
+        }
+
+        Texture = ImageTexture.CreateFromImage(image);
+        _logger?.LogInformation("Rendered PrecipitationMap: {Width}x{Height}", w, h);
     }
 
     /// <summary>

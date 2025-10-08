@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-08 16:55 (Tech Lead: Created VS_026-028 precipitation pipeline - base + rain shadow + coastal moisture)
+**Last Updated**: 2025-10-09 00:53 (Tech Lead: Restructured VS_022 pipeline with correct logical order, created VS_028 coastal moisture + VS_029 erosion placeholder)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -11,7 +11,7 @@
 
 - **Next BR**: 008
 - **Next TD**: 019
-- **Next VS**: 029
+- **Next VS**: 030
 
 
 **Protocol**: Check your type's counter → Use that number → Increment the counter → Update timestamp
@@ -103,283 +103,61 @@
 ## 💡 Ideas (Future Work)
 *Future features, nice-to-haves, deferred work*
 
-### VS_026: WorldGen Stage 3 - Base Precipitation (Noise + Temperature Curve)
+### VS_029: WorldGen Stage 6 - Erosion & Rivers (Hydraulic Erosion)
 **Status**: Proposed
-**Owner**: Tech Lead → Dev Engineer (approved)
-**Size**: S (~3-4h)
+**Owner**: Product Owner → Tech Lead (for breakdown)
+**Size**: M (8-10h estimate)
 **Priority**: Ideas
-**Markers**: [WORLDGEN] [PIPELINE] [STAGE-3] [CLIMATE]
+**Markers**: [WORLDGEN] [PIPELINE] [STAGE-6] [HYDROLOGY]
 
-**What**: Generate global precipitation map using coherent noise shaped by temperature gamma curve (WorldEngine algorithm), with **3-stage debug visualization** (noise-only, temperature-shaped, final-normalized)
+**What**: Generate rivers and carve realistic valleys using **hydraulic erosion simulation** (river source detection, path tracing, valley carving) - WorldEngine erosion.py port
 
-**Why**: Complete basic climate foundation (elevation + temperature + precipitation). Validate temperature ranges (cold = less evaporation). Foundation for rain shadow (VS_027) and coastal moisture (VS_028) enhancements.
+**Why**: Realistic terrain requires water erosion (valleys, river networks). Rivers spawn in wet mountains, flow to ocean/lakes, carve valleys over geological time. Critical for gameplay (river resources, navigation, terrain tactics).
 
-**How** (WorldEngine `precipitation.py` validated pattern):
+**How** (WorldEngine-validated algorithm):
 
-**Three-Stage Precipitation Algorithm**:
+**Three-Phase Erosion Process**:
 
-**1. Base Noise Field** (Stage 1 output):
-```csharp
-// Simplex noise (6 octaves, frequency 64×6 = 384)
-var noise = new FastNoiseLite(seed);
-noise.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
-noise.SetFractalType(FastNoiseLite.FractalType.FBm);
-noise.SetFractalOctaves(6);
+1. **River Source Detection** (mountains + high precipitation)
+   - Uses **FINAL PRECIPITATION** from VS_028 (all geographic effects applied)
+   - Finds high-elevation cells with accumulated rainfall > threshold
+   - Filters sources (min 9-cell spacing to prevent overlap)
 
-float freq = 64.0f * 6;  // 384.0
-float n_scale = 1024f / height;  // For 512×512: 2.0
+2. **River Path Tracing** (downhill flow to ocean/lakes)
+   - Traces steepest descent from source to ocean
+   - A* pathfinding fallback for challenging terrain (local minima)
+   - Merges into existing rivers when encountered (tributary system)
+   - Dead-ends form lakes (endorheic basins)
 
-float n = noise.GetNoise2D((x * n_scale) / freq, (y * n_scale) / freq);
-baseNoiseMap[y, x] = (n + 1) * 0.5f;  // [-1,1] → [0,1]
-```
+3. **Valley Carving** (gentle erosion around river paths)
+   - Radius 2 erosion around each river cell (subtle valleys)
+   - Curve factors: 0.2 (adjacent), 0.05 (diagonal) - gentle shaping
+   - Elevation monotonicity cleanup (rivers flow downhill smoothly)
 
-**2. Temperature Gamma Curve** (Stage 2 output - THE KEY!):
-```csharp
-// WorldEngine gamma curve: cold = less precipitation (evaporation physics)
-float t = temperatureMap[y, x];  // [0,1] from VS_025
-float p = baseNoiseMap[y, x];    // [0,1] from Stage 1
+**Key Outputs**:
+- Eroded heightmap (valleys carved, realistic terrain)
+- River network (List<River>, path coordinates + ocean-reached flag)
+- Lakes (List<(int x, int y)>, endorheic basin locations)
 
-// Gamma curve with minimum bonus (prevents zero precip in Arctic)
-float gamma = 2.0f;         // Quadratic curve (WorldEngine default)
-float curveBonus = 0.2f;    // Minimum 20% precip at coldest regions
-float curve = MathF.Pow(t, gamma) * (1 - curveBonus) + curveBonus;
-
-temperatureShapedMap[y, x] = p * curve;
-// Arctic (t=0.0) → curve=0.2 → precip×0.2 (20% of base)
-// Tropical (t=1.0) → curve=1.0 → precip×1.0 (100% of base)
-```
-
-**3. Renormalization** (Stage 3 output - final):
-```csharp
-// Stretch to fill [0,1] range after temperature shaping
-float min = temperatureShapedMap.Min();
-float max = temperatureShapedMap.Max();
-float delta = max - min;
-
-precipitationMap[y, x] = (temperatureShapedMap[y, x] - min) / delta;  // [0,1]
-```
-
-**Key WorldEngine Insights Adopted:**
-- ✅ **6 octaves**: Creates natural-looking rainfall patterns (not too smooth, not too noisy)
-- ✅ **Gamma curve (2.0)**: Physically realistic (cold air holds less moisture)
-- ✅ **Curve bonus (0.2)**: Prevents zero precipitation in polar regions (realistic - even Arctic has snow!)
-- ✅ **Renormalization**: Ensures full dynamic range after temperature shaping
-- ✅ **Temperature dependency**: Validates VS_025 temperature ranges (fast feedback loop)
-
-**YAGNI Skipped** (WorldEngine complexity not needed for single-world):
-- ❌ **Border wrapping**: Seamless east-west for planet simulation (we don't wrap maps)
-- ❌ **[-1, 1] range**: Use [0, 1] for consistency with elevation/temperature pipeline
-
-**Visualization Integration** (3-stage debug rendering - mirrors VS_025 pattern):
-1. **Renderer** (WorldMapRendererNode.cs):
-   - Add `RenderPrecipitationMap(MapViewMode mode, float[,] precipMap)` with 3 stages
-   - 3-stop color gradient:
-     ```
-     Brown (0.0) → Yellow (0.5) → Blue (1.0)
-     Dry        →  Moderate   →  Wet
-     ```
-
-2. **Legend** (WorldMapLegendNode.cs):
-   ```csharp
-   case MapViewMode.PrecipitationNoiseOnly:
-       AddLegendEntry("Brown", ..., "Dry (base noise)");
-       AddLegendEntry("Yellow", ..., "Moderate");
-       AddLegendEntry("Blue", ..., "Wet (base noise)");
-
-   case MapViewMode.PrecipitationTemperatureShaped:
-       AddLegendEntry("Brown", ..., "Dry (cold = less evaporation)");
-       AddLegendEntry("Yellow", ..., "Moderate");
-       AddLegendEntry("Blue", ..., "Wet (hot = high evaporation)");
-
-   case MapViewMode.PrecipitationFinal:
-       AddLegendEntry("Brown", ..., "Low (<400mm/year)");
-       AddLegendEntry("Yellow", ..., "Medium (400-800mm/year)");
-       AddLegendEntry("Blue", ..., "High (>800mm/year)");
-   ```
-
-3. **Probe** (WorldMapProbeNode.cs):
-   - Display all 3 precipitation values (noise-only, temp-shaped, final)
-   - Show gamma curve value: `"Temp Curve: {curve:F2}"`
-   - Show quantile threshold: `"Classification: Low/Medium/High"`
-
-4. **UI** (WorldMapUINode.cs):
-   - Add 3 dropdown items with separator (Precipitation Debug section)
-
-**Pipeline Changes** (GenerateWorldPipeline.cs):
-```csharp
-// Stage 3: Precipitation calculation
-var precipitationMaps = PrecipitationCalculator.Calculate(
-    temperatureMap: result.FinalTemperatureMap!,  // Stage 2 output
-    width: result.Width,
-    height: result.Height,
-    seed: parameters.Seed);
-
-return result with {
-    BaseNoisePrecipitationMap = precipitationMaps.NoiseOnly,
-    TemperatureShapedPrecipitationMap = precipitationMaps.TemperatureShaped,
-    FinalPrecipitationMap = precipitationMaps.Final,
-    PrecipitationThresholds = precipitationMaps.Thresholds  // Quantile-based
-};
-```
-
-**Implementation Phases**:
-
-**Phase 0: Update WorldGenerationResult DTOs** (~15min)
-- Add 3 precipitation map properties (NoiseOnly, TemperatureShaped, Final)
-- Add PrecipitationThresholds record (Low, Medium, High)
-- All 447 tests GREEN (no breaking changes)
-
-**Phase 1: Core Algorithm** (~1-1.5h, TDD)
-1. ✅ Create `PrecipitationCalculator.cs` with 3-stage output
-2. ✅ Implement noise generation (FastNoiseLite, 6 octaves, OpenSimplex2)
-3. ✅ Implement gamma curve (WorldEngine formula exactly)
-4. ✅ Implement renormalization (stretch to [0,1])
-5. ✅ Calculate quantile thresholds (low=75th percentile, med=30th, extends VS_024 pattern)
-6. ✅ 10-12 unit tests (gamma curve edge cases, threshold validation, temperature correlation)
-7. ✅ All tests GREEN
-
-**Phase 2: Pipeline Integration** (~0.5h)
-8. ✅ Update `GenerateWorldPipeline` Stage 3 to call PrecipitationCalculator
-9. ✅ Update serialization service (Format v2 backward compat, extends TD_018 pattern)
-10. ✅ All 447 tests GREEN (no regressions)
-
-**Phase 3: Multi-Stage Visualization** (~1-1.5h)
-11. ✅ Add 3 MapViewMode enum values (PrecipitationNoiseOnly, TemperatureShaped, Final)
-12. ✅ Implement RenderPrecipitationMap() with 3-stop gradient (Brown → Yellow → Blue)
-13. ✅ Update WorldMapLegendNode with stage-specific legends (mm/year labels, debug hints)
-14. ✅ Update WorldMapProbeNode to display all 3 precipitation values + gamma curve + thresholds
-15. ✅ Add 3 UI dropdown items with separator (Precipitation Debug section)
-16. ✅ All 447 tests GREEN
+**Implementation**: Port WorldEngine `erosion.py` (403 lines → ~500 lines C#) - See TD_009 Phase 1 for detailed breakdown
 
 **Done When**:
-1. ✅ **3 precipitation maps populated** in WorldGenerationResult (noise-only, temp-shaped, final)
-2. ✅ **Algorithm correct** (WorldEngine-validated, gamma=2.0, curveBonus=0.2)
-3. ✅ **Multi-stage visualization working** (3 view modes, stage-specific legends, probe shows all values)
-4. ✅ **Visual validation passes** for each stage independently:
-   - Noise Only: Random wet/dry patterns (no temperature correlation)
-   - Temperature Shaped: Tropical regions wetter, polar regions drier (strong correlation)
-   - Final: Full dynamic range restored (renormalization working)
-5. ✅ **Temperature validation**: Hot equator = blue (wet), cold poles = brown (dry)
-6. ✅ **Quality gates**: No performance regression (<1.5s total), all tests GREEN
+1. Rivers spawn in realistically wet locations (FINAL precipitation input)
+2. Rivers flow downhill to ocean or form lakes
+3. Valleys carved around river paths (subtle, radius 2)
+4. Eroded heightmap smoother than input (realistic weathering)
+5. All tests GREEN + 10-12 new erosion/river tests
 
-**Depends On**: VS_025 ✅ (temperature map required for gamma curve)
+**Depends On**: VS_028 ✅ (FINAL precipitation required for realistic river sources)
 
-**Tech Lead Decision** (2025-10-08 16:55):
-- **Algorithm**: WorldEngine `precipitation.py` exact port (gamma=2.0, curveBonus=0.2 - proven physics)
-- **No border wrapping**: Single-world generation doesn't need seamless east-west (YAGNI)
-- **[0,1] output**: Consistent with elevation/temperature pipeline (not WorldEngine's [-1,1])
-- **3-stage debug**: Mirrors VS_025 multi-stage pattern (isolates noise vs temperature shaping)
-- **Performance**: Precipitation ~20-30ms (simple noise + per-pixel curve), no threading needed
-- **Blocks**: VS_027 (rain shadow needs base precip), VS_028 (coastal moisture needs base precip)
-- **Next steps**: Dev Engineer implements after review, use WorldEngine precipitation.py as reference
+**Blocks**: VS_022 Phase 4-6 (watermap, irrigation, humidity, biomes all need eroded terrain + rivers)
 
----
-
-### VS_027: WorldGen Stage 4 - Rain Shadow Effect (Directional Orographic Blocking)
-**Status**: Proposed
-**Owner**: Tech Lead → Dev Engineer (after VS_026)
-**Size**: S (~2-3h)
-**Priority**: Ideas
-**Markers**: [WORLDGEN] [PIPELINE] [STAGE-4] [RAIN-SHADOW]
-
-**What**: Add directional rain shadow effect to precipitation using simplified orographic blocking (mountains block moisture from prevailing winds), with **2-stage debug visualization** (base-precipitation, with-rain-shadow)
-
-**Why**: Realistic deserts on leeward side of mountains (e.g., Gobi Desert east of Himalayas, rain shadow from Tibetan Plateau). Strategic gameplay: Mountain ranges create dry/wet climate zones, affects settlement placement and resource distribution.
-
-**How** (simplified directional blocking, NO full wind simulation):
-
-**Two-Stage Algorithm**:
-
-**1. Base Precipitation** (from VS_026):
-```csharp
-// Input: VS_026 final precipitation map (noise + temperature curve + renorm)
-float[,] basePrecipitation = result.FinalPrecipitationMap;
-```
-
-**2. Directional Rain Shadow** (simplified orographic effect):
-```csharp
-// Assume prevailing wind: west → east (realistic for mid-latitudes, 30°-60°)
-Vector2 windDirection = new Vector2(1, 0);  // Eastward
-int maxUpwindDistance = 20;  // Check 20 cells upwind
-
-for (int y = 0; y < height; y++) {
-    for (int x = 0; x < width; x++) {
-        float mountainBlocking = 0;
-        float currentElevation = elevation[y, x];
-
-        // Trace upwind, accumulate blocking from mountains
-        for (int step = 1; step <= maxUpwindDistance; step++) {
-            int upwindX = x - (int)(windDirection.X * step);
-            int upwindY = y - (int)(windDirection.Y * step);
-
-            if (outOfBounds(upwindX, upwindY)) break;
-
-            float upwindElevation = elevation[upwindY, upwindX];
-
-            // Mountain blocks moisture if significantly higher upwind
-            if (upwindElevation > currentElevation + 200) {  // 200m threshold
-                mountainBlocking += 0.05f;  // 5% blocking per mountain cell
-            }
-        }
-
-        // Apply rain shadow (max 80% reduction)
-        float rainShadow = Math.Max(0.2f, 1 - mountainBlocking);
-        precipitationWithRainShadow[y, x] = basePrecipitation[y, x] * rainShadow;
-    }
-}
-```
-
-**Key Insights**:
-- ✅ **Prevailing wind assumption**: West → East (NO Coriolis, NO pressure systems, YAGNI)
-- ✅ **Directional blocking**: Only UPWIND mountains matter (leeward side dry, windward side unaffected)
-- ✅ **Accumulative blocking**: Multiple mountain ranges stack (realistic for Himalayas → Gobi)
-- ✅ **20-cell trace distance**: ~1000km at 512×512 world (realistic atmospheric moisture range)
-- ✅ **200m elevation threshold**: Prevents hills from blocking (only significant mountains)
-- ✅ **Max 80% reduction**: Prevents zero precipitation (even deserts get occasional rain)
-
-**YAGNI Skipped**:
-- ❌ **Latitude-dependent wind**: Coriolis effect (trade winds, westerlies, polar easterlies) - over-engineering
-- ❌ **Seasonal variation**: Monsoons, wind shifts - adds complexity without gameplay value
-- ❌ **Windward moisture increase**: Orographic lift (mountains CREATE rain on windward side) - defer to VS_028
-
-**Visualization Integration** (2-stage rendering):
-1. **Renderer**:
-   - MapViewMode.PrecipitationBase (VS_026 output)
-   - MapViewMode.PrecipitationWithRainShadow (VS_027 output)
-
-2. **Legend**:
-   ```csharp
-   case MapViewMode.PrecipitationWithRainShadow:
-       AddLegendEntry("Brown", ..., "Dry (rain shadow deserts)");
-       AddLegendEntry("Yellow", ..., "Moderate");
-       AddLegendEntry("Blue", ..., "Wet (windward coasts)");
-   ```
-
-3. **Probe**:
-   - Show base vs rain-shadow precipitation: `"Base: 0.62 → Shadow: 0.31 (-50%)"`
-   - Show blocking factor: `"Mountain Blocking: 0.50 (50% reduction)"`
-
-**Implementation Phases**:
-
-**Phase 1: Algorithm** (~1-1.5h)
-- Implement directional upwind trace (20 cells, elevation threshold)
-- Calculate mountain blocking accumulation
-- Apply rain shadow multiplier (max 80% reduction)
-- 8-10 unit tests (single mountain, multiple mountains, edge cases)
-
-**Phase 2: Visualization** (~0.5-1h)
-- Add 2 MapViewMode values (Base, WithRainShadow)
-- Update renderer/legend/probe
-- Add UI dropdown items
-
-**Done When**:
-1. ✅ **Deserts appear on leeward side** of mountains (visual validation)
-2. ✅ **Windward side unaffected** (no moisture increase yet - correct for VS_027)
-3. ✅ **Multiple mountain ranges stack** (Himalayas create extreme Gobi dryness)
-4. ✅ **Performance acceptable** (<50ms for 512×512 upwind trace)
-5. ✅ **All tests GREEN**
-
-**Depends On**: VS_026 ✅ (base precipitation map required)
+**Tech Lead Decision** (2025-10-09):
+- **Algorithm**: Direct port of WorldEngine erosion.py (proven, well-tested)
+- **Precipitation input**: FINAL (VS_028 output) - ensures leeward deserts don't spawn rivers, coastal mountains do
+- **Complexity**: Medium (M, 8-10h) - river tracing is most complex part (A* fallback needed)
+- **Architecture**: First stage of hydrological processes (Stage 3), modifies heightmap (geological timescale)
+- **Next steps**: Create detailed breakdown after VS_028 complete
 
 ---
 
@@ -402,6 +180,8 @@ for (int y = 0; y < height; y++) {
 - ❌ No post-processing (intentional - start simple!)
 
 **Proposed Incremental Approach:**
+
+**STAGE 1: TECTONIC FOUNDATION**
 1. **Phase 1: Elevation Post-Processing** ✅ COMPLETE (VS_024, M, ~8h actual)
    - ✅ Ported 4 WorldEngine algorithms (~150 lines): add_noise, fill_ocean, harmonize_ocean, sea_depth
    - ✅ Dual-heightmap architecture: Original raw + Post-processed raw (both [0.1-20] range)
@@ -411,9 +191,12 @@ for (int y = 0; y < height; y++) {
    - ✅ FastNoiseLite integration: 8-octave OpenSimplex2 noise for terrain variation
    - ✅ Three colored elevation views: Original, Post-Processed, Normalized (visual validation)
    - ✅ Format v2 serialization: Saves post-processed data with backward compatibility (TD_018)
-   - **Outcome**: Foundation complete for Stages 2-6, all 433 tests GREEN
+   - **Outcome**: Foundation complete for climate stages, all 433 tests GREEN
 
-2. **Phase 2: Climate - Temperature** ✅ COMPLETE (VS_025, S, ~5h actual)
+**STAGE 2: ATMOSPHERIC CLIMATE (Instantaneous processes, no terrain modification)**
+2. **Phase 2: Climate - Complete Precipitation Pipeline** (PARTIALLY COMPLETE)
+
+   **2a. Temperature** ✅ COMPLETE (VS_025, S, ~5h actual)
    - ✅ 4-component temperature algorithm: Latitude (92%, with axial tilt) + Noise (8%, FBm fractal) + Distance-to-sun (inverse-square) + Mountain-cooling (RAW elevation thresholds)
    - ✅ Per-world climate variation: AxialTilt and DistanceToSun (Gaussian-distributed) create hot/cold planets with shifted equators
    - ✅ 4-stage debug visualization: LatitudeOnly → WithNoise → WithDistance → Final (isolates each component for visual validation)
@@ -422,36 +205,57 @@ for (int y = 0; y < height; y++) {
    - ✅ Multi-stage testing: 14 unit tests (Interp edge cases, Gaussian distribution validation, temperature ranges)
    - ✅ Visual validation passed: Smooth latitude bands, subtle noise variation, hot/cold planets, mountains blue at all latitudes
    - ✅ Performance: ~60-80ms for temperature calculation (no threading needed, native sim dominates at 83%)
-   - **Outcome**: Temperature maps ready for biome classification (Stage 6), all 447 tests GREEN
-   - **Deferred**: TD_020 Thermal Diffusion (requires water mask from Phase 3-4, will be implemented as part of Phase 5)
+   - **Outcome**: Temperature maps ready, all 447 tests GREEN
 
-3. **Phase 3: Water Table & Rivers** (M, ~6-8h)
-   - Sea level calculation (quantile-based threshold, extends Phase 1 pattern)
-   - Lake detection (elevation basins below sea level)
-   - River generation (flow from high → low elevation, Dijkstra paths to ocean/lakes)
-   - Water mask output (bool[,]) - BLOCKS TD_020 thermal diffusion
-   - Tests: Water table accuracy, river connectivity
+   **2b. Base Precipitation** ✅ COMPLETE (VS_026, S, ~3.5h actual)
+   - ✅ 3-stage algorithm: Noise (6 octaves) → Temperature gamma curve → Renormalization
+   - ✅ Multi-stage debug visualization: NoiseOnly → TemperatureShaped → Final
+   - ✅ Quantile-based thresholds (30th/70th/95th percentiles for classification)
+   - ✅ WorldEngine algorithm exact match (gamma=2.0, curveBonus=0.2)
+   - **Outcome**: Base precipitation ready for geographic modifiers, all 457 tests GREEN
 
-4. **Phase 4: Hydraulic Erosion** (L, ~10-12h)
-   - River erosion (carve valleys along river paths)
-   - Coastal erosion (smooth coastlines)
-   - Mountain weathering (reduce extreme peaks slightly)
-   - Eroded elevation map output (more realistic terrain)
-   - Tests: Erosion effects, valley formation
+   **2c. Rain Shadow Effect** ✅ COMPLETE (VS_027, S, ~3h actual)
+   - ✅ Latitude-based prevailing winds (Polar Easterlies / Westerlies / Trade Winds)
+   - ✅ Orographic blocking: Upwind mountain trace (max 20 cells ≈ 1000km)
+   - ✅ Accumulative reduction (5% per mountain, max 80% total blocking)
+   - ✅ Real-world desert patterns (Sahara, Gobi, Atacama validation)
+   - **Outcome**: Rain shadow precipitation ready, 481/482 tests GREEN (99.8%)
 
-5. **Phase 5: Thermal Diffusion & Climate Polish** (M, ~6-8h)
-   - TD_020: Physics-based heat diffusion (water/land thermal mass from Phase 3)
-   - Coastal moderation + smooth mountain temperature gradients
-   - Precipitation calculation (rain shadow, distance from water)
-   - Precipitation map visualization
-   - Tests: Coastal moderation validation, precipitation patterns
+   **2d. Coastal Moisture Enhancement** (VS_028, S, 3h) ✅ **COMPLETE** (2025-10-09)
+   - ✅ Distance-to-ocean BFS (O(n) flood fill, copied from VS_024 ocean fill pattern)
+   - ✅ Exponential decay: `bonus = 0.8 × e^(-dist/30)` - matches real atmospheric moisture transport
+   - ✅ Coastal bonus: 80% at coast (dist=0), 29% at 1500km (dist=30), <10% deep interior (dist=60+)
+   - ✅ Elevation resistance: `factor = 1 - min(1, elev × 0.02)` - mountain plateaus resist coastal penetration
+   - ✅ Additive enhancement: Preserves rain shadow deserts while adding maritime climate effect
+   - ✅ Real-world validation: Maritime (Seattle, UK) wetter than continental (Spokane, central Asia)
+   - **Outcome**: FINAL PRECIPITATION MAP ready (Stage 5 complete), 495/495 tests GREEN (100%)
+
+**STAGE 3: HYDROLOGICAL PROCESSES (Slow geological processes, terrain modification)**
+3. **Phase 3: Erosion & Rivers** (VS_029, M, ~8-10h) ← AFTER VS_028
+   - River source detection (uses FINAL PRECIPITATION from VS_028)
+   - River path tracing (downhill flow to ocean/lakes)
+   - Valley carving (erosion around river paths, radius 2, gentle curves)
+   - **Output**: Eroded heightmap, rivers[], lakes[]
+   - **Critical**: Uses final precipitation (rivers spawn in realistically wet locations)
+
+4. **Phase 4: Watermap Simulation** (M, ~3-4h)
+   - Droplet flow model (20,000 droplets weighted by final precipitation)
+   - Flow accumulation (recursive downhill distribution)
+   - Quantile thresholds (creek 5%, river 2%, main river 0.7%)
+   - **Output**: Watermap (flow intensity per cell)
+
+5. **Phase 5: Irrigation & Humidity** (M, ~3-4h)
+   - Irrigation: Logarithmic kernel (21×21 neighborhood, moisture spreading from watermap)
+   - Humidity: Combine precipitation × 1 + irrigation × 3 (hydrologic moisture boost)
+   - Quantile-based classification (8-level moisture: superarid → superhumid)
+   - **Output**: Humidity map (final moisture for biome classification)
 
 6. **Phase 6: Biome Classification** (M, ~6h)
    - 48 biome types (WorldEngine catalog)
-   - Classification based on: elevation, temperature, precipitation
+   - Classification: temperature + humidity + elevation
    - Biome transitions (smooth gradients, not hard borders)
    - Biome visualization + legends
-   - Tests: Biome distribution validation
+   - **Output**: Biome map
 
 **Technical Principles:**
 - ✅ **One algorithm at a time** - No big-bang integration

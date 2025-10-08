@@ -175,6 +175,46 @@ public partial class WorldMapLegendNode : Control
                 AddLegendEntry("Red", new Color(1f, 0f, 0f), "Tropical");
                 break;
 
+            case MapViewMode.PrecipitationNoiseOnly:
+                // 3-band moisture gradient (VS_026: Debug Stage 1)
+                AddLegendEntry("Noise Only", new Color(0.8f, 0.8f, 0.8f), "(base coherent noise)");
+                AddLegendEntry("Yellow", new Color(255f/255f, 255f/255f, 0f), "Dry (random)");
+                AddLegendEntry("Green", new Color(0f, 200f/255f, 0f), "Moderate (random)");
+                AddLegendEntry("Blue", new Color(0f, 0f, 1f), "Wet (random)");
+                break;
+
+            case MapViewMode.PrecipitationTemperatureShaped:
+                // 3-band moisture gradient (VS_026: Debug Stage 2)
+                AddLegendEntry("+ Temp Gamma Curve", new Color(0.8f, 0.8f, 0.8f), "(physics shaping)");
+                AddLegendEntry("Yellow", new Color(255f/255f, 255f/255f, 0f), "Dry (cold = low evap)");
+                AddLegendEntry("Green", new Color(0f, 200f/255f, 0f), "Moderate");
+                AddLegendEntry("Blue", new Color(0f, 0f, 1f), "Wet (hot = high evap)");
+                break;
+
+            case MapViewMode.PrecipitationBase:
+                // 3-band moisture gradient (VS_026: Production Stage 3)
+                AddLegendEntry("Base Precipitation", new Color(0.8f, 0.8f, 0.8f), "(before rain shadow)");
+                AddLegendEntry("Yellow", new Color(255f/255f, 255f/255f, 0f), "Low (<400mm/year)");
+                AddLegendEntry("Green", new Color(0f, 200f/255f, 0f), "Medium (400-800mm)");
+                AddLegendEntry("Blue", new Color(0f, 0f, 1f), "High (>800mm/year)");
+                break;
+
+            case MapViewMode.PrecipitationWithRainShadow:
+                // 3-band moisture gradient with rain shadow effects (VS_027: Production Stage 4)
+                AddLegendEntry("+ Rain Shadow", new Color(0.8f, 0.8f, 0.8f), "(orographic blocking)");
+                AddLegendEntry("Yellow", new Color(255f/255f, 255f/255f, 0f), "Dry (leeward deserts)");
+                AddLegendEntry("Green", new Color(0f, 200f/255f, 0f), "Moderate");
+                AddLegendEntry("Blue", new Color(0f, 0f, 1f), "Wet (windward coasts)");
+                break;
+
+            case MapViewMode.PrecipitationFinal:
+                // 3-band moisture gradient FINAL (VS_028: Production Stage 5 - coastal moisture)
+                AddLegendEntry("FINAL (+ Coastal)", new Color(0.8f, 0.8f, 0.8f), "(maritime vs continental)");
+                AddLegendEntry("Yellow", new Color(255f/255f, 255f/255f, 0f), "Arid (interior)");
+                AddLegendEntry("Green", new Color(0f, 200f/255f, 0f), "Moderate");
+                AddLegendEntry("Blue", new Color(0f, 0f, 1f), "Wet (maritime coasts)");
+                break;
+
             default:
                 AddLegendEntry("Unknown view", new Color(1, 0, 0), "");
                 break;
