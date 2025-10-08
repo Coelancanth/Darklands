@@ -226,7 +226,8 @@
       "Bash(./scripts/core/build.ps1 test --filter \"RainShadow\")",
       "Bash(./scripts/core/build.ps1 test-only:*)",
       "Bash(pwsh:*)",
-      "Bash(awk:*)"
+      "Bash(awk:*)",
+      "Bash(./scripts/core/build.ps1 test --filter \"FlowDirectionCalculator\")"
     ],
     "deny": [],
     "ask": [],

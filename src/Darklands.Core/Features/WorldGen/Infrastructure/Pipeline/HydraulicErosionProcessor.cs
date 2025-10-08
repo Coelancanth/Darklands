@@ -1,0 +1,137 @@
+using Darklands.Core.Features.WorldGen.Application.DTOs;
+using Darklands.Core.Features.WorldGen.Infrastructure.Algorithms;
+
+namespace Darklands.Core.Features.WorldGen.Infrastructure.Pipeline;
+
+/// <summary>
+/// Hydraulic erosion simulation - orchestrates VS_029 pipeline phases.
+/// Phase 1 (CURRENT): Pit filling + flow accumulation + source detection
+/// Phase 2-4 (FUTURE): River tracing, valley erosion, monotonicity cleanup
+/// </summary>
+/// <remarks>
+/// VS_029 Phase 1 Pipeline (O(n log n) - Hydrologically Correct):
+/// 1a. Selective pit filling → FilledHeightmap, Lakes
+/// 1b. Flow direction computation → FlowDirections
+/// 1c. Topological sort → (internal)
+/// 1d. Flow accumulation → FlowAccumulation
+/// 1e. River source detection → RiverSources
+///
+/// Output: Phase1ErosionData (foundation for river tracing in Phase 2)
+///
+/// Key design decisions:
+/// - Selective pit filling (not full filling!) - Preserves real lakes
+/// - Topological sort (not raster scan!) - Fixes WorldEngine's bug
+/// - Flow accumulation models drainage basins (hydrologically correct!)
+/// - Tunable thresholds (accumulationThreshold, pitDepth, pitArea)
+///
+/// Performance: ~100-200ms for 512×512 map (pit filling dominates at O(n log n))
+/// </remarks>
+public static class HydraulicErosionProcessor
+{
+    /// <summary>
+    /// Default accumulation threshold for river source detection.
+    /// Controls river density: Higher = fewer/larger rivers, Lower = many/smaller rivers.
+    /// Default 0.5 yields ~5-15 major rivers per 512×512 map (realistic!).
+    /// </summary>
+    public const float DefaultAccumulationThreshold = 0.5f;
+
+    /// <summary>
+    /// Default pit depth threshold for selective filling (meters equivalent).
+    /// Pits deeper than this are preserved as lakes.
+    /// </summary>
+    public const float DefaultPitDepthThreshold = 50.0f;
+
+    /// <summary>
+    /// Default pit area threshold for selective filling (cell count).
+    /// Pits larger than this are preserved as lakes.
+    /// </summary>
+    public const int DefaultPitAreaThreshold = 100;
+
+    /// <summary>
+    /// Executes Phase 1 of hydraulic erosion simulation.
+    /// </summary>
+    /// <param name="heightmap">Post-processed heightmap from VS_024 (raw [0-20] scale)</param>
+    /// <param name="oceanMask">Ocean mask from VS_024 (true = water, false = land)</param>
+    /// <param name="precipitation">FINAL precipitation from VS_028 (normalized [0,1])</param>
+    /// <param name="thresholds">Elevation thresholds from VS_024 (for MountainLevel)</param>
+    /// <param name="accumulationThreshold">Minimum flow to spawn river (default 0.5)</param>
+    /// <param name="pitDepthThreshold">Max pit depth to fill (default 50.0)</param>
+    /// <param name="pitAreaThreshold">Max pit area to fill (default 100)</param>
+    /// <returns>Phase 1 erosion data (filled heightmap, flow data, sources, lakes)</returns>
+    public static Phase1ErosionData ProcessPhase1(
+        float[,] heightmap,
+        bool[,] oceanMask,
+        float[,] precipitation,
+        ElevationThresholds thresholds,
+        float accumulationThreshold = DefaultAccumulationThreshold,
+        float pitDepthThreshold = DefaultPitDepthThreshold,
+        int pitAreaThreshold = DefaultPitAreaThreshold)
+    {
+        int height = heightmap.GetLength(0);
+        int width = heightmap.GetLength(1);
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // STEP 1a: Selective Pit Filling (O(n log n) - Priority Flood Fill)
+        // ═══════════════════════════════════════════════════════════════════════
+        // Fills small pits (artifacts), preserves large pits (real lakes)
+
+        var fillingResult = PitFillingCalculator.Fill(
+            heightmap,
+            oceanMask,
+            pitDepthThreshold,
+            pitAreaThreshold);
+
+        var filledHeightmap = fillingResult.FilledHeightmap;
+        var lakes = fillingResult.Lakes;
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // STEP 1b: Flow Direction Computation (O(n) - Steepest Descent)
+        // ═══════════════════════════════════════════════════════════════════════
+        // For each cell, find steepest downhill neighbor (8-connected)
+
+        var flowDirections = FlowDirectionCalculator.Calculate(filledHeightmap, oceanMask);
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // STEP 1c: Topological Sort (O(n) - Kahn's Algorithm)
+        // ═══════════════════════════════════════════════════════════════════════
+        // Order cells upstream→downstream (critical for correct accumulation!)
+
+        var topologicalOrder = TopologicalSortCalculator.Sort(flowDirections, width, height);
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // STEP 1d: Flow Accumulation (O(n) - Single Pass in Topo Order)
+        // ═══════════════════════════════════════════════════════════════════════
+        // Compute drainage basin sizes (accumulated precipitation from upstream)
+
+        var flowAccumulation = FlowAccumulationCalculator.Calculate(
+            precipitation,
+            flowDirections,
+            topologicalOrder,
+            width,
+            height);
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // STEP 1e: River Source Detection (O(n) - Threshold Check)
+        // ═══════════════════════════════════════════════════════════════════════
+        // Find mountain cells with large accumulated flow (realistic river density!)
+
+        var riverSources = RiverSourceDetector.Detect(
+            filledHeightmap,
+            flowAccumulation,
+            thresholds.MountainLevel,
+            accumulationThreshold,
+            width,
+            height);
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // RETURN: Phase 1 Erosion Data (foundation for river tracing)
+        // ═══════════════════════════════════════════════════════════════════════
+
+        return new Phase1ErosionData(
+            filledHeightmap: filledHeightmap,
+            flowDirections: flowDirections,
+            flowAccumulation: flowAccumulation,
+            riverSources: riverSources,
+            lakes: lakes);
+    }
+}
