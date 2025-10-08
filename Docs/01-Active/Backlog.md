@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-08 08:58 (Dev Engineer: TD_018 complete - Format v2 serialization with backward compatibility)
+**Last Updated**: 2025-10-08 14:52 (Dev Engineer: VS_025 implementation plan - Multi-stage temperature rendering)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -104,15 +104,15 @@
 *Future features, nice-to-haves, deferred work*
 
 ### VS_025: WorldGen Pipeline Stage 2 - Temperature Simulation
-**Status**: Approved
-**Owner**: Tech Lead → Dev Engineer
-**Size**: S (~3-4h)
+**Status**: In Progress
+**Owner**: Dev Engineer
+**Size**: S (~4-5h, revised for multi-stage debug rendering)
 **Priority**: Ideas
 **Markers**: [WORLDGEN] [PIPELINE] [STAGE-2] [CLIMATE]
 
-**What**: Implement Stage 2 of world generation pipeline: temperature map calculation using latitude + noise + elevation cooling, with Temperature view mode visualization
+**What**: Implement Stage 2 of world generation pipeline: temperature map calculation using latitude + noise + elevation cooling, with **4-stage debug visualization** (latitude-only, +noise, +distance, +mountain-cooling)
 
-**Why**: Temperature map needed for biome classification (Stage 6) and strategic terrain decisions. Foundation for climate-based gameplay mechanics.
+**Why**: Temperature map needed for biome classification (Stage 6) and strategic terrain decisions. Multi-stage rendering enables **trivial debugging** of complex 4-component algorithm (mirrors VS_024's Original vs Post-Processed elevation pattern).
 
 **How** (ultra-think 2025-10-08, WorldEngine temperature.py validated):
 
@@ -263,28 +263,55 @@ return result with { TemperatureMap = temperatureMap };
 - ✅ Format v2 cache saves full temperature map (0ms reload)
 - ✅ Simple = fast enough (<1.5s total for 512×512)
 
+**Implementation Phases** (Dev Engineer 2025-10-08):
+
+**Phase 0: Disable Cache During Development** ✅ COMPLETE (~5min actual)
+- Added `DISABLE_CACHE_FOR_DEV = true` flag to WorldMapOrchestratorNode.cs (line 45)
+- Wrapped cache load logic in conditional (lines 223-257)
+- Wrapped cache save logic in conditional (line 283)
+- Used `static readonly` (not `const`) to avoid "unreachable code" compiler warnings
+- All 433 tests GREEN, build succeeds
+
+**Phase 1: Core Algorithm with Multi-Stage Output** (~1.5-2h, TDD)
+1. Create `MathUtils.cs` with `Interp()` (numpy.interp) and `SampleGaussian()` (Box-Muller transform)
+2. Create `TemperatureCalculator.cs` returning **4 intermediate maps**:
+   - `LatitudeOnlyMap` (Step 1: Pure latitude banding with axial tilt)
+   - `WithNoiseMap` (Step 2: + 8% climate variation)
+   - `WithDistanceMap` (Step 3: + distance-to-sun multiplier)
+   - `FinalMap` (Step 4: + mountain cooling)
+3. Unit tests for edge cases (Interp boundaries, Gaussian distribution)
+
+**Phase 2: Pipeline Integration** (~0.5h)
+4. Update `WorldGenerationResult` to store **4 temperature maps** + per-world params (AxialTilt, DistanceToSun)
+5. Update `GenerateWorldPipeline` Stage 2 to call `TemperatureCalculator.Calculate()`
+6. Verify 433 tests still GREEN (no regressions)
+
+**Phase 3: Multi-Stage Visualization** (~1.5-2h)
+7. Add 4 `MapViewMode` enum values:
+   - `TemperatureLatitudeOnly` (debug: horizontal bands, tilt visible)
+   - `TemperatureWithNoise` (debug: subtle climate fuzz)
+   - `TemperatureWithDistance` (debug: hot/cold planet variation)
+   - `TemperatureFinal` (production: complete with mountain cooling)
+8. Implement `RenderTemperatureMap()` with 5-stop gradient (Blue → Cyan → Green → Yellow → Red)
+9. Update `WorldMapLegendNode` with **stage-specific legends** (show which component is active)
+10. Update `WorldMapProbeNode` to display **all 4 values** + per-world parameters
+11. Add 4 UI buttons grouped as "Temperature Debug" section
+
+**Phase 4: Visual Validation** (~0.5h)
+12. **Validate each stage visually**:
+    - Latitude Only: Horizontal bands, equator shifts with tilt
+    - With Noise: Subtle "fuzz" on bands (not dramatic)
+    - With Distance: Same pattern, hotter/colder overall (seed variation)
+    - Final: Mountains blue at **all latitudes** (cooling works!)
+13. Performance check (<1.5s total for 512×512, no regression)
+14. All 433 tests GREEN
+
 **Done When**:
-1. ✅ **Temperature map populated**:
-   - `WorldGenerationResult.TemperatureMap` has normalized [0, 1] values
-   - UI displays as °C range: -60°C (frozen peaks) to +40°C (hot lowlands)
-
-2. ✅ **Algorithm correct** (WorldEngine-validated):
-   - Latitude gradient with axial tilt: Equator shifts based on per-world tilt
-   - Distance to sun: Hot vs cold planets (0.78× to 1.22× multiplier)
-   - Noise variation: Subtle climate variation (8% weight, no banding)
-   - Mountain-only elevation cooling: Lowlands unaffected, peaks get 97% colder
-
-3. ✅ **Visualization working**:
-   - Temperature view mode renders 5-stop gradient (blue poles, red equator)
-   - Legend shows 5 temperature bands with °C labels
-   - Probe displays °C on hover + normalized value for debugging
-   - Mountains visibly colder (blue) at all latitudes
-
-4. ✅ **Quality gates**:
-   - Visual validation: Axial tilt shifts hot zone, mountains always blue
-   - Per-world variation: Different seeds produce hot/cold planets
-   - No performance regression (still <1.5s for 512×512 total)
-   - All 433 tests remain GREEN
+1. ✅ **4 temperature maps populated** in WorldGenerationResult (latitude-only, +noise, +distance, final)
+2. ✅ **Algorithm correct** (WorldEngine-validated, each component isolated for debugging)
+3. ✅ **Multi-stage visualization working** (4 view modes, stage-specific legends, probe shows all values)
+4. ✅ **Visual validation passes** for each stage independently
+5. ✅ **Quality gates**: Per-world variation visible, no performance regression, all tests GREEN
 
 **Depends On**: VS_024 ✅ - needs `PostProcessedHeightmap` (RAW) + `Thresholds.MountainLevel`
 
@@ -297,6 +324,15 @@ return result with { TemperatureMap = temperatureMap };
 - **Normalized output**: Store [0,1], UI converts to °C. Consistent with WorldEngine pattern.
 - **Performance**: Skip threading (YAGNI), cache + simple algorithm = fast enough.
 - **Next steps**: Dev Engineer implements after VS_024 merged, use WorldEngine temperature.py as reference.
+
+**Dev Engineer Decision** (2025-10-08 14:52 - Multi-stage debug rendering):
+- **Pattern**: Mirror VS_024's Original vs Post-Processed elevation visualization (proven debugging approach)
+- **4 view modes**: LatitudeOnly → +Noise → +Distance → Final (isolates each component for visual validation)
+- **Why**: Complex 4-component algorithm needs per-stage debugging to catch bugs immediately (not guess!)
+- **Trade-off**: Store 4 maps instead of 1 (~2MB extra for 512×512, negligible), but debugging becomes **trivial**
+- **Implementation**: TemperatureCalculator returns all 4 intermediate stages + per-world params
+- **Validation**: Each stage has **visual signature** (bands → fuzz → hot/cold → blue mountains)
+- **Revised estimate**: ~4-5h (was 3-4h), extra hour for multi-stage rendering infrastructure
 
 ---
 
