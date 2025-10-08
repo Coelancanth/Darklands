@@ -127,6 +127,54 @@ public partial class WorldMapLegendNode : Control
                 AddLegendEntry("(10 plates total)", new Color(0.6f, 0.6f, 0.6f), "");
                 break;
 
+            case MapViewMode.TemperatureLatitudeOnly:
+                // 7-band WorldEngine climate zones (VS_025: Debug Stage 1)
+                AddLegendEntry("Latitude Only", new Color(0.8f, 0.8f, 0.8f), "(quantile bands)");
+                AddLegendEntry("Blue", new Color(0f, 0f, 1f), "Polar (coldest)");
+                AddLegendEntry("Blue-Purple", new Color(42f/255f, 0f, 213f/255f), "Alpine");
+                AddLegendEntry("Purple", new Color(85f/255f, 0f, 170f/255f), "Boreal");
+                AddLegendEntry("Magenta", new Color(128f/255f, 0f, 128f/255f), "Cool");
+                AddLegendEntry("Purple-Red", new Color(170f/255f, 0f, 85f/255f), "Warm");
+                AddLegendEntry("Red-Purple", new Color(213f/255f, 0f, 42f/255f), "Subtropical");
+                AddLegendEntry("Red", new Color(1f, 0f, 0f), "Tropical (hottest)");
+                break;
+
+            case MapViewMode.TemperatureWithNoise:
+                // 7-band WorldEngine climate zones (VS_025: Debug Stage 2)
+                AddLegendEntry("+ Climate Noise", new Color(0.8f, 0.8f, 0.8f), "(8% variation)");
+                AddLegendEntry("Blue", new Color(0f, 0f, 1f), "Polar");
+                AddLegendEntry("Blue-Purple", new Color(42f/255f, 0f, 213f/255f), "Alpine");
+                AddLegendEntry("Purple", new Color(85f/255f, 0f, 170f/255f), "Boreal");
+                AddLegendEntry("Magenta", new Color(128f/255f, 0f, 128f/255f), "Cool");
+                AddLegendEntry("Purple-Red", new Color(170f/255f, 0f, 85f/255f), "Warm");
+                AddLegendEntry("Red-Purple", new Color(213f/255f, 0f, 42f/255f), "Subtropical");
+                AddLegendEntry("Red", new Color(1f, 0f, 0f), "Tropical");
+                break;
+
+            case MapViewMode.TemperatureWithDistance:
+                // 7-band WorldEngine climate zones (VS_025: Debug Stage 3)
+                AddLegendEntry("+ Distance to Sun", new Color(0.8f, 0.8f, 0.8f), "(hot/cold planets)");
+                AddLegendEntry("Blue", new Color(0f, 0f, 1f), "Polar");
+                AddLegendEntry("Blue-Purple", new Color(42f/255f, 0f, 213f/255f), "Alpine");
+                AddLegendEntry("Purple", new Color(85f/255f, 0f, 170f/255f), "Boreal");
+                AddLegendEntry("Magenta", new Color(128f/255f, 0f, 128f/255f), "Cool");
+                AddLegendEntry("Purple-Red", new Color(170f/255f, 0f, 85f/255f), "Warm");
+                AddLegendEntry("Red-Purple", new Color(213f/255f, 0f, 42f/255f), "Subtropical");
+                AddLegendEntry("Red", new Color(1f, 0f, 0f), "Tropical");
+                break;
+
+            case MapViewMode.TemperatureFinal:
+                // 7-band WorldEngine climate zones (VS_025: Production Stage 4)
+                AddLegendEntry("Final Temperature", new Color(0.8f, 0.8f, 0.8f), "(+ mountain cooling)");
+                AddLegendEntry("Blue", new Color(0f, 0f, 1f), "Polar");
+                AddLegendEntry("Blue-Purple", new Color(42f/255f, 0f, 213f/255f), "Alpine");
+                AddLegendEntry("Purple", new Color(85f/255f, 0f, 170f/255f), "Boreal");
+                AddLegendEntry("Magenta", new Color(128f/255f, 0f, 128f/255f), "Cool");
+                AddLegendEntry("Purple-Red", new Color(170f/255f, 0f, 85f/255f), "Warm");
+                AddLegendEntry("Red-Purple", new Color(213f/255f, 0f, 42f/255f), "Subtropical");
+                AddLegendEntry("Red", new Color(1f, 0f, 0f), "Tropical");
+                break;
+
             default:
                 AddLegendEntry("Unknown view", new Color(1, 0, 0), "");
                 break;

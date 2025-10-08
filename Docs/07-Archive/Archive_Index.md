@@ -1,16 +1,16 @@
 # Backlog Archive Index
 
-**Last Updated**: 2025-10-08 09:14
-**Current Active Archive**: Completed_Backlog_2025-10_Part3.md (Lines: 698/1000)
+**Last Updated**: 2025-10-08 16:29
+**Current Active Archive**: Completed_Backlog_2025-10_Part3.md (Lines: 955/1000)
 
 ## Archive Files (Newest First)
 
 ### Completed_Backlog_2025-10_Part3.md (✅ ACTIVE - October 2025 Part 4)
 - **Created**: 2025-10-08 06:09 (after rotation)
-- **Line Count**: 698/1000
+- **Line Count**: 955/1000
 - **Date Range**: 2025-10-08 to 2025-10-08
-- **Status**: ✅ Active (302 lines remaining)
-- **Extraction Status**: 0/6 extracted (6 NOT EXTRACTED ⚠️)
+- **Status**: ✅ Active (45 lines remaining)
+- **Extraction Status**: 0/7 extracted (7 NOT EXTRACTED ⚠️)
 
 **Items**:
 - **TD_012**: WorldMap Visualization - Dynamic Legends (Fixed legend positioning, 7-band color key, reordered view modes with ColoredElevation as default, 433 tests GREEN) [NOT EXTRACTED ⚠️]
@@ -19,6 +19,7 @@
 - **VS_023**: WorldGen Pipeline - GenerateWorldPipeline Architecture (Three-layer architecture Handler→Pipeline→Simulator, WorldGenerationResult DTO with optional post-processing fields, IWorldGenerationPipeline abstraction, 433 tests GREEN) [NOT EXTRACTED ⚠️]
 - **TD_018**: Upgrade World Serialization to Format v2 (Post-processed data, thresholds, ocean mask, sea depth, backward compatibility, bit-packing, -45 lines orchestrator cleanup, 433 tests GREEN) [NOT EXTRACTED ⚠️]
 - **VS_024**: WorldGen Pipeline Stage 1 - Elevation Post-Processing & Real-World Mapping (4 WorldEngine algorithms, quantile thresholds, dual-heightmap, meters mapping, 3 colored views, 433 tests GREEN) [NOT EXTRACTED ⚠️]
+- **VS_025**: WorldGen Pipeline Stage 2 - Temperature Simulation (4-component algorithm: latitude+tilt 92%, noise 8%, distance-to-sun, mountain-cooling, 4-stage debug visualization, per-world climate variation, noise config bug fix, 447 tests GREEN) [NOT EXTRACTED ⚠️]
 
 ### Completed_Backlog_2025-10_Part2.md (🔒 SEALED - October 2025 Part 3)
 - **Created**: 2025-10-04 14:15 (after rotation)

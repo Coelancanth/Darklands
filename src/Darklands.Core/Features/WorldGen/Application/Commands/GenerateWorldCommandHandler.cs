@@ -61,9 +61,9 @@ public class GenerateWorldCommandHandler : IRequestHandler<GenerateWorldCommand,
     private static int GetImplementedStageCount(WorldGenerationResult result)
     {
         int count = 1; // Stage 0 (native) always present
-        if (result.OceanMask != null) count++;
-        if (result.TemperatureMap != null) count++;
-        if (result.PrecipitationMap != null) count++;
+        if (result.OceanMask != null) count++;              // Stage 1 (elevation post-processing)
+        if (result.TemperatureFinal != null) count++;       // Stage 2 (temperature)
+        if (result.PrecipitationMap != null) count++;       // Stage 3 (precipitation)
         return count;
     }
 }

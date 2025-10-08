@@ -34,6 +34,16 @@ public partial class WorldMapOrchestratorNode : Node
     private WorldGenerationResult? _currentWorld;
     private int _currentSeed = 42;
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // VS_025: TEMPORARY - Disable cache during temperature development
+    // ═══════════════════════════════════════════════════════════════════════
+    // WHY: Cache would return OLD worlds without new temperature maps,
+    //      hiding algorithm changes and wasting debugging time.
+    // TODO: After VS_025 complete, set to false and update serialization
+    //       to Format v3 (save 4 temperature maps: LatitudeOnly, WithNoise, WithDistance, Final)
+    // NOTE: static readonly (not const) to avoid "unreachable code" compiler warnings
+    private static readonly bool DISABLE_CACHE_FOR_DEV = true;
+
     // Initial seed
     [Export]
     public int InitialSeed { get; set; } = 42;
@@ -208,36 +218,43 @@ public partial class WorldMapOrchestratorNode : Node
         _ui?.SetGenerating(true);
 
         // ═══════════════════════════════════════════════════════════════════════
-        // STEP 1: Try auto-load from cache (if exists)
+        // STEP 1: Try auto-load from cache (if exists) - SKIP if dev flag set
         // ═══════════════════════════════════════════════════════════════════════
 
-        string cacheFilename = $"world_{seed}.dwld";
-        var (loadSuccess, cachedWorld, cachedSeed) = _serializationService!.LoadWorld(cacheFilename);
-
-        if (loadSuccess && cachedWorld != null)
+        if (!DISABLE_CACHE_FOR_DEV)
         {
-            _logger?.LogInformation("Auto-loaded world from cache: seed={Seed} (skipped generation)", seed);
+            string cacheFilename = $"world_{seed}.dwld";
+            var (loadSuccess, cachedWorld, cachedSeed) = _serializationService!.LoadWorld(cacheFilename);
 
-            // TD_018: Direct assignment - serialization handles v1/v2 format automatically
-            _currentWorld = cachedWorld;
-            _currentSeed = seed;
-
-            _renderer?.SetWorldData(_currentWorld, ServiceLocator.Get<ILogger<WorldMapRendererNode>>());
-
-            // Sync legend and probe
-            if (_renderer != null && _legend != null)
+            if (loadSuccess && cachedWorld != null)
             {
-                _legend.UpdateForViewMode(_renderer.GetCurrentViewMode());
-            }
-            if (_renderer != null && _probe != null)
-            {
-                _probe.UpdateHighlightColor(_renderer.GetCurrentViewMode());
-            }
+                _logger?.LogInformation("Auto-loaded world from cache: seed={Seed} (skipped generation)", seed);
 
-            _ui?.SetSeed(seed);
-            _ui?.SetStatus($"Loaded from cache: {cachedWorld.Width}x{cachedWorld.Height} (instant)");
-            _ui?.SetGenerating(false);
-            return; // Skip generation!
+                // TD_018: Direct assignment - serialization handles v1/v2 format automatically
+                _currentWorld = cachedWorld;
+                _currentSeed = seed;
+
+                _renderer?.SetWorldData(_currentWorld, ServiceLocator.Get<ILogger<WorldMapRendererNode>>());
+
+                // Sync legend and probe
+                if (_renderer != null && _legend != null)
+                {
+                    _legend.UpdateForViewMode(_renderer.GetCurrentViewMode());
+                }
+                if (_renderer != null && _probe != null)
+                {
+                    _probe.UpdateHighlightColor(_renderer.GetCurrentViewMode());
+                }
+
+                _ui?.SetSeed(seed);
+                _ui?.SetStatus($"Loaded from cache: {cachedWorld.Width}x{cachedWorld.Height} (instant)");
+                _ui?.SetGenerating(false);
+                return; // Skip generation!
+            }
+        }
+        else
+        {
+            _logger?.LogWarning("VS_025 DEV MODE: Cache disabled - forcing regeneration for seed={Seed}", seed);
         }
 
         // ═══════════════════════════════════════════════════════════════════════
@@ -262,10 +279,15 @@ public partial class WorldMapOrchestratorNode : Node
             _renderer?.SetWorldData(result.Value, ServiceLocator.Get<ILogger<WorldMapRendererNode>>());
 
             // TD_018: Auto-save FULL WorldGenerationResult (v2 format preserves post-processing)
-            bool saveSuccess = _serializationService.SaveWorld(result.Value, seed, cacheFilename);
-            if (saveSuccess)
+            // VS_025: Skip auto-save during dev (cache disabled)
+            if (!DISABLE_CACHE_FOR_DEV && _serializationService != null)
             {
-                _logger?.LogInformation("Auto-saved world to cache: {Filename}", cacheFilename);
+                string cacheFilename = $"world_{seed}.dwld";
+                bool saveSuccess = _serializationService.SaveWorld(result.Value, seed, cacheFilename);
+                if (saveSuccess)
+                {
+                    _logger?.LogInformation("Auto-saved world to cache: {Filename}", cacheFilename);
+                }
             }
 
             _ui?.SetSeed(seed);

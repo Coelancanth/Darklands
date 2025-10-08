@@ -72,10 +72,21 @@ public class GenerateWorldPipeline : IWorldGenerationPipeline
             thresholds.SeaLevel, thresholds.HillLevel, thresholds.MountainLevel, thresholds.PeakLevel, minElevation, maxElevation);
 
         // ═══════════════════════════════════════════════════════════════════════
-        // STAGE 2: Climate - Temperature (VS_025 - Future)
+        // STAGE 2: Climate - Temperature (VS_025)
         // ═══════════════════════════════════════════════════════════════════════
-        // TODO: Calculate temperature map (latitude + noise + elevation cooling)
-        // Uses: raw PostProcessedHeightmap + MountainLevel threshold (WorldEngine approach)
+        // WorldEngine algorithms: latitude+tilt, noise, distance-to-sun, mountain-cooling
+        // Produces: 4 temperature maps (LatitudeOnly, WithNoise, WithDistance, Final) + per-world params
+
+        var tempResult = Algorithms.TemperatureCalculator.Calculate(
+            postProcessedHeightmap: postProcessed.ProcessedHeightmap,  // RAW [0.1-20] for mountain cooling
+            mountainLevelThreshold: thresholds.MountainLevel,           // RAW threshold
+            width: nativeResult.Value.Width,
+            height: nativeResult.Value.Height,
+            seed: parameters.Seed);
+
+        _logger.LogInformation(
+            "Stage 2 complete: Temperature calculated (axialTilt={AxialTilt:F3}, distanceToSun={DistanceToSun:F3})",
+            tempResult.AxialTilt, tempResult.DistanceToSun);
 
         // ═══════════════════════════════════════════════════════════════════════
         // STAGE 3: Climate - Precipitation (Future)
@@ -96,12 +107,17 @@ public class GenerateWorldPipeline : IWorldGenerationPipeline
             maxElevation: maxElevation,                                // Actual peak (for meters mapping)
             oceanMask: postProcessed.OceanMask,                        // Flood-filled ocean
             seaDepth: postProcessed.SeaDepth,                          // Depth map
-            temperatureMap: null,    // VS_025
-            precipitationMap: null   // Stage 3
+            temperatureLatitudeOnly: tempResult.LatitudeOnlyMap,       // VS_025 Stage 1 (debug)
+            temperatureWithNoise: tempResult.WithNoiseMap,             // VS_025 Stage 2 (debug)
+            temperatureWithDistance: tempResult.WithDistanceMap,       // VS_025 Stage 3 (debug)
+            temperatureFinal: tempResult.FinalMap,                     // VS_025 Stage 4 (production)
+            axialTilt: tempResult.AxialTilt,                           // Per-world param
+            distanceToSun: tempResult.DistanceToSun,                   // Per-world param
+            precipitationMap: null   // Stage 3 (future)
         );
 
         _logger.LogInformation(
-            "Pipeline complete: {Width}x{Height} world with Stage 1 (original + post-processed + thresholds)",
+            "Pipeline complete: {Width}x{Height} world with Stage 1 (elevation) + Stage 2 (temperature)",
             result.Width, result.Height);
 
         return Result.Success(result);

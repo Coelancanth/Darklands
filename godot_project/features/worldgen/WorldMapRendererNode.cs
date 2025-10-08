@@ -91,6 +91,50 @@ public partial class WorldMapRendererNode : Sprite2D
                 }
                 break;
 
+            case MapViewMode.TemperatureLatitudeOnly:
+                if (_worldData.TemperatureLatitudeOnly != null)
+                {
+                    RenderTemperatureMap(_worldData.TemperatureLatitudeOnly);
+                }
+                else
+                {
+                    _logger?.LogWarning("Temperature (LatitudeOnly) not available");
+                }
+                break;
+
+            case MapViewMode.TemperatureWithNoise:
+                if (_worldData.TemperatureWithNoise != null)
+                {
+                    RenderTemperatureMap(_worldData.TemperatureWithNoise);
+                }
+                else
+                {
+                    _logger?.LogWarning("Temperature (WithNoise) not available");
+                }
+                break;
+
+            case MapViewMode.TemperatureWithDistance:
+                if (_worldData.TemperatureWithDistance != null)
+                {
+                    RenderTemperatureMap(_worldData.TemperatureWithDistance);
+                }
+                else
+                {
+                    _logger?.LogWarning("Temperature (WithDistance) not available");
+                }
+                break;
+
+            case MapViewMode.TemperatureFinal:
+                if (_worldData.TemperatureFinal != null)
+                {
+                    RenderTemperatureMap(_worldData.TemperatureFinal);
+                }
+                else
+                {
+                    _logger?.LogWarning("Temperature (Final) not available");
+                }
+                break;
+
             default:
                 _logger?.LogError("Unknown view mode: {ViewMode}", _currentViewMode);
                 break;
@@ -323,6 +367,136 @@ public partial class WorldMapRendererNode : Sprite2D
         return Gradient(h, q99, 1.0f,
             new Color(0.357f, 0.110f, 0.051f),
             new Color(0.200f, 0f, 0.016f));
+    }
+
+    /// <summary>
+    /// Renders temperature map with WorldEngine-style quantile-based color bands (VS_025).
+    /// Input: Normalized [0,1] temperature values.
+    /// Output: 7 discrete color bands (polar → alpine → boreal → cool → warm → subtropical → tropical).
+    /// </summary>
+    /// <remarks>
+    /// WorldEngine approach (temperature.py + draw.py):
+    /// - Uses quantile thresholds to create discrete climate zones (NOT smooth gradient)
+    /// - 7 bands: polar (coldest 12.5%), alpine, boreal, cool, warm, subtropical, tropical (hottest 12.5%)
+    /// - Colors: Blue → Blue-Purple → Purple → Magenta → Purple-Red → Red-Purple → Red
+    ///
+    /// Why quantiles? Each world has different temperature distribution (hot vs cold planets).
+    /// Quantiles adapt to show climate variation regardless of absolute temperatures.
+    ///
+    /// Reused by all 4 temperature view modes (LatitudeOnly, WithNoise, WithDistance, Final).
+    /// </remarks>
+    private void RenderTemperatureMap(float[,] temperatureMap)
+    {
+        int h = temperatureMap.GetLength(0);
+        int w = temperatureMap.GetLength(1);
+        var image = Image.CreateEmpty(w, h, false, Image.Format.Rgb8);
+
+        _logger?.LogDebug("RenderTemperatureMap: {Width}x{Height}", w, h);
+
+        // Calculate quantile thresholds (7 temperature zones, WorldEngine-style)
+        var quantiles = CalculateTemperatureQuantiles(temperatureMap);
+
+        _logger?.LogDebug("Temperature quantiles: q12.5={Q0:F3}, q25={Q1:F3}, q37.5={Q2:F3}, q50={Q3:F3}, q62.5={Q4:F3}, q75={Q5:F3}, q87.5={Q6:F3}",
+            quantiles[0], quantiles[1], quantiles[2], quantiles[3], quantiles[4], quantiles[5], quantiles[6]);
+
+        // Render with discrete color bands based on quantiles
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                float t = temperatureMap[y, x];  // Normalized [0, 1]
+                Color color = GetTemperatureColorQuantile(t, quantiles);
+                image.SetPixel(x, y, color);
+            }
+        }
+
+        Texture = ImageTexture.CreateFromImage(image);
+        _logger?.LogInformation("Rendered TemperatureMap: {Width}x{Height}", w, h);
+    }
+
+    /// <summary>
+    /// Calculates temperature quantiles for discrete climate zone bands (WorldEngine approach).
+    /// Returns 7 quantile thresholds: 12.5%, 25%, 37.5%, 50%, 62.5%, 75%, 87.5%.
+    /// </summary>
+    private float[] CalculateTemperatureQuantiles(float[,] temperatureMap)
+    {
+        int h = temperatureMap.GetLength(0);
+        int w = temperatureMap.GetLength(1);
+
+        // Collect all temperature values
+        var temps = new System.Collections.Generic.List<float>(h * w);
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                temps.Add(temperatureMap[y, x]);
+            }
+        }
+
+        // Sort for quantile calculation
+        temps.Sort();
+
+        // Calculate 7 quantiles (8 bands: < q0, q0-q1, q1-q2, ... q6+)
+        return new float[]
+        {
+            GetPercentileFromSorted(temps, 0.125f),  // 12.5% - polar
+            GetPercentileFromSorted(temps, 0.25f),   // 25% - alpine
+            GetPercentileFromSorted(temps, 0.375f),  // 37.5% - boreal
+            GetPercentileFromSorted(temps, 0.50f),   // 50% - cool
+            GetPercentileFromSorted(temps, 0.625f),  // 62.5% - warm
+            GetPercentileFromSorted(temps, 0.75f),   // 75% - subtropical
+            GetPercentileFromSorted(temps, 0.875f)   // 87.5% - tropical
+        };
+    }
+
+    /// <summary>
+    /// Gets percentile value from a sorted list (helper for quantile calculation).
+    /// </summary>
+    private float GetPercentileFromSorted(System.Collections.Generic.List<float> sortedValues, float percentile)
+    {
+        if (sortedValues.Count == 0) return 0f;
+
+        int index = (int)Mathf.Floor(percentile * (sortedValues.Count - 1));
+        index = Mathf.Clamp(index, 0, sortedValues.Count - 1);
+
+        return sortedValues[index];
+    }
+
+    /// <summary>
+    /// Maps normalized temperature to discrete color bands using quantiles (WorldEngine colors).
+    /// 7 climate zones: polar, alpine, boreal, cool, warm, subtropical, tropical.
+    /// Colors match WorldEngine draw.py exactly: Blue → Purple spectrum → Red.
+    /// </summary>
+    private Color GetTemperatureColorQuantile(float t, float[] quantiles)
+    {
+        // WorldEngine colors (RGB 0-255 → 0-1):
+        // Polar:       (0, 0, 255)      → Blue
+        // Alpine:      (42, 0, 213)     → Blue-Purple
+        // Boreal:      (85, 0, 170)     → Purple
+        // Cool:        (128, 0, 128)    → Magenta
+        // Warm:        (170, 0, 85)     → Purple-Red
+        // Subtropical: (213, 0, 42)     → Red-Purple
+        // Tropical:    (255, 0, 0)      → Red
+
+        if (t < quantiles[0])
+            return new Color(0f, 0f, 1f);           // Polar: Blue
+
+        if (t < quantiles[1])
+            return new Color(42f/255f, 0f, 213f/255f);  // Alpine: Blue-Purple
+
+        if (t < quantiles[2])
+            return new Color(85f/255f, 0f, 170f/255f);  // Boreal: Purple
+
+        if (t < quantiles[3])
+            return new Color(128f/255f, 0f, 128f/255f); // Cool: Magenta
+
+        if (t < quantiles[4])
+            return new Color(170f/255f, 0f, 85f/255f);  // Warm: Purple-Red
+
+        if (t < quantiles[5])
+            return new Color(213f/255f, 0f, 42f/255f);  // Subtropical: Red-Purple
+
+        return new Color(1f, 0f, 0f);               // Tropical: Red
     }
 
     /// <summary>

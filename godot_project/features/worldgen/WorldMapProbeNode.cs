@@ -88,6 +88,13 @@ public partial class WorldMapProbeNode : Node
             MapViewMode.ColoredPostProcessedElevation => HIGHLIGHT_COLOR_COLORED,
             MapViewMode.RawElevation => HIGHLIGHT_COLOR_RAW,         // Magenta on grayscale
             MapViewMode.Plates => HIGHLIGHT_COLOR_PLATES,            // White on random colors
+
+            // VS_025: Temperature modes use red highlight (contrasts with blue-green-yellow gradient)
+            MapViewMode.TemperatureLatitudeOnly => HIGHLIGHT_COLOR_COLORED,
+            MapViewMode.TemperatureWithNoise => HIGHLIGHT_COLOR_COLORED,
+            MapViewMode.TemperatureWithDistance => HIGHLIGHT_COLOR_COLORED,
+            MapViewMode.TemperatureFinal => HIGHLIGHT_COLOR_COLORED,
+
             _ => HIGHLIGHT_COLOR_COLORED
         };
 
@@ -176,6 +183,19 @@ public partial class WorldMapProbeNode : Node
 
             MapViewMode.ColoredPostProcessedElevation =>
                 BuildElevationProbeData(x, y, originalElevation, postProcessedElevation, isOcean, seaDepth, thresholds),
+
+            // VS_025: Temperature view modes - show all 4 stages + per-world params
+            MapViewMode.TemperatureLatitudeOnly =>
+                BuildTemperatureProbeData(x, y, worldData, debugStage: 1),
+
+            MapViewMode.TemperatureWithNoise =>
+                BuildTemperatureProbeData(x, y, worldData, debugStage: 2),
+
+            MapViewMode.TemperatureWithDistance =>
+                BuildTemperatureProbeData(x, y, worldData, debugStage: 3),
+
+            MapViewMode.TemperatureFinal =>
+                BuildTemperatureProbeData(x, y, worldData, debugStage: 4),
 
             _ => $"Cell ({x},{y})\nUnknown view"
         };
@@ -275,5 +295,67 @@ public partial class WorldMapProbeNode : Node
         {
             _highlightRect.Visible = false;
         }
+    }
+
+    /// <summary>
+    /// Builds comprehensive temperature probe data with all 4 stages + per-world parameters.
+    /// VS_025: Shows progression through algorithm stages for debugging.
+    /// </summary>
+    /// <param name="x">Cell X coordinate</param>
+    /// <param name="y">Cell Y coordinate</param>
+    /// <param name="worldData">World generation result containing temperature maps</param>
+    /// <param name="debugStage">Current debug stage (1=LatitudeOnly, 2=WithNoise, 3=WithDistance, 4=Final)</param>
+    private string BuildTemperatureProbeData(
+        int x, int y,
+        Core.Features.WorldGen.Application.DTOs.WorldGenerationResult worldData,
+        int debugStage)
+    {
+        var data = $"Cell ({x},{y})\n";
+
+        // Get all 4 temperature values at this cell
+        float? latitudeOnly = worldData.TemperatureLatitudeOnly?[y, x];
+        float? withNoise = worldData.TemperatureWithNoise?[y, x];
+        float? withDistance = worldData.TemperatureWithDistance?[y, x];
+        float? final = worldData.TemperatureFinal?[y, x];
+
+        // Per-world parameters
+        float? axialTilt = worldData.AxialTilt;
+        float? distanceToSun = worldData.DistanceToSun;
+
+        // Show current stage prominently with °C conversion
+        data += debugStage switch
+        {
+            1 => $"Stage 1: Latitude Only\n{TemperatureMapper.FormatTemperature(latitudeOnly ?? 0f)}\n",
+            2 => $"Stage 2: + Noise\n{TemperatureMapper.FormatTemperature(withNoise ?? 0f)}\n",
+            3 => $"Stage 3: + Distance\n{TemperatureMapper.FormatTemperature(withDistance ?? 0f)}\n",
+            4 => $"Stage 4: Final\n{TemperatureMapper.FormatTemperature(final ?? 0f)}\n",
+            _ => "Unknown Stage\n"
+        };
+
+        data += "\n--- Debug: All Stages ---\n";
+
+        // Show all 4 stages for comparison (normalized [0,1] values)
+        if (latitudeOnly.HasValue)
+            data += $"1. Latitude: {latitudeOnly.Value:F3}\n";
+
+        if (withNoise.HasValue)
+            data += $"2. + Noise: {withNoise.Value:F3}\n";
+
+        if (withDistance.HasValue)
+            data += $"3. + Distance: {withDistance.Value:F3}\n";
+
+        if (final.HasValue)
+            data += $"4. Final: {final.Value:F3}\n";
+
+        // Show per-world parameters (explain hot/cold planets, tilt shifts)
+        data += "\n--- World Parameters ---\n";
+
+        if (axialTilt.HasValue)
+            data += $"Axial Tilt: {axialTilt.Value:F3}\n";
+
+        if (distanceToSun.HasValue)
+            data += $"Distance to Sun: {distanceToSun.Value:F3}×\n";
+
+        return data;
     }
 }
