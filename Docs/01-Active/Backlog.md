@@ -288,12 +288,13 @@ return result with { TemperatureMap = temperatureMap };
 6. ✅ Fixed backward compat in serialization service (Format v1/v2 still load)
 7. ✅ All 447 tests GREEN (no regressions), build succeeds
 
-**Phase 3: Multi-Stage Visualization** 🚧 IN PROGRESS (~1h actual so far)
+**Phase 3: Multi-Stage Visualization** ✅ COMPLETE (~1.5h actual)
 7. ✅ Added 4 MapViewMode enum values (TemperatureLatitudeOnly, WithNoise, WithDistance, Final)
 8. ✅ Implemented RenderTemperatureMap() with 5-stop gradient (Blue → Red via Cyan/Green/Yellow)
 9. ✅ Updated WorldMapLegendNode with stage-specific legends (°C labels, debug hints)
 10. ✅ Updated WorldMapProbeNode to display all 4 temperature values + AxialTilt/DistanceToSun params
-11. ⏳ TODO: Add 4 UI buttons (WorldMapUINode) - deferred to allow visual validation first
+11. ✅ Added 4 UI dropdown items with separator (Temperature Debug section)
+12. ✅ All 447 tests GREEN, build succeeds
 
 **Phase 4: Visual Validation** (~0.5h)
 12. **Validate each stage visually**:

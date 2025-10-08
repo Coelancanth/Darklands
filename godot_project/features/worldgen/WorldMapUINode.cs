@@ -97,11 +97,20 @@ public partial class WorldMapUINode : Control
         container.AddChild(viewLabel);
 
         _viewModeDropdown = new OptionButton();
+
         // VS_024: Dual-heightmap elevation views (original vs post-processed)
         _viewModeDropdown.AddItem("Colored Original Elevation", (int)MapViewMode.ColoredOriginalElevation);
         _viewModeDropdown.AddItem("Colored Post-Processed Elevation", (int)MapViewMode.ColoredPostProcessedElevation);
         _viewModeDropdown.AddItem("Raw Elevation (Grayscale)", (int)MapViewMode.RawElevation);
         _viewModeDropdown.AddItem("Plates", (int)MapViewMode.Plates);
+
+        // VS_025: 4-stage temperature debug views
+        _viewModeDropdown.AddSeparator("─── Temperature Debug ───");
+        _viewModeDropdown.AddItem("Temperature: 1. Latitude Only", (int)MapViewMode.TemperatureLatitudeOnly);
+        _viewModeDropdown.AddItem("Temperature: 2. + Noise", (int)MapViewMode.TemperatureWithNoise);
+        _viewModeDropdown.AddItem("Temperature: 3. + Distance", (int)MapViewMode.TemperatureWithDistance);
+        _viewModeDropdown.AddItem("Temperature: 4. Final", (int)MapViewMode.TemperatureFinal);
+
         _viewModeDropdown.Selected = 0;  // ColoredOriginalElevation is default
         _viewModeDropdown.ItemSelected += OnViewModeSelected;
         container.AddChild(_viewModeDropdown);
