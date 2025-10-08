@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-08 07:20 (Tech Lead: Finalized VS_024 - 4 post-processing steps, triple heightmap with raw rendering)
+**Last Updated**: 2025-10-08 08:43 (Dev Engineer: VS_024 complete + TD_018 created - World serialization upgrade for post-processed data)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 008
-- **Next TD**: 018
+- **Next TD**: 019
 - **Next VS**: 026
 
 
@@ -103,35 +103,43 @@
 ## 💡 Ideas (Future Work)
 *Future features, nice-to-haves, deferred work*
 
-### VS_024: WorldGen Pipeline Stage 1 - Elevation Post-Processing & Normalization (WorldEngine Quality)
-**Status**: Approved
-**Owner**: Tech Lead → Dev Engineer
-**Size**: M (~6-8h)
+### VS_024: WorldGen Pipeline Stage 1 - Elevation Post-Processing & Real-World Mapping ✅
+**Status**: Done (2025-10-08 08:35)
+**Owner**: Dev Engineer
+**Size**: M (~8h actual)
 **Priority**: Ideas
 **Markers**: [WORLDGEN] [PIPELINE] [STAGE-1] [FOUNDATION] [WORLDENGINE-COMPLETE]
 
-**What**: Implement Stage 1 of world generation pipeline: WorldEngine elevation post-processing (4 steps: add_noise, fill_ocean, harmonize_ocean, sea_depth) + normalization to [0, 1] range + ocean mask generation with triple-heightmap architecture preserving both original and post-processed baselines
+**What**: Implement Stage 1 of world generation pipeline: WorldEngine elevation post-processing (4 algorithms: add_noise, fill_ocean, harmonize_ocean, sea_depth) + quantile-based thresholds + real-world meters mapping
 
-**Why**: Foundation for ALL downstream pipeline stages (temperature, precipitation, biomes). WorldEngine post-processing produces high-quality baseline: varied terrain (noise), realistic oceans (flood-fill + smoothing), depth maps. Normalized elevation enables consistent algorithms. Preserves BOTH original native AND post-processed baselines for comparison/validation.
+**Why**: Foundation for ALL downstream pipeline stages (temperature, precipitation, biomes). WorldEngine post-processing produces high-quality terrain: varied elevation (8-octave Simplex noise), realistic oceans (BFS flood-fill + smoothing), depth maps. Quantile thresholds enable adaptive algorithms (flat vs mountainous worlds). Real-world mapping provides human-readable UI.
 
-**How** (validated via ultra-think 2025-10-08):
+**How** (implemented 2025-10-08):
 
-**Triple-Heightmap Architecture** (KEY INSIGHT - renders at each processing stage):
+**FINAL ARCHITECTURE**: Dual-Heightmap + Quantile Thresholds + Real-World Mapping
 ```
-Original Heightmap (raw native [0-20])       → ColoredOriginalElevation (native, unmodified)
-Post-Processed Heightmap (raw [0-20])        → ColoredPostProcessedElevation (after 4 steps, raw range)
-Post-Processed Normalized [0, 1]             → ColoredNormalizedElevation (validation) + Stages 2+
+Original Heightmap (raw [0.1-20])         → ColoredOriginalElevation (native baseline)
+Post-Processed Heightmap (raw [0.1-20])   → ColoredPostProcessedElevation (after 4 algorithms)
+ElevationThresholds (quantiles)           → Adaptive per-world (SeaLevel, HillLevel, MountainLevel, PeakLevel)
+ElevationMapper (Presentation only)       → Real-world meters for UI display
 ```
+
+**Key Decisions**:
+- **Removed** normalized [0,1] heightmap (confusing, no clear purpose)
+- **Added** quantile-based thresholds (WorldEngine's adaptive approach)
+- **Added** real-world meters mapping (Presentation layer utility)
+- **Rationale**: Algorithms use raw values + thresholds (simple), UI shows meters (meaningful)
 
 **Stage 1 Algorithm** (4 WorldEngine steps, ~150 lines ported):
 
-**Step 1: Post-Processing** (4 algorithms, skip center_land + place_oceans_at_map_borders):
+**Step 1: Post-Processing** (4 algorithms ported from WorldEngine):
 
-1. **add_noise_to_elevation()**:
-   - Clone original heightmap (preserve original!)
-   - Add coherent Perlin noise to CLONED heightmap
-   - Prevents monotone terrain, adds variety
-   - Result: Varied terrain (~10% noise variation)
+1. **add_noise_to_elevation()** (FastNoiseLite integration):
+   - Clone original heightmap (SACRED - never modify original!)
+   - Use FastNoiseLite (MIT licensed, single-file library)
+   - OpenSimplex2 noise, 8 octaves, frequency = 1/128.0
+   - Matches WorldEngine parameters exactly (generation.py:74-80)
+   - Result: Smooth terrain-scale variation (not pixel noise!)
 
 2. **fill_ocean()** (BFS flood fill):
    - Start from border cells below sea level
@@ -150,35 +158,44 @@ Post-Processed Normalized [0, 1]             → ColoredNormalizedElevation (val
    - Anti-alias depth transitions
    - Result: `seaDepth` map (for future ocean rendering)
 
-**Step 2: Normalization** (ONE normalization - only post-processed):
+**Step 2: Quantile Threshold Calculation** (FINAL APPROACH - adaptive per-world):
 
-**Post-Processed Normalization**:
-- Scan post-processed heightmap (after 4 steps above)
-- Calculate min/max elevation
-- Normalize: `normalized[y, x] = (postProcessed[y, x] - min) / (max - min)` → [0, 1]
-- **Original heightmap NOT normalized** (render raw with quantiles)
+**ElevationThresholds** (4 quantile-based values):
+- **SeaLevel**: 50th percentile overall (median, typically ~1.0)
+- **HillLevel**: 70th percentile of land cells
+- **MountainLevel**: 85th percentile of land cells (used by temperature algorithm for cooling!)
+- **PeakLevel**: 95th percentile of land cells
+- Result: Thresholds adapt to each world's terrain distribution (flat vs mountainous)
 
-**Step 3: Output Assembly**:
-- `Heightmap` (raw native [0-20]) - unchanged, preserved for rendering original
-- `PostProcessedHeightmap` (raw [0-20]) - after 4 steps, NOT normalized (for rendering post-processed)
-- `NormalizedHeightmap` (normalized [0, 1]) - post-processed + normalized (for validation + Stages 2+)
-- `OceanMask` - flood-filled (not simple threshold!)
-- `SeaDepth` - normalized depth map (optional, for future ocean views)
+**Step 3: Real-World Mapping** (Presentation layer utility):
 
-**WorldGenerationResult DTO Update**:
+**ElevationMapper** (meters mapping for human-readable display):
+- Ocean: [0.1, seaLevel] → [-11,000m, 0m] (Mariana Trench to sea level)
+- Land: [seaLevel, 20.0] → [0m, 8,849m] (sea level to Mt. Everest)
+- Used ONLY in UI (probe tooltips, displays)
+- Algorithms use raw values + thresholds (NOT meters!)
+
+**Step 4: Output Assembly**:
+- `Heightmap` (raw [0.1-20]) - SACRED native baseline
+- `PostProcessedHeightmap` (raw [0.1-20]) - after 4 algorithms
+- `Thresholds` - quantile-based (SeaLevel, HillLevel, MountainLevel, PeakLevel)
+- `OceanMask` - flood-filled (BFS, not simple threshold!)
+- `SeaDepth` - normalized depth map [0,1]
+
+**WorldGenerationResult DTO Update** (FINAL):
 ```csharp
 public record WorldGenerationResult
 {
-    // NATIVE BASELINE (never modified - render original)
-    public float[,] Heightmap { get; init; }  // Raw [0-20] from C++ library - SACRED!
+    // DUAL HEIGHTMAP (raw values for algorithms)
+    public float[,] Heightmap { get; init; }              // Original [0.1-20] - SACRED!
+    public float[,]? PostProcessedHeightmap { get; init; } // Post-processed [0.1-20] ← NEW!
 
-    // POST-PROCESSED RAW (Stage 1 output - render post-processed comparison)
-    public float[,]? PostProcessedHeightmap { get; init; }  // Raw [0-20] after 4 steps ← NEW!
+    // QUANTILE THRESHOLDS (adaptive per-world)
+    public ElevationThresholds? Thresholds { get; init; }  // SeaLevel, HillLevel, MountainLevel, PeakLevel ← NEW!
 
-    // POST-PROCESSED NORMALIZED (validation + downstream stages)
-    public float[,]? NormalizedHeightmap { get; init; }  // [0, 1] normalized post-processed ← NEW!
-    public bool[,]? OceanMask { get; init; }             // Flood-filled ocean ← NEW!
-    public float[,]? SeaDepth { get; init; }             // Normalized depth map (optional) ← NEW!
+    // DERIVED DATA (ocean/depth)
+    public bool[,]? OceanMask { get; init; }              // Flood-filled ocean ← NEW!
+    public float[,]? SeaDepth { get; init; }              // Normalized depth [0,1] ← NEW!
 
     public uint[,] PlatesMap { get; init; }
     public float[,]? TemperatureMap { get; init; }       // Stage 2 (VS_025)
@@ -426,6 +443,121 @@ return result with { TemperatureMap = temperatureMap };
 - **Simplicity**: 3 components = elegant, 85% realism sufficient for strategy game.
 - **Performance**: Skip threading (YAGNI), cache solves iteration speed.
 - **Next steps**: Dev Engineer implements after VS_024 complete, uses `NormalizedHeightmap` for elevation cooling.
+
+---
+
+### TD_018: Upgrade World Serialization to Save Post-Processed Data (Format v2)
+**Status**: Proposed
+**Owner**: Dev Engineer
+**Size**: S (~3-4h)
+**Priority**: Ideas
+**Markers**: [WORLDGEN] [SERIALIZATION] [TECHNICAL-DEBT] [PERFORMANCE]
+
+**What**: Upgrade world save file format from v1 (raw native only) to v2 (includes post-processed heightmap, thresholds, ocean mask, sea depth) with backward compatibility
+
+**Why**: Currently saved worlds lose all VS_024 post-processing data, causing:
+- **Wasted computation**: Regenerate 4 WorldEngine algorithms + thresholds on every load
+- **Broken features**: Probe doesn't show meters mapping (thresholds = null)
+- **Poor UX**: No post-processed view mode comparison for cached worlds
+- **Inconsistency**: Fresh generation has full features, loaded worlds are degraded
+
+**How**:
+
+**Current Format v1** (2MB for 512x512):
+```
+Header (16 bytes): Magic "DWLD" + Version(1) + Seed + Reserved
+Dimensions (8 bytes): Width + Height
+Heightmap (W×H×4 bytes): Raw float[,]
+PlatesMap (W×H×4 bytes): Raw uint[,]
+```
+
+**Proposed Format v2** (4MB for 512x512):
+```
+Header (16 bytes): Magic "DWLD" + Version(2) + Seed + Reserved
+Dimensions (8 bytes): Width + Height
+Heightmap (W×H×4 bytes): Original raw float[,]
+PlatesMap (W×H×4 bytes): Raw uint[,]
+
+--- NEW SECTIONS (VS_024 data) ---
+PostProcessed Flag (1 byte): HasPostProcessed (0/1)
+[If HasPostProcessed = 1:]
+  PostProcessedHeightmap (W×H×4 bytes): float[,]
+  Thresholds (16 bytes): SeaLevel + HillLevel + MountainLevel + PeakLevel
+  OceanMask (W×H÷8 bytes): Bit-packed bool[,] for space efficiency
+  SeaDepth Flag (1 byte): HasSeaDepth (0/1)
+  [If HasSeaDepth = 1:]
+    SeaDepth (W×H×4 bytes): float[,]
+```
+
+**Implementation Details**:
+
+1. **WorldMapSerializationService.cs Changes**:
+   ```csharp
+   // Change signature from PlateSimulationResult → WorldGenerationResult
+   public bool SaveWorld(WorldGenerationResult world, int seed, string filename)
+
+   // Version detection on load
+   public (bool Success, WorldGenerationResult? World, int Seed) LoadWorld(string filename)
+   {
+       uint version = file.Get32();
+       return version switch {
+           1 => LoadV1(file, seed),  // Backward compat: thresholds=null
+           2 => LoadV2(file, seed),  // Full data
+           _ => (false, null, 0)      // Unsupported
+       };
+   }
+   ```
+
+2. **Dimension Validation** (corruption detection):
+   ```csharp
+   // After reading Width × Height, validate all arrays match
+   if (postProcessedHeightmap != null &&
+       (postProcessedHeightmap.GetLength(0) != height ||
+        postProcessedHeightmap.GetLength(1) != width))
+   {
+       _logger.LogError("Dimension mismatch: Post-processed heightmap doesn't match declared size");
+       return (false, null, 0);
+   }
+   // Same validation for OceanMask, SeaDepth
+   ```
+
+3. **Backward Compatibility**:
+   - v1 files load as before → `WorldGenerationResult` with `thresholds: null`
+   - Orchestrator already handles null gracefully (shows fallback message)
+   - No data loss (can re-save as v2 after regeneration)
+
+4. **Orchestrator Updates** (3 call sites):
+   ```csharp
+   // Auto-save after generation
+   _serializationService.SaveWorld(result.Value, seed, cacheFilename);
+
+   // User manual save
+   _serializationService.SaveWorld(_currentWorld, _currentSeed, filename);
+   ```
+
+**File Size Impact**:
+- 512x512 world: 2MB (v1) → 4MB (v2)
+- Acceptable trade-off: Instant full-featured load vs regeneration cost
+
+**Done When**:
+1. ✅ **Format v2 saves complete pipeline output**:
+   - Post-processed heightmap, thresholds, ocean mask, sea depth all serialized
+   - Dimension validation on load (detect corruption)
+
+2. ✅ **Backward compatibility maintained**:
+   - v1 files load successfully (degraded to thresholds=null)
+   - v2 files load with full features
+   - Format version logged on save/load
+
+3. ✅ **Probe meters mapping works on load**:
+   - Load v2 file → thresholds present → meters display works immediately
+   - Load v1 file → thresholds=null → shows "(Regenerate world for meters)"
+
+4. ✅ **Tests updated**:
+   - Serialization round-trip test (save v2 → load → verify all fields match)
+   - Backward compat test (load v1 → verify graceful degradation)
+
+**Depends On**: VS_024 (completed) - needs WorldGenerationResult with post-processing data
 
 ---
 

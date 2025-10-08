@@ -83,7 +83,9 @@ public partial class WorldMapProbeNode : Node
 
         _highlightRect.Color = viewMode switch
         {
-            MapViewMode.ColoredElevation => HIGHLIGHT_COLOR_COLORED, // Red on colorful terrain
+            // VS_024: Both colored elevation modes use same highlight color
+            MapViewMode.ColoredOriginalElevation => HIGHLIGHT_COLOR_COLORED,
+            MapViewMode.ColoredPostProcessedElevation => HIGHLIGHT_COLOR_COLORED,
             MapViewMode.RawElevation => HIGHLIGHT_COLOR_RAW,         // Magenta on grayscale
             MapViewMode.Plates => HIGHLIGHT_COLOR_PLATES,            // White on random colors
             _ => HIGHLIGHT_COLOR_COLORED
@@ -150,28 +152,86 @@ public partial class WorldMapProbeNode : Node
             return;
         }
 
-        // Get data at cell
-        float elevation = worldData.Heightmap[y, x];
+        // Get data at cell (VS_024: Dual elevation + ocean data + thresholds)
+        float originalElevation = worldData.Heightmap[y, x];
+        float? postProcessedElevation = worldData.PostProcessedHeightmap?[y, x];
+        bool? isOcean = worldData.OceanMask?[y, x];
+        float? seaDepth = worldData.SeaDepth?[y, x];
         uint plateId = worldData.PlatesMap[y, x];
+        var thresholds = worldData.Thresholds;
 
         // Build probe string based on current view mode
         var viewMode = _renderer.GetCurrentViewMode();
         string probeData = viewMode switch
         {
             MapViewMode.RawElevation =>
-                $"Cell ({x},{y}) | Elevation: {elevation:F3}",
+                $"Cell ({x},{y})\nRaw: {originalElevation:F3}",
+
             MapViewMode.Plates =>
-                $"Cell ({x},{y}) | Plate ID: {plateId} | Elevation: {elevation:F3}",
-            MapViewMode.ColoredElevation =>
-                $"Cell ({x},{y}) | Elevation: {elevation:F3}",
-            _ => $"Cell ({x},{y}) | Unknown view"
+                $"Cell ({x},{y})\nPlate ID: {plateId}\nRaw: {originalElevation:F3}",
+
+            // VS_024: Dual-heightmap elevation views with real-world meters mapping
+            MapViewMode.ColoredOriginalElevation =>
+                BuildElevationProbeData(x, y, originalElevation, postProcessedElevation, isOcean, seaDepth, thresholds),
+
+            MapViewMode.ColoredPostProcessedElevation =>
+                BuildElevationProbeData(x, y, originalElevation, postProcessedElevation, isOcean, seaDepth, thresholds),
+
+            _ => $"Cell ({x},{y})\nUnknown view"
         };
 
         // Log probe result with all relevant data
-        _logger?.LogInformation("Probed cell ({X},{Y}): Elevation={Elevation:F3}, PlateId={PlateId}, ViewMode={ViewMode}",
-            x, y, elevation, plateId, viewMode);
+        _logger?.LogInformation("Probed cell ({X},{Y}): Original={Original:F3}, PostProcessed={PostProcessed:F3}, Ocean={Ocean}, PlateId={PlateId}",
+            x, y, originalElevation, postProcessedElevation, isOcean, plateId);
 
         EmitSignal(SignalName.CellProbed, x, y, probeData);
+    }
+
+    /// <summary>
+    /// Builds comprehensive elevation probe data with real-world meters mapping.
+    /// VS_024: Uses ElevationMapper for human-readable display, shows raw values for debugging.
+    /// </summary>
+    private static string BuildElevationProbeData(
+        int x, int y,
+        float original,
+        float? postProcessed,
+        bool? isOcean,
+        float? seaDepth,
+        Core.Features.WorldGen.Application.DTOs.ElevationThresholds? thresholds)
+    {
+        // Get the current elevation value to display (prefer post-processed if available)
+        float currentElevation = postProcessed ?? original;
+
+        var data = $"Cell ({x},{y})\n";
+
+        // Show human-readable meters (if thresholds available for mapping)
+        if (thresholds != null)
+        {
+            string metersDisplay = ElevationMapper.FormatElevationWithTerrain(
+                currentElevation,
+                thresholds.SeaLevel,
+                thresholds.HillLevel,
+                thresholds.MountainLevel,
+                thresholds.PeakLevel);
+            data += metersDisplay;
+            data += $"\n\nRaw: {original:F2}";
+        }
+        else
+        {
+            // Fallback when thresholds unavailable (cached world)
+            data += $"Elevation: {original:F2}";
+            data += $"\n(Regenerate world for meters)";
+        }
+
+        // Show post-processed comparison if available
+        if (postProcessed.HasValue)
+            data += $"\nPost-Proc: {postProcessed.Value:F2}";
+
+        // Show ocean/depth info
+        if (isOcean == true && seaDepth.HasValue && seaDepth.Value > 0)
+            data += $"\nDepth: {seaDepth.Value:F2}";
+
+        return data;
     }
 
     /// <summary>

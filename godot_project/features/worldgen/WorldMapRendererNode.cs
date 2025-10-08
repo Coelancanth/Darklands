@@ -7,15 +7,15 @@ using Microsoft.Extensions.Logging;
 namespace Darklands.Features.WorldGen;
 
 /// <summary>
-/// Renders PlateSimulationResult data as a texture.
-/// Supports two view modes: RawElevation (grayscale) and Plates (colored).
+/// Renders WorldGenerationResult data as a texture.
+/// Supports multiple view modes including triple-heightmap elevation views (VS_024).
 /// Pure rendering - no UI, no input handling.
 /// </summary>
 public partial class WorldMapRendererNode : Sprite2D
 {
     private ILogger<WorldMapRendererNode>? _logger;
-    private PlateSimulationResult? _worldData;
-    private MapViewMode _currentViewMode = MapViewMode.ColoredElevation;  // Default to ColoredElevation
+    private WorldGenerationResult? _worldData;
+    private MapViewMode _currentViewMode = MapViewMode.ColoredOriginalElevation;  // Default to original elevation
 
     [Signal]
     public delegate void RenderCompleteEventHandler(int width, int height);
@@ -28,7 +28,7 @@ public partial class WorldMapRendererNode : Sprite2D
     /// <summary>
     /// Sets the world data and renders it using the current view mode.
     /// </summary>
-    public void SetWorldData(PlateSimulationResult data, ILogger<WorldMapRendererNode> logger)
+    public void SetWorldData(WorldGenerationResult data, ILogger<WorldMapRendererNode> logger)
     {
         _worldData = data;
         _logger = logger;
@@ -59,7 +59,7 @@ public partial class WorldMapRendererNode : Sprite2D
     /// <summary>
     /// Gets the loaded world data (null if not loaded).
     /// </summary>
-    public PlateSimulationResult? GetWorldData() => _worldData;
+    public WorldGenerationResult? GetWorldData() => _worldData;
 
     private void RenderCurrentView()
     {
@@ -68,14 +68,29 @@ public partial class WorldMapRendererNode : Sprite2D
         switch (_currentViewMode)
         {
             case MapViewMode.RawElevation:
-                RenderRawElevation(_worldData);
+                RenderRawElevation(_worldData.Heightmap);
                 break;
+
             case MapViewMode.Plates:
-                RenderPlates(_worldData);
+                RenderPlates(_worldData.PlatesMap);
                 break;
-            case MapViewMode.ColoredElevation:
-                RenderColoredElevation(_worldData);
+
+            case MapViewMode.ColoredOriginalElevation:
+                RenderColoredElevation(_worldData.Heightmap);  // Original raw [0-20]
                 break;
+
+            case MapViewMode.ColoredPostProcessedElevation:
+                if (_worldData.PostProcessedHeightmap != null)
+                {
+                    RenderColoredElevation(_worldData.PostProcessedHeightmap);  // Post-processed raw [0.1-20]
+                }
+                else
+                {
+                    _logger?.LogWarning("Post-processed heightmap not available, falling back to original");
+                    RenderColoredElevation(_worldData.Heightmap);
+                }
+                break;
+
             default:
                 _logger?.LogError("Unknown view mode: {ViewMode}", _currentViewMode);
                 break;
@@ -89,10 +104,10 @@ public partial class WorldMapRendererNode : Sprite2D
     /// <summary>
     /// Renders raw heightmap as grayscale (min=black, max=white).
     /// </summary>
-    private void RenderRawElevation(PlateSimulationResult data)
+    private void RenderRawElevation(float[,] heightmap)
     {
-        int h = data.Height;
-        int w = data.Width;
+        int h = heightmap.GetLength(0);
+        int w = heightmap.GetLength(1);
         var image = Image.CreateEmpty(w, h, false, Image.Format.Rgb8);
 
         // Find min/max for normalization
@@ -101,7 +116,7 @@ public partial class WorldMapRendererNode : Sprite2D
         {
             for (int x = 0; x < w; x++)
             {
-                float v = data.Heightmap[y, x];
+                float v = heightmap[y, x];
                 if (v < min) min = v;
                 if (v > max) max = v;
             }
@@ -115,7 +130,7 @@ public partial class WorldMapRendererNode : Sprite2D
         {
             for (int x = 0; x < w; x++)
             {
-                float t = (data.Heightmap[y, x] - min) / delta;
+                float t = (heightmap[y, x] - min) / delta;
                 image.SetPixel(x, y, new Color(t, t, t));
             }
         }
@@ -127,10 +142,10 @@ public partial class WorldMapRendererNode : Sprite2D
     /// <summary>
     /// Renders plate ownership with unique color per plate.
     /// </summary>
-    private void RenderPlates(PlateSimulationResult data)
+    private void RenderPlates(uint[,] platesMap)
     {
-        int h = data.Height;
-        int w = data.Width;
+        int h = platesMap.GetLength(0);
+        int w = platesMap.GetLength(1);
         var image = Image.CreateEmpty(w, h, false, Image.Format.Rgb8);
 
         // Generate deterministic colors for plates (seed=42 for consistency)
@@ -141,7 +156,7 @@ public partial class WorldMapRendererNode : Sprite2D
         {
             for (int x = 0; x < w; x++)
             {
-                uint plateId = data.PlatesMap[y, x];
+                uint plateId = platesMap[y, x];
 
                 if (!plateColors.ContainsKey(plateId))
                 {
@@ -167,11 +182,12 @@ public partial class WorldMapRendererNode : Sprite2D
     /// Matches plate-tectonics library reference implementation (map_drawing.cpp).
     /// Uses quantiles to adapt colors to heightmap distribution.
     /// IMPORTANT: Normalizes heightmap to [0,1] range before applying quantile-based gradient.
+    /// Works with both raw [0-20] and pre-normalized [0,1] heightmaps (VS_024 triple-heightmap support).
     /// </summary>
-    private void RenderColoredElevation(PlateSimulationResult data)
+    private void RenderColoredElevation(float[,] heightmap)
     {
-        int h = data.Height;
-        int w = data.Width;
+        int h = heightmap.GetLength(0);
+        int w = heightmap.GetLength(1);
         var image = Image.CreateEmpty(w, h, false, Image.Format.Rgb8);
 
         // Step 1: Normalize heightmap to [0, 1] range (reference implementation expects this!)
@@ -180,7 +196,7 @@ public partial class WorldMapRendererNode : Sprite2D
         {
             for (int x = 0; x < w; x++)
             {
-                float v = data.Heightmap[y, x];
+                float v = heightmap[y, x];
                 if (v < min) min = v;
                 if (v > max) max = v;
             }
@@ -195,7 +211,7 @@ public partial class WorldMapRendererNode : Sprite2D
         {
             for (int x = 0; x < w; x++)
             {
-                normalizedHeightmap[y, x] = (data.Heightmap[y, x] - min) / delta;
+                normalizedHeightmap[y, x] = (heightmap[y, x] - min) / delta;
             }
         }
 

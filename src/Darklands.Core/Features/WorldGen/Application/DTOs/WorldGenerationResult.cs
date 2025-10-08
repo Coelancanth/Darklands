@@ -5,21 +5,41 @@ namespace Darklands.Core.Features.WorldGen.Application.DTOs;
 /// This is the pipeline's output type (vs PlateSimulationResult which is native-only).
 /// </summary>
 /// <remarks>
-/// Design: Optional fields allow incremental implementation of VS_022 phases.
-/// - Phase 0 (current): Only heightmap + plates (pass-through from native)
-/// - Phase 1: Add OceanMask (normalized elevation + sea level detection)
-/// - Phase 2: Add TemperatureMap (latitude + elevation cooling)
-/// - Phase 3: Add PrecipitationMap (with rain shadow)
-/// - Phase 4+: Erosion, hydrology, biomes
+/// VS_024: Dual-heightmap architecture with quantile thresholds:
+/// - Heightmap (original raw [0.1-20]): SACRED native output, never modified
+/// - PostProcessedHeightmap (raw [0.1-20]): After 4 WorldEngine algorithms (add_noise, fill_ocean, harmonize_ocean, sea_depth)
+/// - Thresholds: Quantile-based elevation bands (adaptive per-world)
+///
+/// Design decision: Algorithms use RAW elevation + thresholds (WorldEngine approach).
+/// Display/UI uses meters mapping (ElevationMapper utility in Presentation layer).
+///
+/// Optional fields allow incremental implementation of pipeline stages:
+/// - Stage 1 (VS_024): PostProcessedHeightmap, OceanMask, SeaDepth, Thresholds
+/// - Stage 2 (VS_025): TemperatureMap (uses raw elevation + MountainLevel threshold)
+/// - Stage 3+: PrecipitationMap, erosion, hydrology, biomes
 /// </remarks>
 public record WorldGenerationResult
 {
     /// <summary>
-    /// Heightmap from simulation.
-    /// Currently: Raw from native (unnormalized, typically 0-20 range).
-    /// Phase 1: Will be normalized to [0, 1] range.
+    /// Original heightmap from native simulation (SACRED - never modified).
+    /// Raw elevation values from plate tectonics library [0.1-20] range.
+    /// Preserved for visual comparison with post-processed results.
     /// </summary>
     public float[,] Heightmap { get; init; }
+
+    /// <summary>
+    /// Post-processed heightmap after 4 WorldEngine algorithms (VS_024 Stage 1).
+    /// Still in raw range [0.1-20] (NOT normalized) for algorithm compatibility.
+    /// Algorithms: add_noise, fill_ocean, harmonize_ocean, sea_depth.
+    /// </summary>
+    public float[,]? PostProcessedHeightmap { get; init; }
+
+    /// <summary>
+    /// Quantile-based elevation thresholds calculated from PostProcessedHeightmap distribution (VS_024).
+    /// Used by algorithms (temperature, precipitation) instead of fixed normalization.
+    /// Adapts to each world's terrain - flat worlds vs mountainous worlds have different thresholds.
+    /// </summary>
+    public ElevationThresholds? Thresholds { get; init; }
 
     /// <summary>
     /// Plate ownership map (plate ID per cell).
@@ -27,26 +47,32 @@ public record WorldGenerationResult
     public uint[,] PlatesMap { get; init; }
 
     /// <summary>
-    /// Ocean mask (true = water, false = land).
-    /// Available after Phase 1 implementation.
+    /// Ocean mask (true = water, false = land) from flood-fill algorithm (VS_024 Stage 1).
+    /// NOT a simple threshold! BFS flood fill from borders ensures connected ocean regions.
     /// </summary>
     public bool[,]? OceanMask { get; init; }
 
     /// <summary>
-    /// Temperature map in Celsius.
-    /// Available after Phase 2 implementation.
+    /// Normalized ocean depth map [0, 1] for future ocean rendering (VS_024 Stage 1).
+    /// Only non-zero for ocean cells. Depth = (seaLevel - elevation) normalized.
+    /// </summary>
+    public float[,]? SeaDepth { get; init; }
+
+    /// <summary>
+    /// Temperature map in Celsius (VS_025 Stage 2).
+    /// Available after temperature simulation (latitude + noise + elevation cooling).
     /// </summary>
     public float[,]? TemperatureMap { get; init; }
 
     /// <summary>
-    /// Precipitation map in mm/year.
-    /// Available after Phase 3 implementation.
+    /// Precipitation map in mm/year (Stage 3 - future).
+    /// Available after precipitation simulation (with rain shadow).
     /// </summary>
     public float[,]? PrecipitationMap { get; init; }
 
     /// <summary>
     /// Raw native output preserved for debugging and visualization.
-    /// Always available regardless of pipeline phases.
+    /// Always available regardless of pipeline stages.
     /// </summary>
     public PlateSimulationResult RawNativeOutput { get; init; }
 
@@ -64,15 +90,21 @@ public record WorldGenerationResult
         float[,] heightmap,
         uint[,] platesMap,
         PlateSimulationResult rawNativeOutput,
+        float[,]? postProcessedHeightmap = null,
+        ElevationThresholds? thresholds = null,
         bool[,]? oceanMask = null,
+        float[,]? seaDepth = null,
         float[,]? temperatureMap = null,
         float[,]? precipitationMap = null)
     {
         Heightmap = heightmap;
+        PostProcessedHeightmap = postProcessedHeightmap;
+        Thresholds = thresholds;
         PlatesMap = platesMap;
-        RawNativeOutput = rawNativeOutput;
         OceanMask = oceanMask;
+        SeaDepth = seaDepth;
         TemperatureMap = temperatureMap;
         PrecipitationMap = precipitationMap;
+        RawNativeOutput = rawNativeOutput;
     }
 }
