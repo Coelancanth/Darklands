@@ -214,7 +214,12 @@ public class WorldMapSerializationService
             thresholds: null,
             oceanMask: null,
             seaDepth: null,
-            temperatureMap: null,
+            temperatureLatitudeOnly: null,      // VS_025 Stage 1 (not in Format v1)
+            temperatureWithNoise: null,         // VS_025 Stage 2 (not in Format v1)
+            temperatureWithDistance: null,      // VS_025 Stage 3 (not in Format v1)
+            temperatureFinal: null,             // VS_025 Stage 4 (not in Format v1)
+            axialTilt: null,                    // VS_025 per-world param (not in Format v1)
+            distanceToSun: null,                // VS_025 per-world param (not in Format v1)
             precipitationMap: null
         );
 
@@ -292,7 +297,12 @@ public class WorldMapSerializationService
             maxElevation: maxElevation,
             oceanMask: oceanMask,
             seaDepth: seaDepth,
-            temperatureMap: null,  // VS_025
+            temperatureLatitudeOnly: null,      // VS_025 Stage 1 (Format v3 future)
+            temperatureWithNoise: null,         // VS_025 Stage 2 (Format v3 future)
+            temperatureWithDistance: null,      // VS_025 Stage 3 (Format v3 future)
+            temperatureFinal: null,             // VS_025 Stage 4 (Format v3 future)
+            axialTilt: null,                    // VS_025 per-world param (Format v3 future)
+            distanceToSun: null,                // VS_025 per-world param (Format v3 future)
             precipitationMap: null
         );
 

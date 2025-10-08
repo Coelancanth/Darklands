@@ -71,10 +71,47 @@ public record WorldGenerationResult
     public float[,]? SeaDepth { get; init; }
 
     /// <summary>
-    /// Temperature map in Celsius (VS_025 Stage 2).
-    /// Available after temperature simulation (latitude + noise + elevation cooling).
+    /// Temperature map - Stage 1: Latitude-only (VS_025 Stage 2 debug).
+    /// Pure latitude banding with axial tilt. Normalized [0,1].
+    /// Visual signature: Horizontal bands, hot zone shifts with tilt.
     /// </summary>
-    public float[,]? TemperatureMap { get; init; }
+    public float[,]? TemperatureLatitudeOnly { get; init; }
+
+    /// <summary>
+    /// Temperature map - Stage 2: + Noise (VS_025 Stage 2 debug).
+    /// Latitude (92%) + climate noise (8%). Normalized [0,1].
+    /// Visual signature: Subtle fuzz on latitude bands.
+    /// </summary>
+    public float[,]? TemperatureWithNoise { get; init; }
+
+    /// <summary>
+    /// Temperature map - Stage 3: + Distance to sun (VS_025 Stage 2 debug).
+    /// Latitude + noise / distance². Normalized [0,1].
+    /// Visual signature: Hot/cold planet variation (per-world).
+    /// </summary>
+    public float[,]? TemperatureWithDistance { get; init; }
+
+    /// <summary>
+    /// Temperature map - Stage 4: FINAL (VS_025 Stage 2 - production).
+    /// Complete algorithm with mountain cooling. Normalized [0,1].
+    /// Visual signature: Mountains blue at all latitudes.
+    /// UI converts to °C via TemperatureMapper: [0,1] → [-60°C, +40°C].
+    /// </summary>
+    public float[,]? TemperatureFinal { get; init; }
+
+    /// <summary>
+    /// Per-world axial tilt parameter (VS_025 Stage 2).
+    /// Shifts equator position. Range: [-0.5, 0.5], Gaussian-distributed.
+    /// Displayed in probe for debugging hot zone shifts.
+    /// </summary>
+    public float? AxialTilt { get; init; }
+
+    /// <summary>
+    /// Per-world distance-to-sun parameter (VS_025 Stage 2).
+    /// Hot vs cold planets. Range: [0.1, ~1.3], Gaussian-distributed, squared.
+    /// Displayed in probe for debugging planet temperature variation.
+    /// </summary>
+    public float? DistanceToSun { get; init; }
 
     /// <summary>
     /// Precipitation map in mm/year (Stage 3 - future).
@@ -108,7 +145,12 @@ public record WorldGenerationResult
         float maxElevation = 20.0f,
         bool[,]? oceanMask = null,
         float[,]? seaDepth = null,
-        float[,]? temperatureMap = null,
+        float[,]? temperatureLatitudeOnly = null,
+        float[,]? temperatureWithNoise = null,
+        float[,]? temperatureWithDistance = null,
+        float[,]? temperatureFinal = null,
+        float? axialTilt = null,
+        float? distanceToSun = null,
         float[,]? precipitationMap = null)
     {
         Heightmap = heightmap;
@@ -119,7 +161,12 @@ public record WorldGenerationResult
         PlatesMap = platesMap;
         OceanMask = oceanMask;
         SeaDepth = seaDepth;
-        TemperatureMap = temperatureMap;
+        TemperatureLatitudeOnly = temperatureLatitudeOnly;
+        TemperatureWithNoise = temperatureWithNoise;
+        TemperatureWithDistance = temperatureWithDistance;
+        TemperatureFinal = temperatureFinal;
+        AxialTilt = axialTilt;
+        DistanceToSun = distanceToSun;
         PrecipitationMap = precipitationMap;
         RawNativeOutput = rawNativeOutput;
     }

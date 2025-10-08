@@ -282,10 +282,11 @@ return result with { TemperatureMap = temperatureMap };
 3. ✅ 14 comprehensive unit tests (Interp edge cases, Gaussian distribution validation)
 4. ✅ All 447 tests GREEN, build succeeds
 
-**Phase 2: Pipeline Integration** (~0.5h)
-4. Update `WorldGenerationResult` to store **4 temperature maps** + per-world params (AxialTilt, DistanceToSun)
-5. Update `GenerateWorldPipeline` Stage 2 to call `TemperatureCalculator.Calculate()`
-6. Verify 433 tests still GREEN (no regressions)
+**Phase 2: Pipeline Integration** ✅ COMPLETE (~0.5h actual)
+4. ✅ Updated `WorldGenerationResult` with 4 temperature properties + per-world params
+5. ✅ Updated `GenerateWorldPipeline` Stage 2 to call TemperatureCalculator
+6. ✅ Fixed backward compat in serialization service (Format v1/v2 still load)
+7. ✅ All 447 tests GREEN (no regressions), build succeeds
 
 **Phase 3: Multi-Stage Visualization** (~1.5-2h)
 7. Add 4 `MapViewMode` enum values:
