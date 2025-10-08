@@ -285,18 +285,18 @@ return result with {
 
 ---
 
-### VS_027: WorldGen Stage 4 - Rain Shadow Effect (Directional Orographic Blocking)
+### VS_027: WorldGen Stage 4 - Rain Shadow Effect (Latitude-Based Prevailing Winds)
 **Status**: Proposed
 **Owner**: Tech Lead → Dev Engineer (after VS_026)
 **Size**: S (~2-3h)
 **Priority**: Ideas
 **Markers**: [WORLDGEN] [PIPELINE] [STAGE-4] [RAIN-SHADOW]
 
-**What**: Add directional rain shadow effect to precipitation using simplified orographic blocking (mountains block moisture from prevailing winds), with **2-stage debug visualization** (base-precipitation, with-rain-shadow)
+**What**: Add rain shadow effect to precipitation using **latitude-based prevailing winds** + orographic blocking (mountains block moisture from upwind), with **2-stage debug visualization** (base-precipitation, with-rain-shadow)
 
-**Why**: Realistic deserts on leeward side of mountains (e.g., Gobi Desert east of Himalayas, rain shadow from Tibetan Plateau). Strategic gameplay: Mountain ranges create dry/wet climate zones, affects settlement placement and resource distribution.
+**Why**: Realistic deserts on leeward side of mountains matching Earth's atmospheric circulation (Sahara, Gobi, Atacama patterns). Strategic gameplay: Mountain ranges create latitude-dependent dry/wet zones - tropical mountains create west-side deserts, mid-latitude mountains create east-side deserts.
 
-**How** (simplified directional blocking, NO full wind simulation):
+**How** (latitude-based prevailing winds, based on Earth's atmospheric circulation):
 
 **Two-Stage Algorithm**:
 
@@ -306,23 +306,43 @@ return result with {
 float[,] basePrecipitation = result.FinalPrecipitationMap;
 ```
 
-**2. Directional Rain Shadow** (simplified orographic effect):
+**2. Latitude-Based Prevailing Winds** (Earth's atmospheric circulation):
 ```csharp
-// Assume prevailing wind: west → east (realistic for mid-latitudes, 30°-60°)
-Vector2 windDirection = new Vector2(1, 0);  // Eastward
-int maxUpwindDistance = 20;  // Check 20 cells upwind
+// Helper: Get prevailing wind direction for latitude
+public static Vector2 GetWindDirection(float normalizedLatitude)
+{
+    // Convert [0,1] to latitude degrees: 0=South Pole, 0.5=Equator, 1=North Pole
+    float latDegrees = (normalizedLatitude - 0.5f) * 180f;
+
+    // Earth's atmospheric circulation bands (Hadley/Ferrel/Polar cells)
+    if (MathF.Abs(latDegrees) > 60f)
+        return new Vector2(-1, 0);  // Polar Easterlies (60°-90°): westward
+    else if (MathF.Abs(latDegrees) > 30f)
+        return new Vector2(1, 0);   // Westerlies (30°-60°): eastward
+    else
+        return new Vector2(-1, 0);  // Trade Winds (0°-30°): westward
+}
+```
+
+**3. Orographic Rain Shadow** (latitude-dependent blocking):
+```csharp
+int maxUpwindDistance = 20;  // ~1000km moisture transport range
 
 for (int y = 0; y < height; y++) {
+    // Get prevailing wind for this latitude (KEY: per-row wind direction!)
+    float normalizedLatitude = (float)y / (height - 1);
+    Vector2 windDirection = GetWindDirection(normalizedLatitude);
+
     for (int x = 0; x < width; x++) {
         float mountainBlocking = 0;
         float currentElevation = elevation[y, x];
 
-        // Trace upwind, accumulate blocking from mountains
+        // Trace UPWIND (direction varies by latitude!)
         for (int step = 1; step <= maxUpwindDistance; step++) {
             int upwindX = x - (int)(windDirection.X * step);
             int upwindY = y - (int)(windDirection.Y * step);
 
-            if (outOfBounds(upwindX, upwindY)) break;
+            if (upwindX < 0 || upwindX >= width) break;
 
             float upwindElevation = elevation[upwindY, upwindX];
 
@@ -333,24 +353,32 @@ for (int y = 0; y < height; y++) {
         }
 
         // Apply rain shadow (max 80% reduction)
-        float rainShadow = Math.Max(0.2f, 1 - mountainBlocking);
+        float rainShadow = MathF.Max(0.2f, 1f - mountainBlocking);
         precipitationWithRainShadow[y, x] = basePrecipitation[y, x] * rainShadow;
     }
 }
 ```
 
 **Key Insights**:
-- ✅ **Prevailing wind assumption**: West → East (NO Coriolis, NO pressure systems, YAGNI)
+- ✅ **Latitude-based prevailing winds**: Matches Earth's atmospheric circulation (Hadley/Ferrel/Polar cells)
+  - **Polar Easterlies** (60°-90° N/S): Westward winds → deserts **east** of mountains
+  - **Westerlies** (30°-60° N/S): Eastward winds → deserts **west** of mountains (Gobi pattern)
+  - **Trade Winds** (0°-30° N/S): Westward winds → deserts **east** of mountains (Sahara pattern)
 - ✅ **Directional blocking**: Only UPWIND mountains matter (leeward side dry, windward side unaffected)
 - ✅ **Accumulative blocking**: Multiple mountain ranges stack (realistic for Himalayas → Gobi)
 - ✅ **20-cell trace distance**: ~1000km at 512×512 world (realistic atmospheric moisture range)
 - ✅ **200m elevation threshold**: Prevents hills from blocking (only significant mountains)
 - ✅ **Max 80% reduction**: Prevents zero precipitation (even deserts get occasional rain)
 
+**Real-World Validation**:
+- ✅ **Sahara Desert** (20°N): Trade winds (westward) + Atlas Mountains → dry interior east of mountains
+- ✅ **Gobi Desert** (45°N): Westerlies (eastward) + Himalayas → dry leeward side west of plateau
+- ✅ **Atacama Desert** (23°S): Trade winds (westward) + Andes → driest place on Earth (east side blocked)
+
 **YAGNI Skipped**:
-- ❌ **Latitude-dependent wind**: Coriolis effect (trade winds, westerlies, polar easterlies) - over-engineering
 - ❌ **Seasonal variation**: Monsoons, wind shifts - adds complexity without gameplay value
 - ❌ **Windward moisture increase**: Orographic lift (mountains CREATE rain on windward side) - defer to VS_028
+- ❌ **Coriolis deflection**: Wind curves with latitude (not just direction change) - over-engineering
 
 **Visualization Integration** (2-stage rendering):
 1. **Renderer**:
@@ -366,16 +394,23 @@ for (int y = 0; y < height; y++) {
    ```
 
 3. **Probe**:
-   - Show base vs rain-shadow precipitation: `"Base: 0.62 → Shadow: 0.31 (-50%)"`
+   - Show latitude-based wind: `"Wind: ← Westerlies (45°N, eastward)"`
+   - Show base vs rain-shadow: `"Base: 0.62 → Shadow: 0.31 (-50%)"`
    - Show blocking factor: `"Mountain Blocking: 0.50 (50% reduction)"`
+   - Show upwind trace: `"Upwind Distance: 8 cells (400km)"`
 
 **Implementation Phases**:
 
-**Phase 1: Algorithm** (~1-1.5h)
-- Implement directional upwind trace (20 cells, elevation threshold)
-- Calculate mountain blocking accumulation
+**Phase 0: Prevailing Winds Utility** (~0.5h)
+- Create `PrevailingWinds.cs` helper (latitude → wind direction lookup)
+- 6 unit tests (polar easterlies, westerlies, trade winds for both hemispheres)
+- Edge case tests (equator, poles, band boundaries)
+
+**Phase 1: Rain Shadow Algorithm** (~1-1.5h)
+- Implement latitude-based upwind trace (per-row wind direction)
+- Calculate mountain blocking accumulation (20 cells, 200m threshold)
 - Apply rain shadow multiplier (max 80% reduction)
-- 8-10 unit tests (single mountain, multiple mountains, edge cases)
+- 8-10 unit tests (single mountain, multiple mountains, latitude bands, edge cases)
 
 **Phase 2: Visualization** (~0.5-1h)
 - Add 2 MapViewMode values (Base, WithRainShadow)
@@ -383,13 +418,28 @@ for (int y = 0; y < height; y++) {
 - Add UI dropdown items
 
 **Done When**:
-1. ✅ **Deserts appear on leeward side** of mountains (visual validation)
-2. ✅ **Windward side unaffected** (no moisture increase yet - correct for VS_027)
-3. ✅ **Multiple mountain ranges stack** (Himalayas create extreme Gobi dryness)
-4. ✅ **Performance acceptable** (<50ms for 512×512 upwind trace)
-5. ✅ **All tests GREEN**
+1. ✅ **Latitude-based wind patterns working**:
+   - Tropical mountains (0°-30°): Deserts **east** of mountains (trade winds westward)
+   - Mid-latitude mountains (30°-60°): Deserts **west** of mountains (westerlies eastward)
+   - Polar mountains (60°-90°): Deserts **east** of mountains (polar easterlies westward)
+2. ✅ **Visual validation matches Earth patterns**:
+   - Sahara-like deserts east of tropical mountains
+   - Gobi-like deserts west of mid-latitude mountains
+3. ✅ **Windward side unaffected** (no moisture increase yet - correct for VS_027)
+4. ✅ **Multiple mountain ranges stack** (accumulative blocking working)
+5. ✅ **Probe displays wind direction** for each latitude (e.g., "Wind: ← Westerlies (45°N)")
+6. ✅ **Performance acceptable** (<50ms for 512×512 upwind trace)
+7. ✅ **All tests GREEN** (16-18 total: 6 wind tests + 10-12 rain shadow tests)
 
 **Depends On**: VS_026 ✅ (base precipitation map required)
+
+**Design Decision** (2025-10-08):
+- **Latitude-based winds chosen** over simplified single direction (Product Owner feedback)
+- **Why**: More realistic (matches Earth's atmospheric circulation), same complexity O(n), better gameplay variety
+- **Tradeoff**: Adds PrevailingWinds utility (~50 lines) + 6 extra tests, but provides physical realism
+- **Real-world validation**: Sahara (trade winds), Gobi (westerlies), Atacama (trade winds) patterns
+- **Performance**: No cost (wind lookup is O(1) per row)
+- **Next steps**: Dev Engineer implements with latitude-based wind bands (Polar Easterlies / Westerlies / Trade Winds)
 
 ---
 
