@@ -77,13 +77,14 @@ public enum MapViewMode
     PrecipitationTemperatureShaped,
 
     /// <summary>
-    /// Display precipitation - Stage 3: FINAL (VS_026 production).
+    /// Display precipitation - Stage 3: Base (VS_026 production).
     /// Complete base algorithm with renormalization. Normalized [0,1].
+    /// This is the BASE precipitation before rain shadow effects (VS_027).
     /// Visual signature: Full dynamic range restored after temperature shaping.
     /// Colors: Brown (dry) → Yellow (moderate) → Blue (wet).
     /// Display as mm/year: Low (&lt;400), Medium (400-800), High (&gt;800).
     /// </summary>
-    PrecipitationFinal,
+    PrecipitationBase,
 
     /// <summary>
     /// Display precipitation - Stage 4: + Rain Shadow Effect (VS_027 production).

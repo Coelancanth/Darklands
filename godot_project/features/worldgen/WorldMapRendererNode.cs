@@ -157,7 +157,7 @@ public partial class WorldMapRendererNode : Sprite2D
                 }
                 break;
 
-            case MapViewMode.PrecipitationFinal:
+            case MapViewMode.PrecipitationBase:
                 if (_worldData.FinalPrecipitationMap != null)
                 {
                     RenderPrecipitationMap(_worldData.FinalPrecipitationMap);

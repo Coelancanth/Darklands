@@ -115,8 +115,8 @@ public partial class WorldMapUINode : Control
         _viewModeDropdown.AddSeparator("─── Precipitation Debug ───");
         _viewModeDropdown.AddItem("Precipitation: 1. Noise Only", (int)MapViewMode.PrecipitationNoiseOnly);
         _viewModeDropdown.AddItem("Precipitation: 2. + Temp Curve", (int)MapViewMode.PrecipitationTemperatureShaped);
-        _viewModeDropdown.AddItem("Precipitation: 3. Final", (int)MapViewMode.PrecipitationFinal);
-        _viewModeDropdown.AddItem("Precipitation: 4. + Rain Shadow", (int)MapViewMode.PrecipitationWithRainShadow);
+        _viewModeDropdown.AddItem("Precipitation: 3. Base", (int)MapViewMode.PrecipitationBase);
+        _viewModeDropdown.AddItem("Precipitation: 4. + Rain Shadow (Final)", (int)MapViewMode.PrecipitationWithRainShadow);
 
         _viewModeDropdown.Selected = 0;  // ColoredOriginalElevation is default
         _viewModeDropdown.ItemSelected += OnViewModeSelected;

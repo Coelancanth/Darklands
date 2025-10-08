@@ -191,9 +191,9 @@ public partial class WorldMapLegendNode : Control
                 AddLegendEntry("Blue", new Color(0f, 0f, 1f), "Wet (hot = high evap)");
                 break;
 
-            case MapViewMode.PrecipitationFinal:
+            case MapViewMode.PrecipitationBase:
                 // 3-band moisture gradient (VS_026: Production Stage 3)
-                AddLegendEntry("Final Precipitation", new Color(0.8f, 0.8f, 0.8f), "(+ renormalization)");
+                AddLegendEntry("Base Precipitation", new Color(0.8f, 0.8f, 0.8f), "(before rain shadow)");
                 AddLegendEntry("Yellow", new Color(255f/255f, 255f/255f, 0f), "Low (<400mm/year)");
                 AddLegendEntry("Green", new Color(0f, 200f/255f, 0f), "Medium (400-800mm)");
                 AddLegendEntry("Blue", new Color(0f, 0f, 1f), "High (>800mm/year)");

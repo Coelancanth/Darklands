@@ -99,7 +99,7 @@ public partial class WorldMapProbeNode : Node
             // VS_026: Precipitation modes use red highlight (contrasts with brown-yellow-blue gradient)
             MapViewMode.PrecipitationNoiseOnly => HIGHLIGHT_COLOR_COLORED,
             MapViewMode.PrecipitationTemperatureShaped => HIGHLIGHT_COLOR_COLORED,
-            MapViewMode.PrecipitationFinal => HIGHLIGHT_COLOR_COLORED,
+            MapViewMode.PrecipitationBase => HIGHLIGHT_COLOR_COLORED,
             MapViewMode.PrecipitationWithRainShadow => HIGHLIGHT_COLOR_COLORED,
 
             _ => HIGHLIGHT_COLOR_COLORED
@@ -211,7 +211,7 @@ public partial class WorldMapProbeNode : Node
             MapViewMode.PrecipitationTemperatureShaped =>
                 BuildPrecipitationProbeData(x, y, worldData, debugStage: 2),
 
-            MapViewMode.PrecipitationFinal =>
+            MapViewMode.PrecipitationBase =>
                 BuildPrecipitationProbeData(x, y, worldData, debugStage: 3),
 
             // VS_027: Rain shadow mode - show stage 4 with wind direction + blocking info
