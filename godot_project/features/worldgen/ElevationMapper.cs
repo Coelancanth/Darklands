@@ -24,29 +24,31 @@ public static class ElevationMapper
     private const float SEA_LEVEL_METERS = 0f;
     private const float EVEREST_METERS = 8849f;        // Mt. Everest height
 
-    // Plate tectonics library scale (raw elevation values)
-    private const float OCEAN_FLOOR_RAW = 0.1f;   // OCEANIC_BASE from library
-    private const float PEAK_RAW = 20.0f;         // Typical maximum from simulations
-
     /// <summary>
     /// Converts raw elevation to meters above/below sea level.
     /// Uses piecewise linear mapping: ocean and land have different scales.
     /// </summary>
-    /// <param name="rawElevation">Raw elevation from heightmap [0.1-20]</param>
-    /// <param name="seaLevelThreshold">Sea level threshold from world's Thresholds (typically ~1.0)</param>
+    /// <param name="rawElevation">Raw elevation from heightmap</param>
+    /// <param name="seaLevelThreshold">Sea level threshold from world's Thresholds</param>
+    /// <param name="minElevation">Actual minimum elevation in heightmap (ocean floor)</param>
+    /// <param name="maxElevation">Actual maximum elevation in heightmap (highest peak)</param>
     /// <returns>Elevation in meters (negative = below sea level, positive = above)</returns>
-    public static float ToMeters(float rawElevation, float seaLevelThreshold)
+    public static float ToMeters(
+        float rawElevation,
+        float seaLevelThreshold,
+        float minElevation,
+        float maxElevation)
     {
         if (rawElevation <= seaLevelThreshold)
         {
-            // Ocean depth: Linear map [0.1, seaLevel] → [-11000m, 0m]
-            float t = (rawElevation - OCEAN_FLOOR_RAW) / (seaLevelThreshold - OCEAN_FLOOR_RAW);
+            // Ocean depth: Linear map [actual_min, seaLevel] → [-11000m, 0m]
+            float t = (rawElevation - minElevation) / (seaLevelThreshold - minElevation);
             return Mathf.Lerp(OCEAN_FLOOR_METERS, SEA_LEVEL_METERS, t);
         }
         else
         {
-            // Land elevation: Linear map [seaLevel, 20] → [0m, 8849m]
-            float t = (rawElevation - seaLevelThreshold) / (PEAK_RAW - seaLevelThreshold);
+            // Land elevation: Linear map [seaLevel, actual_max] → [0m, 8849m]
+            float t = (rawElevation - seaLevelThreshold) / (maxElevation - seaLevelThreshold);
             return Mathf.Lerp(SEA_LEVEL_METERS, EVEREST_METERS, t);
         }
     }
@@ -57,10 +59,16 @@ public static class ElevationMapper
     /// </summary>
     /// <param name="rawElevation">Raw elevation from heightmap</param>
     /// <param name="seaLevelThreshold">Sea level threshold from world's Thresholds</param>
+    /// <param name="minElevation">Actual minimum elevation in heightmap</param>
+    /// <param name="maxElevation">Actual maximum elevation in heightmap</param>
     /// <returns>Formatted elevation string</returns>
-    public static string FormatElevation(float rawElevation, float seaLevelThreshold)
+    public static string FormatElevation(
+        float rawElevation,
+        float seaLevelThreshold,
+        float minElevation,
+        float maxElevation)
     {
-        float meters = ToMeters(rawElevation, seaLevelThreshold);
+        float meters = ToMeters(rawElevation, seaLevelThreshold, minElevation, maxElevation);
 
         if (meters >= 0)
         {
@@ -80,6 +88,8 @@ public static class ElevationMapper
     /// </summary>
     /// <param name="rawElevation">Raw elevation from heightmap</param>
     /// <param name="seaLevelThreshold">Sea level threshold</param>
+    /// <param name="minElevation">Actual minimum elevation in heightmap</param>
+    /// <param name="maxElevation">Actual maximum elevation in heightmap</param>
     /// <param name="hillThreshold">Hill threshold (optional)</param>
     /// <param name="mountainThreshold">Mountain threshold (optional)</param>
     /// <param name="peakThreshold">Peak threshold (optional)</param>
@@ -87,11 +97,13 @@ public static class ElevationMapper
     public static string FormatElevationWithTerrain(
         float rawElevation,
         float seaLevelThreshold,
+        float minElevation,
+        float maxElevation,
         float? hillThreshold = null,
         float? mountainThreshold = null,
         float? peakThreshold = null)
     {
-        float meters = ToMeters(rawElevation, seaLevelThreshold);
+        float meters = ToMeters(rawElevation, seaLevelThreshold, minElevation, maxElevation);
 
         // Determine terrain type from thresholds
         string terrainType;

@@ -177,12 +177,22 @@ if (rawElevation > thresholds.MountainLevel) {
 temperatureMap[y, x] = t;  // Store normalized [0, 1]
 ```
 
-**5. UI Display Conversion** (Presentation layer):
+**5. UI Display Conversion** (Presentation layer - TemperatureMapper utility):
 ```csharp
-// Convert [0, 1] to real temperatures for display
-float tempCelsius = t * 100f - 60f;  // [-60°C, +40°C] range
-// Probe shows: "Temp: -15.2°C"
-// Gradient: Blue (-60°C) → Red (+40°C)
+public static class TemperatureMapper
+{
+    private const float MIN_TEMP = -60f;
+    private const float MAX_TEMP = 40f;
+
+    public static float ToCelsius(float normalizedTemp) =>
+        normalizedTemp * (MAX_TEMP - MIN_TEMP) + MIN_TEMP;  // [0,1] → [-60°C, +40°C]
+
+    public static string FormatTemperature(float normalizedTemp) =>
+        $"{ToCelsius(normalizedTemp):F1}°C";  // "Temp: -15.2°C"
+}
+
+// Renderer usage: Convert [0,1] to °C for gradient colors
+// Probe usage: TemperatureMapper.FormatTemperature(temp)
 ```
 
 **Key WorldEngine Insights Adopted:**
@@ -241,9 +251,12 @@ return result with { TemperatureMap = temperatureMap };
 **Implementation Notes**:
 - Store `axialTilt` and `distanceToSun` in `WorldGenerationResult` (per-world parameters)
 - Use RAW `PostProcessedHeightmap` for elevation cooling (not normalized!)
-- Output normalized [0,1] temperature (UI converts to °C)
+- **Output normalized [0,1]** temperature - WHY? For future biome classification (Stage 6)
+  - Biome algorithms use quantile thresholds on [0,1] data (same pattern as elevation)
+  - UI converts to °C via TemperatureMapper (same pattern as ElevationMapper)
 - `Interp()` utility needed: linear interpolation matching numpy.interp
 - `SampleGaussian()` utility: Gaussian distribution with HWHM parameter
+- Create `TemperatureMapper` class (analogous to ElevationMapper pattern)
 
 **Performance** (multi-threading decision):
 - ❌ **NO threading**: Native sim dominates (83% of 1.2s total), temperature only ~60-80ms

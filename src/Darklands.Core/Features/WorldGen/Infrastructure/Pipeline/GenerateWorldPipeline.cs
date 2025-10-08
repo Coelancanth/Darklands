@@ -64,9 +64,12 @@ public class GenerateWorldPipeline : IWorldGenerationPipeline
         // Calculate quantile-based thresholds (adaptive to each world's terrain distribution)
         var thresholds = CalculateElevationThresholds(postProcessed.ProcessedHeightmap, postProcessed.OceanMask);
 
+        // Calculate min/max for realistic meters mapping (fixes 50km ocean depth bug)
+        var (minElevation, maxElevation) = GetMinMax(postProcessed.ProcessedHeightmap);
+
         _logger.LogInformation(
-            "Stage 1 complete: Elevation thresholds calculated (SeaLevel={SeaLevel:F2}, HillLevel={HillLevel:F2}, MountainLevel={MountainLevel:F2}, PeakLevel={PeakLevel:F2})",
-            thresholds.SeaLevel, thresholds.HillLevel, thresholds.MountainLevel, thresholds.PeakLevel);
+            "Stage 1 complete: Elevation thresholds calculated (SeaLevel={SeaLevel:F2}, HillLevel={HillLevel:F2}, MountainLevel={MountainLevel:F2}, PeakLevel={PeakLevel:F2}, Range=[{Min:F2}, {Max:F2}])",
+            thresholds.SeaLevel, thresholds.HillLevel, thresholds.MountainLevel, thresholds.PeakLevel, minElevation, maxElevation);
 
         // ═══════════════════════════════════════════════════════════════════════
         // STAGE 2: Climate - Temperature (VS_025 - Future)
@@ -89,6 +92,8 @@ public class GenerateWorldPipeline : IWorldGenerationPipeline
             rawNativeOutput: nativeResult.Value,
             postProcessedHeightmap: postProcessed.ProcessedHeightmap,  // Post-processed raw [0.1-20]
             thresholds: thresholds,                                    // Quantile-based thresholds
+            minElevation: minElevation,                                // Actual ocean floor (for meters mapping)
+            maxElevation: maxElevation,                                // Actual peak (for meters mapping)
             oceanMask: postProcessed.OceanMask,                        // Flood-filled ocean
             seaDepth: postProcessed.SeaDepth,                          // Depth map
             temperatureMap: null,    // VS_025
@@ -157,5 +162,30 @@ public class GenerateWorldPipeline : IWorldGenerationPipeline
         index = Math.Max(0, Math.Min(sortedValues.Count - 1, index));
 
         return sortedValues[index];
+    }
+
+    /// <summary>
+    /// Gets the minimum and maximum values from a 2D heightmap.
+    /// Used for realistic meters mapping in UI (prevents 50km ocean depths bug).
+    /// </summary>
+    private static (float min, float max) GetMinMax(float[,] heightmap)
+    {
+        int height = heightmap.GetLength(0);
+        int width = heightmap.GetLength(1);
+
+        float min = float.MaxValue;
+        float max = float.MinValue;
+
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                float value = heightmap[y, x];
+                if (value < min) min = value;
+                if (value > max) max = value;
+            }
+        }
+
+        return (min, max);
     }
 }

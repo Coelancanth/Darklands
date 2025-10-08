@@ -191,7 +191,7 @@ public partial class WorldMapProbeNode : Node
     /// Builds comprehensive elevation probe data with real-world meters mapping.
     /// VS_024: Uses ElevationMapper for human-readable display, shows raw values for debugging.
     /// </summary>
-    private static string BuildElevationProbeData(
+    private string BuildElevationProbeData(
         int x, int y,
         float original,
         float? postProcessed,
@@ -202,23 +202,26 @@ public partial class WorldMapProbeNode : Node
         // Get the current elevation value to display (prefer post-processed if available)
         float currentElevation = postProcessed ?? original;
 
+        var worldData = _renderer?.GetWorldData();
         var data = $"Cell ({x},{y})\n";
 
-        // Show human-readable meters (if thresholds available for mapping)
-        if (thresholds != null)
+        // Show human-readable meters (if thresholds AND min/max available for mapping)
+        if (thresholds != null && worldData != null)
         {
             string metersDisplay = ElevationMapper.FormatElevationWithTerrain(
-                currentElevation,
-                thresholds.SeaLevel,
-                thresholds.HillLevel,
-                thresholds.MountainLevel,
-                thresholds.PeakLevel);
+                rawElevation: currentElevation,
+                seaLevelThreshold: thresholds.SeaLevel,
+                minElevation: worldData.MinElevation,     // ← FIX: Use actual min from heightmap
+                maxElevation: worldData.MaxElevation,     // ← FIX: Use actual max from heightmap
+                hillThreshold: thresholds.HillLevel,
+                mountainThreshold: thresholds.MountainLevel,
+                peakThreshold: thresholds.PeakLevel);
             data += metersDisplay;
             data += $"\n\nRaw: {original:F2}";
         }
         else
         {
-            // Fallback when thresholds unavailable (cached world)
+            // Fallback when data unavailable (cached world or old format)
             data += $"Elevation: {original:F2}";
             data += $"\n(Regenerate world for meters)";
         }

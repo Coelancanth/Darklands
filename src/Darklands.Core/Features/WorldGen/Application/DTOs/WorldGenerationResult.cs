@@ -42,6 +42,18 @@ public record WorldGenerationResult
     public ElevationThresholds? Thresholds { get; init; }
 
     /// <summary>
+    /// Minimum elevation value in PostProcessedHeightmap (ocean floor).
+    /// Used for realistic meters mapping in UI (prevents 50km ocean depths bug).
+    /// </summary>
+    public float MinElevation { get; init; }
+
+    /// <summary>
+    /// Maximum elevation value in PostProcessedHeightmap (highest peak).
+    /// Used for realistic meters mapping in UI.
+    /// </summary>
+    public float MaxElevation { get; init; }
+
+    /// <summary>
     /// Plate ownership map (plate ID per cell).
     /// </summary>
     public uint[,] PlatesMap { get; init; }
@@ -92,6 +104,8 @@ public record WorldGenerationResult
         PlateSimulationResult rawNativeOutput,
         float[,]? postProcessedHeightmap = null,
         ElevationThresholds? thresholds = null,
+        float minElevation = 0.1f,
+        float maxElevation = 20.0f,
         bool[,]? oceanMask = null,
         float[,]? seaDepth = null,
         float[,]? temperatureMap = null,
@@ -100,6 +114,8 @@ public record WorldGenerationResult
         Heightmap = heightmap;
         PostProcessedHeightmap = postProcessedHeightmap;
         Thresholds = thresholds;
+        MinElevation = minElevation;
+        MaxElevation = maxElevation;
         PlatesMap = platesMap;
         OceanMask = oceanMask;
         SeaDepth = seaDepth;

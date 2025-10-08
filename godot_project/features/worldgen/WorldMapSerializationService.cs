@@ -71,6 +71,11 @@ public class WorldMapSerializationService
                 file.Store8(0); // No thresholds
             }
 
+            // Min/Max elevation (for realistic meters mapping - fixes 50km ocean depth bug)
+            file.Store8(1); // HasMinMaxElevation flag (always true for new saves)
+            file.StoreFloat(world.MinElevation);
+            file.StoreFloat(world.MaxElevation);
+
             SaveOptionalBoolArray(file, world.OceanMask, world.Width, world.Height);
             SaveOptionalFloatArray(file, world.SeaDepth, world.Width, world.Height);
 
@@ -249,6 +254,20 @@ public class WorldMapSerializationService
             );
         }
 
+        // Min/Max elevation (backward compatible - old v2 files won't have this)
+        float minElevation = 0.1f;  // Default fallback (old v2 behavior)
+        float maxElevation = 20.0f; // Default fallback (old v2 behavior)
+
+        if (file.GetPosition() < file.GetLength())  // Check if more data exists
+        {
+            byte hasMinMax = file.Get8();
+            if (hasMinMax == 1)
+            {
+                minElevation = file.GetFloat();
+                maxElevation = file.GetFloat();
+            }
+        }
+
         var oceanMask = LoadOptionalBoolArray(file, width, height);
         var seaDepth = LoadOptionalFloatArray(file, width, height);
 
@@ -269,6 +288,8 @@ public class WorldMapSerializationService
             rawNativeOutput: rawNative,
             postProcessedHeightmap: postProcessedHeightmap,
             thresholds: thresholds,
+            minElevation: minElevation,
+            maxElevation: maxElevation,
             oceanMask: oceanMask,
             seaDepth: seaDepth,
             temperatureMap: null,  // VS_025
