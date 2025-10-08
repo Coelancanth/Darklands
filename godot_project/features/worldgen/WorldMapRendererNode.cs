@@ -370,21 +370,18 @@ public partial class WorldMapRendererNode : Sprite2D
     }
 
     /// <summary>
-    /// Renders temperature map with 5-stop color gradient (VS_025).
+    /// Renders temperature map with WorldEngine-style quantile-based color bands (VS_025).
     /// Input: Normalized [0,1] temperature values.
-    /// Output: 5-stop gradient from blue (cold) to red (hot).
+    /// Output: 7 discrete color bands (polar → alpine → boreal → cool → warm → subtropical → tropical).
     /// </summary>
     /// <remarks>
-    /// Temperature mapping (TemperatureMapper in Presentation layer):
-    /// - [0,1] → [-60°C, +40°C]
-    /// - Blue (-60°C, frozen peaks) → Cyan (-20°C) → Green (0°C) → Yellow (+20°C) → Red (+40°C, hot lowlands)
+    /// WorldEngine approach (temperature.py + draw.py):
+    /// - Uses quantile thresholds to create discrete climate zones (NOT smooth gradient)
+    /// - 7 bands: polar (coldest 12.5%), alpine, boreal, cool, warm, subtropical, tropical (hottest 12.5%)
+    /// - Colors: Blue → Blue-Purple → Purple → Magenta → Purple-Red → Red-Purple → Red
     ///
-    /// Gradient stops (evenly distributed in [0,1] space):
-    /// - t=0.0: Blue (frozen peaks at poles)
-    /// - t=0.25: Cyan (cold)
-    /// - t=0.5: Green (mild/temperate)
-    /// - t=0.75: Yellow (warm)
-    /// - t=1.0: Red (hot equator)
+    /// Why quantiles? Each world has different temperature distribution (hot vs cold planets).
+    /// Quantiles adapt to show climate variation regardless of absolute temperatures.
     ///
     /// Reused by all 4 temperature view modes (LatitudeOnly, WithNoise, WithDistance, Final).
     /// </remarks>
@@ -396,13 +393,19 @@ public partial class WorldMapRendererNode : Sprite2D
 
         _logger?.LogDebug("RenderTemperatureMap: {Width}x{Height}", w, h);
 
-        // Render with 5-stop temperature gradient
+        // Calculate quantile thresholds (7 temperature zones, WorldEngine-style)
+        var quantiles = CalculateTemperatureQuantiles(temperatureMap);
+
+        _logger?.LogDebug("Temperature quantiles: q12.5={Q0:F3}, q25={Q1:F3}, q37.5={Q2:F3}, q50={Q3:F3}, q62.5={Q4:F3}, q75={Q5:F3}, q87.5={Q6:F3}",
+            quantiles[0], quantiles[1], quantiles[2], quantiles[3], quantiles[4], quantiles[5], quantiles[6]);
+
+        // Render with discrete color bands based on quantiles
         for (int y = 0; y < h; y++)
         {
             for (int x = 0; x < w; x++)
             {
                 float t = temperatureMap[y, x];  // Normalized [0, 1]
-                Color color = GetTemperatureColor(t);
+                Color color = GetTemperatureColorQuantile(t, quantiles);
                 image.SetPixel(x, y, color);
             }
         }
@@ -412,34 +415,88 @@ public partial class WorldMapRendererNode : Sprite2D
     }
 
     /// <summary>
-    /// Maps normalized temperature [0,1] to 5-stop color gradient.
-    /// Blue (cold) → Cyan → Green (mild) → Yellow → Red (hot).
+    /// Calculates temperature quantiles for discrete climate zone bands (WorldEngine approach).
+    /// Returns 7 quantile thresholds: 12.5%, 25%, 37.5%, 50%, 62.5%, 75%, 87.5%.
     /// </summary>
-    private Color GetTemperatureColor(float t)
+    private float[] CalculateTemperatureQuantiles(float[,] temperatureMap)
     {
-        // 5-stop gradient with even distribution
-        // Stop 1: [0.0, 0.25] → Blue to Cyan
-        if (t < 0.25f)
-            return Gradient(t, 0.0f, 0.25f,
-                new Color(0.0f, 0.4f, 1.0f),   // Deep blue (frozen)
-                new Color(0.0f, 0.8f, 1.0f));  // Cyan (cold)
+        int h = temperatureMap.GetLength(0);
+        int w = temperatureMap.GetLength(1);
 
-        // Stop 2: [0.25, 0.5] → Cyan to Green
-        if (t < 0.5f)
-            return Gradient(t, 0.25f, 0.5f,
-                new Color(0.0f, 0.8f, 1.0f),   // Cyan
-                new Color(0.3f, 0.9f, 0.3f));  // Light green (mild)
+        // Collect all temperature values
+        var temps = new System.Collections.Generic.List<float>(h * w);
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                temps.Add(temperatureMap[y, x]);
+            }
+        }
 
-        // Stop 3: [0.5, 0.75] → Green to Yellow
-        if (t < 0.75f)
-            return Gradient(t, 0.5f, 0.75f,
-                new Color(0.3f, 0.9f, 0.3f),   // Light green
-                new Color(1.0f, 1.0f, 0.0f));  // Yellow (warm)
+        // Sort for quantile calculation
+        temps.Sort();
 
-        // Stop 4: [0.75, 1.0] → Yellow to Red
-        return Gradient(t, 0.75f, 1.0f,
-            new Color(1.0f, 1.0f, 0.0f),       // Yellow
-            new Color(1.0f, 0.2f, 0.0f));      // Red-orange (hot)
+        // Calculate 7 quantiles (8 bands: < q0, q0-q1, q1-q2, ... q6+)
+        return new float[]
+        {
+            GetPercentileFromSorted(temps, 0.125f),  // 12.5% - polar
+            GetPercentileFromSorted(temps, 0.25f),   // 25% - alpine
+            GetPercentileFromSorted(temps, 0.375f),  // 37.5% - boreal
+            GetPercentileFromSorted(temps, 0.50f),   // 50% - cool
+            GetPercentileFromSorted(temps, 0.625f),  // 62.5% - warm
+            GetPercentileFromSorted(temps, 0.75f),   // 75% - subtropical
+            GetPercentileFromSorted(temps, 0.875f)   // 87.5% - tropical
+        };
+    }
+
+    /// <summary>
+    /// Gets percentile value from a sorted list (helper for quantile calculation).
+    /// </summary>
+    private float GetPercentileFromSorted(System.Collections.Generic.List<float> sortedValues, float percentile)
+    {
+        if (sortedValues.Count == 0) return 0f;
+
+        int index = (int)Mathf.Floor(percentile * (sortedValues.Count - 1));
+        index = Mathf.Clamp(index, 0, sortedValues.Count - 1);
+
+        return sortedValues[index];
+    }
+
+    /// <summary>
+    /// Maps normalized temperature to discrete color bands using quantiles (WorldEngine colors).
+    /// 7 climate zones: polar, alpine, boreal, cool, warm, subtropical, tropical.
+    /// Colors match WorldEngine draw.py exactly: Blue → Purple spectrum → Red.
+    /// </summary>
+    private Color GetTemperatureColorQuantile(float t, float[] quantiles)
+    {
+        // WorldEngine colors (RGB 0-255 → 0-1):
+        // Polar:       (0, 0, 255)      → Blue
+        // Alpine:      (42, 0, 213)     → Blue-Purple
+        // Boreal:      (85, 0, 170)     → Purple
+        // Cool:        (128, 0, 128)    → Magenta
+        // Warm:        (170, 0, 85)     → Purple-Red
+        // Subtropical: (213, 0, 42)     → Red-Purple
+        // Tropical:    (255, 0, 0)      → Red
+
+        if (t < quantiles[0])
+            return new Color(0f, 0f, 1f);           // Polar: Blue
+
+        if (t < quantiles[1])
+            return new Color(42f/255f, 0f, 213f/255f);  // Alpine: Blue-Purple
+
+        if (t < quantiles[2])
+            return new Color(85f/255f, 0f, 170f/255f);  // Boreal: Purple
+
+        if (t < quantiles[3])
+            return new Color(128f/255f, 0f, 128f/255f); // Cool: Magenta
+
+        if (t < quantiles[4])
+            return new Color(170f/255f, 0f, 85f/255f);  // Warm: Purple-Red
+
+        if (t < quantiles[5])
+            return new Color(213f/255f, 0f, 42f/255f);  // Subtropical: Red-Purple
+
+        return new Color(1f, 0f, 0f);               // Tropical: Red
     }
 
     /// <summary>
