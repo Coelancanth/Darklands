@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-08 14:52 (Dev Engineer: VS_025 implementation plan - Multi-stage temperature rendering)
+**Last Updated**: 2025-10-08 15:42 (Dev Engineer: VS_025 Phase 4 complete - Temperature noise fix + visual validation)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -104,7 +104,7 @@
 *Future features, nice-to-haves, deferred work*
 
 ### VS_025: WorldGen Pipeline Stage 2 - Temperature Simulation
-**Status**: In Progress
+**Status**: Done ✅ (2025-10-08 15:42)
 **Owner**: Dev Engineer
 **Size**: S (~4-5h, revised for multi-stage debug rendering)
 **Priority**: Ideas
@@ -296,14 +296,17 @@ return result with { TemperatureMap = temperatureMap };
 11. ✅ Added 4 UI dropdown items with separator (Temperature Debug section)
 12. ✅ All 447 tests GREEN, build succeeds
 
-**Phase 4: Visual Validation** (~0.5h)
-12. **Validate each stage visually**:
-    - Latitude Only: Horizontal bands, equator shifts with tilt
-    - With Noise: Subtle "fuzz" on bands (not dramatic)
-    - With Distance: Same pattern, hotter/colder overall (seed variation)
-    - Final: Mountains blue at **all latitudes** (cooling works!)
-13. Performance check (<1.5s total for 512×512, no regression)
-14. All 433 tests GREEN
+**Phase 4: Visual Validation** ✅ COMPLETE (~0.75h actual)
+12. ✅ Fixed noise configuration bug (missing SetFractalType(FBm) + SetFrequency)
+    - Root cause: Elevation pattern had FBm+frequency, temperature was missing both
+    - Result: Smooth natural gradients matching WorldEngine (no more discrete bands!)
+13. ✅ Validated all 4 temperature stages visually:
+    - Latitude Only: Smooth horizontal bands, equator shifts with axial tilt ✅
+    - With Noise: Subtle fuzzy climate variation (8% contribution, realistic!) ✅
+    - With Distance: Hot/cold planet variation (inverse-square law working) ✅
+    - Final: Mountains blue at **all latitudes** (elevation cooling working!) ✅
+14. ✅ Performance: <1.5s for 512×512 world generation (no regression)
+15. ✅ All 447 tests GREEN
 
 **Done When**:
 1. ✅ **4 temperature maps populated** in WorldGenerationResult (latitude-only, +noise, +distance, final)

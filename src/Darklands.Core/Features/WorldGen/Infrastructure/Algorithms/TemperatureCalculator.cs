@@ -132,7 +132,9 @@ public static class TemperatureCalculator
 
         var noise = new FastNoiseLite(noiseBase);
         noise.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
+        noise.SetFractalType(FastNoiseLite.FractalType.FBm);  // Fractal Brownian Motion (multi-octave layering)
         noise.SetFractalOctaves(octaves);
+        noise.SetFrequency(1.0f / freq);  // freq=128 → frequency=1/128 (matches WorldEngine scaling)
 
         // ═══════════════════════════════════════════════════════════════════════
         // STEP 3: Allocate 4 output maps
@@ -172,7 +174,9 @@ public static class TemperatureCalculator
                 // Stage 2: + Noise (8% climate variation)
                 // ───────────────────────────────────────────────────────────────
                 // Get coherent noise [-1, 1]
-                float n = noise.GetNoise((x * n_scale) / freq, (y * n_scale) / freq);
+                // WorldEngine: snoise2((x * n_scale) / freq, (y * n_scale) / freq, octaves)
+                // FastNoiseLite: Frequency already set to 1/freq, so we just pass (x * n_scale)
+                float n = noise.GetNoise(x * n_scale, y * n_scale);
 
                 // Combine: 92% latitude (12/13), 8% noise (1/13)
                 // This creates subtle climate variation (not 50/50 split!)
