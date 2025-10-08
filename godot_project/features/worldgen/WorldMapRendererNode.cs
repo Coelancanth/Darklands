@@ -533,16 +533,16 @@ public partial class WorldMapRendererNode : Sprite2D
     }
 
     /// <summary>
-    /// Renders precipitation map with smooth gradient (Brown → Yellow → Blue).
+    /// Renders precipitation map with smooth gradient (Yellow → Green → Blue).
     /// Input: Normalized [0,1] precipitation values.
     /// Output: 3-stop color gradient (smooth, not discrete bands like temperature).
     /// </summary>
     /// <remarks>
-    /// VS_026: Precipitation visualization with WorldEngine-style moisture spectrum.
+    /// VS_026: Precipitation visualization with intuitive moisture spectrum.
     ///
     /// Color scheme (semantically distinct from temperature):
-    /// - Brown (0.0): Dry desert regions
-    /// - Yellow (0.5): Moderate rainfall
+    /// - Yellow (0.0): Dry desert regions
+    /// - Green (0.5): Moderate rainfall (vegetation)
     /// - Blue (1.0): Wet tropical/rainforest
     ///
     /// Smooth gradient (unlike temperature's discrete quantile bands) matches elevation rendering style.
@@ -556,11 +556,11 @@ public partial class WorldMapRendererNode : Sprite2D
 
         _logger?.LogDebug("RenderPrecipitationMap: {Width}x{Height}", w, h);
 
-        // Define 3-stop color gradient (Brown → Yellow → Blue)
-        // WorldEngine moisture spectrum: dry deserts → moderate plains → wet tropics
-        Color dryColor = new Color(139f/255f, 90f/255f, 43f/255f);     // Brown (RGB: 139, 90, 43)
-        Color moderateColor = new Color(255f/255f, 255f/255f, 0f);      // Yellow (RGB: 255, 255, 0)
-        Color wetColor = new Color(0f, 0f, 1f);                         // Blue (RGB: 0, 0, 255)
+        // Define 3-stop color gradient (Yellow → Green → Blue)
+        // Intuitive moisture spectrum: dry deserts → moderate vegetation → wet tropics
+        Color dryColor = new Color(255f/255f, 255f/255f, 0f);           // Yellow (RGB: 255, 255, 0)
+        Color moderateColor = new Color(0f, 200f/255f, 0f);             // Green (RGB: 0, 200, 0)
+        Color wetColor = new Color(0f, 0f, 255f/255f);                  // Blue (RGB: 0, 0, 255)
 
         // Render with smooth 3-stop gradient
         for (int y = 0; y < h; y++)
@@ -569,16 +569,16 @@ public partial class WorldMapRendererNode : Sprite2D
             {
                 float p = precipitationMap[y, x];  // Normalized [0, 1]
 
-                // 3-stop gradient: Brown (0.0) → Yellow (0.5) → Blue (1.0)
+                // 3-stop gradient: Yellow (0.0) → Green (0.5) → Blue (1.0)
                 Color color;
                 if (p < 0.5f)
                 {
-                    // Dry to moderate: Brown → Yellow
+                    // Dry to moderate: Yellow → Green
                     color = Gradient(p, 0.0f, 0.5f, dryColor, moderateColor);
                 }
                 else
                 {
-                    // Moderate to wet: Yellow → Blue
+                    // Moderate to wet: Green → Blue
                     color = Gradient(p, 0.5f, 1.0f, moderateColor, wetColor);
                 }
 

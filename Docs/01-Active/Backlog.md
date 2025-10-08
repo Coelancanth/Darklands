@@ -176,25 +176,25 @@ precipitationMap[y, x] = (temperatureShapedMap[y, x] - min) / delta;  // [0,1]
    - Add `RenderPrecipitationMap(MapViewMode mode, float[,] precipMap)` with 3 stages
    - 3-stop color gradient:
      ```
-     Brown (0.0) → Yellow (0.5) → Blue (1.0)
-     Dry        →  Moderate   →  Wet
+     Yellow (0.0) → Green (0.5) → Blue (1.0)
+     Dry          →  Moderate  →  Wet
      ```
 
 2. **Legend** (WorldMapLegendNode.cs):
    ```csharp
    case MapViewMode.PrecipitationNoiseOnly:
-       AddLegendEntry("Brown", ..., "Dry (base noise)");
-       AddLegendEntry("Yellow", ..., "Moderate");
+       AddLegendEntry("Yellow", ..., "Dry (base noise)");
+       AddLegendEntry("Green", ..., "Moderate");
        AddLegendEntry("Blue", ..., "Wet (base noise)");
 
    case MapViewMode.PrecipitationTemperatureShaped:
-       AddLegendEntry("Brown", ..., "Dry (cold = less evaporation)");
-       AddLegendEntry("Yellow", ..., "Moderate");
+       AddLegendEntry("Yellow", ..., "Dry (cold = less evaporation)");
+       AddLegendEntry("Green", ..., "Moderate");
        AddLegendEntry("Blue", ..., "Wet (hot = high evaporation)");
 
    case MapViewMode.PrecipitationFinal:
-       AddLegendEntry("Brown", ..., "Low (<400mm/year)");
-       AddLegendEntry("Yellow", ..., "Medium (400-800mm/year)");
+       AddLegendEntry("Yellow", ..., "Low (<400mm/year)");
+       AddLegendEntry("Green", ..., "Medium (400-800mm/year)");
        AddLegendEntry("Blue", ..., "High (>800mm/year)");
    ```
 
@@ -246,7 +246,7 @@ return result with {
 
 **Phase 3: Multi-Stage Visualization** (~1-1.5h)
 11. ✅ Add 3 MapViewMode enum values (PrecipitationNoiseOnly, TemperatureShaped, Final)
-12. ✅ Implement RenderPrecipitationMap() with 3-stop gradient (Brown → Yellow → Blue)
+12. ✅ Implement RenderPrecipitationMap() with 3-stop gradient (Yellow → Green → Blue)
 13. ✅ Update WorldMapLegendNode with stage-specific legends (mm/year labels, debug hints)
 14. ✅ Update WorldMapProbeNode to display all 3 precipitation values + gamma curve + thresholds
 15. ✅ Add 3 UI dropdown items with separator (Precipitation Debug section)
@@ -260,7 +260,7 @@ return result with {
    - Noise Only: Random wet/dry patterns (no temperature correlation)
    - Temperature Shaped: Tropical regions wetter, polar regions drier (strong correlation)
    - Final: Full dynamic range restored (renormalization working)
-5. ✅ **Temperature validation**: Hot equator = blue (wet), cold poles = brown (dry)
+5. ✅ **Temperature validation**: Hot equator = blue (wet), cold poles = yellow (dry)
 6. ✅ **Quality gates**: No performance regression (<1.5s total), all tests GREEN
 
 **Depends On**: VS_025 ✅ (temperature map required for gamma curve)
@@ -278,7 +278,7 @@ return result with {
 - ✅ **Core**: [PrecipitationCalculator.cs](../../src/Darklands.Core/Features/WorldGen/Infrastructure/Algorithms/PrecipitationCalculator.cs) with 3-stage output (noise, gamma curve, renormalization)
 - ✅ **DTOs**: [PrecipitationThresholds.cs](../../src/Darklands.Core/Features/WorldGen/Application/DTOs/PrecipitationThresholds.cs) + 4 new properties in WorldGenerationResult
 - ✅ **Pipeline**: Stage 3 integrated in [GenerateWorldPipeline.cs](../../src/Darklands.Core/Features/WorldGen/Infrastructure/Pipeline/GenerateWorldPipeline.cs) (~30ms for 512×512)
-- ✅ **Visualization**: 3 view modes (PrecipitationNoiseOnly, TemperatureShaped, Final) with Brown→Yellow→Blue gradient
+- ✅ **Visualization**: 3 view modes (PrecipitationNoiseOnly, TemperatureShaped, Final) with Yellow→Green→Blue gradient
 - ✅ **Tests**: 10 comprehensive tests (gamma edges, renormalization, temp correlation, thresholds) - all 457 tests GREEN
 - ✅ **Quality**: WorldEngine algorithm exact match, zero regressions, multi-stage debug working
 - **Ready for**: VS_027 (rain shadow effect can now build on base precipitation)
