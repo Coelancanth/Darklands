@@ -288,16 +288,12 @@ return result with { TemperatureMap = temperatureMap };
 6. ✅ Fixed backward compat in serialization service (Format v1/v2 still load)
 7. ✅ All 447 tests GREEN (no regressions), build succeeds
 
-**Phase 3: Multi-Stage Visualization** (~1.5-2h)
-7. Add 4 `MapViewMode` enum values:
-   - `TemperatureLatitudeOnly` (debug: horizontal bands, tilt visible)
-   - `TemperatureWithNoise` (debug: subtle climate fuzz)
-   - `TemperatureWithDistance` (debug: hot/cold planet variation)
-   - `TemperatureFinal` (production: complete with mountain cooling)
-8. Implement `RenderTemperatureMap()` with 5-stop gradient (Blue → Cyan → Green → Yellow → Red)
-9. Update `WorldMapLegendNode` with **stage-specific legends** (show which component is active)
-10. Update `WorldMapProbeNode` to display **all 4 values** + per-world parameters
-11. Add 4 UI buttons grouped as "Temperature Debug" section
+**Phase 3: Multi-Stage Visualization** 🚧 IN PROGRESS (~1h actual so far)
+7. ✅ Added 4 MapViewMode enum values (TemperatureLatitudeOnly, WithNoise, WithDistance, Final)
+8. ✅ Implemented RenderTemperatureMap() with 5-stop gradient (Blue → Red via Cyan/Green/Yellow)
+9. ✅ Updated WorldMapLegendNode with stage-specific legends (°C labels, debug hints)
+10. ✅ Updated WorldMapProbeNode to display all 4 temperature values + AxialTilt/DistanceToSun params
+11. ⏳ TODO: Add 4 UI buttons (WorldMapUINode) - deferred to allow visual validation first
 
 **Phase 4: Visual Validation** (~0.5h)
 12. **Validate each stage visually**:

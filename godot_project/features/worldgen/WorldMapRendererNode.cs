@@ -91,6 +91,50 @@ public partial class WorldMapRendererNode : Sprite2D
                 }
                 break;
 
+            case MapViewMode.TemperatureLatitudeOnly:
+                if (_worldData.TemperatureLatitudeOnly != null)
+                {
+                    RenderTemperatureMap(_worldData.TemperatureLatitudeOnly);
+                }
+                else
+                {
+                    _logger?.LogWarning("Temperature (LatitudeOnly) not available");
+                }
+                break;
+
+            case MapViewMode.TemperatureWithNoise:
+                if (_worldData.TemperatureWithNoise != null)
+                {
+                    RenderTemperatureMap(_worldData.TemperatureWithNoise);
+                }
+                else
+                {
+                    _logger?.LogWarning("Temperature (WithNoise) not available");
+                }
+                break;
+
+            case MapViewMode.TemperatureWithDistance:
+                if (_worldData.TemperatureWithDistance != null)
+                {
+                    RenderTemperatureMap(_worldData.TemperatureWithDistance);
+                }
+                else
+                {
+                    _logger?.LogWarning("Temperature (WithDistance) not available");
+                }
+                break;
+
+            case MapViewMode.TemperatureFinal:
+                if (_worldData.TemperatureFinal != null)
+                {
+                    RenderTemperatureMap(_worldData.TemperatureFinal);
+                }
+                else
+                {
+                    _logger?.LogWarning("Temperature (Final) not available");
+                }
+                break;
+
             default:
                 _logger?.LogError("Unknown view mode: {ViewMode}", _currentViewMode);
                 break;
@@ -323,6 +367,79 @@ public partial class WorldMapRendererNode : Sprite2D
         return Gradient(h, q99, 1.0f,
             new Color(0.357f, 0.110f, 0.051f),
             new Color(0.200f, 0f, 0.016f));
+    }
+
+    /// <summary>
+    /// Renders temperature map with 5-stop color gradient (VS_025).
+    /// Input: Normalized [0,1] temperature values.
+    /// Output: 5-stop gradient from blue (cold) to red (hot).
+    /// </summary>
+    /// <remarks>
+    /// Temperature mapping (TemperatureMapper in Presentation layer):
+    /// - [0,1] → [-60°C, +40°C]
+    /// - Blue (-60°C, frozen peaks) → Cyan (-20°C) → Green (0°C) → Yellow (+20°C) → Red (+40°C, hot lowlands)
+    ///
+    /// Gradient stops (evenly distributed in [0,1] space):
+    /// - t=0.0: Blue (frozen peaks at poles)
+    /// - t=0.25: Cyan (cold)
+    /// - t=0.5: Green (mild/temperate)
+    /// - t=0.75: Yellow (warm)
+    /// - t=1.0: Red (hot equator)
+    ///
+    /// Reused by all 4 temperature view modes (LatitudeOnly, WithNoise, WithDistance, Final).
+    /// </remarks>
+    private void RenderTemperatureMap(float[,] temperatureMap)
+    {
+        int h = temperatureMap.GetLength(0);
+        int w = temperatureMap.GetLength(1);
+        var image = Image.CreateEmpty(w, h, false, Image.Format.Rgb8);
+
+        _logger?.LogDebug("RenderTemperatureMap: {Width}x{Height}", w, h);
+
+        // Render with 5-stop temperature gradient
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                float t = temperatureMap[y, x];  // Normalized [0, 1]
+                Color color = GetTemperatureColor(t);
+                image.SetPixel(x, y, color);
+            }
+        }
+
+        Texture = ImageTexture.CreateFromImage(image);
+        _logger?.LogInformation("Rendered TemperatureMap: {Width}x{Height}", w, h);
+    }
+
+    /// <summary>
+    /// Maps normalized temperature [0,1] to 5-stop color gradient.
+    /// Blue (cold) → Cyan → Green (mild) → Yellow → Red (hot).
+    /// </summary>
+    private Color GetTemperatureColor(float t)
+    {
+        // 5-stop gradient with even distribution
+        // Stop 1: [0.0, 0.25] → Blue to Cyan
+        if (t < 0.25f)
+            return Gradient(t, 0.0f, 0.25f,
+                new Color(0.0f, 0.4f, 1.0f),   // Deep blue (frozen)
+                new Color(0.0f, 0.8f, 1.0f));  // Cyan (cold)
+
+        // Stop 2: [0.25, 0.5] → Cyan to Green
+        if (t < 0.5f)
+            return Gradient(t, 0.25f, 0.5f,
+                new Color(0.0f, 0.8f, 1.0f),   // Cyan
+                new Color(0.3f, 0.9f, 0.3f));  // Light green (mild)
+
+        // Stop 3: [0.5, 0.75] → Green to Yellow
+        if (t < 0.75f)
+            return Gradient(t, 0.5f, 0.75f,
+                new Color(0.3f, 0.9f, 0.3f),   // Light green
+                new Color(1.0f, 1.0f, 0.0f));  // Yellow (warm)
+
+        // Stop 4: [0.75, 1.0] → Yellow to Red
+        return Gradient(t, 0.75f, 1.0f,
+            new Color(1.0f, 1.0f, 0.0f),       // Yellow
+            new Color(1.0f, 0.2f, 0.0f));      // Red-orange (hot)
     }
 
     /// <summary>
