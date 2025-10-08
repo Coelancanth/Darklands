@@ -34,6 +34,15 @@ namespace Darklands.Core.Features.WorldGen.Infrastructure.Algorithms;
 public static class PrevailingWinds
 {
     /// <summary>
+    /// Linear interpolation helper (Core layer has no built-in Lerp).
+    /// </summary>
+    /// <param name="a">Start value</param>
+    /// <param name="b">End value</param>
+    /// <param name="t">Interpolation factor [0,1]</param>
+    /// <returns>Interpolated value between a and b</returns>
+    private static float Lerp(float a, float b, float t) => a + (b - a) * t;
+
+    /// <summary>
     /// Gets the prevailing wind direction for a given latitude.
     /// Returns a normalized horizontal vector (X-component only, Y=0).
     /// </summary>
@@ -76,25 +85,72 @@ public static class PrevailingWinds
         // Use absolute value to treat Northern/Southern hemispheres identically
         float absLat = MathF.Abs(latDegrees);
 
-        // Band 1: Polar Easterlies [60°-90°]
-        // Cold air descends at poles → Westward surface winds
-        // Note: Uses >= to handle floating-point precision at exact 60° boundary
-        if (absLat >= 60f)
+        // ═══════════════════════════════════════════════════════════════════════
+        // GRADIENT BLENDING: Smooth transitions between wind bands
+        // ═══════════════════════════════════════════════════════════════════════
+        // Eliminates visible horizontal seams by gradually transitioning wind
+        // direction across ±5° zones around 30° and 60° boundaries.
+        //
+        // Transition zones create natural "calm belts" at band centers where
+        // wind strength approaches zero, matching real atmospheric circulation.
+
+        const float transitionWidth = 5f;  // ±5° transition zone width
+
+        // ───────────────────────────────────────────────────────────────────────
+        // Band 1: Polar Easterlies [65°-90°] + Transition [60°-65°]
+        // ───────────────────────────────────────────────────────────────────────
+        if (absLat >= 65f)
         {
-            return (-1f, 0f);  // Westward (easterlies = wind FROM east TO west)
+            // Pure Polar Easterlies (westward)
+            return (-1f, 0f);
         }
-        // Band 2: Westerlies [30°-60°)
-        // Mid-latitude Ferrel cell → Eastward surface winds
-        // Note: Uses >= to handle floating-point precision at exact 30° boundary
+        else if (absLat >= 60f)
+        {
+            // Transition: 0.0 (at 60°) → -1.0 (at 65°)
+            // Polar Easterlies strengthen as you move poleward
+            float t = (absLat - 60f) / transitionWidth;  // [0,1] over 60°-65°
+            float windX = Lerp(0f, -1f, t);
+            return (windX, 0f);
+        }
+        // ───────────────────────────────────────────────────────────────────────
+        // Band 2: Westerlies [35°-55°] + Transitions [55°-60°] and [30°-35°]
+        // ───────────────────────────────────────────────────────────────────────
+        else if (absLat >= 55f)
+        {
+            // Transition: +1.0 (at 55°) → 0.0 (at 60°)
+            // Westerlies weaken approaching polar boundary
+            float t = (absLat - 55f) / transitionWidth;  // [0,1] over 55°-60°
+            float windX = Lerp(1f, 0f, t);
+            return (windX, 0f);
+        }
+        else if (absLat >= 35f)
+        {
+            // Pure Westerlies (eastward)
+            return (1f, 0f);
+        }
         else if (absLat >= 30f)
         {
-            return (1f, 0f);   // Eastward (westerlies = wind FROM west TO east)
+            // Transition: 0.0 (at 30°) → +1.0 (at 35°)
+            // Westerlies strengthen moving poleward from tropics
+            float t = (absLat - 30f) / transitionWidth;  // [0,1] over 30°-35°
+            float windX = Lerp(0f, 1f, t);
+            return (windX, 0f);
         }
-        // Band 3: Trade Winds [0°-30°)
-        // Hadley cell descending air → Westward surface winds
+        // ───────────────────────────────────────────────────────────────────────
+        // Band 3: Trade Winds [0°-25°] + Transition [25°-30°]
+        // ───────────────────────────────────────────────────────────────────────
+        else if (absLat >= 25f)
+        {
+            // Transition: -1.0 (at 25°) → 0.0 (at 30°)
+            // Trade Winds weaken approaching subtropical boundary
+            float t = (absLat - 25f) / transitionWidth;  // [0,1] over 25°-30°
+            float windX = Lerp(-1f, 0f, t);
+            return (windX, 0f);
+        }
         else
         {
-            return (-1f, 0f);  // Westward (northeast/southeast trades)
+            // Pure Trade Winds (westward)
+            return (-1f, 0f);
         }
     }
 

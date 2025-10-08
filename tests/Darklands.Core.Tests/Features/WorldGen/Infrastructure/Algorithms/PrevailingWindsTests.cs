@@ -51,19 +51,19 @@ public class PrevailingWindsTests
     }
 
     [Fact]
-    public void GetWindDirection_TradeWindsBoundary_ShouldReturnWesterlies()
+    public void GetWindDirection_TradeWindsBoundary_ShouldReturnCalmBelt()
     {
-        // WHY: 30° is the boundary between Trade Winds and Westerlies
-        // At exactly 30°, Westerlies band claims the boundary (absLat >= 30)
+        // WHY: 30° is the subtropical convergence zone ("horse latitudes")
+        // With gradient blending, 30° is at the CENTER of transition zone → calm belt (windX ≈ 0)
 
         // Arrange
-        float lat30N = 0.5f + (30f / 180f);   // 30°N (boundary)
+        float lat30N = 0.5f + (30f / 180f);   // 30°N (subtropical calm belt)
 
         // Act
         var (x, y) = PrevailingWinds.GetWindDirection(lat30N);
 
-        // Assert: At 30°, absLat = 30, condition is "absLat >= 30" (true) → Westerlies
-        x.Should().Be(1f, because: "At 30° boundary, Westerlies band claims boundary (absLat >= 30)");
+        // Assert: At 30°, transition zone center → near-zero wind (calm belt)
+        x.Should().BeApproximately(0f, 0.01f, because: "30° is calm belt center (gradient blending creates zero wind)");
         y.Should().Be(0f);
     }
 
@@ -92,35 +92,35 @@ public class PrevailingWindsTests
     }
 
     [Fact]
-    public void GetWindDirection_WesterliesLowerBoundary_ShouldReturnEastward()
+    public void GetWindDirection_WesterliesLowerBoundary_ShouldReturnWeakEastward()
     {
-        // WHY: Just above 30° enters Westerlies band
+        // WHY: 31° is in Westerlies transition zone (30°-35°) → partial eastward wind
 
         // Arrange
-        float lat31N = 0.5f + (31f / 180f);   // 31°N (just entered Westerlies)
+        float lat31N = 0.5f + (31f / 180f);   // 31°N (transition zone)
 
         // Act
         var (x, y) = PrevailingWinds.GetWindDirection(lat31N);
 
-        // Assert: absLat = 31 >= 30 → Westerlies
-        x.Should().Be(1f, because: "31° is in Westerlies band (condition absLat >= 30)");
+        // Assert: 31° is 1/5 through 30°-35° transition → windX = lerp(0, 1, 0.2) = 0.2
+        x.Should().BeApproximately(0.2f, 0.01f, because: "31° is in transition zone (20% strength eastward)");
         y.Should().Be(0f);
     }
 
     [Fact]
-    public void GetWindDirection_WesterliesUpperBoundary_ShouldReturnPolarEasterlies()
+    public void GetWindDirection_WesterliesUpperBoundary_ShouldReturnCalmBelt()
     {
-        // WHY: 60° is the boundary between Westerlies and Polar Easterlies
-        // At exactly 60°, Polar Easterlies band claims the boundary (absLat >= 60)
+        // WHY: 60° is the subpolar convergence zone
+        // With gradient blending, 60° is at the CENTER of transition zone → calm belt (windX ≈ 0)
 
         // Arrange
-        float lat60N = 0.5f + (60f / 180f);   // 60°N (boundary)
+        float lat60N = 0.5f + (60f / 180f);   // 60°N (subpolar calm belt)
 
         // Act
         var (x, y) = PrevailingWinds.GetWindDirection(lat60N);
 
-        // Assert: At 60°, absLat = 60, condition is "absLat >= 60" (true) → Polar Easterlies
-        x.Should().Be(-1f, because: "At 60° boundary, Polar Easterlies band claims boundary (absLat >= 60)");
+        // Assert: At 60°, transition zone center → near-zero wind (calm belt)
+        x.Should().BeApproximately(0f, 0.01f, because: "60° is calm belt center (gradient blending creates zero wind)");
         y.Should().Be(0f);
     }
 
@@ -169,18 +169,18 @@ public class PrevailingWindsTests
     }
 
     [Fact]
-    public void GetWindDirection_PolarBoundary_ShouldReturnWestward()
+    public void GetWindDirection_PolarBoundary_ShouldReturnWeakWestward()
     {
-        // WHY: Just above 60° enters Polar Easterlies band
+        // WHY: 61° is in Polar Easterlies transition zone (60°-65°) → partial westward wind
 
         // Arrange
-        float lat61N = 0.5f + (61f / 180f);   // 61°N (just entered Polar Easterlies)
+        float lat61N = 0.5f + (61f / 180f);   // 61°N (transition zone)
 
         // Act
         var (x, y) = PrevailingWinds.GetWindDirection(lat61N);
 
-        // Assert: absLat = 61 >= 60 → Polar Easterlies
-        x.Should().Be(-1f, because: "61° is in Polar Easterlies band (condition absLat >= 60)");
+        // Assert: 61° is 1/5 through 60°-65° transition → windX = lerp(0, -1, 0.2) = -0.2
+        x.Should().BeApproximately(-0.2f, 0.01f, because: "61° is in transition zone (20% strength westward)");
         y.Should().Be(0f);
     }
 
