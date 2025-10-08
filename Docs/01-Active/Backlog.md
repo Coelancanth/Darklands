@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-08 15:42 (Dev Engineer: VS_025 Phase 4 complete - Temperature noise fix + visual validation)
+**Last Updated**: 2025-10-08 16:55 (Tech Lead: Created VS_026-028 precipitation pipeline - base + rain shadow + coastal moisture)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -11,7 +11,7 @@
 
 - **Next BR**: 008
 - **Next TD**: 019
-- **Next VS**: 026
+- **Next VS**: 029
 
 
 **Protocol**: Check your type's counter → Use that number → Increment the counter → Update timestamp
@@ -103,12 +103,283 @@
 ## 💡 Ideas (Future Work)
 *Future features, nice-to-haves, deferred work*
 
-**No items in Ideas!** ✅ VS_025 completed and archived.
+### VS_026: WorldGen Stage 3 - Base Precipitation (Noise + Temperature Curve)
+**Status**: Proposed
+**Owner**: Tech Lead → Dev Engineer (approved)
+**Size**: S (~3-4h)
+**Priority**: Ideas
+**Markers**: [WORLDGEN] [PIPELINE] [STAGE-3] [CLIMATE]
+
+**What**: Generate global precipitation map using coherent noise shaped by temperature gamma curve (WorldEngine algorithm), with **3-stage debug visualization** (noise-only, temperature-shaped, final-normalized)
+
+**Why**: Complete basic climate foundation (elevation + temperature + precipitation). Validate temperature ranges (cold = less evaporation). Foundation for rain shadow (VS_027) and coastal moisture (VS_028) enhancements.
+
+**How** (WorldEngine `precipitation.py` validated pattern):
+
+**Three-Stage Precipitation Algorithm**:
+
+**1. Base Noise Field** (Stage 1 output):
+```csharp
+// Simplex noise (6 octaves, frequency 64×6 = 384)
+var noise = new FastNoiseLite(seed);
+noise.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
+noise.SetFractalType(FastNoiseLite.FractalType.FBm);
+noise.SetFractalOctaves(6);
+
+float freq = 64.0f * 6;  // 384.0
+float n_scale = 1024f / height;  // For 512×512: 2.0
+
+float n = noise.GetNoise2D((x * n_scale) / freq, (y * n_scale) / freq);
+baseNoiseMap[y, x] = (n + 1) * 0.5f;  // [-1,1] → [0,1]
+```
+
+**2. Temperature Gamma Curve** (Stage 2 output - THE KEY!):
+```csharp
+// WorldEngine gamma curve: cold = less precipitation (evaporation physics)
+float t = temperatureMap[y, x];  // [0,1] from VS_025
+float p = baseNoiseMap[y, x];    // [0,1] from Stage 1
+
+// Gamma curve with minimum bonus (prevents zero precip in Arctic)
+float gamma = 2.0f;         // Quadratic curve (WorldEngine default)
+float curveBonus = 0.2f;    // Minimum 20% precip at coldest regions
+float curve = MathF.Pow(t, gamma) * (1 - curveBonus) + curveBonus;
+
+temperatureShapedMap[y, x] = p * curve;
+// Arctic (t=0.0) → curve=0.2 → precip×0.2 (20% of base)
+// Tropical (t=1.0) → curve=1.0 → precip×1.0 (100% of base)
+```
+
+**3. Renormalization** (Stage 3 output - final):
+```csharp
+// Stretch to fill [0,1] range after temperature shaping
+float min = temperatureShapedMap.Min();
+float max = temperatureShapedMap.Max();
+float delta = max - min;
+
+precipitationMap[y, x] = (temperatureShapedMap[y, x] - min) / delta;  // [0,1]
+```
+
+**Key WorldEngine Insights Adopted:**
+- ✅ **6 octaves**: Creates natural-looking rainfall patterns (not too smooth, not too noisy)
+- ✅ **Gamma curve (2.0)**: Physically realistic (cold air holds less moisture)
+- ✅ **Curve bonus (0.2)**: Prevents zero precipitation in polar regions (realistic - even Arctic has snow!)
+- ✅ **Renormalization**: Ensures full dynamic range after temperature shaping
+- ✅ **Temperature dependency**: Validates VS_025 temperature ranges (fast feedback loop)
+
+**YAGNI Skipped** (WorldEngine complexity not needed for single-world):
+- ❌ **Border wrapping**: Seamless east-west for planet simulation (we don't wrap maps)
+- ❌ **[-1, 1] range**: Use [0, 1] for consistency with elevation/temperature pipeline
+
+**Visualization Integration** (3-stage debug rendering - mirrors VS_025 pattern):
+1. **Renderer** (WorldMapRendererNode.cs):
+   - Add `RenderPrecipitationMap(MapViewMode mode, float[,] precipMap)` with 3 stages
+   - 3-stop color gradient:
+     ```
+     Brown (0.0) → Yellow (0.5) → Blue (1.0)
+     Dry        →  Moderate   →  Wet
+     ```
+
+2. **Legend** (WorldMapLegendNode.cs):
+   ```csharp
+   case MapViewMode.PrecipitationNoiseOnly:
+       AddLegendEntry("Brown", ..., "Dry (base noise)");
+       AddLegendEntry("Yellow", ..., "Moderate");
+       AddLegendEntry("Blue", ..., "Wet (base noise)");
+
+   case MapViewMode.PrecipitationTemperatureShaped:
+       AddLegendEntry("Brown", ..., "Dry (cold = less evaporation)");
+       AddLegendEntry("Yellow", ..., "Moderate");
+       AddLegendEntry("Blue", ..., "Wet (hot = high evaporation)");
+
+   case MapViewMode.PrecipitationFinal:
+       AddLegendEntry("Brown", ..., "Low (<400mm/year)");
+       AddLegendEntry("Yellow", ..., "Medium (400-800mm/year)");
+       AddLegendEntry("Blue", ..., "High (>800mm/year)");
+   ```
+
+3. **Probe** (WorldMapProbeNode.cs):
+   - Display all 3 precipitation values (noise-only, temp-shaped, final)
+   - Show gamma curve value: `"Temp Curve: {curve:F2}"`
+   - Show quantile threshold: `"Classification: Low/Medium/High"`
+
+4. **UI** (WorldMapUINode.cs):
+   - Add 3 dropdown items with separator (Precipitation Debug section)
+
+**Pipeline Changes** (GenerateWorldPipeline.cs):
+```csharp
+// Stage 3: Precipitation calculation
+var precipitationMaps = PrecipitationCalculator.Calculate(
+    temperatureMap: result.FinalTemperatureMap!,  // Stage 2 output
+    width: result.Width,
+    height: result.Height,
+    seed: parameters.Seed);
+
+return result with {
+    BaseNoisePrecipitationMap = precipitationMaps.NoiseOnly,
+    TemperatureShapedPrecipitationMap = precipitationMaps.TemperatureShaped,
+    FinalPrecipitationMap = precipitationMaps.Final,
+    PrecipitationThresholds = precipitationMaps.Thresholds  // Quantile-based
+};
+```
+
+**Implementation Phases**:
+
+**Phase 0: Update WorldGenerationResult DTOs** (~15min)
+- Add 3 precipitation map properties (NoiseOnly, TemperatureShaped, Final)
+- Add PrecipitationThresholds record (Low, Medium, High)
+- All 447 tests GREEN (no breaking changes)
+
+**Phase 1: Core Algorithm** (~1-1.5h, TDD)
+1. ✅ Create `PrecipitationCalculator.cs` with 3-stage output
+2. ✅ Implement noise generation (FastNoiseLite, 6 octaves, OpenSimplex2)
+3. ✅ Implement gamma curve (WorldEngine formula exactly)
+4. ✅ Implement renormalization (stretch to [0,1])
+5. ✅ Calculate quantile thresholds (low=75th percentile, med=30th, extends VS_024 pattern)
+6. ✅ 10-12 unit tests (gamma curve edge cases, threshold validation, temperature correlation)
+7. ✅ All tests GREEN
+
+**Phase 2: Pipeline Integration** (~0.5h)
+8. ✅ Update `GenerateWorldPipeline` Stage 3 to call PrecipitationCalculator
+9. ✅ Update serialization service (Format v2 backward compat, extends TD_018 pattern)
+10. ✅ All 447 tests GREEN (no regressions)
+
+**Phase 3: Multi-Stage Visualization** (~1-1.5h)
+11. ✅ Add 3 MapViewMode enum values (PrecipitationNoiseOnly, TemperatureShaped, Final)
+12. ✅ Implement RenderPrecipitationMap() with 3-stop gradient (Brown → Yellow → Blue)
+13. ✅ Update WorldMapLegendNode with stage-specific legends (mm/year labels, debug hints)
+14. ✅ Update WorldMapProbeNode to display all 3 precipitation values + gamma curve + thresholds
+15. ✅ Add 3 UI dropdown items with separator (Precipitation Debug section)
+16. ✅ All 447 tests GREEN
+
+**Done When**:
+1. ✅ **3 precipitation maps populated** in WorldGenerationResult (noise-only, temp-shaped, final)
+2. ✅ **Algorithm correct** (WorldEngine-validated, gamma=2.0, curveBonus=0.2)
+3. ✅ **Multi-stage visualization working** (3 view modes, stage-specific legends, probe shows all values)
+4. ✅ **Visual validation passes** for each stage independently:
+   - Noise Only: Random wet/dry patterns (no temperature correlation)
+   - Temperature Shaped: Tropical regions wetter, polar regions drier (strong correlation)
+   - Final: Full dynamic range restored (renormalization working)
+5. ✅ **Temperature validation**: Hot equator = blue (wet), cold poles = brown (dry)
+6. ✅ **Quality gates**: No performance regression (<1.5s total), all tests GREEN
+
+**Depends On**: VS_025 ✅ (temperature map required for gamma curve)
+
+**Tech Lead Decision** (2025-10-08 16:55):
+- **Algorithm**: WorldEngine `precipitation.py` exact port (gamma=2.0, curveBonus=0.2 - proven physics)
+- **No border wrapping**: Single-world generation doesn't need seamless east-west (YAGNI)
+- **[0,1] output**: Consistent with elevation/temperature pipeline (not WorldEngine's [-1,1])
+- **3-stage debug**: Mirrors VS_025 multi-stage pattern (isolates noise vs temperature shaping)
+- **Performance**: Precipitation ~20-30ms (simple noise + per-pixel curve), no threading needed
+- **Blocks**: VS_027 (rain shadow needs base precip), VS_028 (coastal moisture needs base precip)
+- **Next steps**: Dev Engineer implements after review, use WorldEngine precipitation.py as reference
 
 ---
 
-*Recently completed and archived (2025-10-08):*
-- **VS_025**: WorldGen Pipeline Stage 2 - Temperature Simulation - 4 phases complete! 4-component WorldEngine algorithm (latitude+tilt 92%, noise 8%, distance-to-sun, mountain-cooling), 4-stage debug visualization, per-world climate variation via AxialTilt/DistanceToSun, noise config bug fix. All 447 tests GREEN. ✅ (2025-10-08 15:42) *See: [Completed_Backlog_2025-10_Part3.md](../07-Archive/Completed_Backlog_2025-10_Part3.md) for full archive*
+### VS_027: WorldGen Stage 4 - Rain Shadow Effect (Directional Orographic Blocking)
+**Status**: Proposed
+**Owner**: Tech Lead → Dev Engineer (after VS_026)
+**Size**: S (~2-3h)
+**Priority**: Ideas
+**Markers**: [WORLDGEN] [PIPELINE] [STAGE-4] [RAIN-SHADOW]
+
+**What**: Add directional rain shadow effect to precipitation using simplified orographic blocking (mountains block moisture from prevailing winds), with **2-stage debug visualization** (base-precipitation, with-rain-shadow)
+
+**Why**: Realistic deserts on leeward side of mountains (e.g., Gobi Desert east of Himalayas, rain shadow from Tibetan Plateau). Strategic gameplay: Mountain ranges create dry/wet climate zones, affects settlement placement and resource distribution.
+
+**How** (simplified directional blocking, NO full wind simulation):
+
+**Two-Stage Algorithm**:
+
+**1. Base Precipitation** (from VS_026):
+```csharp
+// Input: VS_026 final precipitation map (noise + temperature curve + renorm)
+float[,] basePrecipitation = result.FinalPrecipitationMap;
+```
+
+**2. Directional Rain Shadow** (simplified orographic effect):
+```csharp
+// Assume prevailing wind: west → east (realistic for mid-latitudes, 30°-60°)
+Vector2 windDirection = new Vector2(1, 0);  // Eastward
+int maxUpwindDistance = 20;  // Check 20 cells upwind
+
+for (int y = 0; y < height; y++) {
+    for (int x = 0; x < width; x++) {
+        float mountainBlocking = 0;
+        float currentElevation = elevation[y, x];
+
+        // Trace upwind, accumulate blocking from mountains
+        for (int step = 1; step <= maxUpwindDistance; step++) {
+            int upwindX = x - (int)(windDirection.X * step);
+            int upwindY = y - (int)(windDirection.Y * step);
+
+            if (outOfBounds(upwindX, upwindY)) break;
+
+            float upwindElevation = elevation[upwindY, upwindX];
+
+            // Mountain blocks moisture if significantly higher upwind
+            if (upwindElevation > currentElevation + 200) {  // 200m threshold
+                mountainBlocking += 0.05f;  // 5% blocking per mountain cell
+            }
+        }
+
+        // Apply rain shadow (max 80% reduction)
+        float rainShadow = Math.Max(0.2f, 1 - mountainBlocking);
+        precipitationWithRainShadow[y, x] = basePrecipitation[y, x] * rainShadow;
+    }
+}
+```
+
+**Key Insights**:
+- ✅ **Prevailing wind assumption**: West → East (NO Coriolis, NO pressure systems, YAGNI)
+- ✅ **Directional blocking**: Only UPWIND mountains matter (leeward side dry, windward side unaffected)
+- ✅ **Accumulative blocking**: Multiple mountain ranges stack (realistic for Himalayas → Gobi)
+- ✅ **20-cell trace distance**: ~1000km at 512×512 world (realistic atmospheric moisture range)
+- ✅ **200m elevation threshold**: Prevents hills from blocking (only significant mountains)
+- ✅ **Max 80% reduction**: Prevents zero precipitation (even deserts get occasional rain)
+
+**YAGNI Skipped**:
+- ❌ **Latitude-dependent wind**: Coriolis effect (trade winds, westerlies, polar easterlies) - over-engineering
+- ❌ **Seasonal variation**: Monsoons, wind shifts - adds complexity without gameplay value
+- ❌ **Windward moisture increase**: Orographic lift (mountains CREATE rain on windward side) - defer to VS_028
+
+**Visualization Integration** (2-stage rendering):
+1. **Renderer**:
+   - MapViewMode.PrecipitationBase (VS_026 output)
+   - MapViewMode.PrecipitationWithRainShadow (VS_027 output)
+
+2. **Legend**:
+   ```csharp
+   case MapViewMode.PrecipitationWithRainShadow:
+       AddLegendEntry("Brown", ..., "Dry (rain shadow deserts)");
+       AddLegendEntry("Yellow", ..., "Moderate");
+       AddLegendEntry("Blue", ..., "Wet (windward coasts)");
+   ```
+
+3. **Probe**:
+   - Show base vs rain-shadow precipitation: `"Base: 0.62 → Shadow: 0.31 (-50%)"`
+   - Show blocking factor: `"Mountain Blocking: 0.50 (50% reduction)"`
+
+**Implementation Phases**:
+
+**Phase 1: Algorithm** (~1-1.5h)
+- Implement directional upwind trace (20 cells, elevation threshold)
+- Calculate mountain blocking accumulation
+- Apply rain shadow multiplier (max 80% reduction)
+- 8-10 unit tests (single mountain, multiple mountains, edge cases)
+
+**Phase 2: Visualization** (~0.5-1h)
+- Add 2 MapViewMode values (Base, WithRainShadow)
+- Update renderer/legend/probe
+- Add UI dropdown items
+
+**Done When**:
+1. ✅ **Deserts appear on leeward side** of mountains (visual validation)
+2. ✅ **Windward side unaffected** (no moisture increase yet - correct for VS_027)
+3. ✅ **Multiple mountain ranges stack** (Himalayas create extreme Gobi dryness)
+4. ✅ **Performance acceptable** (<50ms for 512×512 upwind trace)
+5. ✅ **All tests GREEN**
+
+**Depends On**: VS_026 ✅ (base precipitation map required)
 
 ---
 
