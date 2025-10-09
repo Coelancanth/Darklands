@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-09 03:27 (Tech Lead: VS_031 created - WorldGen Debug Panel for real-time parameter tuning with stage-based caching!)
+**Last Updated**: 2025-10-10 00:05 (Product Owner: VS_032 created - Equipment Slots ONLY, thin vertical slice!)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -11,7 +11,7 @@
 
 - **Next BR**: 008
 - **Next TD**: 019
-- **Next VS**: 029
+- **Next VS**: 033
 
 
 **Protocol**: Check your type's counter → Use that number → Increment the counter → Update timestamp
@@ -68,7 +68,41 @@
 ## 🔥 Critical (Do First)
 *Blockers preventing other work, production bugs, dependencies for other features*
 
-**No critical items!** ✅ VS_021 completed and archived, VS_020 unblocked.
+### VS_032: Equipment Slots System
+**Status**: Proposed
+**Owner**: Product Owner → Tech Lead (breakdown) → Dev Engineer (implement)
+**Size**: M (6-8h)
+**Priority**: Critical (foundation for combat depth, blocks proficiency/armor/AI)
+**Markers**: [ARCHITECTURE] [DATA-DRIVEN]
+
+**What**: Equipment slot system (main hand, off hand, head, torso, legs) - actors can equip items from inventory, equipment affects combat.
+
+**Why**:
+- **Combat depth NOW** - Equipment defines capabilities (warrior with sword vs bare hands)
+- **Build variety** - Heavy armor vs light armor creates different playstyles
+- **Unblocks future** - Proficiency (track weapon usage), Ground Loot (enemies drop equipped items), Enemy AI (gear defines enemy capabilities)
+- **Foundation** - Stats/armor/proficiency ALL depend on equipment system
+
+**How** (Tech Lead to break down):
+- Equipment domain (5 slots: MainHand, OffHand, Head, Torso, Legs)
+- EquipItem/UnequipItem commands (move items between inventory ↔ equipment)
+- Equipment component (IEquipmentComponent on Actor)
+- Data-driven: ActorTemplate.tres pre-equips enemies (goblin spawns with weapon)
+
+**Done When**:
+- Warrior can equip sword from inventory → MainHand slot
+- Unequip sword → returns to inventory (spatial placement)
+- ActorTemplate.tres configures starting equipment (player.tres, goblin.tres)
+- Two-handed weapon validation (requires MainHand + OffHand both)
+- Equipment visible in UI (EquipmentSlotNode shows equipped items)
+- Tests: EquipItem, UnequipItem, two-handed logic, inventory integration (15-20 tests)
+
+**Depends On**: VS_018 ✅ (Spatial Inventory), VS_009 ✅ (Item System)
+**Blocks**: VS_033 Stats/Attributes, Proficiency System, Ground Loot, Enemy AI
+
+**Product Owner Decision** (2025-10-10): Thin scope - Equipment Slots ONLY. Defer stats/attributes/fatigue to separate VS items after this validated.
+
+---
 
 ---
 
