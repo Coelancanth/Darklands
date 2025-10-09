@@ -43,6 +43,98 @@
 
 ---
 
+## Validation Strategy (Spans All Tools)
+
+**Philosophy**: **Fail-fast at every layer** - catch errors at design-time (Godot Inspector), edit-time (Item Editor), and build-time (CI/CD). Never allow invalid data to reach production.
+
+### Three-Layer Validation
+
+**Layer 1: Design-Time Validation** (Godot Inspector + ADR-006):
+- **What**: Type checking via `[Export]` attributes
+- **When**: While designer edits .tres files in Godot Inspector
+- **Examples**:
+  - Can't assign string to int property (type mismatch)
+  - Color picker for Color properties (visual validation)
+  - Resource picker for Texture2D (ensures valid sprite paths)
+- **Enforced By**: Godot Engine (automatic)
+
+**Layer 2: Edit-Time Validation** (Item Editor - Phase 2):
+- **What**: Game-specific business rule validation
+- **When**: Before [✓ Save] button in Item Editor
+- **Examples**:
+  - Weapon requires Equippable component (dependency validation)
+  - NameKey "ITEM_IRON_SWORD" not duplicate (uniqueness check)
+  - English translation required (fallback language check)
+  - Damage range 1-100 (stat bounds validation)
+- **Enforced By**: Item Editor validation logic (real-time feedback)
+
+**Layer 3: Build-Time Validation** (CI/CD):
+- **What**: Cross-file integrity + schema validation
+- **When**: Pre-commit hooks, CI/CD pipeline
+- **Examples**:
+  - All NameKeys exist in en.csv (reference integrity)
+  - No duplicate template IDs across files (global uniqueness)
+  - All MaxHealth > 0 (data sanity checks)
+  - Optional: JSON Schema validation (hybrid approach - see below)
+- **Enforced By**: Bash scripts (`.husky/pre-commit` or GitHub Actions)
+
+**Current State**: Layers 1 + 3 implemented (ADR-006), Layer 2 planned for Phase 2 (Item Editor).
+
+---
+
+### JSON Schema Integration (Optional - Hybrid Approach)
+
+**Challenge**: Godot Resources (.tres format) ≠ JSON (can't directly use JSON Schema)
+
+**Hybrid Solution** (adopt if template count > 100):
+1. **Keep .tres format** (designer UX, hot-reload, Godot integration)
+2. **Export .tres → JSON** (temp conversion for validation)
+3. **Validate JSON** against schema (ActorTemplate.schema.json, ItemTemplate.schema.json)
+4. **Report schema errors** (integrated into build-time validation)
+
+**Workflow**:
+```bash
+# scripts/validate-templates-schema.sh (NEW - Phase 4+)
+
+for template in data/**/*.tres; do
+    # Convert .tres → temp JSON
+    godot --headless --script scripts/export-tres-to-json.gd "$template"
+
+    # Validate JSON against schema
+    jsonschema -i "$template.json" schemas/ItemTemplate.schema.json
+
+    # Cleanup temp files
+    rm "$template.json"
+done
+```
+
+**JSON Schema Benefits**:
+- ✅ **Standardized validation** (industry-standard approach)
+- ✅ **Self-documenting** (schema IS the authoritative spec)
+- ✅ **Tooling ecosystem** (JSON Schema validators, generators)
+- ✅ **CI/CD integration** (many pre-built GitHub Actions)
+
+**JSON Schema Trade-Offs**:
+- ✅ **PRO**: More robust validation than bash scripts
+- ✅ **PRO**: Schema serves as documentation
+- ❌ **CON**: Requires .tres → JSON conversion step (adds complexity)
+- ❌ **CON**: Doesn't replace Layer 2 validation (business rules need custom code)
+- ❌ **CON**: Schema files to maintain (ItemTemplate.schema.json, ActorTemplate.schema.json)
+
+**Decision Rule**: Adopt JSON Schema when:
+- Template count > **100** (validation complexity justifies schema overhead)
+- Multiple tools need validation (Template Browser, external modding tools)
+- Team wants standardized documentation (schema as source of truth)
+
+**Current Approach** (sufficient for Phase 1-3):
+- Bash scripts for build-time validation (`.husky/pre-commit`)
+- Code-based validation in GodotTemplateService (fail-fast loading)
+- Item Editor validation in Phase 2 (real-time feedback)
+
+**Related**: See [ADR-006 Validation Strategy](../../03-Reference/ADR/ADR-006-data-driven-entity-design.md#validation-strategy) for implementation details.
+
+---
+
 ## Current State
 
 **Foundation Complete**:
@@ -941,6 +1033,54 @@ Weapon = SubResource("2")
 - ✅ Designer manages 100+ items without overwhelming (search/filter essential)
 - ✅ Batch operations save hours (10 variants in 1 minute vs 20+ minutes manual)
 - ✅ Balance validation catches power creep (warnings for outliers)
+
+---
+
+### Phase 5+: Future Growth Systems (When Game Systems Expand)
+
+**DEFERRED**: Not needed for initial MVP. Build when game design requires these systems.
+
+#### Skill Tree Editor (When Skill System Added)
+
+**Trigger**: When game design adds skill/ability system (not in current roadmap)
+**Effort**: ~40-50h (node-based editor, dependency graph, effect library)
+
+**What**: Visual node editor for designing skill trees/ability progressions
+- Node-based UI (skills as nodes, dependencies as edges)
+- Effect library (reusable ability effects: DealDamage, ApplyStatus, SpawnProjectile)
+- Skill composition (combine effects like: Fireball = SpawnProjectile + AreaOfEffect + DealDamage)
+- Complex dependencies ("unlock if Level ≥ 10 AND STR ≥ 15")
+
+**Why Needed**:
+- Skill trees are complex graphs (100+ nodes, interdependencies)
+- Visual editor essential for non-programmers (text/JSON unworkable)
+- Effect reusability critical (avoid "Fireball I", "Fireball II", "Fireball III" duplication)
+
+**Inspired By**: tmp.md Section 3.2 - Modular ability systems (Diablo, Path of Exile)
+
+---
+
+#### Growth Curve Editor (When Character Progression Added)
+
+**Trigger**: When game design adds leveling/XP system (not in current roadmap)
+**Effort**: ~25-35h (curve visualization, formula editor, simulation tools)
+
+**What**: Visual editor for character stat growth curves (HP, damage, XP requirements)
+- Curve visualization (see HP growth 1-50, not just numbers)
+- Formula editor (define growth as `BaseHP * (Level ^ 1.2)`)
+- Real-time preview (adjust curve, see graph update immediately)
+- Simulation mode (simulate 1-50 leveling, show TTK at each level)
+
+**Why Needed**:
+- Growth curves define pacing (flat numbers hide leveling feel)
+- Visual feedback essential (designers iterate on curves, not formulas)
+- Simulation validates balance (catch "Level 20 too weak" before implementation)
+
+**Inspired By**: tmp.md Section 3.3 - Curve management with simulation (visualize balance issues)
+
+---
+
+**Decision**: Defer both systems until game design requires them. Focus toolchain on **items + combat** (current core loop). Add skill/growth tools ONLY when those systems validated and needed.
 
 ---
 
