@@ -195,6 +195,10 @@ public partial class EquipmentSlotNode : Control
         ClearItemSprite();
         _isDragging = true;
 
+        // BR_009 FIX: Equipment slots always use 0° rotation (canonical orientation)
+        // WHY: Equipment doesn't rotate (industry standard), always shows items at default orientation
+        InventoryContainerNode._sharedDragRotation = Core.Domain.Common.Rotation.Degrees0;
+
         // Create drag preview
         var preview = CreateDragPreview(_currentItemId.Value);
         if (preview != null)
@@ -551,15 +555,74 @@ public partial class EquipmentSlotNode : Control
         }
     }
 
+    /// <summary>
+    /// BR_009 FIX: Create rotatable drag preview (matches InventoryContainerNode pattern).
+    /// WHY: Equipment drags need to support scroll wheel rotation during drag.
+    /// </summary>
     private Control? CreateDragPreview(ItemId itemId)
     {
-        // TD_003 Phase 2: Use InventoryRenderHelper (DRY)
-        return InventoryRenderHelper.CreateDragPreview(
-            itemId,
-            _currentItemName ?? "Item",
-            _mediator,
-            _itemTileSet,
-            CellSize);
+        // Query item data for sprite rendering
+        var itemQuery = new GetItemByIdQuery(itemId);
+        var itemResult = _mediator.Send(itemQuery).Result;
+
+        if (itemResult.IsFailure || _itemTileSet == null)
+        {
+            // Fallback: Simple label
+            return new Label { Text = _currentItemName ?? "Item" };
+        }
+
+        var item = itemResult.Value;
+        var atlasSource = _itemTileSet.GetSource(0) as TileSetAtlasSource;
+        if (atlasSource == null)
+        {
+            return new Label { Text = item.Name };
+        }
+
+        // Equipment slots are 1×1 (no multi-cell items)
+        float baseSpriteWidth = CellSize;
+        float baseSpriteHeight = CellSize;
+
+        // Extract sprite from atlas
+        var tileCoords = new Vector2I(item.AtlasX, item.AtlasY);
+        var region = atlasSource.GetTileTextureRegion(tileCoords);
+        var atlasTexture = new AtlasTexture
+        {
+            Atlas = atlasSource.Texture,
+            Region = region
+        };
+
+        // Create SHARED rotatable sprite preview (matches InventoryContainerNode pattern)
+        InventoryContainerNode._sharedDragPreviewSprite = new TextureRect
+        {
+            Texture = atlasTexture,
+            TextureFilter = CanvasItem.TextureFilterEnum.Nearest,
+            StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
+            ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+            CustomMinimumSize = new Vector2(baseSpriteWidth, baseSpriteHeight),
+            Size = new Vector2(baseSpriteWidth, baseSpriteHeight),
+            Position = Vector2.Zero,
+            Rotation = RotationHelper.ToRadians(InventoryContainerNode._sharedDragRotation), // Starts at 0° (set in _GetDragData)
+            PivotOffset = new Vector2(baseSpriteWidth / 2f, baseSpriteHeight / 2f),
+            Modulate = new Color(1, 1, 1, 0.8f)
+        };
+
+        // Root container for preview (engine positions at mouse)
+        var previewRoot = new Control
+        {
+            MouseFilter = Control.MouseFilterEnum.Ignore
+        };
+
+        // Offset container centers cursor on sprite
+        var offsetContainer = new Control
+        {
+            Position = new Vector2(-baseSpriteWidth / 2f, -baseSpriteHeight / 2f),
+            CustomMinimumSize = new Vector2(baseSpriteWidth, baseSpriteHeight),
+            Size = new Vector2(baseSpriteWidth, baseSpriteHeight)
+        };
+        offsetContainer.AddChild(InventoryContainerNode._sharedDragPreviewSprite);
+        previewRoot.AddChild(offsetContainer);
+
+        return previewRoot;
     }
 
     /// <summary>

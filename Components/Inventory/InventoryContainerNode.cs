@@ -97,11 +97,13 @@ public partial class InventoryContainerNode : Control
     // PHASE 3: Drag-time rotation state (SHARED across all container instances for cross-container drag support)
     // WHY: Godot's drag data is immutable after _GetDragData, but scroll wheel rotates AFTER drag starts
     // Solution: Static variable allows target container to read latest rotation from source container
-    private static Rotation _sharedDragRotation = default(Darklands.Core.Domain.Common.Rotation);
+    // BR_009 FIX: Changed from private to internal so EquipmentSlotNode can set rotation to 0° when dragging from equipment
+    internal static Rotation _sharedDragRotation = default(Darklands.Core.Domain.Common.Rotation);
+    // BR_009 FIX: Make drag preview sprite static so equipment slots can share rotatable previews
+    internal static TextureRect? _sharedDragPreviewSprite = null; // Sprite inside preview for rotation updates (shared across all containers)
     private bool _isDragging = false; // Track if drag is active
     private ItemId? _draggingItemId = null; // Track which item is being dragged
     private Control? _dragPreviewNode = null; // Custom drag preview that we can update
-    private TextureRect? _dragPreviewSprite = null; // Sprite inside preview for rotation updates
 
     // TD_003 Phase 3: Highlight constants moved to InventoryRenderHelper (DRY)
 
@@ -200,8 +202,10 @@ public partial class InventoryContainerNode : Control
 
             // PHASE 3: Mouse scroll during drag to rotate item
             // WHY: Rotate while dragging (Tetris/Diablo UX pattern)
+            // BR_009 FIX: Check Godot's IsDragging() instead of _isDragging to support equipment → inventory drags
             // CRITICAL: Only handle when Pressed == true to avoid double-firing
-            if (_isDragging && mouseButton.Pressed &&
+            bool isAnyDragActive = GetViewport().GuiIsDragging();
+            if (isAnyDragActive && mouseButton.Pressed &&
                 (mouseButton.ButtonIndex == MouseButton.WheelDown || mouseButton.ButtonIndex == MouseButton.WheelUp))
             {
                 // Calculate new rotation (scroll DOWN = clockwise, scroll UP = counter-clockwise)
@@ -215,16 +219,16 @@ public partial class InventoryContainerNode : Control
 
                 _sharedDragRotation = newRotation;
 
-                _logger.LogInformation("ROTATION STATE: _sharedDragRotation = {SharedRotation}, _dragPreviewSprite exists: {PreviewExists}",
-                    _sharedDragRotation, _dragPreviewSprite != null);
+                _logger.LogInformation("ROTATION STATE: _sharedDragRotation = {SharedRotation}, _sharedDragPreviewSprite exists: {PreviewExists}",
+                    _sharedDragRotation, _sharedDragPreviewSprite != null);
 
                 // PHASE 3 FIX: Update sprite preview - ONLY rotation changes (single-layer approach)
                 // WHY: Container is base-sized, texture just rotates inside via PivotOffset
-                if (_dragPreviewSprite != null)
+                if (_sharedDragPreviewSprite != null)
                 {
                     // Simply update rotation - size and position stay constant!
                     var radians = RotationHelper.ToRadians(_sharedDragRotation);
-                    _dragPreviewSprite.Rotation = radians;
+                    _sharedDragPreviewSprite.Rotation = radians;
 
                     _logger.LogInformation("DRAG PREVIEW updated: rotation = {Rotation} ({Radians} rad)",
                         _sharedDragRotation, radians);
@@ -454,7 +458,7 @@ public partial class InventoryContainerNode : Control
         _isDragging = false;
         _draggingItemId = null;
         _dragPreviewNode = null;
-        _dragPreviewSprite = null;
+        _sharedDragPreviewSprite = null; // BR_009: Clear shared preview sprite reference
 
         var itemIdGuidStr = dragData["itemIdGuid"].AsString();
         var sourceActorIdGuidStr = dragData["sourceActorIdGuid"].AsString();
@@ -1221,7 +1225,8 @@ public partial class InventoryContainerNode : Control
         };
 
         // Create sprite preview (single-layer: texture fills container, rotates around center)
-        _dragPreviewSprite = new TextureRect
+        // BR_009 FIX: Use shared static sprite so equipment slots can also create rotatable previews
+        _sharedDragPreviewSprite = new TextureRect
         {
             Texture = atlasTexture,
             TextureFilter = CanvasItem.TextureFilterEnum.Nearest,
@@ -1248,7 +1253,7 @@ public partial class InventoryContainerNode : Control
             CustomMinimumSize = new Vector2(baseSpriteWidth, baseSpriteHeight),
             Size = new Vector2(baseSpriteWidth, baseSpriteHeight)
         };
-        offsetContainer.AddChild(_dragPreviewSprite);
+        offsetContainer.AddChild(_sharedDragPreviewSprite);
         previewRoot.AddChild(offsetContainer);
         _dragPreviewNode = previewRoot;
     }
