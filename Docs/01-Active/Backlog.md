@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-10 01:50 (Dev Engineer: VS_032 Phase 1 complete - EquipmentSlot enum, IEquipmentComponent interface, EquipmentComponent implementation, 20 domain tests GREEN, all 448 tests pass with zero regressions)
+**Last Updated**: 2025-10-10 02:00 (Dev Engineer: VS_032 Phase 2 complete - EquipItemCommand/UnequipItemCommand/SwapEquipmentCommand with atomic rollback, 10 integration tests GREEN, all 478 tests pass with zero regressions)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -69,8 +69,8 @@
 *Blockers preventing other work, production bugs, dependencies for other features*
 
 ### VS_032: Equipment Slots System
-**Status**: In Progress (Phase 1/6 Complete ✅)
-**Owner**: Dev Engineer (Phase 2 next - Equipment Commands)
+**Status**: In Progress (Phase 1-2/6 Complete ✅✅)
+**Owner**: Dev Engineer (Phase 3 next - Equipment Queries)
 **Size**: L (15-20h total, 6 phases)
 **Priority**: Critical (foundation for combat depth, blocks proficiency/armor/AI)
 **Markers**: [ARCHITECTURE] [DATA-DRIVEN] [BREAKING-CHANGE]
@@ -105,13 +105,24 @@
   - Test coverage: Constructor (2), EquipItem (9), UnequipItem (5), GetEquippedItem (3), IsSlotOccupied (2) = 21 scenarios
 - **Quality**: All 448 tests GREEN (428 existing + 20 new Equipment tests), zero regressions
 
-**Phase 2: Equipment Commands (Core Application)** - 4-5h
-- `EquipItemCommand(ActorId, InventoryId, ItemId, EquipmentSlot)` + Handler
+**Phase 2: Equipment Commands (Core Application)** - ✅ **COMPLETE** (2025-10-10 02:00)
+- ✅ `EquipItemCommand(ActorId, ItemId, EquipmentSlot, IsTwoHanded)` + Handler
   - ATOMIC: Remove from inventory → Add to equipment (rollback on failure)
-- `UnequipItemCommand(ActorId, InventoryId, EquipmentSlot)` + Handler
+  - Auto-adds EquipmentComponent if actor doesn't have one
+- ✅ `UnequipItemCommand(ActorId, EquipmentSlot)` + Handler
   - ATOMIC: Remove from equipment → Add to inventory (rollback on failure)
-- `SwapEquipmentCommand(ActorId, ItemId, EquipmentSlot)` + Handler (unequip → equip atomic swap)
-- Command handler tests (12-15 tests)
+  - Captures two-handed state BEFORE unequip (required for rollback)
+- ✅ `SwapEquipmentCommand(ActorId, NewItemId, EquipmentSlot, IsTwoHanded)` + Handler
+  - ATOMIC: 4-step transaction (unequip old → add old to inv → remove new from inv → equip new)
+  - Multi-level rollback (each step can fail, requires restoring all previous steps)
+- ✅ Command handler integration tests (10 tests, all GREEN)
+- **Implementation Summary**:
+  - Atomic transactions with rollback on ANY failure (no item loss/duplication)
+  - Repository pattern: IActorRepository (reference-based, no SaveAsync), IInventoryRepository (explicit SaveAsync)
+  - Two-handed weapon detection before unequip (MainHand.ItemId == OffHand.ItemId)
+  - Translation keys: ERROR_EQUIPMENT_* (ADR-005 i18n)
+  - CRITICAL logging for item loss scenarios (rollback failures)
+- **Quality**: All 478 tests GREEN (448 existing + 30 new Equipment tests), zero regressions
 
 **Phase 3: Equipment Queries (Core Application)** - 2h
 - `GetEquippedItemsQuery(ActorId)` → Dictionary<EquipmentSlot, ItemDto?>
