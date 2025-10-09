@@ -290,14 +290,14 @@ precipWithShadow[y, x] = basePrecip[y, x] * rainShadowFactor;
 
 ---
 
-### VS_028: Coastal Moisture Enhancement (Distance-to-Ocean) 🔄 IN PROGRESS
+### VS_028: Coastal Moisture Enhancement (Distance-to-Ocean) ✅ COMPLETE
 
-**Status**: Proposed | **Size**: S (3-4h estimate) | **Priority**: Next
-**Owner**: Product Owner → Tech Lead (for breakdown)
+**Status**: Complete (2025-10-09) | **Actual Size**: S (~3h) | **Priority**: Completed
+**Owner**: Dev Engineer → Archived
 
-**What**: Enhance precipitation near oceans using **distance-to-ocean BFS + exponential decay** (continentality effect), completing atmospheric climate pipeline.
+**What**: Enhanced precipitation near oceans using **distance-to-ocean BFS + exponential decay** (continentality effect), completing atmospheric climate pipeline.
 
-**Why**: Continental interiors are significantly drier than coasts in reality (Sahara interior vs West Africa coast, central Asia vs maritime climates). Creates **FINAL PRECIPITATION MAP** for erosion/rivers (VS_029).
+**Why**: Continental interiors are significantly drier than coasts in reality (Sahara interior vs West Africa coast, central Asia vs maritime climates). Created **FINAL PRECIPITATION MAP** ready for erosion/rivers (VS_029).
 
 **Three-Stage Algorithm** (physics-validated):
 ```csharp
@@ -338,21 +338,24 @@ for (each land cell) {
 - ✅ **Pacific Northwest** (wet) vs **Great Basin** (dry) - Coastal vs continental climate
 - ✅ **UK Maritime** (wet) vs **Central Asia** (dry) - Ocean proximity dominates
 
-**Implementation Phases**:
-- **Phase 0**: Update WorldGenerationResult DTOs (~15min) - Add FinalPrecipitationMap property
-- **Phase 1**: Core algorithm (~1.5-2h, TDD) - BFS distance + exponential decay + elevation resistance
-- **Phase 2**: Pipeline integration (~30min) - Stage 2d in GenerateWorldPipeline
-- **Phase 3**: Visualization (~1h) - MapViewMode.PrecipitationFinal, legends, probe, UI
+**Implementation Completed**:
+- ✅ **Phase 0**: Updated WorldGenerationResult DTOs - Added FinalPrecipitationMap property
+- ✅ **Phase 1**: Core algorithm implemented (TDD) - BFS distance + exponential decay + elevation resistance
+- ✅ **Phase 2**: Pipeline integration complete - Stage 2d in GenerateWorldPipeline
+- ✅ **Phase 3**: Visualization complete - MapViewMode.PrecipitationFinal, legends, probe, UI
 
-**Outputs**:
-- `FinalPrecipitationMap` - After all geographic effects (base + rain shadow + coastal) [0,1]
-- **READY FOR EROSION** (VS_029 uses this to spawn rivers realistically)
+**Results**:
+- ✅ `FinalPrecipitationMap` - After all geographic effects (base + rain shadow + coastal) [0,1]
+- ✅ **ATMOSPHERIC CLIMATE PIPELINE COMPLETE!** Ready for VS_029 erosion/rivers
+- ✅ Maritime vs continental patterns realistic (Seattle wet, Spokane dry)
+- ✅ 495/495 tests GREEN (100%)
+- ✅ Performance: <20ms for coastal enhancement (512×512)
 
-**Blocks**: VS_029 (erosion needs FINAL precipitation to avoid leeward deserts spawning rivers)
+**Unblocks**: VS_029 (erosion can now use FINAL precipitation for realistic river spawning)
 
-**Depends On**: VS_027 ✅ (rain shadow precipitation required as input)
+**Depended On**: VS_027 ✅ (rain shadow precipitation input)
 
-**Details**: See [Backlog.md](../../01-Active/Backlog.md) (search "VS_028")
+**Archive**: [Completed_Backlog_2025-10_Part3.md](../../07-Archive/Completed_Backlog_2025-10_Part3.md) (search "VS_028")
 
 ---
 
@@ -362,202 +365,468 @@ for (each land cell) {
 
 **Philosophy**: Slow geological processes (millions of years) that modify terrain based on atmospheric climate
 
-### VS_029: Erosion & Rivers (Hydraulic Erosion) ⏳ PLANNED
+### VS_029: Particle-Based Hydraulic Erosion & Rivers ⏳ PLANNED
 
-**Status**: Proposed | **Size**: M (8-10h estimate) | **Priority**: After VS_028
-**Owner**: Product Owner → Tech Lead (for detailed breakdown)
+**Status**: Proposed (Architecture Finalized) | **Size**: L (20-28h estimate) | **Priority**: After VS_028
+**Owner**: Tech Lead → Dev Engineer (implement)
 
-**What**: Generate rivers and carve realistic valleys using **hydraulic erosion simulation** (river source detection, path tracing, valley carving) - WorldEngine `erosion.py` port.
+**What**: Generate rivers and carve realistic valleys using **particle-based hydraulic erosion simulation** (SimpleHydrology algorithm + improvements) - precipitation-weighted particles with momentum field feedback create emergent meandering rivers.
 
 **Why**:
-- Realistic terrain requires water erosion (valleys, river networks)
-- Rivers spawn in wet mountains (uses FINAL PRECIPITATION from VS_028)
-- Flow to ocean/lakes, carve valleys over geological time
-- Critical for gameplay (river resources, navigation, terrain tactics)
-- Foundation for swamps (poor drainage detection)
+- **Better physics** than greedy tracing - particles simulate actual water flow with momentum/inertia
+- **Natural meandering** - field feedback creates emergent river curves (not algorithmic straight paths)
+- **Proven algorithm** - SimpleHydrology (Nick McDonald, 2020-2023) validated with real screenshots
+- **Simpler architecture** - 2 phases (simulate → extract) vs 4 phases (accumulate → trace → carve → polish)
+- **Lower risk** - Real C++ implementation to port (not theoretical design)
 
-**Three-Phase Erosion Process** (WorldEngine-validated):
+**Key Architectural Decisions**:
 
-**1. River Source Detection** (mountains + high precipitation):
+**1. SimpleHydrology Foundation + 3 Improvements**:
+```
+✅ Port: Particle physics (gravity, momentum, erosion, deposition)
+✅ Port: Momentum field feedback (particles align with prevailing flow)
+✅ Port: Discharge field tracking (continuous flow accumulation)
+✅ NEW: Precipitation-weighted seeding (spawn more in wet highlands)
+✅ NEW: Scale-aware parameter normalization (semantic params work on ANY map size)
+✅ NEW: River/lake extraction (continuous fields → discrete WaterType markers)
+```
+
+**2. Two-Layer Parameter System** (solves interdependency problem):
 ```csharp
-// Uses FINAL PRECIPITATION from VS_028 (all geographic effects applied!)
-foreach (var mountainCell in GetMountainCells(elevation, mountainThreshold)) {
-    float accumulatedRainfall = SimulateFlowAccumulation(mountainCell, finalPrecipitation);
-    if (accumulatedRainfall > RIVER_THRESHOLD) {
-        // Filter: min 9-cell spacing to prevent river overlap
-        if (!HasNearbyRiverSource(mountainCell, riverSources, radius: 9)) {
-            riverSources.Add(mountainCell);
-        }
+// HIGH-LEVEL (Designer Interface - semantic params [0-1])
+public class SemanticHydrologyParams {
+    [Range(0, 1)] public float RiverDensity = 0.5f;      // How many rivers?
+    [Range(0, 1)] public float RiverMeandering = 0.5f;   // How curvy?
+    [Range(0, 1)] public float ValleyDepth = 0.5f;       // How carved?
+    [Range(0, 1)] public float ErosionSpeed = 0.5f;      // Fast/slow sim?
+
+    // LOW-LEVEL (Physics Engine - derived automatically!)
+    public PhysicsParams ToPhysics(MapContext context) {
+        // Scale-aware normalization (works on 256×256, 512×512, 1024×1024)
+        float sizeRatio = context.MapSize / 512f;
+
+        return new PhysicsParams {
+            // SCALED parameters (adjust for map size)
+            MaxParticleAge = (int)(Lerp(100, 500, ErosionSpeed) * sizeRatio),
+            ParticlesPerCycle = (int)(Lerp(100, 5000, RiverDensity) * sizeRatio * sizeRatio),
+            MomentumTransfer = Lerp(0.1f, 2.0f, RiverMeandering) * sizeRatio,
+            Gravity = Lerp(2.0f, 0.5f, RiverMeandering) / sizeRatio,
+
+            // ROUGHNESS-adjusted (terrain-aware)
+            Entrainment = Lerp(2.0f, 20.0f, ValleyDepth) * (context.TerrainRoughness / 0.15f),
+
+            // FIXED parameters (naturally scale-independent)
+            DepositionRate = Lerp(0.3f, 0.05f, ValleyDepth),
+            EvaporationRate = 0.001f,
+            MinVolume = 0.01f,
+            FieldSmoothingRate = 0.1f
+        };
     }
 }
 ```
 
-**2. River Path Tracing** (downhill flow to ocean/lakes):
+**3. Particle Physics Algorithm** (SimpleHydrology `water.h` port):
 ```csharp
-foreach (var source in riverSources) {
-    List<Position> riverPath = new();
-    Position current = source;
+// Each particle lifecycle (~100-500 steps):
+public bool SimulateParticle(
+    Particle p,
+    float[,] heightmap,
+    float[,] discharge,      // Flow accumulation field
+    float[,] momentumX,      // Prevailing flow direction X
+    float[,] momentumY)      // Prevailing flow direction Y
+{
+    // 1. Gravity force (terrain slope)
+    var gradient = ComputeGradient(heightmap, p.Position);
+    p.Speed += Gravity * -gradient / p.Volume;
 
-    while (!IsOcean(current)) {
-        // Find steepest descent neighbor
-        Position next = FindSteepestDescentNeighbor(current, elevation);
-
-        // A* pathfinding fallback for local minima (challenging terrain)
-        if (next == null) {
-            next = AStarToOcean(current, elevation);
-        }
-
-        // Merge into existing rivers when encountered (tributary system)
-        if (IsExistingRiver(next, rivers)) {
-            MergeIntoRiver(riverPath, next, rivers);
-            break;
-        }
-
-        riverPath.Add(next);
-        current = next;
+    // 2. Momentum field feedback (KEY: particles align with existing flow!)
+    var fieldMomentum = new Vector2(momentumX[p.Position], momentumY[p.Position]);
+    if (fieldMomentum.Length() > 0 && p.Speed.Length() > 0) {
+        float alignment = Vector2.Dot(fieldMomentum.Normalized(), p.Speed.Normalized());
+        p.Speed += MomentumTransfer * alignment / (p.Volume + discharge[p.Position]) * fieldMomentum;
     }
 
-    // Dead-ends form lakes (endorheic basins)
-    if (!IsOcean(current)) {
-        lakes.Add(current);
+    // 3. Move particle (normalized speed)
+    p.Position += p.Speed.Normalized() * CellSize;
+
+    // 4. Track discharge and momentum (build fields for next particles!)
+    discharge[p.Position] += p.Volume;
+    momentumX[p.Position] += p.Volume * p.Speed.X;
+    momentumY[p.Position] += p.Volume * p.Speed.Y;
+
+    // 5. Erosion/deposition (physics-based terrain modification)
+    float heightDiff = heightmap[p.Position] - heightmap[NextPosition(p)];
+    float sedimentCapacity = (1.0f + Entrainment * discharge[p.Position]) * heightDiff;
+    float sedimentChange = DepositionRate * (sedimentCapacity - p.Sediment);
+
+    p.Sediment += sedimentChange;
+    heightmap[p.Position] -= sedimentChange;
+
+    // 6. Evaporate
+    p.Volume *= (1.0f - EvaporationRate);
+    p.Sediment /= (1.0f - EvaporationRate);
+
+    // Termination checks
+    if (p.Age > MaxParticleAge || p.Volume < MinVolume || OutOfBounds(p.Position)) {
+        heightmap[p.Position] += p.Sediment;  // Deposit remaining sediment
+        return false;
     }
 
-    rivers.Add(riverPath);
+    p.Age++;
+    return true;  // Continue simulating
 }
+
+// Field smoothing (exponential moving average creates persistent channels)
+for each cell:
+    discharge[cell] = 0.9f * discharge[cell] + 0.1f * dischargeTrack[cell];
+    momentumX[cell] = 0.9f * momentumX[cell] + 0.1f * momentumXTrack[cell];
+    momentumY[cell] = 0.9f * momentumY[cell] + 0.1f * momentumYTrack[cell];
 ```
 
-**3. Valley Carving** (gentle erosion around river paths):
+**4. River/Lake Extraction** (continuous fields → discrete markers):
 ```csharp
-foreach (var river in rivers) {
-    foreach (var riverCell in river) {
-        // Radius 2 erosion (subtle valleys, not canyons)
-        foreach (var neighbor in GetNeighborsInRadius(riverCell, radius: 2)) {
-            if (elevation[neighbor] > elevation[riverCell]) {
-                // Curve factors: 0.2 (adjacent), 0.05 (diagonal) - gentle shaping
-                float curveFactor = IsAdjacent(neighbor, riverCell) ? 0.2f : 0.05f;
-                float erosion = (elevation[neighbor] - elevation[riverCell]) * curveFactor;
-                elevation[neighbor] -= erosion;
-            }
-        }
-    }
+// After particle simulation, classify cells by discharge + momentum
+public enum WaterType { Dry, Creek, Stream, River, Lake }
 
-    // Elevation monotonicity cleanup (rivers flow downhill smoothly)
-    CleanUpFlow(river, elevation);  // If cell higher than previous, lower to previous
+public WaterType ClassifyWater(float discharge, float momentumMag, float height) {
+    if (discharge < 0.001f) return WaterType.Dry;
+
+    // Lake: High discharge + low momentum (water pools, doesn't flow!)
+    if (discharge > 0.1f && momentumMag < 0.05f)
+        return WaterType.Lake;
+
+    // Rivers: Threshold by flow volume
+    if (discharge > 0.5f) return WaterType.River;
+    if (discharge > 0.1f) return WaterType.Stream;
+    if (discharge > 0.01f) return WaterType.Creek;
+
+    return WaterType.Dry;
+}
+
+// Extract river paths and lake regions (connected components)
+public HydrologyFeatures ExtractFeatures(ErosionResult erosion) {
+    var waterMap = ClassifyCells(erosion.DischargeMap, erosion.MomentumMaps);
+    var rivers = ExtractRivers(waterMap, erosion);   // Trace high-discharge paths
+    var lakes = ExtractLakes(waterMap, erosion);     // Floodfill low-momentum regions
+    return new HydrologyFeatures(waterMap, rivers, lakes);
 }
 ```
 
 **Key Outputs**:
-- `ErodedHeightmap` - Valleys carved (MODIFIES heightmap!) [0.1-20 RAW units]
-- `Rivers` - List<River> (path coordinates + ocean-reached flag)
-- `Lakes` - List<Position> (endorheic basin locations)
+- `ErodedHeightmap` - Valleys carved naturally by particle erosion [0.1-20 RAW units]
+- `DischargeMap` - Continuous flow accumulation [0-1+] (serves as watermap!)
+- `MomentumXMap`, `MomentumYMap` - Prevailing flow direction [-1, +1]
+- `WaterMap` - Discrete markers per cell (Dry/Creek/Stream/River/Lake)
+- `Rivers` - List<River> (extracted paths + metadata)
+- `Lakes` - List<Lake> (extracted regions + metadata)
 
 **Critical Architectural Decision**:
-**Rivers use FINAL PRECIPITATION (VS_028 output)**, not base precipitation!
+**Particles spawn weighted by FINAL PRECIPITATION (VS_028 output)**, not uniform random!
 
 **Why this matters**:
 ```
-Scenario: Leeward Mountain (Rain Shadow Desert)
-- Base precipitation: 0.8 (high - noise + temperature)
-- Rain shadow effect: -60% → 0.32 (low - mountain blocking)
-- Coastal effect: Inland → 0.32 (no change)
-- FINAL precipitation: 0.32 (dry desert)
-- River source? NO (too dry) ✓ REALISTIC
+Leeward Desert (FINAL precip = 0.32):
+- Particle density: LOW (few particles spawned)
+- Rivers: RARE (insufficient erosion to form channels)
+✓ REALISTIC
 
-Scenario: Windward Coastal Mountain
-- Base precipitation: 0.6 (medium)
-- Rain shadow effect: 0% (windward side, no blocking)
-- Coastal effect: +50% → 0.9 (very wet)
-- FINAL precipitation: 0.9 (wet maritime)
-- River source? YES (very wet) ✓ REALISTIC
+Windward Coastal Mountain (FINAL precip = 0.9):
+- Particle density: HIGH (many particles spawned)
+- Rivers: DENSE (strong erosion creates valleys)
+✓ REALISTIC
 ```
 
-**Implementation**: Port WorldEngine `erosion.py` (403 lines → ~500 lines C#) - See TD_009 Phase 1 for detailed algorithm breakdown
+**Implementation Phases** (C++ → C# port):
+
+**Phase 1: Particle Physics** (~8h)
+- Port `Drop` struct from `water.h` (gravity, momentum, erosion, deposition)
+- Port field tracking (discharge, momentumX, momentumY)
+- Unit tests: Single particle lifecycle (physics correctness)
+
+**Phase 2: Field Management** (~3h)
+- Add `ErosionFields` DTO (discharge, momentum maps)
+- Implement exponential smoothing (field persistence)
+- Unit tests: Multi-particle interactions (field feedback)
+
+**Phase 3: Precipitation-Weighted Seeding** (~2h)
+- Weighted random sampling from FINAL precipitation map
+- More particles in wet highlands (vs uniform SimpleHydrology)
+- Unit tests: Seeding distribution matches precipitation
+
+**Phase 4: Scale-Aware Parameters** (~3h)
+- Implement `ScaleAwareHydrologyParams.ToPhysics()`
+- Auto-detect `MapContext` (size, roughness)
+- Unit tests: Cross-scale consistency (256/512/1024)
+
+**Phase 5: River/Lake Extraction** (~4h)
+- Classify cells (continuous → discrete WaterType)
+- Extract river paths (trace high-discharge connected components)
+- Extract lake regions (floodfill low-momentum pools)
+- Unit tests: Classification accuracy, feature extraction
+
+**Phase 6: Integration & Tuning** (~4-6h)
+- Wire into pipeline after VS_028
+- Use VS_031 debug panel for parameter tuning
+- Visual validation (meandering rivers, lakes in basins)
+- Performance optimization (<500ms for 512×512)
 
 **Done When**:
-1. Rivers spawn in realistically wet locations (FINAL precipitation input)
-2. Rivers flow downhill to ocean or form lakes
-3. Valleys carved around river paths (subtle, radius 2)
-4. Eroded heightmap smoother than input (realistic weathering)
-5. All tests GREEN + 10-12 new erosion/river tests
+1. Particles simulate with physics (gravity + momentum field + erosion)
+2. Rivers meander naturally (field feedback creates curves, not straight greedy paths!)
+3. Discharge map serves as flow accumulation (no separate watermap needed)
+4. WaterMap classifies cells (Dry/Creek/Stream/River/Lake)
+5. Rivers/lakes extracted as discrete features (gameplay integration)
+6. Scale-aware params work on 256×256, 512×512, 1024×1024 (same presets!)
+7. All 495+ existing tests GREEN + 18-20 new particle/erosion tests
+8. Performance <500ms for 512×512 (particle simulation + extraction)
 
-**Depends On**: VS_028 ✅ (FINAL precipitation required for realistic river sources)
+**Depends On**: VS_028 ✅ (FINAL precipitation required for realistic particle seeding)
 
 **Blocks**:
-- Watermap Simulation (needs rivers for flow accumulation)
-- Swamps (needs erosion data for drainage detection)
+- Irrigation & Humidity (uses discharge map as watermap - no separate simulation needed!)
 - Biomes (uses eroded terrain + humidity)
+- Swamps (uses discharge + momentum for drainage detection)
 
-**Details**: See [Backlog.md](../../01-Active/Backlog.md) (search "VS_029")
+**Benefits Over Original Greedy Approach**:
+- ✅ **8-10h time savings** (20-28h vs 28-40h for greedy + polish)
+- ✅ **Beautiful rivers immediately** (no intermediate "functional but ugly" phase)
+- ✅ **Proven algorithm** (SimpleHydrology screenshots validate quality)
+- ✅ **Better physics** (erosion causes rivers, not rivers cause erosion)
+- ✅ **Simpler codebase** (3 core algorithms vs 7)
 
 ---
 
-### Watermap Simulation ⏳ PLANNED
+### VS_031: WorldGen Debug Panel (Real-Time Parameter Tuning) ⏳ PLANNED
 
-**Status**: Proposed (VS_022 Phase 4) | **Size**: M (~3-4h)
+**Status**: Proposed (Implement after VS_029) | **Size**: M (6-8h estimate) | **Priority**: ESSENTIAL for VS_029
+**Owner**: Product Owner → Dev Engineer (implement)
 
-**What**: Droplet flow model simulating water accumulation from precipitation
+**What**: Real-time parameter tuning UI panel for world generation with **incremental stage-based regeneration** - instantly see the impact of semantic parameter changes without full world regeneration.
 
-**Algorithm** (WorldEngine `hydrology.py`):
+**Why**:
+- **VS_029 has 4 semantic parameters** that need tuning (RiverDensity, RiverMeandering, ValleyDepth, ErosionSpeed)
+- **Guess-compile-test cycle is slow** - Changing parameters requires regenerating entire world (~2s)
+- **Visual feedback critical** - Particle erosion parameters interact in non-obvious ways (momentum vs gravity tradeoff!)
+- **Artist-friendly** - Non-programmers can discover optimal values through experimentation
+- **25× faster iteration** - 0.2s stage-3-only regen vs 2s full world regen
+
+**Key Features**:
+
+**1. Stage-Based Cache Architecture** (only regenerate changed stages):
 ```csharp
-// 1. Seed droplets on random land positions (weighted by FINAL precipitation)
-int dropletCount = 20000;
-for (int i = 0; i < dropletCount; i++) {
-    Position start = SampleLandCellWeightedByPrecipitation(finalPrecipitation);
-    float quantity = finalPrecipitation[start.Y, start.X];
-    SimulateDroplet(start, quantity, elevation, watermap);
+public class WorldGenCache {
+    // Stage 1: Plate Tectonics (~1.5s to regenerate)
+    public float[,] PostProcessedHeightmap { get; set; }
+    public bool[,] OceanMask { get; set; }
+
+    // Stage 2: Climate (~0.1s)
+    public float[,] TemperatureMap { get; set; }
+    public float[,] FinalPrecipitationMap { get; set; }
+
+    // Stage 3: Erosion (VS_029 - ~0.5s) ✨
+    public float[,] ErodedHeightmap { get; set; }
+    public float[,] DischargeMap { get; set; }
+    public List<River> Rivers { get; set; }
+    public List<Lake> Lakes { get; set; }
+
+    // Future stages...
 }
 
-// 2. Recursive droplet flow (accumulates downhill)
-void SimulateDroplet(Position pos, float quantity, float[,] elevation, float[,] watermap) {
-    watermap[pos.Y, pos.X] += quantity;
+// Only regenerate stages AFTER the changed parameter
+public void RegenerateFromStage(WorldGenStage stage, WorldGenParams newParams) {
+    switch (stage) {
+        case WorldGenStage.Erosion:
+            // ✨ FAST! Reuses cached heightmap + climate (0.5s!)
+            var erosion = _erosionProcessor.Process(
+                _cache.PostProcessedHeightmap,
+                _cache.OceanMask,
+                _cache.FinalPrecipitationMap,
+                newParams.SemanticErosion);  // Only erosion params changed!
 
-    // Find lower neighbors
-    var lowerNeighbors = GetNeighbors(pos).Where(n => elevation[n] < elevation[pos]);
-    if (!lowerNeighbors.Any()) return;  // Local minimum, stop
-
-    // Distribute quantity proportionally by elevation difference
-    float totalDrop = lowerNeighbors.Sum(n => elevation[pos] - elevation[n]);
-    foreach (var neighbor in lowerNeighbors) {
-        float proportion = (elevation[pos] - elevation[neighbor]) / totalDrop;
-        SimulateDroplet(neighbor, quantity * proportion, elevation, watermap);
+            _cache.ErodedHeightmap = erosion.ErodedHeightmap;
+            _cache.Rivers = erosion.Rivers;
+            _cache.Lakes = erosion.Lakes;
+            break;
     }
-}
 
-// 3. Calculate quantile thresholds (adaptive creek/river/main river classification)
-var thresholds = CalculatePercentiles(watermap, landCellsOnly);
-// Creek: 5th percentile (small streams)
-// River: 2nd percentile (medium rivers)
-// Main River: 0.7th percentile (major rivers)
+    _worldView.DisplayWorld(_cache);  // Update visualization immediately
+}
 ```
 
-**Key Outputs**:
-- `Watermap` - Flow accumulation per cell [0,∞) (higher = more water flowing through)
-- `WatermapThresholds` - Quantile-based (Creek, River, MainRiver)
+**2. Semantic Parameter UI** (hide physics complexity):
+```
+┌─────────────────────────────────────────────────────────┐
+│ WorldGen Debug Panel                                    │
+├─────────────────────────────────────────────────────────┤
+│ Map Context (Auto-Detected):                           │
+│   Size: 512×512  Roughness: 0.147  Scale: 1.0×        │
+│                                                         │
+│ Stage 3: Erosion & Rivers ⚙️                           │
+│ ┌─────────────────────────────────────────────────┐   │
+│ │ River Density     [====|====] 0.50              │   │
+│ │ River Meandering  [==|======] 0.70 (curvy!)     │   │
+│ │ Valley Depth      [======|==] 0.30              │   │
+│ │ Erosion Speed     [===|=====] 0.60              │   │
+│ │                                                  │   │
+│ │ [▼] Show Physics Parameters (Expert Mode)       │   │
+│ │   → gravity: 0.65  momentumTransfer: 1.80       │   │
+│ │   → entrainment: 8.4  depositionRate: 0.135     │   │
+│ │   → particles: 2800  maxAge: 400                │   │
+│ │                                                  │   │
+│ │ Presets: [Earth] [Mountains] [Desert] [Custom]  │   │
+│ │                                                  │   │
+│ │ [Regenerate Stage 3+] (~0.5s) ✨                │   │
+│ └─────────────────────────────────────────────────┘   │
+│                                                         │
+│ Simulate Different Scale:                              │
+│   Test Map Size: [256] [512✓] [1024]                  │
+│   (Preview how params scale without regenerating)      │
+└─────────────────────────────────────────────────────────┘
+```
 
-**Why Droplet Model** (not naive flow):
-- Handles complex terrain (multiple outlets, lakes, flat areas)
-- Sampling weighted by precipitation (wet mountains generate more flow)
-- Accumulative (downstream rivers larger than upstream tributaries)
+**3. Preset System** (ship with expert-tuned presets):
+```json
+// presets/earth_like.json
+{
+  "name": "Earth-Like Rivers",
+  "description": "Moderate river density with natural meandering",
+  "params": {
+    "riverDensity": 0.4,
+    "riverMeandering": 0.6,
+    "valleyDepth": 0.3,
+    "erosionSpeed": 0.5
+  }
+}
+
+// presets/mountain_planet.json
+{
+  "name": "Mountain Planet",
+  "description": "Many steep mountain streams with deep gorges",
+  "params": {
+    "riverDensity": 0.7,
+    "riverMeandering": 0.3,
+    "valleyDepth": 0.8,
+    "erosionSpeed": 0.4
+  }
+}
+```
+
+**Implementation Phases**:
+
+**Phase 1: Stage-Based Cache** (~2h)
+- Implement `WorldGenCache` with all stage outputs
+- Add `RegenerateFromStage()` with fallthrough logic
+- Unit tests: Cache invalidation triggers correct stages
+
+**Phase 2: Godot UI Panel** (~3h)
+- Create `WorldGenDebugPanel.tscn` (collapsible stage sections)
+- Semantic parameter sliders (HSlider + SpinBox linked)
+- "Regenerate Stage X+" buttons with timing estimates
+- Expert mode toggle (show/hide physics params)
+
+**Phase 3: Preset System** (~1-2h)
+- JSON serialization (`PresetManager` service)
+- Load/save preset buttons
+- Ship with 3-5 example presets (Earth, Mountains, Desert, Islands)
+
+**Phase 4: Scale Preview** (~1h)
+- "Test Map Size" dropdown (256/512/1024)
+- Preview physics param scaling WITHOUT regenerating
+- Shows how params adapt to different map sizes
+
+**Key Outputs**:
+- Interactive UI panel with stage-based regen
+- 25× faster iteration for erosion tuning (0.5s vs 2s)
+- Preset system for sharing parameter sets
+- Expert mode for physics debugging
+
+**Performance Targets**:
+- **Stage 3 (Erosion) regen**: <500ms (instant feedback!)
+- **Stage 2 (Climate) regen**: <200ms (smooth iteration)
+- **Stage 1 (Tectonics) regen**: ~1.5s (only when changing seed)
+
+**Done When**:
+1. All semantic parameters exposed in UI (4 for erosion, future: climate, elevation)
+2. Stage-based incremental regeneration working (cache reuse)
+3. Erosion parameter changes update world in <500ms (real-time tuning!)
+4. Preset save/load working (JSON serialization)
+5. Ships with 3-5 example presets (Earth, Mountains, Desert, Islands, Pangaea)
+6. UI responsive (no freezing during regeneration)
+7. Panel toggleable via debug menu or F3 hotkey
+8. Expert mode shows derived physics params (debugging)
+9. All existing tests remain GREEN (no regression)
+
+**Depends On**:
+- VS_029 ✅ (erosion semantic params are primary use case!)
+- Existing climate/elevation stages (VS_024-028)
+
+**Blocks**: Nothing (pure debug tool, worldgen works without it)
+
+**Benefits**:
+- 🎯 **ESSENTIAL for VS_029** - Particle erosion has 4 semantic params needing tuning
+- 🎯 **25× faster iteration** - 0.5s vs 2s for erosion param changes
+- 🎯 **Designer-friendly** - 4 sliders vs 10+ physics constants
+- 🎯 **Preset portability** - Presets work on ANY map size (scale-aware normalization!)
+- 🎯 **Expert accessible** - Physics params visible in expert mode
+
+---
+
+### Watermap Simulation ⏳ REPLACED BY VS_029
+
+**Status**: ~~Proposed~~ **REPLACED** - VS_029 discharge map serves as watermap!
+**Previous Size**: M (~3-4h) → **Saved by using discharge field**
+
+**What** (ORIGINAL PLAN): Droplet flow model simulating water accumulation from precipitation
+
+**ARCHITECTURAL CHANGE**: VS_029's particle simulation **already produces** a discharge map (flow accumulation field). This discharge map IS the watermap - no separate simulation needed!
+
+**Why VS_029 Discharge Map is Better**:
+- ✅ **Already computed** - Particles track discharge as they flow (no extra simulation!)
+- ✅ **More accurate** - Real erosion physics vs simplified droplet model
+- ✅ **Better performance** - One simulation vs two (saves ~3-4h implementation + runtime)
+- ✅ **Unified data** - Discharge field serves triple duty (erosion, watermap, irrigation)
+
+**How It Works** (from VS_029):
+```csharp
+// During particle simulation (VS_029):
+for each particle:
+    discharge[particle.Position] += particle.Volume;  // Track flow!
+
+// After simulation:
+var dischargeMap = ApplyExponentialSmoothing(discharge);  // Persistent channels
+
+// Use as watermap for irrigation:
+var irrigationInput = dischargeMap;  // Direct reuse!
+```
+
+**Key Outputs** (from VS_029):
+- `DischargeMap` - Flow accumulation per cell [0,1+] ← **This IS the watermap!**
+- `WaterMap` - Discrete classification (Dry/Creek/Stream/River/Lake) ← Thresholded discharge
 
 **Visual Representation** (Presentation layer):
-- Creek: Thin blue line (watermap > creek threshold)
-- River: Medium blue line (watermap > river threshold)
-- Main River: Thick blue line (watermap > main river threshold)
+- Use `WaterMap` enum for rendering (already classified by VS_029!)
+- Creek/Stream/River distinction built into extraction algorithm
+- No separate watermap thresholds needed (VS_029 handles this)
 
-**Depends On**: VS_029 ✅ (eroded terrain required for realistic flow paths)
+**Time Savings**: ~3-4h implementation + faster runtime (one simulation instead of two)
+
+**Depends On**: VS_029 ✅ (discharge map output)
 
 ---
 
 ### Irrigation & Humidity ⏳ PLANNED
 
-**Status**: Proposed (VS_022 Phase 5) | **Size**: M (~3-4h)
+**Status**: Proposed (VS_022 Phase 4 - renumbered after watermap removal) | **Size**: M (~3-4h)
 
 **What**: Moisture spreading from waterways + combined precipitation/irrigation for biome classification
 
 **Two-Step Process** (WorldEngine `irrigation.py` + `humidity.py`):
 
-**1. Irrigation** (logarithmic moisture spreading):
+**1. Irrigation** (logarithmic moisture spreading from VS_029 discharge map):
 ```csharp
+// Use VS_029's discharge map as watermap input (no separate watermap needed!)
+var watermap = erosionResult.DischargeMap;  // Flow accumulation from particles
+
 // For each cell, spread moisture from nearby water
 for (int y = 0; y < height; y++) {
     for (int x = 0; x < width; x++) {
