@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-10 02:08 (Dev Engineer: VS_032 Phase 3 complete - GetEquippedItemsQuery/GetEquippedWeaponQuery for UI + combat, 10 query tests GREEN, all 488 tests pass with zero regressions)
+**Last Updated**: 2025-10-10 02:27 (Dev Engineer: VS_032 Phase 4 complete - Equipment Presentation with parent-driven data flow, EquipmentPanelNode + refactored EquipmentSlotNode, all 488 tests GREEN)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -69,8 +69,8 @@
 *Blockers preventing other work, production bugs, dependencies for other features*
 
 ### VS_032: Equipment Slots System
-**Status**: In Progress (Phase 1-3/6 Complete ✅✅✅)
-**Owner**: Dev Engineer (Phase 4 next - Equipment Presentation)
+**Status**: In Progress (Phase 1-4/6 Complete ✅✅✅✅)
+**Owner**: Dev Engineer (Phase 5 next - Data-Driven Equipment)
 **Size**: L (15-20h total, 6 phases)
 **Priority**: Critical (foundation for combat depth, blocks proficiency/armor/AI)
 **Markers**: [ARCHITECTURE] [DATA-DRIVEN] [BREAKING-CHANGE]
@@ -139,11 +139,29 @@
   - No equipment component = GetEquippedItems returns empty dict, GetEquippedWeapon returns failure
 - **Quality**: All 488 tests GREEN (448 existing + 40 new Equipment tests), zero regressions
 
-**Phase 4: Equipment Presentation** - 3-4h
-- Update `EquipmentSlotNode.cs`: Replace GetInventoryQuery with GetEquippedItemsQuery
-- Create `EquipmentPanelNode.cs`: VBoxContainer with 5 EquipmentSlotNodes (MainHand, OffHand, Head, Torso, Legs)
-- Update drag-drop to call EquipItemCommand (not MoveItemBetweenContainersCommand)
-- Update `SpatialInventoryTestController.cs`: Replace weapon slot → EquipmentPanelNode
+**Phase 4: Equipment Presentation** - ✅ **COMPLETE** (2025-10-10 02:27)
+- ✅ Created `EquipmentPanelNode.cs` (257 lines): VBoxContainer managing 5 equipment slots
+  - Parent-driven data pattern: Queries `GetEquippedItemsQuery` ONCE (efficient!)
+  - Pushes `ItemDto` to child slots via `UpdateDisplay()` method
+  - Re-emits signals for cross-container refresh in test controller
+- ✅ Refactored `EquipmentSlotNode.cs` (587 lines): Equipment-based (not Inventory-based)
+  - **Added**: `EquipmentSlot Slot` property, `UpdateDisplay(ItemDto?)` for parent-driven data
+  - **Removed**: `LoadSlotAsync()` self-loading (parent panel owns data queries now)
+  - **Simplified**: `_CanDropData()` uses cached `_currentItemId` (80% query reduction!)
+  - **Updated**: Commands use `EquipItemCommand`, `UnequipItemCommand`, `SwapEquipmentCommand`
+  - **Added**: `ValidateItemTypeForSlot()` - basic weapon/armor type checking
+- ✅ Updated `SpatialInventoryTestController.cs`: Replaced single weapon slot → EquipmentPanelNode
+  - Panel displays all 5 slots: **MainHand, OffHand, Head, Torso, Legs**
+  - Integrated into cross-container refresh system
+- ✅ Updated `SpatialInventoryTestScene.tscn`: Increased placeholder height (150×600), updated instructions
+- **Implementation Summary**:
+  - **Efficiency**: 1 query for all slots (vs 5 queries/refresh) = 80% reduction
+  - **Performance**: 0 queries during drag (vs 30-60/sec) - uses cached state
+  - **Unidirectional data flow**: Commands up (slot → panel), data down (panel → slots)
+  - **Layout fix**: VBoxContainer with proper spacing (separation: 8px, min sizes enforced)
+  - **Type validation**: Weapons to MainHand/OffHand, armor to Head/Torso/Legs
+- **Quality**: All 488 tests GREEN (448 existing + 40 Equipment tests), zero regressions
+- **Manual Testing Ready**: Open SpatialInventoryTestScene, test drag-drop equip/unequip/swap with 5 visible slots
 
 **Phase 5: Data-Driven Equipment (ADR-006)** - 2h
 - Add `StartingEquipment` property to ActorTemplate (Dictionary<EquipmentSlot, string>)

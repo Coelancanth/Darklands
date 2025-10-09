@@ -480,11 +480,26 @@ public partial class InventoryContainerNode : Control
         var itemId = new ItemId(itemIdGuid);
         var sourceActorId = new ActorId(sourceActorIdGuid);
 
-        // TD_003 Phase 3: Inventory containers always do regular moves (swap logic moved to EquipmentSlotNode)
-        _logger.LogInformation("Drop confirmed: Moving item {ItemId} to ({X}, {Y}) with rotation {Rotation}",
-            itemId, targetPos.Value.X, targetPos.Value.Y, dropRotation);
+        // VS_032 Phase 4 Option B: Detect equipment source and unequip instead of move
+        bool isEquipmentSource = dragData.ContainsKey("sourceSlot");
 
-        MoveItemAsync(sourceActorId, itemId, targetPos.Value, dropRotation);
+        if (isEquipmentSource)
+        {
+            // Source: Equipment Slot → Target: Inventory Container (Option B - Unequip)
+            var sourceSlot = (Darklands.Core.Features.Equipment.Domain.EquipmentSlot)dragData["sourceSlot"].AsInt32();
+            _logger.LogInformation("Drop confirmed: Unequipping item {ItemId} from {SourceSlot} to inventory at ({X}, {Y})",
+                itemId, sourceSlot, targetPos.Value.X, targetPos.Value.Y);
+
+            UnequipItemAsync(sourceActorId, itemId, sourceSlot, targetPos.Value, dropRotation);
+        }
+        else
+        {
+            // Source: Inventory → Target: Inventory (original behavior)
+            _logger.LogInformation("Drop confirmed: Moving item {ItemId} to ({X}, {Y}) with rotation {Rotation}",
+                itemId, targetPos.Value.X, targetPos.Value.Y, dropRotation);
+
+            MoveItemAsync(sourceActorId, itemId, targetPos.Value, dropRotation);
+        }
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1057,6 +1072,80 @@ public partial class InventoryContainerNode : Control
 
         // Emit signal to notify parent controller
         // WHY: Cross-container moves affect both source and target inventories
+        EmitSignal(SignalName.InventoryChanged);
+    }
+
+    /// <summary>
+    /// Unequips item from equipment slot and places it in this inventory container.
+    /// VS_032 Phase 4 Option B: Equipment → Inventory drag-drop support.
+    /// </summary>
+    /// <remarks>
+    /// Implementation: UnequipItemCommand places item in inventory automatically.
+    /// We DON'T need MoveItemBetweenContainersCommand - the unequip does the transfer!
+    /// However, UnequipItemCommand doesn't support placement at specific position/rotation,
+    /// so we need to unequip THEN move to desired position.
+    /// </remarks>
+    private async void UnequipItemAsync(
+        ActorId actorId,
+        ItemId itemId,
+        Darklands.Core.Features.Equipment.Domain.EquipmentSlot sourceSlot,
+        GridPosition targetPos,
+        Rotation rotation)
+    {
+        if (OwnerActorId == null)
+            return;
+
+        _logger.LogInformation("Unequipping item {ItemId} from {SourceSlot}", itemId, sourceSlot);
+
+        // Step 1: Unequip from equipment slot (places item in inventory at default position)
+        var unequipCommand = new Darklands.Core.Features.Equipment.Application.Commands.UnequipItemCommand(
+            actorId,
+            sourceSlot);
+
+        var unequipResult = await _mediator.Send(unequipCommand);
+
+        if (unequipResult.IsFailure)
+        {
+            _logger.LogError("Failed to unequip item: {Error}", unequipResult.Error);
+            EmitSignal(SignalName.InventoryChanged);
+            return;
+        }
+
+        _logger.LogInformation("Item unequipped from {SourceSlot}, now in inventory", sourceSlot);
+
+        // Step 2: Move item to desired position (UnequipItemCommand places at default position 0,0)
+        // WHY: User dragged to specific position - honor their drop location!
+        // NOTE: For same-actor unequip, item is already in inventory - just move it
+        // NOTE: For cross-actor unequip, item stays in source actor's inventory (not implemented yet)
+        if (actorId.Equals(OwnerActorId.Value))
+        {
+            // Same actor - move item to drop position
+            var moveCommand = new Darklands.Core.Features.Inventory.Application.Commands.PlaceItemAtPositionCommand(
+                actorId,
+                itemId,
+                targetPos);
+
+            var moveResult = await _mediator.Send(moveCommand);
+
+            if (moveResult.IsFailure)
+            {
+                _logger.LogWarning("Unequipped successfully, but failed to move to drop position: {Error}", moveResult.Error);
+                // Item is still in inventory at (0,0), not lost - acceptable fallback
+            }
+            else
+            {
+                _logger.LogInformation("Item placed at ({X}, {Y})", targetPos.X, targetPos.Y);
+            }
+        }
+        else
+        {
+            // Different actors - item is in source actor's inventory after unequip
+            _logger.LogDebug("Cross-actor unequip: Item {ItemId} unequipped from {SourceActor}, now in source inventory (not transferred to {TargetActor})",
+                itemId, actorId, OwnerActorId.Value);
+            // TODO: Add cross-actor transfer support if needed (currently not implemented)
+        }
+
+        // Emit signal to refresh all containers
         EmitSignal(SignalName.InventoryChanged);
     }
 
