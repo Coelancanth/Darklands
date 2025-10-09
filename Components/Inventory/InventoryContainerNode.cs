@@ -1119,11 +1119,13 @@ public partial class InventoryContainerNode : Control
         // NOTE: For cross-actor unequip, item stays in source actor's inventory (not implemented yet)
         if (actorId.Equals(OwnerActorId.Value))
         {
-            // Same actor - move item to drop position
+            // Same actor - move item to drop position with rotation
+            // BR_008 FIX: Pass rotation parameter to preserve drag rotation state
             var moveCommand = new Darklands.Core.Features.Inventory.Application.Commands.PlaceItemAtPositionCommand(
                 actorId,
                 itemId,
-                targetPos);
+                targetPos,
+                rotation); // BR_008 FIX: Pass rotation from drag-drop
 
             var moveResult = await _mediator.Send(moveCommand);
 
@@ -1134,7 +1136,7 @@ public partial class InventoryContainerNode : Control
             }
             else
             {
-                _logger.LogInformation("Item placed at ({X}, {Y})", targetPos.X, targetPos.Y);
+                _logger.LogInformation("Item placed at ({X}, {Y}) with rotation {Rotation}", targetPos.X, targetPos.Y, rotation);
             }
         }
         else
