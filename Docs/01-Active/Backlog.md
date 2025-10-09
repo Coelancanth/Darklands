@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-10 02:00 (Dev Engineer: VS_032 Phase 2 complete - EquipItemCommand/UnequipItemCommand/SwapEquipmentCommand with atomic rollback, 10 integration tests GREEN, all 478 tests pass with zero regressions)
+**Last Updated**: 2025-10-10 02:08 (Dev Engineer: VS_032 Phase 3 complete - GetEquippedItemsQuery/GetEquippedWeaponQuery for UI + combat, 10 query tests GREEN, all 488 tests pass with zero regressions)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -69,8 +69,8 @@
 *Blockers preventing other work, production bugs, dependencies for other features*
 
 ### VS_032: Equipment Slots System
-**Status**: In Progress (Phase 1-2/6 Complete ✅✅)
-**Owner**: Dev Engineer (Phase 3 next - Equipment Queries)
+**Status**: In Progress (Phase 1-3/6 Complete ✅✅✅)
+**Owner**: Dev Engineer (Phase 4 next - Equipment Presentation)
 **Size**: L (15-20h total, 6 phases)
 **Priority**: Critical (foundation for combat depth, blocks proficiency/armor/AI)
 **Markers**: [ARCHITECTURE] [DATA-DRIVEN] [BREAKING-CHANGE]
@@ -124,10 +124,20 @@
   - CRITICAL logging for item loss scenarios (rollback failures)
 - **Quality**: All 478 tests GREEN (448 existing + 30 new Equipment tests), zero regressions
 
-**Phase 3: Equipment Queries (Core Application)** - 2h
-- `GetEquippedItemsQuery(ActorId)` → Dictionary<EquipmentSlot, ItemDto?>
-- `GetEquippedWeaponQuery(ActorId)` → ItemDto? (MainHand convenience for combat)
-- Query handler tests (5-8 tests)
+**Phase 3: Equipment Queries (Core Application)** - ✅ **COMPLETE** (2025-10-10 02:08)
+- ✅ `GetEquippedItemsQuery(ActorId)` → IReadOnlyDictionary<EquipmentSlot, ItemId>
+  - Returns only occupied slots (empty slots not in dictionary - use TryGetValue pattern)
+  - No equipment component = empty dictionary (graceful degradation, not error)
+  - Two-handed weapons: Same ItemId in both MainHand + OffHand (UI detects via equality)
+- ✅ `GetEquippedWeaponQuery(ActorId)` → ItemId
+  - Convenience query for combat - returns MainHand weapon only
+  - No weapon = ERROR_EQUIPMENT_NO_WEAPON_EQUIPPED (combat interprets as unarmed)
+- ✅ Query handler tests (10 tests, all GREEN)
+- **Implementation Summary**:
+  - Queries return ItemId only (minimal) - Presentation joins with item metadata separately
+  - Actor not found = failure (invalid ActorId)
+  - No equipment component = GetEquippedItems returns empty dict, GetEquippedWeapon returns failure
+- **Quality**: All 488 tests GREEN (448 existing + 40 new Equipment tests), zero regressions
 
 **Phase 4: Equipment Presentation** - 3-4h
 - Update `EquipmentSlotNode.cs`: Replace GetInventoryQuery with GetEquippedItemsQuery
