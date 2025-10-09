@@ -2,7 +2,7 @@
 
 **Purpose**: Organize all Darklands features by category for quick reference and planning.
 
-**Last Updated**: 2025-10-09 01:10 (Extracted WorldGen to specialized roadmap, converted to index structure)
+**Last Updated**: 2025-10-09 23:11 (Product Owner: Created Stats/Progression roadmap, VS_032 equipment system proposed)
 
 ---
 
@@ -21,7 +21,7 @@
 - [Strategic Map & History](#strategic-map--history) - WorldEngine, Factions, Civilization History
 
 **Meta Systems:**
-- [Progression](#progression) - Proficiency, Aging
+- [Progression](#progression) - Stats, Equipment, Proficiency, Aging
 - [Economy & Quests](#economy--quests) - Trading, Quest System
 - [Narrative](#narrative) - Origins, Events, Reputation
 - [Development Info](#development-info) - Estimates, Milestones, Risks
@@ -133,367 +133,91 @@ Phase 4: Emergent Narrative (3-4 months)
 
 ## Combat
 
-### VS_007: Time-Unit Turn Queue System (COMPLETE)
+**📖 Full Details**: [Roadmap_Combat.md](Roadmap_Combat.md) - Comprehensive combat roadmap
 
-**Status**: Complete (2025-10-04) | **Size**: L (3 days, all 4 phases) | **Tests**: 359 passing (49 new)
-**Owner**: Dev Engineer
+**Vision**: Stoneshard-inspired time-unit tactical combat - every action costs time, positioning matters, equipment defines capabilities.
 
-**Delivered**: Time-unit combat system with natural exploration/combat mode detection via turn queue size, FOV-based symmetric enter/exit transitions, movement costs (10 units/move), production-ready logging with Gruvbox semantic highlighting
+**Current State**: Foundation complete (turn queue + basic combat working!) - VS_007 + VS_020 delivered time-unit system with click-to-attack.
 
-**What Was Built**:
-- **Phase 1 (Domain)**: `TimeUnits` value object, `TurnQueue` aggregate with priority queue + player-first tie-breaking, `ScheduledActor` record
-- **Phase 2 (Application)**: `ScheduleActorCommand`, `RemoveActorFromQueueCommand`, `IsInCombatQuery`, `IsActorScheduledQuery`, `EnemyDetectionEventHandler` (FOV→schedule enemies), `CombatEndDetectionEventHandler` (FOV cleared→exit combat)
-- **Phase 3 (Infrastructure)**: `InMemoryTurnQueueRepository`, `PlayerContext` service, DI registration in GameStrapper
-- **Phase 4 (Presentation)**: Input routing (combat=single-step, exploration=auto-path), test scene with player/enemies, bug fixes (async race conditions, path preview)
-
-**Key Design Decisions**:
-- Turn queue size = combat state (no separate state machine)
-- Relative time model (resets to 0 per combat session)
-- Player permanently in queue (never fully removed)
-- FOV events drive both combat enter AND exit (symmetric pattern)
-- Movement costs: 10 units in combat, instant in exploration
-- Player-centric FOV only (enemies don't detect player—deferred to VS_011)
-
-**Example Scenario** (Exploration → Combat → Reinforcement → Victory):
+**Completed Features**:
 ```
-1. Player clicks distant tile → auto-path starts (exploration mode, time=N/A)
-2. Step 3: Goblin appears in FOV → auto-path cancelled (combat starts, time=0)
-   Queue: [Player@0, Goblin@0] → Player acts first (tie-breaking)
-3. Player moves 1 step (costs 100) → Player@100, Goblin@0
-4. Goblin attacks (costs 150) → Goblin@150, Player@100
-5. Player moves → Orc appears in FOV (reinforcement!)
-   Queue: [Orc@100, Player@200, Goblin@150] → Orc acts next (just appeared)
-6. Orc attacks (costs 150) → Orc@250
-7. Player defeats Goblin → removed from queue
-8. Player defeats Orc → queue=[Player] → combat ends (time resets)
-9. Next click resumes auto-path (exploration mode)
+✅ VS_007: Time-Unit Turn Queue (exploration/combat transitions, 359 tests)
+✅ VS_020: Basic Combat System (click-to-attack, range validation, 428 tests)
 ```
 
-**Done When**: Scenario above works end-to-end. Zero changes to existing handlers.
-
----
-
-### VS_020: Basic Combat System (Attacks & Damage) (COMPLETE)
-
-**Status**: Complete (2025-10-06) | **Size**: M (1-2 days, all 4 phases) | **Tests**: 428 passing
-**Owner**: Dev Engineer
-
-**Delivered**: Click-to-attack combat UI, component pattern (Actor + HealthComponent + WeaponComponent), ExecuteAttackCommand with range validation (melee adjacent, ranged line-of-sight), damage application via HealthComponent, death handling (actors removed from turn queue AND position service), tactical positioning matters for range/FOV
-
-**What Was Built**:
-- **Phase 0**: Component Infrastructure (IComponent, Actor container, IHealthComponent, IWeaponComponent, ActorRepository, ActorFactory with template integration)
-- **Phase 1**: Weapon value object (damage, time cost, range, weapon type)
-- **Phase 2**: ExecuteAttackCommand with range validation, damage application, death handling, turn queue integration
-- **Phase 3**: Line-of-sight validation for ranged attacks (FOV integration), melee bypasses FOV
-- **Phase 4**: Click-to-attack UI, test scene with player/enemies, visual feedback, death handling bug fix (RemoveActor() from position service)
-
-**Key Architecture Decisions**:
-- Component pattern chosen over simple entity (scales to 50+ actor types, reuse across player/enemies/NPCs)
-- ActorTemplate integration (ADR-006 compliance - designers configure components in .tres files)
-- Tactical combat: Position matters (melee=adjacent, ranged=line-of-sight), walls block ranged attacks
-
-**Combat Flow**:
-1. Player clicks enemy in range → ExecuteAttackCommand
-2. Range validation: Melee (Chebyshev distance ≤ 1), Ranged (distance check + FOV line-of-sight)
-3. Damage applied via HealthComponent.TakeDamage()
-4. Death handling: Remove from turn queue + position service
-5. Turn queue advances with weapon time cost
-
-**Testing**: TurnQueueTestScene.tscn - Click-to-attack combat with Player (100HP/melee), Goblin (30HP/melee), Orc (50HP/ranged)
-
-**Archive**: [Completed_Backlog_2025-10_Part2.md](../../07-Archive/Completed_Backlog_2025-10_Part2.md#vs_020-basic-combat-system) (lines 1148-1297)
-
----
-
-### Enemy AI & Vision System (PLANNED - Next Priority)
-
-**Status**: Ready to Plan (all dependencies complete)
-**Owner**: Product Owner → Tech Lead (for breakdown)
-**Size**: L (2-3 days, all 4 phases)
-**Priority**: Important (enables asymmetric combat, ambushes, autonomous enemies)
-**Depends On**: VS_007 (Turn Queue - COMPLETE), VS_020 (Combat System - COMPLETE)
-
-**What**: Enemy FOV calculation, asymmetric vision (enemy sees you before you see them), basic AI decision-making (move toward player, attack when in range)
-
-**Why**:
-- **Ambush mechanics**: Enemies can detect player around corners, initiate combat first
-- **Tactical depth**: Player must consider enemy patrol patterns and vision cones
-- **AI foundation**: Enemies make autonomous decisions (move, attack, flee)
-- **Reuses VS_007**: Parallel detection (PlayerDetectionEventHandler mirrors EnemyDetectionEventHandler)
-
-**How**:
-- **Phase 1**: Enemy perception attributes (vision radius, awareness zones)
-- **Phase 2**: `PlayerDetectionEventHandler` (subscribes to enemy FOV events), `DecideEnemyActionQuery` (AI decision tree)
-- **Phase 3**: Enemy FOV calculation (triggered by awareness zones), AI behavior states (passive, alerted, combat)
-- **Phase 4**: Enemy activation zones (distance-based), enemy turn execution (move toward player OR attack)
-
-**Scope**:
-- YES: Enemy FOV calculation (when within awareness radius of player)
-- YES: PlayerDetectionEventHandler (enemy sees player → schedule enemy)
-- YES: Asymmetric combat (enemy detects first, player discovers on move)
-- YES: Basic AI (move toward player if not adjacent, attack if adjacent)
-- YES: Awareness zones (only nearby enemies calculate FOV for performance)
-- NO: Advanced AI (flanking, kiting, cover usage - future)
-- NO: Behavior trees (simple decision tree for MVP)
-- NO: Patrol patterns (enemies stationary until activated)
-
-**Example Scenario** (Ambush):
+**Planned Features**:
 ```
-1. Player auto-paths down hallway (exploration mode)
-2. Orc around corner (15 tiles away) - passive, not calculating FOV
-3. Player reaches 10 tiles from Orc → enters awareness zone
-4. Orc FOV calculated → Player visible → ScheduleActorCommand(Orc)
-5. Combat starts (queue = [Player, Orc]), auto-path cancels
-6. Player doesn't see Orc yet (wall blocks player FOV)
-7. Player moves 1 step → FOV updates → NOW sees Orc ("Orc ambushes you!")
-8. Orc's turn → DecideEnemyActionQuery → Move toward player
+⏳ Enemy AI & Vision (asymmetric combat, ambushes, autonomous enemies)
+⏳ Armor Systems (simple → damage types → layered - progressive depth)
+⏳ Weapon Proficiency (use-based progression, time cost reduction)
+💡 Status Effects (poison, bleeding, buffs/debuffs - future)
 ```
 
-**Done When**: Scenario above works. Enemies detect player independently. Basic AI (approach + attack). Zero refactoring of VS_007 turn queue (event-driven addition).
+### Why Enemy AI Next (After VS_032)?
 
----
+- **Asymmetric combat** - Enemies detect player first, initiate ambushes
+- **Tactical depth** - Player considers enemy vision cones, patrol patterns
+- **Reuses VS_007 pattern** - PlayerDetectionEventHandler mirrors EnemyDetectionEventHandler
+- **Autonomous enemies** - Make decisions (move toward player, attack, flee)
 
-### Simplified Armor System (PLANNED)
+### Why Defer Layered Armor?
 
-**What**: Single armor layer (protection + weight values)
+- **VS_032 includes simple armor** - Defense bonus + weight (sufficient for initial depth)
+- **Damage types come first** - Weapon choice matters (slashing vs plate, blunt vs mail)
+- **Complexity gate** - Layered armor adds depth BUT may not be worth implementation cost
+- **Playtest-driven** - Only implement if damage types feel shallow after validation
 
-**Why**: Foundation for tactical combat depth
+### Completed Features
 
-**Scope**:
-- Weight affects movement and action time costs
-- Foundation for future layered armor system
+**VS_007**: Time-unit turn queue (FOV-driven combat transitions) ✅
+**VS_020**: Click-to-attack combat (melee/ranged, death handling) ✅
 
----
-
-### Damage Type System (PLANNED)
-
-**What**: Slashing, Piercing, Blunt damage types
-
-**Why**: Weapon choice matters based on enemy armor
-
-**Scope**:
-- Armor resistance to damage types
-- Creates tactical weapon selection decisions
-
----
-
-### Layered Armor System (PLANNED)
-
-**What**: Two armor layers (gambeson + chainmail)
-
-**Why**: Deep tactical equipment decisions
-
-**Scope**:
-- Hit location system (head/torso/limbs)
-- Damage penetration mechanics
-- Depends on: Simplified Armor System, Damage Type System
-
----
-
-### Weapon Proficiency Tracking (PLANNED)
-
-**What**: Track weapon usage and improve proficiency, reducing action time costs
-
-**Why**:
-- No-level progression system (Darklands philosophy)
-- Proficiency makes time-unit system more rewarding (see improvement via faster actions)
-- Creates specialization incentives (master daggers vs be generalist)
-
-**Scope**:
-- **Domain**: `WeaponProficiency` entity (weapon type + skill 0-100)
-- **Application**: `RecordWeaponUseCommand`, `CalculateAttackTimeCostQuery`
-- **Infrastructure**: Proficiency repository (in-memory)
-- **Presentation**: Proficiency panel (progress bars per weapon type)
-
-**Proficiency Formula** (tuned for 2-4 hour runs):
-```
-Base Time Cost = weapon base (dagger 50, sword 100, axe 150)
-Proficiency Reduction = (skill / 100) × 0.30  // Max 30% at skill 100
-
-Final Time Cost = Base × (1 - Proficiency Reduction)
-
-Example:
-- Dagger novice (skill 0): 50 units
-- Dagger expert (skill 50): 42.5 units (-15%)
-- Dagger master (skill 100): 35 units (-30%)
-```
-
-**Skill Gain**:
-```
-Gain per attack = 1 + (enemy_difficulty × 0.5)
-- Rat: +1 skill
-- Bandit: +1.5 skill
-- Ogre: +2 skill
-
-Time to mastery ≈ 50-70 attacks (5-10 fights)
-```
-
-**Done When**:
-- Unit tests: Attack with dagger → skill increases, time cost reduces
-- Integration tests: 50 sword attacks → 15% faster
-- Manual playtest: Progression feels rewarding (visible every 2-3 fights)
+*See [Roadmap_Combat.md](Roadmap_Combat.md) for full feature details, example scenarios, and integration points.*
 
 ---
 
 ## Inventory & Items
 
-### VS_008: Slot-Based Inventory System (MVP) (COMPLETE)
+**📖 Full Details**: [Roadmap_Inventory_Items.md](Roadmap_Inventory_Items.md) - Comprehensive inventory roadmap
 
-**Status**: Complete (2025-10-02) | **Size**: M (5-6.5h, all 4 phases) | **Tests**: 23 passing
-**Owner**: Dev Engineer
+**Vision**: NeoScavenger-inspired Tetris inventory - spatial constraints create meaningful trade-offs (carry weapons OR consumables, not both).
 
-**Delivered**: Slot-based inventory (20 slots), `ItemId` primitive in Domain/Common, add/remove operations with capacity enforcement, UI panel with GridContainer (10×2 slots), query-based refresh (no events in MVP)
+**Current State**: Phase 1 complete (Tetris grid working!) - VS_018 delivered spatial inventory with L/T-shapes, drag-drop, rotation.
 
-**Key Decision**: Inventory stores `ItemId` (not Item objects) - enables clean separation between container logic and item definitions (VS_009)
+**Completed Features**:
+```
+✅ VS_008: Slot-Based Inventory MVP (20 slots, add/remove)
+✅ VS_009: TileSet Metadata-Driven Items (designer empowerment!)
+✅ VS_018 Phase 1: Spatial Tetris Grid (L/T-shapes, drag-drop, 359 tests)
+```
 
-**Architecture**: Explicit creation pattern (`CreateInventoryCommand`), player-controlled actors only, InMemoryInventoryRepository with auto-creation, ServiceLocator only in `_Ready()`
+**Planned Features**:
+```
+⏳ Ground Loot System (enemy drops, dungeon loot)
+💡 Item Stacking (DEFERRED until consumables exist)
+❓ Nested Containers (MAYBE NEVER - complexity without value?)
+⏳ VS_018 Phase 2: UX Improvements (click-to-pick, tooltips, auto-sort)
+```
 
-**Archive**: [Completed_Backlog_2025-10.md](../../07-Archive/Completed_Backlog_2025-10.md#vs_008-slot-based-inventory-system) (lines 47-163)
+### Why Ground Loot Next (After VS_032)?
 
----
+- **Blocks dungeon generation**: Can't place loot without ground item system
+- **Blocks enemy drops**: Dead enemies need to drop equipped items
+- **Foundation for economy**: Pick up items → sell in town
 
-### VS_009: Item Definition System (TileSet Metadata-Driven) (COMPLETE)
+### Why Defer Item Stacking?
 
-**Status**: Complete (2025-10-02) | **Size**: M (6-7h, all 4 phases) | **Tests**: 57 passing
-**Owner**: Dev Engineer
+- **No consumables yet**: Nothing to stack (no potions, arrows, crafting materials)
+- **Premature optimization**: Building for future needs we haven't validated
+- **Revisit after**: Consumable items implemented AND clutter problem proven
 
-**Delivered**: Item catalog using Godot TileSet custom data layers (item_name, item_type, max_stack_size), `TileSetItemRepository` auto-discovers items at startup, `ItemSpriteNode` (TextureRect) renders sprites with KeepAspectCentered, showcase scene displays 10 items with metadata
+### Completed Features
 
-**Key Decision**: TileSet metadata (not JSON/C# definitions) - designers add items visually in Godot editor with zero code changes, single source of truth for sprites + properties
+**VS_008**: Slot-based inventory MVP (20 slots, capacity enforcement) ✅
+**VS_009**: TileSet metadata-driven items (designer empowerment) ✅
+**VS_018 Phase 1**: Spatial Tetris grid (L/T-shapes, 359 tests GREEN) ✅
 
-**Architecture**: Domain stores primitives (atlas coords), Infrastructure reads TileSet custom data layers, Core has zero Godot dependencies (ADR-002)
-
-**Archive**: [Completed_Backlog_2025-10.md](../../07-Archive/Completed_Backlog_2025-10.md#vs_009-item-definition-system) (lines 166-312)
-
----
-
-### VS_018: Spatial Inventory System (COMPLETE)
-
-**Status**: Phase 1 Complete (2025-10-04) | **Size**: XL (ongoing) | **Tests**: 359 passing
-**Owner**: Dev Engineer
-
-**Phase 1 Delivered** (TD_003, TD_004):
-- Tetris-style spatial inventory with **drag-drop** interaction
-- Multi-cell items with L/T-shape support (coordinate-based masks)
-- 90° rotation during drag (scroll wheel)
-- Type filtering (equipment slots reject wrong item types)
-- Component separation: `EquipmentSlotNode` (swap-focused) vs `InventoryContainerNode` (Tetris grid)
-- TileSet-driven ItemShape encoding ("custom:0,0;1,0;1,1")
-- Cell-by-cell collision detection (supports complex shapes)
-
-**Architecture Achievements**:
-- ItemShape value object with coordinate masks
-- InventoryRenderHelper (DRY rendering across components)
-- Zero business logic in Presentation (SSOT in Core)
-- All 359 tests GREEN
-
-**Archive**: [Completed_Backlog_2025-10.md](../../07-Archive/Completed_Backlog_2025-10.md#vs_018-spatial-inventory-l-shapes) (Phase 1 documentation)
-
-**Phase 2 TODO - UX & Interaction Improvements**:
-
-1. **Click-to-Pick Interaction** (replace drag-drop)
-   - Click item → pick up (highlight follows cursor)
-   - Click destination → drop item
-   - More tactile than drag-drop, easier on trackpads
-
-2. **1v1 Swap Support**
-   - Click occupied slot with picked item → swap items (no intermediate drop needed)
-   - Example: Swap weapon in hand directly with weapon in inventory
-   - Preserves shapes, validates types
-
-3. **Item Interaction System**
-   - Right-click item → context menu (Use, Split, Examine, Drop)
-   - Use consumables (potions, food) from inventory
-   - Examine for detailed stats/lore
-
-4. **Nested Containers**
-   - Items can BE containers (bags, pouches, quivers)
-   - Double-click bag → open container view (nested inventory grid)
-   - Type filtering (quiver accepts arrows only)
-   - Reference: NeoScavenger aCapacities
-
-5. **Stack Support**
-   - Stackable items (arrows ×20, branches ×5)
-   - Stack count overlay on sprites
-   - Split/merge stack operations
-
-6. **Auto-Sort**
-   - Sort by type (weapons, consumables, tools)
-   - Sort by size (fill gaps efficiently)
-   - Sort by value/weight
-
-7. **Container Preview**
-   - Hover over bag → tooltip shows contents preview (mini grid)
-   - Quick view without opening full container
-
-8. **Ground Item Interaction**
-   - Pick up items from environment (dungeon loot)
-   - Visual indicators on tiles with items
-
-9. **Rich Tooltips**
-   - Item stats (damage, weight, durability)
-   - Comparison tooltips (equipped vs inventory item)
-   - Lore/description text
-
-**Next Steps**: Prioritize TODOs after Phase 1 playtesting feedback
-
----
-
-### Item Stacking System (PLANNED)
-
-**What**: Stackable item support (e.g., "5× Branch", "20× Arrow")
-
-**Scope**:
-- Stack limits per item type (configurable in item definitions)
-- UI displays stack count overlay on slot visuals
-- Commands: AddItemToStack, SplitStack, MergeStacks
-- Benefits: Reduces inventory clutter for consumables and ammo
-- Reference: NeoScavenger nStackLimit (branches=5, ammo=20, unique items=1)
-
----
-
-### Equipment Slots System (PLANNED)
-
-**What**: Actor equipment slots (main hand, off hand, head, torso, legs, ring×2)
-
-**Why**: Used by ALL actors (player, NPCs, enemies) - not just player-controlled
-
-**Scope**:
-- Player: Equips items from inventory → equipment slots (affects stats)
-- NPCs/Enemies: Spawned with pre-equipped gear (defines combat capabilities)
-- Commands: EquipItem, UnequipItem, GetEquippedItems
-- Integration: Combat system reads equipment for damage/defense calculations
-- Reference: NeoScavenger battlemoves.xml (equipment affects available moves)
-- Architecture: Separate from VS_008 Inventory (equipment = worn, inventory = carried)
-
----
-
-### Ground Loot System (PLANNED)
-
-**What**: Items at map positions (dungeon loot, enemy drops, player discards)
-
-**Scope**:
-- WorldItemRepository: Dictionary<Position, List<ItemId>>
-- Commands: DropItemAtPosition, PickupItemAtPosition, GetItemsAtPosition
-- Integration: Player picks up loot → adds to inventory (VS_008)
-- Integration: Enemy dies → drops equipped items to ground
-- UI: Visual indicators on tiles with loot (sparkle effect, item sprite)
-- Foundation for dungeon generation loot placement
-
----
-
-### Container System - Nested Inventories (PLANNED)
-
-**What**: Items can BE containers (bags, pouches, quivers)
-
-**Scope**:
-- Nested spatial grids: Bag (4×6) can contain Pouch (2×2)
-- Container properties: capacity grid size, allowed item types
-- Type filtering: Quiver accepts arrows only, waterskin accepts liquids only
-- Commands: OpenContainer, MoveItemToContainer
-- Benefits: Organization (ammo in quiver), specialization (waterproof bags)
-- Reference: NeoScavenger aCapacities ("4x6"), aContentIDs (whitelisted types)
-- Decision point: May defer if Item Stacking reduces inventory clutter sufficiently
+*See [Roadmap_Inventory_Items.md](Roadmap_Inventory_Items.md) for full feature details and architecture decisions.*
 
 ---
 
@@ -634,22 +358,40 @@ Time to mastery ≈ 50-70 attacks (5-10 fights)
 
 ## Progression
 
-### Weapon Proficiency Tracking (PLANNED)
+**📖 Full Details**: [Roadmap_Stats_Progression.md](Roadmap_Stats_Progression.md) - Comprehensive technical roadmap
 
-*See Combat section above - listed here for cross-reference*
+**Vision**: Darklands (1992) inspired skill-based progression - no experience levels, equipment defines capabilities, use-based proficiency, aging creates time pressure.
 
----
+**Current State**: Foundation ready (Actor components, combat system, inventory) - Missing stats/equipment integration!
 
-### Character Aging & Time Pressure (PLANNED)
+**Priority Systems**:
+```
+CRITICAL (VS_032): Equipment & Stats System - 12-16h
+  Phase 1: Character Attributes (STR, DEX, END, INT)
+  Phase 2: Equipment Slots (main hand, off hand, armor)
+  Phase 3: Stat Modifiers (equipment affects combat)
+  Phase 4: Weight System (heavy armor = slower actions)
 
-**What**: Character ages over time with stat degradation
+IMPORTANT (After VS_032): Proficiency System - 12-16h
+  - Weapon skill progression (use sword, get better at swords)
+  - Action time reduction (50 skill = -15% attack time)
+  - Specialization incentives (master daggers vs generalist)
 
-**Why**: Creates natural run duration (2-4 hours before retirement/death)
+IDEAS (Far Future): Character Aging - 6-8h
+  - Stat degradation over time
+  - Natural run duration (2-4 hours before retirement)
+```
 
-**Scope**:
-- Stat degradation with age (realism)
-- Time pressure mechanic
-- Natural end condition for runs
+### Why Equipment First?
+
+- **Combat depth NOW**: Armor choices affect defense, weapon choices affect damage
+- **Build variety**: Heavy tank vs light skirmisher (emergent playstyles)
+- **Vision alignment**: Darklands core pillar (equipment defines capabilities, no levels)
+- **Unblocks proficiency**: Need equipment system before tracking weapon skill progression
+
+### Completed Features
+
+*None yet - VS_032 is first progression system*
 
 ---
 
