@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-10 01:30 (Product Owner: Added VS_033 Item Editor MVP - strategic phasing after manual item creation)
+**Last Updated**: 2025-10-10 01:27 (Tech Lead: VS_032 breakdown + testing strategy complete - 6 phases, 35-45 automated tests + 7 manual scenarios in SpatialInventoryTestScene, Equipment as separate component NOT inventory, defer 'I' key to main game UX)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -69,11 +69,11 @@
 *Blockers preventing other work, production bugs, dependencies for other features*
 
 ### VS_032: Equipment Slots System
-**Status**: Proposed
-**Owner**: Product Owner → Tech Lead (breakdown) → Dev Engineer (implement)
-**Size**: M (6-8h)
+**Status**: Approved (Tech Lead breakdown complete)
+**Owner**: Tech Lead → Dev Engineer (implement)
+**Size**: L (15-20h total, 6 phases)
 **Priority**: Critical (foundation for combat depth, blocks proficiency/armor/AI)
-**Markers**: [ARCHITECTURE] [DATA-DRIVEN]
+**Markers**: [ARCHITECTURE] [DATA-DRIVEN] [BREAKING-CHANGE]
 
 **What**: Equipment slot system (main hand, off hand, head, torso, legs) - actors can equip items from inventory, equipment affects combat.
 
@@ -83,25 +83,89 @@
 - **Unblocks future** - Proficiency (track weapon usage), Ground Loot (enemies drop equipped items), Enemy AI (gear defines enemy capabilities)
 - **Foundation** - Stats/armor/proficiency ALL depend on equipment system
 
-**How** (Tech Lead to break down):
-- Equipment domain (5 slots: MainHand, OffHand, Head, Torso, Legs)
-- EquipItem/UnequipItem commands (move items between inventory ↔ equipment)
-- Equipment component (IEquipmentComponent on Actor)
-- Data-driven: ActorTemplate.tres pre-equips enemies (goblin spawns with weapon)
+**How** (6-Phase Implementation):
+
+**ARCHITECTURE DECISION**: Equipment = Separate Component (NOT Inventory)
+- **Rationale**: Equipment needs slot-based storage (5 named slots), NOT spatial grid. Simpler domain model than 5 separate Inventory entities.
+- **Breaking Change**: EquipmentSlotNode (Presentation prototype) currently uses GetInventoryQuery - will be updated to GetEquippedItemsQuery.
+
+**Phase 1: Equipment Domain (Core)** - 3-4h
+- Create `EquipmentSlot` enum (MainHand, OffHand, Head, Torso, Legs)
+- Create `IEquipmentComponent` interface (EquipItem, UnequipItem, GetEquippedItem, IsSlotOccupied)
+- Create `EquipmentComponent` implementation (Dictionary<EquipmentSlot, ItemId?> storage)
+- Two-handed weapon validation (requires both hands empty)
+- Domain unit tests (15-20 tests)
+
+**Phase 2: Equipment Commands (Core Application)** - 4-5h
+- `EquipItemCommand(ActorId, InventoryId, ItemId, EquipmentSlot)` + Handler
+  - ATOMIC: Remove from inventory → Add to equipment (rollback on failure)
+- `UnequipItemCommand(ActorId, InventoryId, EquipmentSlot)` + Handler
+  - ATOMIC: Remove from equipment → Add to inventory (rollback on failure)
+- `SwapEquipmentCommand(ActorId, ItemId, EquipmentSlot)` + Handler (unequip → equip atomic swap)
+- Command handler tests (12-15 tests)
+
+**Phase 3: Equipment Queries (Core Application)** - 2h
+- `GetEquippedItemsQuery(ActorId)` → Dictionary<EquipmentSlot, ItemDto?>
+- `GetEquippedWeaponQuery(ActorId)` → ItemDto? (MainHand convenience for combat)
+- Query handler tests (5-8 tests)
+
+**Phase 4: Equipment Presentation** - 3-4h
+- Update `EquipmentSlotNode.cs`: Replace GetInventoryQuery with GetEquippedItemsQuery
+- Create `EquipmentPanelNode.cs`: VBoxContainer with 5 EquipmentSlotNodes (MainHand, OffHand, Head, Torso, Legs)
+- Update drag-drop to call EquipItemCommand (not MoveItemBetweenContainersCommand)
+- Update `SpatialInventoryTestController.cs`: Replace weapon slot → EquipmentPanelNode
+
+**Phase 5: Data-Driven Equipment (ADR-006)** - 2h
+- Add `StartingEquipment` property to ActorTemplate (Dictionary<EquipmentSlot, string>)
+- Update ActorFactory to equip starting equipment on spawn
+- Update templates: player.tres (iron sword, leather armor), goblin.tres (club, ragged cloth)
+
+**Phase 6: Combat Integration** - 1-2h
+- Update ExecuteAttackCommandHandler to use GetEquippedWeaponQuery
+- Deprecate WeaponComponent.EquippedWeapon (add [Obsolete] attribute with migration message)
+
+**Testing Strategy**:
+
+**Automated Tests** (Phases 1-3): `./scripts/core/build.ps1 test --filter "Category=Equipment"`
+- 35-45 unit/integration tests (Domain 15-20, Commands 12-15, Queries 5-8, Integration 5-7)
+- Core business logic coverage (atomic operations, rollback, two-handed validation)
+
+**Manual Validation** (Phases 4-6): [SpatialInventoryTestScene.tscn](../../godot_project/test_scenes/SpatialInventoryTestScene.tscn)
+- Test Scene: Already has EquipmentSlotNode prototype + drag-drop infrastructure
+- 7 Manual Test Scenarios:
+  1. Equip from Inventory (drag sword → MainHand)
+  2. Unequip to Inventory (drag from MainHand → backpack, spatial placement preserved)
+  3. Swap Equipment (drag new weapon to occupied slot, atomic swap)
+  4. Two-Handed Weapon (occupies MainHand + OffHand, blocks shield equip)
+  5. Slot Type Filtering (drag potion → MainHand, red highlight rejection)
+  6. Equipment Panel Display (5 slots visible, starting equipment, tooltips)
+  7. Combat Integration (equipped weapon damage, unequipped = error)
+- **Deferred**: Inventory keybinding ('I' key) - not needed for test scene validation, add in main game UX
 
 **Done When**:
-- Warrior can equip sword from inventory → MainHand slot
-- Unequip sword → returns to inventory (spatial placement)
-- ActorTemplate.tres configures starting equipment (player.tres, goblin.tres)
-- Two-handed weapon validation (requires MainHand + OffHand both)
-- Equipment visible in UI (EquipmentSlotNode shows equipped items)
-- Tests: EquipItem, UnequipItem, two-handed logic, inventory integration (15-20 tests)
+- ✅ Actor has IEquipmentComponent with 5 slots
+- ✅ Warrior can equip sword from inventory → MainHand slot (EquipItemCommand)
+- ✅ Unequip sword → returns to inventory with spatial placement
+- ✅ Two-handed weapon validation (requires MainHand + OffHand both empty)
+- ✅ ActorTemplate.tres configures starting equipment (player.tres, goblin.tres)
+- ✅ EquipmentPanelNode displays 5 slots with equipped items in SpatialInventoryTestScene
+- ✅ Combat system uses GetEquippedWeaponQuery (not direct WeaponComponent)
+- ✅ Tests: 35-45 automated tests GREEN + 7 manual test scenarios validated
+- ✅ All 428+ existing tests GREEN (no regressions)
 
 **Depends On**: VS_018 ✅ (Spatial Inventory), VS_009 ✅ (Item System)
 **Blocks**: Stats/Attributes, Proficiency System, Ground Loot, Enemy AI
 **Enables**: Manual item creation phase (10-20 items) → validates VS_033 Item Editor need
 
 **Product Owner Decision** (2025-10-10): Thin scope - Equipment Slots ONLY. Defer stats/attributes/fatigue to separate VS items after this validated. After VS_032 complete, designer creates 10-20 items manually (Phase 1) to validate Item Editor need before building it.
+
+**Tech Lead Decision** (2025-10-10):
+- **Equipment ≠ Inventory**: Slot-based component (simpler) vs spatial grid inventories (over-engineered for equipment)
+- **Breaking Change Acceptable**: EquipmentSlotNode is prototype (TD_003), not production code - refactor to new architecture is clean migration
+- **Phased Approach**: 6 phases enforce Core-first discipline (Domain → Application → Presentation → Data-Driven)
+- **Test Coverage**: 35-45 tests ensure atomic operations, rollback, two-handed validation
+- **Size Revision**: M (6-8h) → L (15-20h) - original estimate underestimated 6-phase scope + tests
+- **Integration Strategy**: Deprecate WeaponComponent.EquippedWeapon (not remove) - migration path for existing combat code
 
 ---
 
