@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-10 01:27 (Tech Lead: VS_032 breakdown + testing strategy complete - 6 phases, 35-45 automated tests + 7 manual scenarios in SpatialInventoryTestScene, Equipment as separate component NOT inventory, defer 'I' key to main game UX)
+**Last Updated**: 2025-10-10 01:50 (Dev Engineer: VS_032 Phase 1 complete - EquipmentSlot enum, IEquipmentComponent interface, EquipmentComponent implementation, 20 domain tests GREEN, all 448 tests pass with zero regressions)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -69,8 +69,8 @@
 *Blockers preventing other work, production bugs, dependencies for other features*
 
 ### VS_032: Equipment Slots System
-**Status**: Approved (Tech Lead breakdown complete)
-**Owner**: Tech Lead → Dev Engineer (implement)
+**Status**: In Progress (Phase 1/6 Complete ✅)
+**Owner**: Dev Engineer (Phase 2 next - Equipment Commands)
 **Size**: L (15-20h total, 6 phases)
 **Priority**: Critical (foundation for combat depth, blocks proficiency/armor/AI)
 **Markers**: [ARCHITECTURE] [DATA-DRIVEN] [BREAKING-CHANGE]
@@ -89,12 +89,21 @@
 - **Rationale**: Equipment needs slot-based storage (5 named slots), NOT spatial grid. Simpler domain model than 5 separate Inventory entities.
 - **Breaking Change**: EquipmentSlotNode (Presentation prototype) currently uses GetInventoryQuery - will be updated to GetEquippedItemsQuery.
 
-**Phase 1: Equipment Domain (Core)** - 3-4h
-- Create `EquipmentSlot` enum (MainHand, OffHand, Head, Torso, Legs)
-- Create `IEquipmentComponent` interface (EquipItem, UnequipItem, GetEquippedItem, IsSlotOccupied)
-- Create `EquipmentComponent` implementation (Dictionary<EquipmentSlot, ItemId?> storage)
-- Two-handed weapon validation (requires both hands empty)
-- Domain unit tests (15-20 tests)
+**Phase 1: Equipment Domain (Core)** - ✅ **COMPLETE** (2025-10-10 01:50)
+- ✅ Create `EquipmentSlot` enum (MainHand, OffHand, Head, Torso, Legs)
+- ✅ Create `IEquipmentComponent` interface (EquipItem, UnequipItem, GetEquippedItem, IsSlotOccupied)
+- ✅ Create `EquipmentComponent` implementation (Dictionary<EquipmentSlot, ItemId> storage)
+- ✅ Two-handed weapon validation (same ItemId in both MainHand + OffHand, atomic unequip)
+- ✅ Domain unit tests (20 tests, all GREEN)
+- **Implementation Summary**:
+  - Feature-based architecture (`Features/Equipment/Domain/`) following ADR-004
+  - Two-handed pattern: Store same ItemId in both hands (elegant, no sentinels)
+  - Helper method `IsTwoHandedWeaponEquipped()` for clean atomic operations
+  - i18n error keys (ADR-005): `ERROR_EQUIPMENT_*` translation keys
+  - Result<T> pattern (ADR-003): All failable operations return Result
+  - Component inheritance: `IEquipmentComponent : IComponent` for Actor integration
+  - Test coverage: Constructor (2), EquipItem (9), UnequipItem (5), GetEquippedItem (3), IsSlotOccupied (2) = 21 scenarios
+- **Quality**: All 448 tests GREEN (428 existing + 20 new Equipment tests), zero regressions
 
 **Phase 2: Equipment Commands (Core Application)** - 4-5h
 - `EquipItemCommand(ActorId, InventoryId, ItemId, EquipmentSlot)` + Handler
@@ -169,19 +178,6 @@
 
 ---
 
----
-
-*Recently completed and archived (2025-10-06):*
-- **VS_021**: i18n + Data-Driven Entity Infrastructure (ADR-005 + ADR-006) - 5 phases complete! Translation system (18 keys in en.csv), ActorTemplate system with GodotTemplateService, player.tres template, pre-push validation script, architecture fix (templates → Presentation layer). Bonus: Actor type logging enhancement (IPlayerContext integration). All 415 tests GREEN. ✅ (2025-10-06 16:23) *See: [Completed_Backlog_2025-10_Part2.md](../07-Archive/Completed_Backlog_2025-10_Part2.md) for full archive*
-
----
-
-*Recently completed and archived (2025-10-05):*
-- **VS_019**: TileSet-Based Visual Scene + TileSet as Terrain Catalog (SSOT) - All 4 phases complete! TileMapLayer pixel art rendering (terrain), Sprite2D actors with smooth tweening, fog overlay system, 300+ line cleanup. ✅ (2025-10-05)
-- **VS_019_FOLLOWUP**: Fix Wall Autotiling (Manual Edge Assignment) - Manual tile assignment for symmetric bitmasks, walls render seamlessly. ✅ (2025-10-05)
-- *See: [Completed_Backlog_2025-10_Part2.md](../07-Archive/Completed_Backlog_2025-10_Part2.md) for full archive*
-
----
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*
 

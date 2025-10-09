@@ -227,7 +227,8 @@
       "Bash(./scripts/core/build.ps1 test-only:*)",
       "Bash(pwsh:*)",
       "Bash(awk:*)",
-      "Bash(./scripts/core/build.ps1 test --filter \"FlowDirectionCalculator\")"
+      "Bash(./scripts/core/build.ps1 test --filter \"FlowDirectionCalculator\")",
+      "Bash(./scripts/core/build.ps1 test --filter \"Category=Equipment\")"
     ],
     "deny": [],
     "ask": [],
