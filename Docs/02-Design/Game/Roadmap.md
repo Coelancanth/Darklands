@@ -659,14 +659,14 @@ Time to mastery ≈ 50-70 attacks (5-10 fights)
 
 **Vision**: Dwarf Fortress-inspired procedural worldgen (plate tectonics → geology → climate → hydrology → biomes → resources)
 
-**Current State**: Phase 1 ~75% complete (Elevation + Temperature + Precipitation pipeline)
+**Current State**: Phase 1 ~80% complete (Elevation + Temperature + Precipitation pipeline ✅ COMPLETE!)
 
 **Three-Phase Roadmap**:
 ```
-Phase 1: Core Pipeline (MVP) - 70% complete
+Phase 1: Core Pipeline (MVP) - 80% complete
   ✅ Stage 1: Tectonic Foundation (VS_024)
-  ✅ Stage 2: Atmospheric Climate (VS_025-027, VS_028 in progress)
-  🔄 Stage 3: Hydrological Processes (VS_029 next)
+  ✅ Stage 2: Atmospheric Climate (VS_025-028 COMPLETE!)
+  🔄 Stage 3: Hydrological Processes (VS_029 particle erosion in progress)
   ⏳ Stage 4: Biome Classification
 
 Phase 2: Hydrology Extensions - Not started
@@ -688,37 +688,46 @@ Phase 3: Geology & Resources (DF-Inspired) - Design phase
 - 4-component algorithm (latitude + noise + distance-to-sun + mountain cooling)
 - 4-stage debug visualization
 - Per-world climate variation (hot/cold planets)
-- Archive: [Backlog.md](../../01-Active/Backlog.md) (search "VS_025")
+- Archive: [Completed_Backlog_2025-10_Part3.md](../../07-Archive/Completed_Backlog_2025-10_Part3.md) (search "VS_025")
 
 **VS_026: Base Precipitation** ✅ COMPLETE (2025-10-08)
 - 3-stage algorithm (noise + temperature curve + renormalization)
 - WorldEngine exact port (gamma=2.0, curveBonus=0.2)
-- Archive: [Backlog.md](../../01-Active/Backlog.md) (search "VS_026")
+- Archive: [Completed_Backlog_2025-10_Part3.md](../../07-Archive/Completed_Backlog_2025-10_Part3.md) (search "VS_026")
 
 **VS_027: Rain Shadow Effect** ✅ COMPLETE (2025-10-08)
 - Latitude-based prevailing winds (Polar Easterlies / Westerlies / Trade Winds)
 - Orographic blocking (max 20 cells ≈ 1000km trace)
 - Real-world desert patterns (Sahara, Gobi, Atacama)
-- Archive: [Backlog.md](../../01-Active/Backlog.md) (search "VS_027")
+- Archive: [Completed_Backlog_2025-10_Part3.md](../../07-Archive/Completed_Backlog_2025-10_Part3.md) (search "VS_027")
+
+**VS_028: Coastal Moisture Enhancement** ✅ COMPLETE (2025-10-09)
+- Distance-to-ocean BFS + exponential decay (O(n) flood fill)
+- Maritime vs continental climate patterns (Seattle vs Spokane)
+- Completes atmospheric climate pipeline (FINAL PRECIPITATION MAP ready!)
+- 495/495 tests GREEN (100%)
+- Archive: [Completed_Backlog_2025-10_Part3.md](../../07-Archive/Completed_Backlog_2025-10_Part3.md) (search "VS_028")
 
 ### In Progress
 
-**VS_028: Coastal Moisture Enhancement** 🔄 NEXT (3-4h estimate)
-- Distance-to-ocean BFS + exponential decay
-- Completes atmospheric climate pipeline (FINAL PRECIPITATION MAP)
-- Details: [Roadmap_World_Generation.md](Roadmap_World_Generation.md#vs_028-coastal-moisture-enhancement-distance-to-ocean--in-progress)
+**VS_029: Particle-Based Erosion & Rivers** 🔄 NEXT (20-28h estimate)
+- SimpleHydrology algorithm (particle physics with momentum field feedback)
+- Precipitation-weighted seeding + scale-aware parameters
+- Natural meandering rivers (emergent from physics, not algorithmic)
+- River/lake extraction (continuous discharge → discrete markers)
+- **Time savings vs original plan**: Replaces watermap simulation (saves 3-4h!)
+- Details: [Roadmap_World_Generation.md](Roadmap_World_Generation.md#vs_029-particle-based-hydraulic-erosion--rivers--planned)
 
-### Planned Features
+**VS_031: WorldGen Debug Panel** ⏳ AFTER VS_029 (6-8h estimate) - **ESSENTIAL**
+- Real-time semantic parameter tuning (RiverDensity, Meandering, ValleyDepth, Speed)
+- Stage-based incremental regeneration (0.5s erosion-only vs 2s full world)
+- Scale-aware normalization (presets work on any map size)
+- Preset system (Earth, Mountains, Desert, Islands)
+- Details: [Roadmap_World_Generation.md](Roadmap_World_Generation.md#vs_031-worldgen-debug-panel-real-time-parameter-tuning--planned)
 
-**VS_029: Erosion & Rivers** ⏳ AFTER VS_028 (8-10h estimate)
-- Hydraulic erosion (WorldEngine port)
-- River source detection (uses FINAL precipitation)
-- Valley carving, river networks, lakes
-- Details: [Roadmap_World_Generation.md](Roadmap_World_Generation.md#vs_029-erosion--rivers-hydraulic-erosion--planned)
-
-**Watermap → Irrigation → Humidity → Biomes** ⏳ PHASE 1 COMPLETION
-- Droplet flow model (20,000 droplets)
-- Moisture spreading (21×21 kernel)
+**Irrigation → Humidity → Biomes** ⏳ PHASE 1 COMPLETION
+- ~~Watermap simulation~~ **REPLACED** (VS_029 discharge map serves as watermap!)
+- Moisture spreading from discharge (21×21 kernel)
 - 48 biome types (temperature + humidity)
 - Details: [Roadmap_World_Generation.md](Roadmap_World_Generation.md#stage-3-hydrological-processes)
 
