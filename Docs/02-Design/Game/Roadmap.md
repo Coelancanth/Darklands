@@ -2,7 +2,7 @@
 
 **Purpose**: Organize all Darklands features by category for quick reference and planning.
 
-**Last Updated**: 2025-10-09 23:11 (Product Owner: Created Stats/Progression roadmap, VS_032 equipment system proposed)
+**Last Updated**: 2025-10-10 (Product Owner: Added Toolchain & Development Tools section - Item Editor, Translation Manager, Template Browser for designer autonomy)
 
 ---
 
@@ -15,6 +15,7 @@
 - [Combat](#combat) - Turn Queue, Attacks, AI, Armor
 - [Inventory & Items](#inventory--items) - Spatial Grid, Equipment, Crafting
 - [Visual & Rendering](#visual--rendering) - Camera, TileSet, Animations
+- [Toolchain & Development Tools](#toolchain--development-tools) - Item Editor, Translation Manager, Template Browser
 
 **Strategic Layer (World Map - Macro Scale):**
 - [World Generation](#world-generation) - Plate Tectonics, Elevation, Temperature, Climate
@@ -353,6 +354,132 @@ Phase 4: Emergent Narrative (3-4 months)
 - Damage numbers/effects
 - Death animations
 - Currently: Instant damage with console logging
+
+---
+
+## Toolchain & Development Tools
+
+**📖 Full Details**: [Roadmap_Toolchain.md](Roadmap_Toolchain.md) - Designer/Developer tooling roadmap
+
+**Vision**: Odin Inspector-inspired editor tools - empower designers to create content without programmer intervention, with seamless i18n integration.
+
+**Current State**: Foundation ready (ADR-006 data-driven templates, ADR-005 i18n system) - Missing designer-friendly visual editors!
+
+**Priority Tools**:
+```
+CRITICAL (When 20+ Items): Item Editor (Odin Inspector-like template editor)
+IMPORTANT (When 50+ Keys): Translation Manager (Visual CSV editor with context)
+IDEAS (When 100+ Items): Template Browser (Search/filter, batch operations)
+```
+
+### Why Toolchain Matters
+
+**Designer Autonomy**:
+- Create 10 items in 10 minutes (vs 30+ minutes with text editors)
+- Balance weapons without programmer (see DPS calculator, compare vs other items)
+- Edit translations inline (no external CSV editor juggling)
+- Batch operations (create 5 rusty variants with one command)
+
+**Fast Iteration**:
+- Hot-reload works (<5 seconds from edit → test)
+- Visual validation (RED warnings for missing translations, invalid stats)
+- Context awareness (see "ITEM_IRON_SWORD" → "Iron Sword" translation inline)
+
+**Scalability**:
+- 100+ items manageable with good tools
+- 100+ items impossible with Godot Inspector alone (no search, no comparison, no batch ops)
+
+**Quality**:
+- Fewer errors (validation before save, balance comparison)
+- Consistency (bulk stat adjustments ensure uniform balance)
+- Documentation (tool shows which templates use each translation key)
+
+### Planned Tools
+
+**Item Editor** (Odin Inspector-like):
+- Visual template browser (filter by type: weapons/armor/consumables)
+- Property editor (grouped by inheritance: Item / Equipment / Weapon sections)
+- Inline translation view ("NameKey: ITEM_IRON_SWORD → Iron Sword [Edit]")
+- Balance comparison (DPS calculator, damage vs other weapons graph)
+- Live preview (sprite + key stats at a glance)
+
+**Translation Manager** (Visual CSV Editor):
+- Visual editor (not raw CSV text)
+- Search/filter by key prefix (ITEM_*, ACTOR_*, UI_*)
+- Context awareness (shows which templates use each key)
+- Validation (duplicate keys, missing translations highlighted)
+- Export/import for translator collaboration
+
+**Template Browser** (Advanced Search):
+- Search by name, type, stat range (all weapons with Damage > 10)
+- Batch operations (duplicate 5 selected, bulk stat adjustment)
+- Tag system (tier-1, heavy, rare)
+- Usage tracking (which ActorTemplates reference this item?)
+
+**WorldGen Debug Panel** (VS_031):
+- *Already planned in [Roadmap_World_Generation.md](Roadmap_World_Generation.md)*
+- Real-time parameter tuning (RiverDensity, Meandering, ValleyDepth)
+- Stage-based incremental regeneration (0.5s erosion-only vs 2s full world)
+
+### Integration with Game Systems
+
+**Item Editor ↔ Equipment System (VS_032)**:
+- Creates/edits: ItemTemplate, EquipmentTemplate, WeaponTemplate, ArmorTemplate
+- Validates: Required fields, stat ranges, translation key existence
+- Shows: Which ActorTemplates use this item (StartingMainHandId references)
+
+**Translation Manager ↔ i18n System (ADR-005)**:
+- Reads/writes: godot_project/translations/en.csv (primary)
+- Validates: Keys exist, no duplicates, no missing values
+- Integrates: Shows which templates use each key (reverse lookup)
+
+**Template Browser ↔ All Templates**:
+- Reads: data/items/**/*.tres, data/entities/**/*.tres
+- Searches: By name, type, properties
+- Batches: Duplicate, bulk edit, export
+
+### Phasing
+
+**Phase 1: Foundation** (After VS_032 Complete):
+- Hierarchical template system (ItemTemplate → EquipmentTemplate → WeaponTemplate/ArmorTemplate)
+- Example templates (10 weapons, 5 armor pieces) to validate system
+- Godot Inspector editing works (but limited UX)
+
+**Phase 2: Item Editor** (When 20+ Items):
+- Basic editor (create, edit, duplicate)
+- Property editing (grouped by inheritance level)
+- Inline translation view (see NameKey translations)
+- Live preview (sprite + key stats)
+
+**Phase 3: Translation Manager** (When 50+ Keys):
+- Visual CSV editor
+- Search/filter by key prefix
+- Usage tracking (which templates use each key)
+- Validation (duplicate keys, missing translations)
+
+**Phase 4: Advanced Features** (When 100+ Items):
+- Batch operations (bulk stat adjustments)
+- Balance calculator (DPS, gold value curves)
+- Template Browser (advanced search/filter)
+
+### Current Status
+
+**Foundation Complete**:
+- ✅ ADR-006: Data-Driven Entity Design (Godot Resources, hot-reload works)
+- ✅ ADR-005: Internationalization Architecture (translation keys, en.csv)
+- ✅ ActorTemplate system (GodotTemplateService, validation)
+
+**Missing Tools**:
+- ❌ Item Editor (designers use Godot Inspector - limited UX)
+- ❌ Translation Manager (designers edit en.csv in text editor)
+- ❌ Template Browser (designers manually open .tres files)
+
+**Next Steps**:
+- Complete VS_032 (Equipment & Stats System) to establish item template hierarchy
+- Create 10-20 example items to prove template system scales
+- Build Item Editor when designer pain becomes bottleneck (estimated: when 20+ items exist)
+
+*See [Roadmap_Toolchain.md](Roadmap_Toolchain.md) for detailed designer workflows, UX flows, and integration points.*
 
 ---
 
