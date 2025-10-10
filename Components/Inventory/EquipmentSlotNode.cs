@@ -333,16 +333,25 @@ public partial class EquipmentSlotNode : Control
         else
         {
             // Source: Inventory → Target: Equipment Slot (original behavior)
-            // TD_019 Phase 4: Inventory drags DON'T have sourceActorIdGuid - we use OwnerActorId + PlayerInventoryId
-            HandleInventoryToEquipmentTransfer(itemId);
+            // TD_019 Phase 4: Inventory drags have sourceInventoryIdGuid - we need to pass the actual source inventory
+            var sourceInventoryIdGuidStr = dragData["sourceInventoryIdGuid"].AsString();
+            if (!Guid.TryParse(sourceInventoryIdGuidStr, out var sourceInventoryIdGuid))
+            {
+                _logger.LogError("Failed to parse sourceInventoryIdGuid");
+                return;
+            }
+            var sourceInventoryId = new Darklands.Core.Features.Inventory.Domain.InventoryId(sourceInventoryIdGuid);
+
+            HandleInventoryToEquipmentTransfer(itemId, sourceInventoryId);
         }
     }
 
     /// <summary>
     /// Handles dragging from inventory to equipment slot.
     /// VS_032 Phase 4: Original behavior - equip from inventory.
+    /// TD_019 Phase 4: Now accepts sourceInventoryId to support cross-inventory equips.
     /// </summary>
-    private void HandleInventoryToEquipmentTransfer(ItemId itemId)
+    private void HandleInventoryToEquipmentTransfer(ItemId itemId, Darklands.Core.Features.Inventory.Domain.InventoryId sourceInventoryId)
     {
         // Check if this is a swap (slot occupied) or equip (slot empty)
         if (_currentItemId == null)
@@ -350,7 +359,7 @@ public partial class EquipmentSlotNode : Control
             // Empty slot → Equip item from inventory
             _logger.LogInformation("EQUIP from inventory: Item {ItemId} to empty {SlotTitle} ({Slot})",
                 itemId, SlotTitle, Slot);
-            EquipItemAsync(itemId);
+            EquipItemAsync(itemId, sourceInventoryId);
         }
         else if (_currentItemId.Value.Equals(itemId))
         {
@@ -363,7 +372,7 @@ public partial class EquipmentSlotNode : Control
             // Occupied slot → Swap: unequip current, equip new
             _logger.LogInformation("SWAP from inventory: {NewItem} ↔ {OldItem} in {SlotTitle} ({Slot})",
                 itemId, _currentItemId, SlotTitle, Slot);
-            SwapEquipmentAsync(itemId);
+            SwapEquipmentAsync(itemId, sourceInventoryId);
         }
     }
 
@@ -638,18 +647,19 @@ public partial class EquipmentSlotNode : Control
     /// <summary>
     /// Equips an item from inventory to this equipment slot.
     /// VS_032 Phase 4: Uses EquipItemCommand (not MoveItemBetweenContainersCommand).
+    /// TD_019 Phase 4: Accepts sourceInventoryId to support cross-inventory equips (e.g., enemy loot → player equipment).
     /// </summary>
-    private async void EquipItemAsync(ItemId itemId)
+    private async void EquipItemAsync(ItemId itemId, Darklands.Core.Features.Inventory.Domain.InventoryId sourceInventoryId)
     {
         if (OwnerActorId == null || PlayerInventoryId == null)
             return;
 
-        _logger.LogInformation("Equipping item {ItemId} to {Slot}", itemId, Slot);
+        _logger.LogInformation("Equipping item {ItemId} from inventory {SourceInventoryId} to {Slot}", itemId, sourceInventoryId, Slot);
 
-        // TD_019 Phase 4: EquipItemCommand now requires sourceInventoryId parameter
+        // TD_019 Phase 4: Use actual sourceInventoryId from drag data (not hardcoded PlayerInventoryId)
         var command = new EquipItemCommand(
             OwnerActorId.Value,
-            PlayerInventoryId.Value,
+            sourceInventoryId,
             itemId,
             Slot,
             false); // Positional parameter for IsTwoHanded
@@ -670,19 +680,20 @@ public partial class EquipmentSlotNode : Control
     /// <summary>
     /// Swaps equipped item with inventory item.
     /// VS_032 Phase 4: Uses SwapEquipmentCommand (not SwapItemsCommand).
+    /// TD_019 Phase 4: Accepts sourceInventoryId to support cross-inventory swaps.
     /// </summary>
-    private async void SwapEquipmentAsync(ItemId newItemId)
+    private async void SwapEquipmentAsync(ItemId newItemId, Darklands.Core.Features.Inventory.Domain.InventoryId sourceInventoryId)
     {
         if (OwnerActorId == null || PlayerInventoryId == null)
             return;
 
-        _logger.LogInformation("Swapping equipment in {Slot}: {NewItem} ↔ {OldItem}",
-            Slot, newItemId, _currentItemId);
+        _logger.LogInformation("Swapping equipment in {Slot}: {NewItem} from inventory {SourceInventoryId} ↔ {OldItem}",
+            Slot, newItemId, sourceInventoryId, _currentItemId);
 
-        // TD_019 Phase 4: SwapEquipmentCommand now requires inventoryId parameter
+        // TD_019 Phase 4: Use actual sourceInventoryId from drag data (not hardcoded PlayerInventoryId)
         var command = new SwapEquipmentCommand(
             OwnerActorId.Value,
-            PlayerInventoryId.Value,
+            sourceInventoryId,
             newItemId,
             Slot,
             false); // Positional parameter for IsTwoHanded
