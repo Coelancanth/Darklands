@@ -304,38 +304,36 @@ public partial class EquipmentSlotNode : Control
         // Mark drag as completed (successful drop)
         _isDragging = false;
 
-        var itemIdGuidStr = dragData["itemIdGuid"].AsString();
-        var sourceActorIdGuidStr = dragData["sourceActorIdGuid"].AsString();
+        // TD_019 Phase 4 FIX: Check source type FIRST before reading sourceActorIdGuid
+        // WHY: Equipment drags have sourceActorIdGuid, inventory drags have sourceInventoryIdGuid
+        bool isEquipmentSource = dragData.ContainsKey("sourceSlot");
 
-        if (!Guid.TryParse(itemIdGuidStr, out var itemIdGuid) ||
-            !Guid.TryParse(sourceActorIdGuidStr, out var sourceActorIdGuid))
+        var itemIdGuidStr = dragData["itemIdGuid"].AsString();
+        if (!Guid.TryParse(itemIdGuidStr, out var itemIdGuid))
         {
-            _logger.LogError("Failed to parse drag data GUIDs");
+            _logger.LogError("Failed to parse itemIdGuid");
             return;
         }
 
         var itemId = new ItemId(itemIdGuid);
-        var sourceActorId = new ActorId(sourceActorIdGuid);
 
-        if (OwnerActorId == null)
+        if (OwnerActorId == null || PlayerInventoryId == null)
         {
-            _logger.LogError("OwnerActorId is null - cannot equip item");
+            _logger.LogError("OwnerActorId or PlayerInventoryId is null - cannot equip item");
             return;
         }
-
-        // VS_032 Phase 4: Detect source type and route accordingly
-        // Equipment sources need different commands than inventory sources!
-        bool isEquipmentSource = dragData.ContainsKey("sourceSlot");
 
         if (isEquipmentSource)
         {
             // Source: Equipment Slot → Target: Equipment Slot (Option A)
+            // TD_019 Phase 4: Equipment drags use sourceActorIdGuid (not sourceInventoryIdGuid)
             var sourceSlot = (EquipmentSlot)dragData["sourceSlot"].AsInt32();
             HandleEquipmentToEquipmentTransfer(itemId, sourceSlot);
         }
         else
         {
             // Source: Inventory → Target: Equipment Slot (original behavior)
+            // TD_019 Phase 4: Inventory drags DON'T have sourceActorIdGuid - we use OwnerActorId + PlayerInventoryId
             HandleInventoryToEquipmentTransfer(itemId);
         }
     }
