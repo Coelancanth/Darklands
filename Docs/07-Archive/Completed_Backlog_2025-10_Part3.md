@@ -1588,3 +1588,192 @@ return result with {
 - [ ] Performance insight: BFS + per-cell calculation complexity (~30-50ms for 512×512)
 
 ---
+
+### TD_019: Inventory-First Architecture (InventoryId Primary Key)
+**Extraction Status**: NOT EXTRACTED ⚠️
+**Completed**: 2025-10-11 05:21
+**Archive Note**: Redesigned inventory ownership from Actor-centric (1:1 Actor→Inventory) to Inventory-First (independent inventories with optional owner). All 5 phases complete: InventoryId value object, ActorId? OwnerId, repository GetByIdAsync/GetByOwnerAsync, 16 commands/queries updated, 543 Core tests GREEN, Presentation layer (5 files) updated with 3 runtime drag-drop bugs fixed, all obsolete GetByActorIdAsync removed. Unlocks squad-based gameplay, loot containers, shared inventories, cross-actor equip operations.
+
+---
+
+**Status**: ✅ **COMPLETE** (2025-10-11 05:21) - All 5 phases finished, 543/543 tests GREEN, manual gameplay validated
+**Owner**: Dev Engineer
+**Size**: L (18h total - All phases complete: Phase 1 (4h) + Phase 2 (3h) + Phase 3 (4h) + Phase 4 (5h) + Phase 5 (2h))
+**Priority**: Important (unlocks squad-based gameplay, loot containers, shared inventories)
+**Markers**: [ARCHITECTURE] [BREAKING-CHANGE] [SQUAD-SUPPORT]
+
+**What**: Redesign inventory ownership from **Actor-centric** (1:1 Actor→Inventory) to **Inventory-First** (independent inventories with optional owner).
+
+**Why**:
+- **Current Limitation**: `GetByActorIdAsync(ActorId)` assumes 1 inventory per actor → Cannot support loot containers (no actor), squad inventories (multiple actors), shared stashes
+- **Squad-Based Gameplay**: Need teammate inventories + loot containers + team stash (requires independent inventory identity)
+- **Equipment Bug Context**: BR_008 revealed equipment assumes items come from same actor's inventory (cross-actor equip fails by design)
+- **Test Scene Hack**: "Enemy Loot" uses dummy ActorId to satisfy repository contract (architectural smell)
+
+**Current Design Problems**:
+```csharp
+// Repository (Actor-centric - 1:1 mapping)
+GetByActorIdAsync(ActorId actorId) → Inventory  // ONE inventory per actor
+
+// Equipment (assumes same-actor transfers)
+EquipItemCommand {
+    ActorId actorId;  // Equipment owner
+    ItemId itemId;    // Must be in actorId's inventory!
+}
+// Result: Cannot equip from Enemy Loot → Player Equipment (different actors)
+```
+
+**Proposed Design** (Inventory-First):
+```csharp
+// 1. Add InventoryId value object (like ActorId, ItemId)
+public record InventoryId(Guid Value);
+
+// 2. Inventory becomes independent entity with optional owner
+public class Inventory {
+    InventoryId Id;        // Primary key
+    ActorId? OwnerId;      // null = world container (chest, loot)
+    ContainerType Type;
+}
+
+// 3. Repository uses InventoryId as primary key
+GetByIdAsync(InventoryId id) → Inventory
+GetByOwnerAsync(ActorId owner) → List<Inventory>  // Actor can own multiple!
+GetWorldContainersAsync() → List<Inventory>       // Ownerless containers
+
+// 4. Equipment references specific inventory
+EquipItemCommand {
+    ActorId actorId;        // Equipment owner
+    InventoryId sourceInventoryId;  // Where item comes from (any inventory!)
+    ItemId itemId;
+}
+```
+
+**Benefits**:
+- ✅ **Loot containers**: Inventories without owners (chest, corpse, ground loot)
+- ✅ **Squad inventories**: Teammate A, Teammate B each have separate inventories
+- ✅ **Multiple inventories per actor**: Backpack + ammo pouch + saddlebags
+- ✅ **Shared inventories**: Team stash, guild bank (owned by multiple actors)
+- ✅ **Cross-actor transfers**: Enemy Loot → Player Equipment (equip while looting)
+
+**How** (3-Phase Rollout):
+
+**Phase 1: Core Domain (4-5h)** - ✅ **COMPLETE** (2025-10-11 02:30)
+- ✅ `InventoryId` value object already exists at `Features/Inventory/Domain/InventoryId.cs`
+- ✅ Added `ActorId? OwnerId` property to `Inventory` entity (nullable for world containers)
+- ✅ Updated `Inventory.Create()` factory methods to accept optional `ownerId` parameter
+- ✅ Updated `InMemoryInventoryRepository`:
+  - Changed storage from `Dictionary<ActorId, Inventory>` → `Dictionary<InventoryId, Inventory>` (PRIMARY KEY CHANGED!)
+  - Added `GetByIdAsync(InventoryId)` → primary lookup method
+  - Added `GetByOwnerAsync(ActorId)` → returns `List<Inventory>` (multi-inventory support!)
+  - Deprecated `GetByActorIdAsync` with `[Obsolete]` attribute + migration message
+  - Renamed `RegisterInventoryForActor(ActorId, Inventory)` → `RegisterInventory(Inventory)` (no actor required)
+- **Quality**: Core builds successfully with 0 errors
+
+**Phase 2: Application Layer (Commands + Queries) (3-4h)** - ✅ **COMPLETE** (2025-10-11 03:45)
+- ✅ Updated **16 Commands/Queries** to use `InventoryId` instead of `ActorId`:
+  - `GetInventoryQuery(InventoryId)` (was: `ActorId`)
+  - `MoveItemBetweenContainersCommand(InventoryId source, InventoryId target, ...)` (was: `ActorId, ActorId`)
+  - `EquipItemCommand(ActorId actor, InventoryId sourceInventoryId, ...)` (added: `sourceInventoryId` - **BR_008 FIX!**)
+  - `UnequipItemCommand(ActorId actor, InventoryId targetInventoryId, ...)` (added: `targetInventoryId`)
+  - `SwapEquipmentCommand(ActorId actor, InventoryId inventoryId, ...)` (added: `inventoryId` - removed pragma suppress!)
+  - All single-inventory commands: `AddItem`, `RemoveItem`, `RotateItem`, `PlaceItemAtPosition`, `CanPlaceItemAt`
+  - All query handlers: `GetOccupiedCells`, `CalculateHighlightCells`, `GetItemRenderPosition`
+- ✅ Updated **InventoryDto** to have `ActorId? OwnerId` (was: `ActorId` non-nullable)
+- ✅ All **16 handlers** updated to use `GetByIdAsync(inventoryId)` (no more `GetByActorIdAsync!`)
+- ✅ Added missing `using InventoryId = ...` statements to 10 command/query files
+- **Quality**: Core builds successfully with 0 errors, all deprecated method usage removed
+
+**Phase 3: Core Tests (4h)** - ✅ **COMPLETE** (2025-10-11 04:43)
+- ✅ Fixed **13 test files** (543 tests total):
+  - Equipment command handler tests (10 tests) - Added `InventoryId` parameters, used obsolete `GetByActorIdAsync` for auto-creation
+  - Inventory repository tests (4 tests) - Updated to use `GetByOwnerAsync` (returns List<Inventory>)
+  - Inventory command/query tests (11 files, bulk fix) - Constructor signatures, RegisterInventory, obsolete method usage with `#pragma warning disable CS0618`
+- ✅ **Migration Pattern Established**: Use obsolete `GetByActorIdAsync` in test setup (auto-creates inventory), wrap with pragma suppression
+- ✅ **Test Results**: 543/543 tests GREEN, 0 compilation errors, 0 warnings
+- **Quality**: Zero regressions, all existing tests pass with new Inventory-First architecture
+
+**Phase 4: Presentation Layer (5h)** - ✅ **COMPLETE** (2025-10-11 05:03)
+- ✅ **Updated 5 Presentation files** to use `InventoryId`:
+  - ✅ `InventoryContainerNode.cs`: Changed `OwnerActorId` property → `InventoryId` property, updated drag data to use `sourceInventoryIdGuid`
+  - ✅ `EquipmentSlotNode.cs`: Added `PlayerInventoryId` property for unequip destination, updated all command calls (EquipItemCommand, SwapEquipmentCommand, UnequipItemCommand)
+  - ✅ `EquipmentPanelNode.cs`: Added `PlayerInventoryId` property, passes to child EquipmentSlotNodes
+  - ✅ `SpatialInventoryTestController.cs`: Updated to set `InventoryContainerNode.InventoryId` and `EquipmentPanelNode.PlayerInventoryId`
+  - ✅ `InventoryPanelNode.cs`: Updated to use `InventoryId` for commands (test/demo panel)
+- ✅ **Fixed 3 drag-drop bugs** discovered during runtime testing:
+  - Equipment→Inventory KeyNotFoundException (check source type FIRST before reading drag data keys)
+  - Inventory→Equipment KeyNotFoundException (same pattern, different file)
+  - Cross-inventory equip validation error (pass actual sourceInventoryId, not hardcoded PlayerInventoryId)
+- ✅ **All 543 Core tests GREEN** - Presentation layer compiles successfully with 0 errors
+- ✅ **Manual validation PASSED** in SpatialInventoryTestScene: All 4 drag-drop scenarios work (equipment→inventory, inventory→equipment, cross-container, cross-inventory equip)
+
+**Phase 5: Cleanup Obsolete Methods (2h)** - ✅ **COMPLETE** (2025-10-11 05:21)
+- ✅ Removed `GetByActorIdAsync` method from IInventoryRepository interface
+- ✅ Removed `GetByActorIdAsync` implementation from InMemoryInventoryRepository
+- ✅ Migrated **11 test files** to explicit `Inventory.Create()` + `RegisterInventory()` pattern (~60 occurrences):
+  - EquipmentCommandHandlerTests.cs (13 occurrences)
+  - InMemoryInventoryRepositoryTests.cs (4 occurrences + expectation fix)
+  - GetInventoryQueryHandlerSpatialTests.cs (2 occurrences)
+  - CalculateHighlightCellsQueryHandlerTests.cs (4 occurrences)
+  - GetItemRenderPositionQueryHandlerTests.cs (1 occurrence)
+  - GetOccupiedCellsQueryHandlerTests.cs (1 occurrence)
+  - CanPlaceItemAtQueryHandlerTests.cs (4 occurrences)
+  - RemoveItemCommandHandlerTests.cs (2 occurrences)
+  - PlaceItemAtPositionCommandHandlerTests.cs (4 occurrences + Result.Value fix)
+  - MoveItemBetweenContainersCommandHandlerTests.cs (5 occurrences)
+  - AddItemCommandHandlerTests.cs (3 occurrences)
+- ✅ Removed all `#pragma warning disable CS0618` pragma suppressions (60+ occurrences)
+- ✅ Fixed test expectations for `GetByOwnerAsync` (returns empty list, not failure after delete)
+- ✅ **All 543 Core tests GREEN** (100% pass rate, zero warnings)
+
+**Done When**:
+- ✅ `InventoryId` value object created and used as primary key (Phase 1)
+- ✅ Inventory has optional `ActorId? OwnerId` (null = world container) (Phase 1)
+- ✅ Repository uses `InventoryId` for lookups (breaking change) (Phase 1)
+- ✅ Equipment commands accept `InventoryId` (cross-actor equip supported) (Phase 2)
+- ✅ All Core tests GREEN (543 tests updated for new architecture) (Phase 3)
+- ✅ Presentation layer updated to use `InventoryId` (5 files updated, 3 runtime bugs fixed) (Phase 4)
+- ✅ All builds successful (Core + Godot project compile with 0 errors) (Phase 4)
+- ✅ Manual validation in test scene (user gameplay testing) - All 4 drag-drop scenarios work! (Phase 4)
+- ✅ Obsolete `GetByActorIdAsync` removed entirely (interface + implementation + all pragma suppressions) (Phase 5)
+- ✅ Drag-drop passes `InventoryId` (not just `ActorId`) (Phase 4 - sourceInventoryIdGuid in drag data)
+- ✅ Test scene supports cross-inventory operations (enemy loot → player equipment works!) (Phase 4)
+- ✅ Technical debt eliminated (no obsolete methods, no warnings, clean codebase) (Phase 5)
+
+**Depends On**: None
+
+**Implementation Notes** (2025-10-11 Phase 1+2+3 Complete):
+- **Breaking Changes**: 16 commands/queries signatures changed, InventoryDto.OwnerId now nullable
+- **Deprecation Strategy**: `GetByActorIdAsync` marked `[Obsolete]`, wrapped with `#pragma warning disable CS0618` in tests (graceful migration)
+- **Test Migration Pattern**: Use obsolete `GetByActorIdAsync` in test setup (auto-creates inventory), avoids empty list issue with `GetByOwnerAsync`
+- **Test Results**: 543/543 tests GREEN, 13 test files updated (Equipment, Inventory repository, Inventory commands/queries)
+- **Presentation Impact**: 5 files need updates (InventoryContainerNode, EquipmentSlotNode, EquipmentPanelNode, SpatialInventoryTestController, drag data dictionaries) - deferred to Phase 4
+- **Zero Regression**: Core builds with 0 errors, all tests pass, no logic bugs introduced (pure refactoring)
+
+**Risks**:
+- **Breaking Change**: All inventory queries/commands need updates (extensive refactoring)
+- **Test Updates**: ~50-60 tests reference `GetByActorIdAsync` (mechanical but tedious)
+- **Migration Path**: Need to preserve existing test data (create InventoryIds for current inventories)
+
+**Tech Lead Decision** (2025-10-10 03:43):
+- **Deferred until VS_032 complete**: Avoid merge conflicts with Equipment phases 5-6
+- **Approved architecture**: Inventory-First is correct long-term design
+- **Next Steps**:
+  1. Complete VS_032 Phase 5-6 (Data-Driven Equipment)
+  2. Implement TD_019 (Inventory-First)
+  3. Update Roadmap.md to reflect architecture change
+- **Timeline**: Target after VS_032 done (~2-3 days from now)
+
+---
+
+**Extraction Targets**:
+- [ ] ADR needed for: Inventory-First architecture (independent inventories with optional owner, InventoryId primary key)
+- [ ] ADR needed for: Breaking change migration strategy (obsolete methods, pragma suppressions, phased rollout)
+- [ ] HANDBOOK update: Repository pattern evolution (primary key change, GetByIdAsync vs GetByOwnerAsync)
+- [ ] HANDBOOK update: Presentation layer integration (InventoryId in drag-drop data, cross-inventory operations)
+- [ ] Reference implementation: InMemoryInventoryRepository as template for entity primary key migration
+- [ ] Testing pattern: Obsolete method usage in test setup (auto-creation pattern with pragma suppression)
+- [ ] Testing pattern: Manual validation strategy (4 drag-drop scenarios, runtime bug discovery)
+- [ ] Architecture insight: Squad-based gameplay enablers (loot containers, shared inventories, cross-actor operations)
+- [ ] Bug pattern: Drag-drop KeyNotFoundException (check source type FIRST before accessing drag data keys)
+
+---
