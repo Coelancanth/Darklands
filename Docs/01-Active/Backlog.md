@@ -221,9 +221,9 @@
 *Core features for current milestone, technical debt affecting velocity*
 
 ### TD_019: Inventory-First Architecture (InventoryId Primary Key)
-**Status**: Complete (Phase 1+2+3+4/5 ✅✅✅✅ - Core + Presentation fully migrated, manual validation pending)
+**Status**: ✅ **COMPLETE** (2025-10-11 05:21) - All 5 phases finished, 543/543 tests GREEN, manual gameplay validated
 **Owner**: Dev Engineer
-**Size**: L (16-20h total - Phases 1-4: 16h complete, Phase 5 cleanup: 1-2h deferred)
+**Size**: L (18h total - All phases complete: Phase 1 (4h) + Phase 2 (3h) + Phase 3 (4h) + Phase 4 (5h) + Phase 5 (2h))
 **Priority**: Important (unlocks squad-based gameplay, loot containers, shared inventories)
 **Markers**: [ARCHITECTURE] [BREAKING-CHANGE] [SQUAD-SUPPORT]
 
@@ -317,22 +317,38 @@ EquipItemCommand {
 - ✅ **Test Results**: 543/543 tests GREEN, 0 compilation errors, 0 warnings
 - **Quality**: Zero regressions, all existing tests pass with new Inventory-First architecture
 
-**Phase 4: Presentation Layer (4-8h)** - ✅ **COMPLETE** (2025-10-11 04:57)
+**Phase 4: Presentation Layer (5h)** - ✅ **COMPLETE** (2025-10-11 05:03)
 - ✅ **Updated 5 Presentation files** to use `InventoryId`:
   - ✅ `InventoryContainerNode.cs`: Changed `OwnerActorId` property → `InventoryId` property, updated drag data to use `sourceInventoryIdGuid`
   - ✅ `EquipmentSlotNode.cs`: Added `PlayerInventoryId` property for unequip destination, updated all command calls (EquipItemCommand, SwapEquipmentCommand, UnequipItemCommand)
   - ✅ `EquipmentPanelNode.cs`: Added `PlayerInventoryId` property, passes to child EquipmentSlotNodes
   - ✅ `SpatialInventoryTestController.cs`: Updated to set `InventoryContainerNode.InventoryId` and `EquipmentPanelNode.PlayerInventoryId`
   - ✅ `InventoryPanelNode.cs`: Updated to use `InventoryId` for commands (test/demo panel)
+- ✅ **Fixed 3 drag-drop bugs** discovered during runtime testing:
+  - Equipment→Inventory KeyNotFoundException (check source type FIRST before reading drag data keys)
+  - Inventory→Equipment KeyNotFoundException (same pattern, different file)
+  - Cross-inventory equip validation error (pass actual sourceInventoryId, not hardcoded PlayerInventoryId)
 - ✅ **All 543 Core tests GREEN** - Presentation layer compiles successfully with 0 errors
-- ⏳ **Manual validation** in SpatialInventoryTestScene: Test drag-drop player→enemy, equipment→backpack, cross-container operations (PENDING USER VALIDATION)
+- ✅ **Manual validation PASSED** in SpatialInventoryTestScene: All 4 drag-drop scenarios work (equipment→inventory, inventory→equipment, cross-container, cross-inventory equip)
 
-**Phase 5: Cleanup Obsolete Methods (1-2h)** - ⏳ **FUTURE** (After Phase 4)
-**Goal**: Remove obsolete `GetByActorIdAsync` entirely once all callers migrated
-- Remove `[Obsolete]` attribute and method implementation from `InMemoryInventoryRepository`
-- Update remaining tests to use explicit `RegisterInventory()` pattern or create-then-get
-- Remove `#pragma warning disable CS0618` statements from 13 test files
-- **Prerequisite**: Phase 4 complete (Presentation layer fully migrated to InventoryId)
+**Phase 5: Cleanup Obsolete Methods (2h)** - ✅ **COMPLETE** (2025-10-11 05:21)
+- ✅ Removed `GetByActorIdAsync` method from IInventoryRepository interface
+- ✅ Removed `GetByActorIdAsync` implementation from InMemoryInventoryRepository
+- ✅ Migrated **11 test files** to explicit `Inventory.Create()` + `RegisterInventory()` pattern (~60 occurrences):
+  - EquipmentCommandHandlerTests.cs (13 occurrences)
+  - InMemoryInventoryRepositoryTests.cs (4 occurrences + expectation fix)
+  - GetInventoryQueryHandlerSpatialTests.cs (2 occurrences)
+  - CalculateHighlightCellsQueryHandlerTests.cs (4 occurrences)
+  - GetItemRenderPositionQueryHandlerTests.cs (1 occurrence)
+  - GetOccupiedCellsQueryHandlerTests.cs (1 occurrence)
+  - CanPlaceItemAtQueryHandlerTests.cs (4 occurrences)
+  - RemoveItemCommandHandlerTests.cs (2 occurrences)
+  - PlaceItemAtPositionCommandHandlerTests.cs (4 occurrences + Result.Value fix)
+  - MoveItemBetweenContainersCommandHandlerTests.cs (5 occurrences)
+  - AddItemCommandHandlerTests.cs (3 occurrences)
+- ✅ Removed all `#pragma warning disable CS0618` pragma suppressions (60+ occurrences)
+- ✅ Fixed test expectations for `GetByOwnerAsync` (returns empty list, not failure after delete)
+- ✅ **All 543 Core tests GREEN** (100% pass rate, zero warnings)
 
 **Done When**:
 - ✅ `InventoryId` value object created and used as primary key (Phase 1)
@@ -340,12 +356,13 @@ EquipItemCommand {
 - ✅ Repository uses `InventoryId` for lookups (breaking change) (Phase 1)
 - ✅ Equipment commands accept `InventoryId` (cross-actor equip supported) (Phase 2)
 - ✅ All Core tests GREEN (543 tests updated for new architecture) (Phase 3)
-- ✅ Presentation layer updated to use `InventoryId` (5 files updated) (Phase 4)
+- ✅ Presentation layer updated to use `InventoryId` (5 files updated, 3 runtime bugs fixed) (Phase 4)
 - ✅ All builds successful (Core + Godot project compile with 0 errors) (Phase 4)
-- ⏳ Manual validation in test scene (user gameplay testing) (Phase 4 - PENDING)
-- ⏳ Obsolete `GetByActorIdAsync` removed entirely (Phase 5 - DEFERRED)
+- ✅ Manual validation in test scene (user gameplay testing) - All 4 drag-drop scenarios work! (Phase 4)
+- ✅ Obsolete `GetByActorIdAsync` removed entirely (interface + implementation + all pragma suppressions) (Phase 5)
 - ✅ Drag-drop passes `InventoryId` (not just `ActorId`) (Phase 4 - sourceInventoryIdGuid in drag data)
-- ✅ Test scene creates world containers (loot chest with `OwnerId = null`) (Phase 4 - SpatialInventoryTestController uses InventoryId)
+- ✅ Test scene supports cross-inventory operations (enemy loot → player equipment works!) (Phase 4)
+- ✅ Technical debt eliminated (no obsolete methods, no warnings, clean codebase) (Phase 5)
 
 **Depends On**: None
 
