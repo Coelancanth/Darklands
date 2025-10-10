@@ -2,6 +2,7 @@ using CSharpFunctionalExtensions;
 using Darklands.Core.Domain.Common;
 using Darklands.Core.Features.Equipment.Domain;
 using MediatR;
+using InventoryId = Darklands.Core.Features.Inventory.Domain.InventoryId;
 
 namespace Darklands.Core.Features.Equipment.Application.Commands;
 
@@ -39,8 +40,14 @@ namespace Darklands.Core.Features.Equipment.Application.Commands;
 /// </code>
 /// </remarks>
 /// <param name="ActorId">Actor unequipping the item</param>
+/// <param name="TargetInventoryId">Inventory to place unequipped item into</param>
 /// <param name="Slot">Equipment slot to unequip from</param>
+/// <remarks>
+/// TD_019: Added TargetInventoryId parameter (breaking change).
+/// Enables unequipping to ANY inventory (e.g., player's backpack vs squad member's inventory).
+/// </remarks>
 public sealed record UnequipItemCommand(
     ActorId ActorId,
+    InventoryId TargetInventoryId,
     EquipmentSlot Slot
 ) : IRequest<Result<ItemId>>;

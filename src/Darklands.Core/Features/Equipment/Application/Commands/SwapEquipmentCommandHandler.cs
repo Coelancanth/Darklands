@@ -62,7 +62,8 @@ public sealed class SwapEquipmentCommandHandler : IRequestHandler<SwapEquipmentC
         }
 
         // 3. Get inventory and validate new item exists
-        var inventoryResult = await _inventories.GetByActorIdAsync(cmd.ActorId, cancellationToken);
+        // TD_019: Use explicit InventoryId from command (no more GetByActorIdAsync!)
+        var inventoryResult = await _inventories.GetByIdAsync(cmd.InventoryId, cancellationToken);
         if (inventoryResult.IsFailure)
         {
             return Result.Failure<ItemId>($"Failed to get inventory: {inventoryResult.Error}");

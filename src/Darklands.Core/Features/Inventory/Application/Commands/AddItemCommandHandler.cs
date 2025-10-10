@@ -27,21 +27,22 @@ public sealed class AddItemCommandHandler : IRequestHandler<AddItemCommand, Resu
         CancellationToken cancellationToken)
     {
         _logger.LogDebug(
-            "Adding item {ItemId} to actor {ActorId}'s inventory",
+            "Adding item {ItemId} to inventory {InventoryId}",
             command.ItemId,
-            command.ActorId);
+            command.InventoryId);
 
         // Railway-oriented programming: Get inventory, add item, save
+        // TD_019: Use GetByIdAsync (not GetByActorIdAsync)
         return await _inventories
-            .GetByActorIdAsync(command.ActorId, cancellationToken)
+            .GetByIdAsync(command.InventoryId, cancellationToken)
             .Bind(inventory => inventory
                 .AddItem(command.ItemId)
                 .Tap(async () =>
                 {
                     _logger.LogInformation(
-                        "Item {ItemId} added to actor {ActorId}'s inventory (count: {Count}/{Capacity})",
+                        "Item {ItemId} added to inventory {InventoryId} (count: {Count}/{Capacity})",
                         command.ItemId,
-                        command.ActorId,
+                        command.InventoryId,
                         inventory.Count,
                         inventory.Capacity);
 

@@ -54,7 +54,8 @@ public sealed class UnequipItemCommandHandler : IRequestHandler<UnequipItemComma
         var equipmentComp = actor.GetComponent<IEquipmentComponent>().Value;
 
         // 2. Get inventory
-        var inventoryResult = await _inventories.GetByActorIdAsync(cmd.ActorId, cancellationToken);
+        // TD_019: Get by InventoryId (enables unequip to any inventory)
+        var inventoryResult = await _inventories.GetByIdAsync(cmd.TargetInventoryId, cancellationToken);
         if (inventoryResult.IsFailure)
         {
             return Result.Failure<ItemId>($"Failed to get inventory: {inventoryResult.Error}");

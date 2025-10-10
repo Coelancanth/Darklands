@@ -41,11 +41,11 @@ public sealed class SwapItemsCommandHandler : IRequestHandler<SwapItemsCommand, 
     public async Task<Result> Handle(SwapItemsCommand cmd, CancellationToken cancellationToken)
     {
         // Get inventories
-        var sourceInvResult = await _inventories.GetByActorIdAsync(cmd.SourceContainerId, cancellationToken);
+        var sourceInvResult = await _inventories.GetByIdAsync(cmd.SourceInventoryId, cancellationToken);
         if (sourceInvResult.IsFailure)
             return Result.Failure(sourceInvResult.Error);
 
-        var targetInvResult = await _inventories.GetByActorIdAsync(cmd.TargetContainerId, cancellationToken);
+        var targetInvResult = await _inventories.GetByIdAsync(cmd.TargetInventoryId, cancellationToken);
         if (targetInvResult.IsFailure)
             return Result.Failure(targetInvResult.Error);
 

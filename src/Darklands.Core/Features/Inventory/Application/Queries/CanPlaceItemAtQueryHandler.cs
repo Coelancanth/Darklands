@@ -46,7 +46,8 @@ public sealed class CanPlaceItemAtQueryHandler
         var item = itemResult.Value;
 
         // Get inventory
-        var inventoryResult = await _inventories.GetByActorIdAsync(query.ActorId, cancellationToken);
+        // TD_019: Use GetByIdAsync (not GetByActorIdAsync)
+        var inventoryResult = await _inventories.GetByIdAsync(query.InventoryId, cancellationToken);
         if (inventoryResult.IsFailure)
             return Result.Success(false);
 

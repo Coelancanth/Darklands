@@ -2,6 +2,7 @@ using CSharpFunctionalExtensions;
 using Darklands.Core.Domain.Common;
 using Darklands.Core.Features.Equipment.Domain;
 using MediatR;
+using InventoryId = Darklands.Core.Features.Inventory.Domain.InventoryId;
 
 namespace Darklands.Core.Features.Equipment.Application.Commands;
 
@@ -39,11 +40,17 @@ namespace Darklands.Core.Features.Equipment.Application.Commands;
 /// </code>
 /// </remarks>
 /// <param name="ActorId">Actor equipping the item</param>
+/// <param name="SourceInventoryId">Inventory containing the item to equip</param>
 /// <param name="ItemId">Item to equip</param>
 /// <param name="Slot">Equipment slot to equip to (MainHand required for two-handed)</param>
 /// <param name="IsTwoHanded">True if item occupies both MainHand + OffHand, false for single slot</param>
+/// <remarks>
+/// TD_019: Added SourceInventoryId parameter (breaking change).
+/// This fixes BR_008 - enables equipping from ANY inventory (Enemy Loot → Player Equipment).
+/// </remarks>
 public sealed record EquipItemCommand(
     ActorId ActorId,
+    InventoryId SourceInventoryId,
     ItemId ItemId,
     EquipmentSlot Slot,
     bool IsTwoHanded = false

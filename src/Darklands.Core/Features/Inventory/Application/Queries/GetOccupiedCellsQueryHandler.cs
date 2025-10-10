@@ -38,7 +38,8 @@ public sealed class GetOccupiedCellsQueryHandler
         CancellationToken cancellationToken)
     {
         // Get inventory
-        var inventoryResult = await _inventories.GetByActorIdAsync(query.ContainerId, cancellationToken);
+        // TD_019: Use GetByIdAsync (not GetByActorIdAsync)
+        var inventoryResult = await _inventories.GetByIdAsync(query.InventoryId, cancellationToken);
         if (inventoryResult.IsFailure)
             return Result.Failure<List<GridPosition>>(inventoryResult.Error);
 
@@ -72,8 +73,8 @@ public sealed class GetOccupiedCellsQueryHandler
             .Select(offset => new GridPosition(origin.X + offset.X, origin.Y + offset.Y))
             .ToList();
 
-        _logger.LogDebug("Item {ItemId} at ({X},{Y}) occupies {CellCount} cells in container {ContainerId}",
-            query.ItemId, origin.X, origin.Y, absoluteCells.Count, query.ContainerId);
+        _logger.LogDebug("Item {ItemId} at ({X},{Y}) occupies {CellCount} cells in inventory {InventoryId}",
+            query.ItemId, origin.X, origin.Y, absoluteCells.Count, query.InventoryId);
 
         return Result.Success(absoluteCells);
     }

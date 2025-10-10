@@ -41,10 +41,10 @@ public sealed class PlaceItemAtPositionCommandHandler
         CancellationToken cancellationToken)
     {
         _logger.LogDebug(
-            "Placing item {ItemId} at position {Position} in actor {ActorId}'s inventory",
+            "Placing item {ItemId} at position {Position} in inventory {InventoryId}",
             command.ItemId,
             command.Position,
-            command.ActorId);
+            command.InventoryId);
 
         // Get item for type validation
         var itemResult = await _items.GetByIdAsync(command.ItemId, cancellationToken);
@@ -54,7 +54,8 @@ public sealed class PlaceItemAtPositionCommandHandler
         var item = itemResult.Value;
 
         // Get inventory
-        var inventoryResult = await _inventories.GetByActorIdAsync(command.ActorId, cancellationToken);
+        // TD_019: Use GetByIdAsync (not GetByActorIdAsync)
+        var inventoryResult = await _inventories.GetByIdAsync(command.InventoryId, cancellationToken);
         if (inventoryResult.IsFailure)
             return inventoryResult;
 
@@ -127,7 +128,7 @@ public sealed class PlaceItemAtPositionCommandHandler
             command.ItemId,
             command.Position,
             command.Rotation,
-            command.ActorId);
+            command.InventoryId);
 
         return Result.Success();
     }

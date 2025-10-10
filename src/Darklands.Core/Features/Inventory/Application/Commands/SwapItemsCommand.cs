@@ -1,6 +1,7 @@
 using CSharpFunctionalExtensions;
 using Darklands.Core.Domain.Common;
 using MediatR;
+using InventoryId = Darklands.Core.Features.Inventory.Domain.InventoryId;
 
 namespace Darklands.Core.Features.Inventory.Application.Commands;
 
@@ -8,10 +9,10 @@ namespace Darklands.Core.Features.Inventory.Application.Commands;
 /// Command to swap two items between positions (equipment slots) or move a single item.
 /// Handles swap vs move decision internally based on container type.
 /// </summary>
-/// <param name="SourceContainerId">Container holding the source item</param>
+/// <param name="SourceInventoryId">Inventory holding the source item</param>
 /// <param name="SourceItemId">Item being moved/swapped</param>
 /// <param name="SourcePosition">Current position of source item</param>
-/// <param name="TargetContainerId">Container receiving the item</param>
+/// <param name="TargetInventoryId">Inventory receiving the item</param>
 /// <param name="TargetItemId">Item at target position (may be null for move)</param>
 /// <param name="TargetPosition">Destination position</param>
 /// <param name="Rotation">Rotation to apply to source item</param>
@@ -29,12 +30,13 @@ namespace Darklands.Core.Features.Inventory.Application.Commands;
 /// 3. Execute with full rollback if any step fails
 ///
 /// REPLACES: 78 lines of Presentation logic
+/// TD_019: Changed SourceContainerId/TargetContainerId from ActorId to InventoryId (breaking change).
 /// </remarks>
 public sealed record SwapItemsCommand(
-    ActorId SourceContainerId,
+    InventoryId SourceInventoryId,
     ItemId SourceItemId,
     GridPosition SourcePosition,
-    ActorId TargetContainerId,
+    InventoryId TargetInventoryId,
     ItemId? TargetItemId,
     GridPosition TargetPosition,
     Rotation Rotation

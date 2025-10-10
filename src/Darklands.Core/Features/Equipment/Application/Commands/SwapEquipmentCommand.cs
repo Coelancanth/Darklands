@@ -2,6 +2,7 @@ using CSharpFunctionalExtensions;
 using Darklands.Core.Domain.Common;
 using Darklands.Core.Features.Equipment.Domain;
 using MediatR;
+using InventoryId = Darklands.Core.Features.Inventory.Domain.InventoryId;
 
 namespace Darklands.Core.Features.Equipment.Application.Commands;
 
@@ -50,11 +51,17 @@ namespace Darklands.Core.Features.Equipment.Application.Commands;
 /// </code>
 /// </remarks>
 /// <param name="ActorId">Actor performing the swap</param>
+/// <param name="InventoryId">Inventory containing the new item</param>
 /// <param name="NewItemId">New item from inventory to equip</param>
 /// <param name="Slot">Equipment slot to swap (must be occupied)</param>
 /// <param name="IsTwoHanded">True if new item is two-handed, false otherwise</param>
+/// <remarks>
+/// TD_019: Added InventoryId parameter (breaking change).
+/// Enables swapping items from any inventory (e.g., squad member's inventory).
+/// </remarks>
 public sealed record SwapEquipmentCommand(
     ActorId ActorId,
+    InventoryId InventoryId,
     ItemId NewItemId,
     EquipmentSlot Slot,
     bool IsTwoHanded = false

@@ -27,11 +27,23 @@ public sealed class Inventory
     private readonly Dictionary<ItemId, GridPosition> _itemPositions;
     private readonly Dictionary<ItemId, ItemShape> _itemShapes; // Phase 4: Cache shapes for collision (OccupiedCells)
     private readonly Dictionary<ItemId, Rotation> _itemRotations; // Phase 3: Rotation state per placement
+    private readonly ActorId? _ownerId; // TD_019: Optional owner (null = world container)
 
     /// <summary>
     /// Unique identifier for this inventory.
     /// </summary>
     public InventoryId Id { get; private init; }
+
+    /// <summary>
+    /// Optional owner of this inventory. Null for world containers (loot chests, ground drops).
+    /// </summary>
+    /// <remarks>
+    /// TD_019: Inventory-First Architecture
+    /// - Actor-owned: Player backpack (OwnerId = PlayerId)
+    /// - World container: Enemy loot, chest (OwnerId = null)
+    /// - Future: Squad inventories (Teammate A, B, C each have OwnerId)
+    /// </remarks>
+    public ActorId? OwnerId => _ownerId;
 
     /// <summary>
     /// Maximum number of items this inventory can hold.
@@ -100,9 +112,11 @@ public sealed class Inventory
         InventoryId id,
         int gridWidth,
         int gridHeight,
-        ContainerType containerType)
+        ContainerType containerType,
+        ActorId? ownerId)
     {
         Id = id;
+        _ownerId = ownerId; // TD_019: Store optional owner
         GridWidth = gridWidth;
         GridHeight = gridHeight;
         Capacity = gridWidth * gridHeight;
@@ -118,14 +132,16 @@ public sealed class Inventory
     /// </summary>
     /// <param name="id">Unique inventory identifier</param>
     /// <param name="capacity">Maximum number of items (must be positive)</param>
+    /// <param name="ownerId">Optional owner ActorId (null = world container)</param>
     /// <returns>Result containing new Inventory or error message</returns>
     /// <remarks>
     /// BACKWARD COMPATIBILITY: This overload preserves VS_008 behavior.
     /// Algorithm: Square root approximation ensures capacity preserved exactly.
     /// Examples: 20→5×4, 100→10×10, 30→6×5
     /// All inventories default to ContainerType.General.
+    /// TD_019: OwnerId parameter added (optional, defaults to null).
     /// </remarks>
-    public static Result<Inventory> Create(InventoryId id, int capacity)
+    public static Result<Inventory> Create(InventoryId id, int capacity, ActorId? ownerId = null)
     {
         if (capacity <= 0)
             return Result.Failure<Inventory>("Capacity must be positive");
@@ -137,7 +153,7 @@ public sealed class Inventory
         int gridWidth = (int)Math.Ceiling(Math.Sqrt(capacity));
         int gridHeight = (int)Math.Ceiling((double)capacity / gridWidth);
 
-        return Create(id, gridWidth, gridHeight, ContainerType.General);
+        return Create(id, gridWidth, gridHeight, ContainerType.General, ownerId);
     }
 
     /// <summary>
@@ -147,12 +163,14 @@ public sealed class Inventory
     /// <param name="gridWidth">Grid width in cells (must be positive)</param>
     /// <param name="gridHeight">Grid height in cells (must be positive)</param>
     /// <param name="containerType">Container type (default: General)</param>
+    /// <param name="ownerId">Optional owner ActorId (null = world container)</param>
     /// <returns>Result containing new Inventory or error message</returns>
     public static Result<Inventory> Create(
         InventoryId id,
         int gridWidth,
         int gridHeight,
-        ContainerType containerType = ContainerType.General)
+        ContainerType containerType = ContainerType.General,
+        ActorId? ownerId = null)
     {
         if (gridWidth <= 0)
             return Result.Failure<Inventory>("Grid width must be positive");
@@ -164,7 +182,7 @@ public sealed class Inventory
         if (capacity > 100)
             return Result.Failure<Inventory>("Grid capacity cannot exceed 100");
 
-        return Result.Success(new Inventory(id, gridWidth, gridHeight, containerType));
+        return Result.Success(new Inventory(id, gridWidth, gridHeight, containerType, ownerId));
     }
 
     /// <summary>

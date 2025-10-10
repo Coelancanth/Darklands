@@ -49,7 +49,7 @@ public sealed class CalculateHighlightCellsQueryHandler
         var item = itemResult.Value;
 
         // Get inventory to check for equipment slot override
-        var inventoryResult = await _inventories.GetByActorIdAsync(query.ContainerId, cancellationToken);
+        var inventoryResult = await _inventories.GetByIdAsync(query.InventoryId, cancellationToken);
         if (inventoryResult.IsFailure)
             return Result.Failure<List<GridPosition>>(inventoryResult.Error);
 

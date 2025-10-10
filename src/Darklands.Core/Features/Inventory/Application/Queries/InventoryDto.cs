@@ -9,7 +9,7 @@ namespace Darklands.Core.Features.Inventory.Application.Queries;
 /// Changes to Inventory entity don't break UI code.
 /// </summary>
 /// <param name="InventoryId">Unique inventory identifier</param>
-/// <param name="ActorId">Owner of this inventory</param>
+/// <param name="OwnerId">Optional owner ActorId (null for world containers like loot/chests)</param>
 /// <param name="Capacity">Maximum number of items</param>
 /// <param name="Count">Current number of items</param>
 /// <param name="IsFull">True if at capacity</param>
@@ -27,10 +27,11 @@ namespace Darklands.Core.Features.Inventory.Application.Queries;
 /// Phase 2: ItemDimensions added for multi-cell rendering and collision detection in presentation layer.
 /// Phase 3: ItemRotations added for sprite rendering rotation and effective dimension calculation.
 /// Phase 4: ItemShapes added for accurate L/T-shape highlight rendering (OccupiedCells-based).
+/// TD_019: ActorId → OwnerId (nullable) to support world containers (loot, chests).
 /// </remarks>
 public sealed record InventoryDto(
     InventoryId InventoryId,
-    ActorId ActorId,
+    ActorId? OwnerId,
     int Capacity,
     int Count,
     bool IsFull,

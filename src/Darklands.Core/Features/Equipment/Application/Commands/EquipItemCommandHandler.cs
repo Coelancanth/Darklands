@@ -63,7 +63,8 @@ public sealed class EquipItemCommandHandler : IRequestHandler<EquipItemCommand, 
         var equipmentComp = actor.GetComponent<IEquipmentComponent>().Value;
 
         // 2. Get inventory and validate item exists
-        var inventoryResult = await _inventories.GetByActorIdAsync(cmd.ActorId, cancellationToken);
+        // TD_019: Get by InventoryId (enables cross-actor equip - BR_008 fix!)
+        var inventoryResult = await _inventories.GetByIdAsync(cmd.SourceInventoryId, cancellationToken);
         if (inventoryResult.IsFailure)
         {
             return Result.Failure($"Failed to get inventory: {inventoryResult.Error}");
