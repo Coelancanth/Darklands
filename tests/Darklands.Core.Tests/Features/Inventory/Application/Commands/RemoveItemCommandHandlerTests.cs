@@ -22,11 +22,9 @@ public class RemoveItemCommandHandlerTests
         var addHandler = new AddItemCommandHandler(repository, NullLogger<AddItemCommandHandler>.Instance);
         var removeHandler = new RemoveItemCommandHandler(repository, NullLogger<RemoveItemCommandHandler>.Instance);
 
-        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
-        #pragma warning disable CS0618 // Type or member is obsolete
-        var invResult = await repository.GetByActorIdAsync(actorId);
-        #pragma warning restore CS0618
-        var inventoryId = invResult.Value.Id;
+        var inventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, actorId).Value;
+        repository.RegisterInventory(inventory);
+        var inventoryId = inventory.Id;
 
         // Add item first
         await addHandler.Handle(new AddItemCommand(inventoryId, itemId), default);
@@ -37,9 +35,9 @@ public class RemoveItemCommandHandlerTests
         // Assert
         result.IsSuccess.Should().BeTrue();
 
-        var inventory = await repository.GetByIdAsync(inventoryId);
-        inventory.Value.Contains(itemId).Should().BeFalse();
-        inventory.Value.Count.Should().Be(0);
+        var inventoryCheck = await repository.GetByIdAsync(inventoryId);
+        inventoryCheck.Value.Contains(itemId).Should().BeFalse();
+        inventoryCheck.Value.Count.Should().Be(0);
     }
 
     [Fact]
@@ -51,11 +49,9 @@ public class RemoveItemCommandHandlerTests
         var repository = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
         var handler = new RemoveItemCommandHandler(repository, NullLogger<RemoveItemCommandHandler>.Instance);
 
-        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
-        #pragma warning disable CS0618 // Type or member is obsolete
-        var invResult = await repository.GetByActorIdAsync(actorId);
-        #pragma warning restore CS0618
-        var inventoryId = invResult.Value.Id;
+        var inventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, actorId).Value;
+        repository.RegisterInventory(inventory);
+        var inventoryId = inventory.Id;
 
         // Act
         var result = await handler.Handle(new RemoveItemCommand(inventoryId, itemId), default);

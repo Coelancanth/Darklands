@@ -21,11 +21,9 @@ public class AddItemCommandHandlerTests
         var repository = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
         var handler = new AddItemCommandHandler(repository, NullLogger<AddItemCommandHandler>.Instance);
 
-        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
-        #pragma warning disable CS0618 // Type or member is obsolete
-        var invResult = await repository.GetByActorIdAsync(actorId);
-        #pragma warning restore CS0618
-        var inventoryId = invResult.Value.Id;
+        var inventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, actorId).Value;
+        repository.RegisterInventory(inventory);
+        var inventoryId = inventory.Id;
         var command = new AddItemCommand(inventoryId, itemId);
 
         // Act
@@ -34,9 +32,9 @@ public class AddItemCommandHandlerTests
         // Assert
         result.IsSuccess.Should().BeTrue();
 
-        var inventory = await repository.GetByIdAsync(inventoryId);
-        inventory.Value.Contains(itemId).Should().BeTrue();
-        inventory.Value.Count.Should().Be(1);
+        var inventoryResult = await repository.GetByIdAsync(inventoryId);
+        inventoryResult.Value.Contains(itemId).Should().BeTrue();
+        inventoryResult.Value.Count.Should().Be(1);
     }
 
     [Fact]
@@ -49,11 +47,9 @@ public class AddItemCommandHandlerTests
         var repository = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
         var handler = new AddItemCommandHandler(repository, NullLogger<AddItemCommandHandler>.Instance);
 
-        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
-        #pragma warning disable CS0618 // Type or member is obsolete
-        var invResult = await repository.GetByActorIdAsync(actorId);
-        #pragma warning restore CS0618
-        var inventoryId = invResult.Value.Id;
+        var inventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, actorId).Value;
+        repository.RegisterInventory(inventory);
+        var inventoryId = inventory.Id;
 
         // Fill inventory (default capacity is 20)
         for (int i = 0; i < 20; i++)
@@ -80,11 +76,9 @@ public class AddItemCommandHandlerTests
         var repository = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
         var handler = new AddItemCommandHandler(repository, NullLogger<AddItemCommandHandler>.Instance);
 
-        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
-        #pragma warning disable CS0618 // Type or member is obsolete
-        var invResult = await repository.GetByActorIdAsync(actorId);
-        #pragma warning restore CS0618
-        var inventoryId = invResult.Value.Id;
+        var inventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, actorId).Value;
+        repository.RegisterInventory(inventory);
+        var inventoryId = inventory.Id;
 
         // Add item once
         await handler.Handle(new AddItemCommand(inventoryId, itemId), default);

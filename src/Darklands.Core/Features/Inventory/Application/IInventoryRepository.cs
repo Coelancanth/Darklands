@@ -41,21 +41,8 @@ public interface IInventoryRepository
         ActorId ownerId,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Retrieves an actor's primary inventory. Auto-creates if doesn't exist.
-    /// </summary>
-    /// <param name="actorId">Actor whose inventory to retrieve</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Result containing Inventory or error message</returns>
-    /// <remarks>
-    /// DEPRECATED: Use GetByOwnerAsync for explicit multi-inventory support.
-    /// This method returns the FIRST owned inventory or auto-creates one.
-    /// Preserved for backward compatibility with existing command handlers.
-    /// </remarks>
-    [Obsolete("Use GetByIdAsync (with explicit InventoryId) or GetByOwnerAsync (for actor-owned inventories). This method will be removed in a future version.")]
-    Task<Result<InventoryEntity>> GetByActorIdAsync(
-        ActorId actorId,
-        CancellationToken cancellationToken = default);
+    // TD_019 Phase 5: Removed obsolete GetByActorIdAsync method
+    // All callers now use GetByIdAsync or GetByOwnerAsync explicitly
 
     /// <summary>
     /// Persists inventory changes.

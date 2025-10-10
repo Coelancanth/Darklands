@@ -28,18 +28,17 @@ public class MoveItemBetweenContainersCommandHandlerTests
         var itemRepo = new StubItemRepository(item);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
-        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
-        #pragma warning disable CS0618 // Type or member is obsolete
-        var sourceInvResult = await inventoryRepo.GetByActorIdAsync(sourceActorId);
-        var targetInvResult = await inventoryRepo.GetByActorIdAsync(targetActorId);
-        #pragma warning restore CS0618
-        var sourceInventoryId = sourceInvResult.Value.Id;
-        var targetInventoryId = targetInvResult.Value.Id;
+        var sourceInventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, sourceActorId).Value;
+        var targetInventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, targetActorId).Value;
+        inventoryRepo.RegisterInventory(sourceInventory);
+        inventoryRepo.RegisterInventory(targetInventory);
+        var sourceInventoryId = sourceInventory.Id;
+        var targetInventoryId = targetInventory.Id;
 
         // Place item in source inventory
-        var sourceInventory = await inventoryRepo.GetByIdAsync(sourceInventoryId);
-        sourceInventory.Value.PlaceItemAt(itemId, sourcePos);
-        await inventoryRepo.SaveAsync(sourceInventory.Value, default);
+        var sourceInvResult = await inventoryRepo.GetByIdAsync(sourceInventoryId);
+        sourceInvResult.Value.PlaceItemAt(itemId, sourcePos);
+        await inventoryRepo.SaveAsync(sourceInvResult.Value, default);
 
         var handler = new MoveItemBetweenContainersCommandHandler(
             inventoryRepo,
@@ -83,16 +82,14 @@ public class MoveItemBetweenContainersCommandHandlerTests
         var itemRepo = new StubItemRepository(item);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
-        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
-        #pragma warning disable CS0618 // Type or member is obsolete
-        var invResult = await inventoryRepo.GetByActorIdAsync(actorId);
-        #pragma warning restore CS0618
-        var inventoryId = invResult.Value.Id;
+        var inventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, actorId).Value;
+        inventoryRepo.RegisterInventory(inventory);
+        var inventoryId = inventory.Id;
 
         // Place item at source position
-        var inventory = await inventoryRepo.GetByIdAsync(inventoryId);
-        inventory.Value.PlaceItemAt(itemId, sourcePos);
-        await inventoryRepo.SaveAsync(inventory.Value, default);
+        var inventoryResult = await inventoryRepo.GetByIdAsync(inventoryId);
+        inventoryResult.Value.PlaceItemAt(itemId, sourcePos);
+        await inventoryRepo.SaveAsync(inventoryResult.Value, default);
 
         var handler = new MoveItemBetweenContainersCommandHandler(
             inventoryRepo,
@@ -130,18 +127,17 @@ public class MoveItemBetweenContainersCommandHandlerTests
         var itemRepo = new StubItemRepository(potion);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
-        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
-        #pragma warning disable CS0618 // Type or member is obsolete
-        var sourceInvResult = await inventoryRepo.GetByActorIdAsync(sourceActorId);
-        var targetInvResult = await inventoryRepo.GetByActorIdAsync(targetActorId);
-        #pragma warning restore CS0618
-        var sourceInventoryId = sourceInvResult.Value.Id;
-        var targetInventoryId = targetInvResult.Value.Id;
+        var sourceInventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, sourceActorId).Value;
+        var targetInventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, targetActorId).Value;
+        inventoryRepo.RegisterInventory(sourceInventory);
+        inventoryRepo.RegisterInventory(targetInventory);
+        var sourceInventoryId = sourceInventory.Id;
+        var targetInventoryId = targetInventory.Id;
 
         // Place potion in source inventory
-        var sourceInventory = await inventoryRepo.GetByIdAsync(sourceInventoryId);
-        sourceInventory.Value.PlaceItemAt(itemId, new GridPosition(0, 0));
-        await inventoryRepo.SaveAsync(sourceInventory.Value, default);
+        var sourceInvResult = await inventoryRepo.GetByIdAsync(sourceInventoryId);
+        sourceInvResult.Value.PlaceItemAt(itemId, new GridPosition(0, 0));
+        await inventoryRepo.SaveAsync(sourceInvResult.Value, default);
 
         // Create weapon-only target inventory
         var weaponInventory = Core.Features.Inventory.Domain.Inventory.Create(
@@ -198,23 +194,22 @@ public class MoveItemBetweenContainersCommandHandlerTests
         var itemRepo = new StubItemRepository(potion);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
-        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
-        #pragma warning disable CS0618 // Type or member is obsolete
-        var sourceInvResult = await inventoryRepo.GetByActorIdAsync(sourceActorId);
-        var targetInvResult = await inventoryRepo.GetByActorIdAsync(targetActorId);
-        #pragma warning restore CS0618
-        var sourceInventoryId = sourceInvResult.Value.Id;
-        var targetInventoryId = targetInvResult.Value.Id;
+        var sourceInventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, sourceActorId).Value;
+        var targetInventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, targetActorId).Value;
+        inventoryRepo.RegisterInventory(sourceInventory);
+        inventoryRepo.RegisterInventory(targetInventory);
+        var sourceInventoryId = sourceInventory.Id;
+        var targetInventoryId = targetInventory.Id;
 
         // Place potion in source inventory at specific position
-        var sourceInventory = await inventoryRepo.GetByIdAsync(sourceInventoryId);
-        sourceInventory.Value.PlaceItemAt(itemId, sourcePos);
-        await inventoryRepo.SaveAsync(sourceInventory.Value, default);
+        var sourceInvResult = await inventoryRepo.GetByIdAsync(sourceInventoryId);
+        sourceInvResult.Value.PlaceItemAt(itemId, sourcePos);
+        await inventoryRepo.SaveAsync(sourceInvResult.Value, default);
 
         // Verify initial state: Potion in source at (2,1)
-        sourceInventory = await inventoryRepo.GetByIdAsync(sourceInventoryId);
-        sourceInventory.Value.Contains(itemId).Should().BeTrue();
-        sourceInventory.Value.GetItemPosition(itemId).Value.Should().Be(sourcePos);
+        sourceInvResult = await inventoryRepo.GetByIdAsync(sourceInventoryId);
+        sourceInvResult.Value.Contains(itemId).Should().BeTrue();
+        sourceInvResult.Value.GetItemPosition(itemId).Value.Should().Be(sourcePos);
 
         // Create weapon-only target inventory (will reject potion)
         var weaponSlot = Core.Features.Inventory.Domain.Inventory.Create(
@@ -271,18 +266,17 @@ public class MoveItemBetweenContainersCommandHandlerTests
         var itemRepo = new StubItemRepository(multiCellItem);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
-        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
-        #pragma warning disable CS0618 // Type or member is obsolete
-        var sourceInvResult = await inventoryRepo.GetByActorIdAsync(sourceActorId);
-        var targetInvResult = await inventoryRepo.GetByActorIdAsync(targetActorId);
-        #pragma warning restore CS0618
-        var sourceInventoryId = sourceInvResult.Value.Id;
-        var targetInventoryId = targetInvResult.Value.Id;
+        var sourceInventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, sourceActorId).Value;
+        var targetInventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, targetActorId).Value;
+        inventoryRepo.RegisterInventory(sourceInventory);
+        inventoryRepo.RegisterInventory(targetInventory);
+        var sourceInventoryId = sourceInventory.Id;
+        var targetInventoryId = targetInventory.Id;
 
         // Create source backpack (10×10 grid) and place 2×2 item at (1,1)
-        var sourceInventory = await inventoryRepo.GetByIdAsync(sourceInventoryId);
-        sourceInventory.Value.PlaceItemAt(itemId, sourcePos, 2, 2);
-        await inventoryRepo.SaveAsync(sourceInventory.Value, default);
+        var sourceInvResult = await inventoryRepo.GetByIdAsync(sourceInventoryId);
+        sourceInvResult.Value.PlaceItemAt(itemId, sourcePos, 2, 2);
+        await inventoryRepo.SaveAsync(sourceInvResult.Value, default);
 
         // Create target backpack (10×10 grid, empty)
         var emptyBackpack = Core.Features.Inventory.Domain.Inventory.Create(

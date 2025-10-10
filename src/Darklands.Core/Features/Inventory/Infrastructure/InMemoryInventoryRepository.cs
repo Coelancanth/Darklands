@@ -55,34 +55,8 @@ public sealed class InMemoryInventoryRepository : IInventoryRepository
         return Task.FromResult(Result.Success<IReadOnlyList<InventoryEntity>>(owned));
     }
 
-    [Obsolete("Use GetByIdAsync (with explicit InventoryId) or GetByOwnerAsync (for actor-owned inventories). This method will be removed in a future version.")]
-    public async Task<Result<InventoryEntity>> GetByActorIdAsync(
-        ActorId actorId,
-        CancellationToken cancellationToken = default)
-    {
-        // TD_019: Backward compatibility - get first owned inventory or auto-create
-        var ownedResult = await GetByOwnerAsync(actorId, cancellationToken);
-
-        if (ownedResult.IsSuccess && ownedResult.Value.Any())
-        {
-            _logger.LogDebug("Found existing inventory for actor {ActorId}", actorId);
-            return Result.Success(ownedResult.Value.First());
-        }
-
-        // Auto-create for backward compatibility
-        _logger.LogDebug(
-            "Auto-creating inventory for actor {ActorId} with capacity {Capacity}",
-            actorId,
-            DefaultCapacity);
-
-        var inventory = InventoryEntity.Create(
-            InventoryId.NewId(),
-            DefaultCapacity,
-            ownerId: actorId).Value;
-
-        _inventories[inventory.Id] = inventory;
-        return Result.Success(inventory);
-    }
+    // TD_019 Phase 5: Removed obsolete GetByActorIdAsync method
+    // All callers now use GetByIdAsync or GetByOwnerAsync explicitly
 
     public Task<Result> SaveAsync(
         InventoryEntity inventory,

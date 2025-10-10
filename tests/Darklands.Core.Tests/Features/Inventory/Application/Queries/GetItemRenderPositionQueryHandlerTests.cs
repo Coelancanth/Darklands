@@ -97,11 +97,9 @@ public class GetItemRenderPositionQueryHandlerTests
         var itemRepo = new StubItemRepository(); // Empty
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
-        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
-        #pragma warning disable CS0618 // Type or member is obsolete
-        var invResult = await inventoryRepo.GetByActorIdAsync(actorId);
-        #pragma warning restore CS0618
-        var inventoryId = invResult.Value.Id;
+        var inventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, actorId).Value;
+        inventoryRepo.RegisterInventory(inventory);
+        var inventoryId = inventory.Id;
 
         var handler = new GetItemRenderPositionQueryHandler(inventoryRepo, itemRepo, NullLogger<GetItemRenderPositionQueryHandler>.Instance);
         var query = new GetItemRenderPositionQuery(inventoryId, itemId);

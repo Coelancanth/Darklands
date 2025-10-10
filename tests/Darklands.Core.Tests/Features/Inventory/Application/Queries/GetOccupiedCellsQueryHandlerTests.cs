@@ -103,13 +103,9 @@ public class GetOccupiedCellsQueryHandlerTests
 
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
-        // Auto-created inventory won't have this item
-
-        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
-        #pragma warning disable CS0618 // Type or member is obsolete
-        var invResult = await inventoryRepo.GetByActorIdAsync(actorId);
-        #pragma warning restore CS0618
-        var inventoryId = invResult.Value.Id;
+        var inventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, actorId).Value;
+        inventoryRepo.RegisterInventory(inventory);
+        var inventoryId = inventory.Id;
 
         var handler = new GetOccupiedCellsQueryHandler(inventoryRepo, NullLogger<GetOccupiedCellsQueryHandler>.Instance);
         var query = new GetOccupiedCellsQuery(inventoryId, itemId);

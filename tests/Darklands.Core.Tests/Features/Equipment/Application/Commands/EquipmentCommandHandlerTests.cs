@@ -36,11 +36,8 @@ public class EquipmentCommandHandlerTests
         await actors.AddActorAsync(actor);
 
         var itemId = ItemId.NewId();
-        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
-        #pragma warning disable CS0618 // Type or member is obsolete
-        var inventoryResult = await inventories.GetByActorIdAsync(actor.Id);
-        #pragma warning restore CS0618
-        var inventory = inventoryResult.Value;
+        var inventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, actor.Id).Value;
+        inventories.RegisterInventory(inventory);
         inventory.AddItem(itemId);
         await inventories.SaveAsync(inventory);
 
@@ -59,11 +56,8 @@ public class EquipmentCommandHandlerTests
         // Arrange
         var (actors, inventories) = CreateRepositories();
         var (actor, itemId) = await SetupActorWithItemInInventory(actors, inventories);
-        // TD_019: Use obsolete GetByActorIdAsync to get the auto-created inventory
-        #pragma warning disable CS0618
-        var inventoryResult = await inventories.GetByActorIdAsync(actor.Id);
-        #pragma warning restore CS0618
-        var inventory = inventoryResult.Value;
+        var inventoryResult = await inventories.GetByOwnerAsync(actor.Id);
+        var inventory = inventoryResult.Value.First(); // Extract from list
         var handler = new EquipItemCommandHandler(actors, inventories, NullLogger<EquipItemCommandHandler>.Instance);
 
         // Act
@@ -93,10 +87,8 @@ public class EquipmentCommandHandlerTests
         // Arrange
         var (actors, inventories) = CreateRepositories();
         var (actor, itemId) = await SetupActorWithItemInInventory(actors, inventories);
-        #pragma warning disable CS0618
-        var inventoryResult = await inventories.GetByActorIdAsync(actor.Id);
-        #pragma warning restore CS0618
-        var inventory = inventoryResult.Value;
+        var inventoryResult = await inventories.GetByOwnerAsync(actor.Id);
+        var inventory = inventoryResult.Value.First(); // Extract from list
         var handler = new EquipItemCommandHandler(actors, inventories, NullLogger<EquipItemCommandHandler>.Instance);
 
         // Act
@@ -124,10 +116,8 @@ public class EquipmentCommandHandlerTests
         var (actors, inventories) = CreateRepositories();
         var (actor, itemId1) = await SetupActorWithItemInInventory(actors, inventories);
         var itemId2 = ItemId.NewId();
-        #pragma warning disable CS0618
-        var inventoryResult = await inventories.GetByActorIdAsync(actor.Id);
-        #pragma warning restore CS0618
-        var inventory = inventoryResult.Value;
+        var inventoryResult = await inventories.GetByOwnerAsync(actor.Id);
+        var inventory = inventoryResult.Value.First(); // Extract from list
         inventory.AddItem(itemId2);
         await inventories.SaveAsync(inventory);
 
@@ -153,10 +143,8 @@ public class EquipmentCommandHandlerTests
         var (actors, inventories) = CreateRepositories();
         var actor = new Actor(ActorId.NewId(), "ACTOR_TEST");
         await actors.AddActorAsync(actor);
-        #pragma warning disable CS0618
-        var inventoryResult = await inventories.GetByActorIdAsync(actor.Id);
-        #pragma warning restore CS0618
-        var inventory = inventoryResult.Value;
+        var inventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, actor.Id).Value;
+        inventories.RegisterInventory(inventory);
         var handler = new EquipItemCommandHandler(actors, inventories, NullLogger<EquipItemCommandHandler>.Instance);
 
         // Act
@@ -181,10 +169,8 @@ public class EquipmentCommandHandlerTests
         // Arrange
         var (actors, inventories) = CreateRepositories();
         var (actor, itemId) = await SetupActorWithItemInInventory(actors, inventories);
-        #pragma warning disable CS0618
-        var inventoryResult = await inventories.GetByActorIdAsync(actor.Id);
-        #pragma warning restore CS0618
-        var inventory = inventoryResult.Value;
+        var inventoryResult = await inventories.GetByOwnerAsync(actor.Id);
+        var inventory = inventoryResult.Value.First(); // Extract from list
         var equipHandler = new EquipItemCommandHandler(actors, inventories, NullLogger<EquipItemCommandHandler>.Instance);
         var unequipHandler = new UnequipItemCommandHandler(actors, inventories, NullLogger<UnequipItemCommandHandler>.Instance);
 
@@ -216,10 +202,8 @@ public class EquipmentCommandHandlerTests
         // Arrange
         var (actors, inventories) = CreateRepositories();
         var (actor, itemId) = await SetupActorWithItemInInventory(actors, inventories);
-        #pragma warning disable CS0618
-        var inventoryResult = await inventories.GetByActorIdAsync(actor.Id);
-        #pragma warning restore CS0618
-        var inventory = inventoryResult.Value;
+        var inventoryResult = await inventories.GetByOwnerAsync(actor.Id);
+        var inventory = inventoryResult.Value.First(); // Extract from list
         var equipHandler = new EquipItemCommandHandler(actors, inventories, NullLogger<EquipItemCommandHandler>.Instance);
         var unequipHandler = new UnequipItemCommandHandler(actors, inventories, NullLogger<UnequipItemCommandHandler>.Instance);
 
@@ -248,10 +232,8 @@ public class EquipmentCommandHandlerTests
         var actor = new Actor(ActorId.NewId(), "ACTOR_TEST");
         await actors.AddActorAsync(actor);
         actor.AddComponent<IEquipmentComponent>(new EquipmentComponent(actor.Id));
-        #pragma warning disable CS0618
-        var inventoryResult = await inventories.GetByActorIdAsync(actor.Id);
-        #pragma warning restore CS0618
-        var inventory = inventoryResult.Value;
+        var inventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, actor.Id).Value;
+        inventories.RegisterInventory(inventory);
         var handler = new UnequipItemCommandHandler(actors, inventories, NullLogger<UnequipItemCommandHandler>.Instance);
 
         // Act
@@ -275,10 +257,8 @@ public class EquipmentCommandHandlerTests
         var (actors, inventories) = CreateRepositories();
         var (actor, oldItemId) = await SetupActorWithItemInInventory(actors, inventories);
         var newItemId = ItemId.NewId();
-        #pragma warning disable CS0618
-        var inventoryResult = await inventories.GetByActorIdAsync(actor.Id);
-        #pragma warning restore CS0618
-        var inventory = inventoryResult.Value;
+        var inventoryResult = await inventories.GetByOwnerAsync(actor.Id);
+        var inventory = inventoryResult.Value.First(); // Extract from list
         inventory.AddItem(newItemId);
         await inventories.SaveAsync(inventory);
 
@@ -316,10 +296,8 @@ public class EquipmentCommandHandlerTests
         // Arrange
         var (actors, inventories) = CreateRepositories();
         var (actor, itemId) = await SetupActorWithItemInInventory(actors, inventories);
-        #pragma warning disable CS0618
-        var inventoryResult = await inventories.GetByActorIdAsync(actor.Id);
-        #pragma warning restore CS0618
-        var inventory = inventoryResult.Value;
+        var inventoryResult = await inventories.GetByOwnerAsync(actor.Id);
+        var inventory = inventoryResult.Value.First(); // Extract from list
 
         // Add equipment component so validation passes that step
         actor.AddComponent<IEquipmentComponent>(new EquipmentComponent(actor.Id));
@@ -344,10 +322,8 @@ public class EquipmentCommandHandlerTests
         // Arrange
         var (actors, inventories) = CreateRepositories();
         var (actor, oldItemId) = await SetupActorWithItemInInventory(actors, inventories);
-        #pragma warning disable CS0618
-        var inventoryResult = await inventories.GetByActorIdAsync(actor.Id);
-        #pragma warning restore CS0618
-        var inventory = inventoryResult.Value;
+        var inventoryResult = await inventories.GetByOwnerAsync(actor.Id);
+        var inventory = inventoryResult.Value.First(); // Extract from list
         var equipHandler = new EquipItemCommandHandler(actors, inventories, NullLogger<EquipItemCommandHandler>.Instance);
         var swapHandler = new SwapEquipmentCommandHandler(actors, inventories, NullLogger<SwapEquipmentCommandHandler>.Instance);
 

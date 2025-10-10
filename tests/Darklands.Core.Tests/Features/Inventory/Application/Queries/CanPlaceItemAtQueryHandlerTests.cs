@@ -26,11 +26,9 @@ public class CanPlaceItemAtQueryHandlerTests
         var itemRepo = new StubItemRepository(item);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
-        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
-        #pragma warning disable CS0618 // Type or member is obsolete
-        var invResult = await inventoryRepo.GetByActorIdAsync(actorId);
-        #pragma warning restore CS0618
-        var inventoryId = invResult.Value.Id;
+        var inventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, actorId).Value;
+        inventoryRepo.RegisterInventory(inventory);
+        var inventoryId = inventory.Id;
 
         var handler = new CanPlaceItemAtQueryHandler(
             inventoryRepo,
@@ -61,16 +59,14 @@ public class CanPlaceItemAtQueryHandlerTests
         var itemRepo = new StubItemRepository(item1, item2);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
-        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
-        #pragma warning disable CS0618 // Type or member is obsolete
-        var invResult = await inventoryRepo.GetByActorIdAsync(actorId);
-        #pragma warning restore CS0618
-        var inventoryId = invResult.Value.Id;
+        var inventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, actorId).Value;
+        inventoryRepo.RegisterInventory(inventory);
+        var inventoryId = inventory.Id;
 
         // Place item1 at position
-        var inventory = await inventoryRepo.GetByIdAsync(inventoryId);
-        inventory.Value.PlaceItemAt(itemId1, position);
-        await inventoryRepo.SaveAsync(inventory.Value, default);
+        var inventoryResult = await inventoryRepo.GetByIdAsync(inventoryId);
+        inventoryResult.Value.PlaceItemAt(itemId1, position);
+        await inventoryRepo.SaveAsync(inventoryResult.Value, default);
 
         var handler = new CanPlaceItemAtQueryHandler(
             inventoryRepo,
@@ -101,11 +97,9 @@ public class CanPlaceItemAtQueryHandlerTests
         var itemRepo = new StubItemRepository(weapon);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
-        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
-        #pragma warning disable CS0618 // Type or member is obsolete
-        var invResult = await inventoryRepo.GetByActorIdAsync(actorId);
-        #pragma warning restore CS0618
-        var inventoryId = invResult.Value.Id;
+        var inventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, actorId).Value;
+        inventoryRepo.RegisterInventory(inventory);
+        var inventoryId = inventory.Id;
 
         // Create weapon-only inventory
         var weaponInventory = Core.Features.Inventory.Domain.Inventory.Create(
@@ -144,11 +138,9 @@ public class CanPlaceItemAtQueryHandlerTests
         var itemRepo = new StubItemRepository(potion);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
-        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
-        #pragma warning disable CS0618 // Type or member is obsolete
-        var invResult = await inventoryRepo.GetByActorIdAsync(actorId);
-        #pragma warning restore CS0618
-        var inventoryId = invResult.Value.Id;
+        var inventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, actorId).Value;
+        inventoryRepo.RegisterInventory(inventory);
+        var inventoryId = inventory.Id;
 
         // Create weapon-only inventory
         var weaponInventory = Core.Features.Inventory.Domain.Inventory.Create(

@@ -23,11 +23,9 @@ public class GetInventoryQueryHandlerSpatialTests
             repository,
             NullLogger<GetInventoryQueryHandler>.Instance);
 
-        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
-        #pragma warning disable CS0618 // Type or member is obsolete
-        var invResult = await repository.GetByActorIdAsync(actorId);
-        #pragma warning restore CS0618
-        var inventoryId = invResult.Value.Id;
+        var inventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, actorId).Value;
+        repository.RegisterInventory(inventory);
+        var inventoryId = inventory.Id;
 
         var query = new GetInventoryQuery(inventoryId);
 
@@ -58,17 +56,15 @@ public class GetInventoryQueryHandlerSpatialTests
 
         var repository = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
-        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
-        #pragma warning disable CS0618 // Type or member is obsolete
-        var invResult = await repository.GetByActorIdAsync(actorId);
-        #pragma warning restore CS0618
-        var inventoryId = invResult.Value.Id;
+        var inventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, actorId).Value;
+        repository.RegisterInventory(inventory);
+        var inventoryId = inventory.Id;
 
         // Place items
-        var inventory = await repository.GetByIdAsync(inventoryId);
-        inventory.Value.PlaceItemAt(itemId1, pos1);
-        inventory.Value.PlaceItemAt(itemId2, pos2);
-        await repository.SaveAsync(inventory.Value, default);
+        var inventoryResult = await repository.GetByIdAsync(inventoryId);
+        inventoryResult.Value.PlaceItemAt(itemId1, pos1);
+        inventoryResult.Value.PlaceItemAt(itemId2, pos2);
+        await repository.SaveAsync(inventoryResult.Value, default);
 
         var handler = new GetInventoryQueryHandler(
             repository,
