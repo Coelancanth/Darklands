@@ -462,16 +462,14 @@ public partial class InventoryContainerNode : Control
         _dragPreviewNode = null;
         _sharedDragPreviewSprite = null; // BR_009: Clear shared preview sprite reference
 
+        // TD_019 Phase 4 FIX: Check source type FIRST before reading sourceInventoryIdGuid
+        // WHY: Equipment drags have sourceActorIdGuid, inventory drags have sourceInventoryIdGuid
+        bool isEquipmentSource = dragData.ContainsKey("sourceSlot");
+
         var itemIdGuidStr = dragData["itemIdGuid"].AsString();
-        var sourceInventoryIdGuidStr = dragData["sourceInventoryIdGuid"].AsString(); // TD_019 Phase 4: Renamed from sourceActorIdGuid
-
-        _logger.LogDebug("Parsing GUIDs: ItemId={ItemGuid}, SourceInventory={InventoryGuid}",
-            itemIdGuidStr, sourceInventoryIdGuidStr);
-
-        if (!Guid.TryParse(itemIdGuidStr, out var itemIdGuid) ||
-            !Guid.TryParse(sourceInventoryIdGuidStr, out var sourceInventoryIdGuid))
+        if (!Guid.TryParse(itemIdGuidStr, out var itemIdGuid))
         {
-            _logger.LogError("Failed to parse drag data GUIDs");
+            _logger.LogError("Failed to parse itemIdGuid");
             return;
         }
 
@@ -482,12 +480,7 @@ public partial class InventoryContainerNode : Control
             return;
         }
 
-        // Reconstruct value objects from Guids
         var itemId = new ItemId(itemIdGuid);
-        var sourceInventoryId = new Darklands.Core.Features.Inventory.Domain.InventoryId(sourceInventoryIdGuid); // TD_019 Phase 4: Use InventoryId
-
-        // VS_032 Phase 4 Option B: Detect equipment source and unequip instead of move
-        bool isEquipmentSource = dragData.ContainsKey("sourceSlot");
 
         if (isEquipmentSource)
         {
@@ -509,6 +502,15 @@ public partial class InventoryContainerNode : Control
         else
         {
             // Source: Inventory → Target: Inventory (original behavior)
+            // TD_019 Phase 4: Read sourceInventoryIdGuid only for inventory-to-inventory drags
+            var sourceInventoryIdGuidStr = dragData["sourceInventoryIdGuid"].AsString();
+            if (!Guid.TryParse(sourceInventoryIdGuidStr, out var sourceInventoryIdGuid))
+            {
+                _logger.LogError("Failed to parse sourceInventoryIdGuid");
+                return;
+            }
+            var sourceInventoryId = new Darklands.Core.Features.Inventory.Domain.InventoryId(sourceInventoryIdGuid);
+
             _logger.LogInformation("Drop confirmed: Moving item {ItemId} to ({X}, {Y}) with rotation {Rotation}",
                 itemId, targetPos.Value.X, targetPos.Value.Y, dropRotation);
 
