@@ -36,9 +36,13 @@ public class EquipmentCommandHandlerTests
         await actors.AddActorAsync(actor);
 
         var itemId = ItemId.NewId();
-        var inventory = await inventories.GetByActorIdAsync(actor.Id);
-        inventory.Value.AddItem(itemId);
-        await inventories.SaveAsync(inventory.Value);
+        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
+        #pragma warning disable CS0618 // Type or member is obsolete
+        var inventoryResult = await inventories.GetByActorIdAsync(actor.Id);
+        #pragma warning restore CS0618
+        var inventory = inventoryResult.Value;
+        inventory.AddItem(itemId);
+        await inventories.SaveAsync(inventory);
 
         return (actor, itemId);
     }
@@ -55,11 +59,16 @@ public class EquipmentCommandHandlerTests
         // Arrange
         var (actors, inventories) = CreateRepositories();
         var (actor, itemId) = await SetupActorWithItemInInventory(actors, inventories);
+        // TD_019: Use obsolete GetByActorIdAsync to get the auto-created inventory
+        #pragma warning disable CS0618
+        var inventoryResult = await inventories.GetByActorIdAsync(actor.Id);
+        #pragma warning restore CS0618
+        var inventory = inventoryResult.Value;
         var handler = new EquipItemCommandHandler(actors, inventories, NullLogger<EquipItemCommandHandler>.Instance);
 
         // Act
         var result = await handler.Handle(
-            new EquipItemCommand(actor.Id, itemId, EquipmentSlot.MainHand, IsTwoHanded: false),
+            new EquipItemCommand(actor.Id, inventory.Id, itemId, EquipmentSlot.MainHand, IsTwoHanded: false),
             default);
 
         // Assert
@@ -72,8 +81,8 @@ public class EquipmentCommandHandlerTests
         equipment.GetEquippedItem(EquipmentSlot.MainHand).Value.Should().Be(itemId);
 
         // Verify item removed from inventory
-        var inventory = await inventories.GetByActorIdAsync(actor.Id);
-        inventory.Value.Contains(itemId).Should().BeFalse();
+        var inventoryCheck = await inventories.GetByIdAsync(inventory.Id);
+        inventoryCheck.Value.Contains(itemId).Should().BeFalse();
     }
 
     [Fact]
@@ -84,11 +93,15 @@ public class EquipmentCommandHandlerTests
         // Arrange
         var (actors, inventories) = CreateRepositories();
         var (actor, itemId) = await SetupActorWithItemInInventory(actors, inventories);
+        #pragma warning disable CS0618
+        var inventoryResult = await inventories.GetByActorIdAsync(actor.Id);
+        #pragma warning restore CS0618
+        var inventory = inventoryResult.Value;
         var handler = new EquipItemCommandHandler(actors, inventories, NullLogger<EquipItemCommandHandler>.Instance);
 
         // Act
         var result = await handler.Handle(
-            new EquipItemCommand(actor.Id, itemId, EquipmentSlot.MainHand, IsTwoHanded: true),
+            new EquipItemCommand(actor.Id, inventory.Id, itemId, EquipmentSlot.MainHand, IsTwoHanded: true),
             default);
 
         // Assert
@@ -111,17 +124,20 @@ public class EquipmentCommandHandlerTests
         var (actors, inventories) = CreateRepositories();
         var (actor, itemId1) = await SetupActorWithItemInInventory(actors, inventories);
         var itemId2 = ItemId.NewId();
-        var inventory = await inventories.GetByActorIdAsync(actor.Id);
-        inventory.Value.AddItem(itemId2);
-        await inventories.SaveAsync(inventory.Value);
+        #pragma warning disable CS0618
+        var inventoryResult = await inventories.GetByActorIdAsync(actor.Id);
+        #pragma warning restore CS0618
+        var inventory = inventoryResult.Value;
+        inventory.AddItem(itemId2);
+        await inventories.SaveAsync(inventory);
 
         var handler = new EquipItemCommandHandler(actors, inventories, NullLogger<EquipItemCommandHandler>.Instance);
 
         // Equip first item
-        await handler.Handle(new EquipItemCommand(actor.Id, itemId1, EquipmentSlot.MainHand, false), default);
+        await handler.Handle(new EquipItemCommand(actor.Id, inventory.Id, itemId1, EquipmentSlot.MainHand, false), default);
 
         // Act - Try to equip second item to same slot
-        var result = await handler.Handle(new EquipItemCommand(actor.Id, itemId2, EquipmentSlot.MainHand, false), default);
+        var result = await handler.Handle(new EquipItemCommand(actor.Id, inventory.Id, itemId2, EquipmentSlot.MainHand, false), default);
 
         // Assert
         result.IsFailure.Should().BeTrue();
@@ -137,11 +153,15 @@ public class EquipmentCommandHandlerTests
         var (actors, inventories) = CreateRepositories();
         var actor = new Actor(ActorId.NewId(), "ACTOR_TEST");
         await actors.AddActorAsync(actor);
+        #pragma warning disable CS0618
+        var inventoryResult = await inventories.GetByActorIdAsync(actor.Id);
+        #pragma warning restore CS0618
+        var inventory = inventoryResult.Value;
         var handler = new EquipItemCommandHandler(actors, inventories, NullLogger<EquipItemCommandHandler>.Instance);
 
         // Act
         var result = await handler.Handle(
-            new EquipItemCommand(actor.Id, ItemId.NewId(), EquipmentSlot.MainHand, false),
+            new EquipItemCommand(actor.Id, inventory.Id, ItemId.NewId(), EquipmentSlot.MainHand, false),
             default);
 
         // Assert
@@ -161,14 +181,18 @@ public class EquipmentCommandHandlerTests
         // Arrange
         var (actors, inventories) = CreateRepositories();
         var (actor, itemId) = await SetupActorWithItemInInventory(actors, inventories);
+        #pragma warning disable CS0618
+        var inventoryResult = await inventories.GetByActorIdAsync(actor.Id);
+        #pragma warning restore CS0618
+        var inventory = inventoryResult.Value;
         var equipHandler = new EquipItemCommandHandler(actors, inventories, NullLogger<EquipItemCommandHandler>.Instance);
         var unequipHandler = new UnequipItemCommandHandler(actors, inventories, NullLogger<UnequipItemCommandHandler>.Instance);
 
         // Equip first
-        await equipHandler.Handle(new EquipItemCommand(actor.Id, itemId, EquipmentSlot.MainHand, false), default);
+        await equipHandler.Handle(new EquipItemCommand(actor.Id, inventory.Id, itemId, EquipmentSlot.MainHand, false), default);
 
         // Act
-        var result = await unequipHandler.Handle(new UnequipItemCommand(actor.Id, EquipmentSlot.MainHand), default);
+        var result = await unequipHandler.Handle(new UnequipItemCommand(actor.Id, inventory.Id, EquipmentSlot.MainHand), default);
 
         // Assert
         result.IsSuccess.Should().BeTrue();
@@ -180,8 +204,8 @@ public class EquipmentCommandHandlerTests
         equipment.IsSlotOccupied(EquipmentSlot.MainHand).Should().BeFalse();
 
         // Verify item back in inventory
-        var inventory = await inventories.GetByActorIdAsync(actor.Id);
-        inventory.Value.Contains(itemId).Should().BeTrue();
+        var inventoryCheck = await inventories.GetByIdAsync(inventory.Id);
+        inventoryCheck.Value.Contains(itemId).Should().BeTrue();
     }
 
     [Fact]
@@ -192,14 +216,18 @@ public class EquipmentCommandHandlerTests
         // Arrange
         var (actors, inventories) = CreateRepositories();
         var (actor, itemId) = await SetupActorWithItemInInventory(actors, inventories);
+        #pragma warning disable CS0618
+        var inventoryResult = await inventories.GetByActorIdAsync(actor.Id);
+        #pragma warning restore CS0618
+        var inventory = inventoryResult.Value;
         var equipHandler = new EquipItemCommandHandler(actors, inventories, NullLogger<EquipItemCommandHandler>.Instance);
         var unequipHandler = new UnequipItemCommandHandler(actors, inventories, NullLogger<UnequipItemCommandHandler>.Instance);
 
         // Equip two-handed weapon
-        await equipHandler.Handle(new EquipItemCommand(actor.Id, itemId, EquipmentSlot.MainHand, true), default);
+        await equipHandler.Handle(new EquipItemCommand(actor.Id, inventory.Id, itemId, EquipmentSlot.MainHand, true), default);
 
         // Act
-        var result = await unequipHandler.Handle(new UnequipItemCommand(actor.Id, EquipmentSlot.MainHand), default);
+        var result = await unequipHandler.Handle(new UnequipItemCommand(actor.Id, inventory.Id, EquipmentSlot.MainHand), default);
 
         // Assert
         result.IsSuccess.Should().BeTrue();
@@ -220,10 +248,14 @@ public class EquipmentCommandHandlerTests
         var actor = new Actor(ActorId.NewId(), "ACTOR_TEST");
         await actors.AddActorAsync(actor);
         actor.AddComponent<IEquipmentComponent>(new EquipmentComponent(actor.Id));
+        #pragma warning disable CS0618
+        var inventoryResult = await inventories.GetByActorIdAsync(actor.Id);
+        #pragma warning restore CS0618
+        var inventory = inventoryResult.Value;
         var handler = new UnequipItemCommandHandler(actors, inventories, NullLogger<UnequipItemCommandHandler>.Instance);
 
         // Act
-        var result = await handler.Handle(new UnequipItemCommand(actor.Id, EquipmentSlot.MainHand), default);
+        var result = await handler.Handle(new UnequipItemCommand(actor.Id, inventory.Id, EquipmentSlot.MainHand), default);
 
         // Assert
         result.IsFailure.Should().BeTrue();
@@ -243,19 +275,22 @@ public class EquipmentCommandHandlerTests
         var (actors, inventories) = CreateRepositories();
         var (actor, oldItemId) = await SetupActorWithItemInInventory(actors, inventories);
         var newItemId = ItemId.NewId();
-        var inventory = await inventories.GetByActorIdAsync(actor.Id);
-        inventory.Value.AddItem(newItemId);
-        await inventories.SaveAsync(inventory.Value);
+        #pragma warning disable CS0618
+        var inventoryResult = await inventories.GetByActorIdAsync(actor.Id);
+        #pragma warning restore CS0618
+        var inventory = inventoryResult.Value;
+        inventory.AddItem(newItemId);
+        await inventories.SaveAsync(inventory);
 
         var equipHandler = new EquipItemCommandHandler(actors, inventories, NullLogger<EquipItemCommandHandler>.Instance);
         var swapHandler = new SwapEquipmentCommandHandler(actors, inventories, NullLogger<SwapEquipmentCommandHandler>.Instance);
 
         // Equip old item first
-        await equipHandler.Handle(new EquipItemCommand(actor.Id, oldItemId, EquipmentSlot.MainHand, false), default);
+        await equipHandler.Handle(new EquipItemCommand(actor.Id, inventory.Id, oldItemId, EquipmentSlot.MainHand, false), default);
 
         // Act
         var result = await swapHandler.Handle(
-            new SwapEquipmentCommand(actor.Id, newItemId, EquipmentSlot.MainHand, false),
+            new SwapEquipmentCommand(actor.Id, inventory.Id, newItemId, EquipmentSlot.MainHand, false),
             default);
 
         // Assert
@@ -268,7 +303,7 @@ public class EquipmentCommandHandlerTests
         equipment.GetEquippedItem(EquipmentSlot.MainHand).Value.Should().Be(newItemId);
 
         // Verify old item in inventory, new item removed
-        var updatedInventory = await inventories.GetByActorIdAsync(actor.Id);
+        var updatedInventory = await inventories.GetByIdAsync(inventory.Id);
         updatedInventory.Value.Contains(oldItemId).Should().BeTrue();
         updatedInventory.Value.Contains(newItemId).Should().BeFalse();
     }
@@ -281,6 +316,10 @@ public class EquipmentCommandHandlerTests
         // Arrange
         var (actors, inventories) = CreateRepositories();
         var (actor, itemId) = await SetupActorWithItemInInventory(actors, inventories);
+        #pragma warning disable CS0618
+        var inventoryResult = await inventories.GetByActorIdAsync(actor.Id);
+        #pragma warning restore CS0618
+        var inventory = inventoryResult.Value;
 
         // Add equipment component so validation passes that step
         actor.AddComponent<IEquipmentComponent>(new EquipmentComponent(actor.Id));
@@ -289,7 +328,7 @@ public class EquipmentCommandHandlerTests
 
         // Act
         var result = await handler.Handle(
-            new SwapEquipmentCommand(actor.Id, itemId, EquipmentSlot.MainHand, false),
+            new SwapEquipmentCommand(actor.Id, inventory.Id, itemId, EquipmentSlot.MainHand, false),
             default);
 
         // Assert
@@ -305,15 +344,19 @@ public class EquipmentCommandHandlerTests
         // Arrange
         var (actors, inventories) = CreateRepositories();
         var (actor, oldItemId) = await SetupActorWithItemInInventory(actors, inventories);
+        #pragma warning disable CS0618
+        var inventoryResult = await inventories.GetByActorIdAsync(actor.Id);
+        #pragma warning restore CS0618
+        var inventory = inventoryResult.Value;
         var equipHandler = new EquipItemCommandHandler(actors, inventories, NullLogger<EquipItemCommandHandler>.Instance);
         var swapHandler = new SwapEquipmentCommandHandler(actors, inventories, NullLogger<SwapEquipmentCommandHandler>.Instance);
 
         // Equip old item first
-        await equipHandler.Handle(new EquipItemCommand(actor.Id, oldItemId, EquipmentSlot.MainHand, false), default);
+        await equipHandler.Handle(new EquipItemCommand(actor.Id, inventory.Id, oldItemId, EquipmentSlot.MainHand, false), default);
 
         // Act - Try to swap with non-existent item
         var result = await swapHandler.Handle(
-            new SwapEquipmentCommand(actor.Id, ItemId.NewId(), EquipmentSlot.MainHand, false),
+            new SwapEquipmentCommand(actor.Id, inventory.Id, ItemId.NewId(), EquipmentSlot.MainHand, false),
             default);
 
         // Assert

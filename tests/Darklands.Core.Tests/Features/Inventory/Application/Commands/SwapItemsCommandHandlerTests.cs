@@ -5,6 +5,7 @@ using Darklands.Core.Tests.Features.Item.Application.Stubs;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
+using InventoryId = Darklands.Core.Features.Inventory.Domain.InventoryId;
 
 namespace Darklands.Core.Tests.Features.Inventory.Application.Commands;
 
@@ -35,22 +36,21 @@ public class SwapItemsCommandHandlerTests
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
         // Two equipment slots (WeaponOnly, 1×1)
-        var inventoryId1 = new Darklands.Core.Features.Inventory.Domain.InventoryId(Guid.NewGuid());
+        var inventoryId1 = InventoryId.NewId();
         var inventory1 = Darklands.Core.Features.Inventory.Domain.Inventory.Create(inventoryId1, 1, 1, ContainerType.WeaponOnly).Value;
         inventory1.PlaceItemAt(itemId1, new GridPosition(0, 0), item1.Shape, Rotation.Degrees0);
 
-        var inventoryId2 = new Darklands.Core.Features.Inventory.Domain.InventoryId(Guid.NewGuid());
+        var inventoryId2 = InventoryId.NewId();
         var inventory2 = Darklands.Core.Features.Inventory.Domain.Inventory.Create(inventoryId2, 1, 1, ContainerType.WeaponOnly).Value;
         inventory2.PlaceItemAt(itemId2, new GridPosition(0, 0), item2.Shape, Rotation.Degrees0);
 
-        var actorId2 = ActorId.NewId();
-        inventoryRepo.RegisterInventoryForActor(actorId, inventory1);
-        inventoryRepo.RegisterInventoryForActor(actorId2, inventory2);
+        inventoryRepo.RegisterInventory(inventory1);
+        inventoryRepo.RegisterInventory(inventory2);
 
         var handler = new SwapItemsCommandHandler(inventoryRepo, itemRepo, NullLogger<SwapItemsCommandHandler>.Instance);
         var command = new SwapItemsCommand(
-            actorId, itemId1, new GridPosition(0, 0),
-            actorId2, itemId2, new GridPosition(0, 0),
+            inventoryId1, itemId1, new GridPosition(0, 0),
+            inventoryId2, itemId2, new GridPosition(0, 0),
             Rotation.Degrees0);
 
         // Act
@@ -81,20 +81,20 @@ public class SwapItemsCommandHandlerTests
         var itemRepo = new StubItemRepository(item);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
-        var inventoryId1 = new Darklands.Core.Features.Inventory.Domain.InventoryId(Guid.NewGuid());
+        var inventoryId1 = InventoryId.NewId();
         var inventory1 = Darklands.Core.Features.Inventory.Domain.Inventory.Create(inventoryId1, 5, 5, ContainerType.General).Value;
         inventory1.PlaceItemAt(itemId, new GridPosition(0, 0), item.Shape, Rotation.Degrees0);
 
-        var inventoryId2 = new Darklands.Core.Features.Inventory.Domain.InventoryId(Guid.NewGuid());
+        var inventoryId2 = InventoryId.NewId();
         var inventory2 = Darklands.Core.Features.Inventory.Domain.Inventory.Create(inventoryId2, 5, 5, ContainerType.General).Value;
 
-        inventoryRepo.RegisterInventoryForActor(actorId1, inventory1);
-        inventoryRepo.RegisterInventoryForActor(actorId2, inventory2);
+        inventoryRepo.RegisterInventory(inventory1);
+        inventoryRepo.RegisterInventory(inventory2);
 
         var handler = new SwapItemsCommandHandler(inventoryRepo, itemRepo, NullLogger<SwapItemsCommandHandler>.Instance);
         var command = new SwapItemsCommand(
-            actorId1, itemId, new GridPosition(0, 0),
-            actorId2, null, new GridPosition(2, 2),  // null targetItemId = move not swap
+            inventoryId1, itemId, new GridPosition(0, 0),
+            inventoryId2, null, new GridPosition(2, 2),  // null targetItemId = move not swap
             Rotation.Degrees0);
 
         // Act
@@ -128,23 +128,22 @@ public class SwapItemsCommandHandlerTests
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
         // Equipment slot: 1×1 (has item1)
-        var inventoryId1 = new Darklands.Core.Features.Inventory.Domain.InventoryId(Guid.NewGuid());
+        var inventoryId1 = InventoryId.NewId();
         var inventory1 = Darklands.Core.Features.Inventory.Domain.Inventory.Create(inventoryId1, 1, 1, ContainerType.WeaponOnly).Value;
         inventory1.PlaceItemAt(itemId1, new GridPosition(0, 0), item1.Shape, Rotation.Degrees0);
 
         // Backpack: 5×5 (has item2 in its 2×2 shape)
-        var inventoryId2 = new Darklands.Core.Features.Inventory.Domain.InventoryId(Guid.NewGuid());
+        var inventoryId2 = InventoryId.NewId();
         var inventory2 = Darklands.Core.Features.Inventory.Domain.Inventory.Create(inventoryId2, 5, 5, ContainerType.General).Value;
         inventory2.PlaceItemAt(itemId2, new GridPosition(0, 0), item2.Shape, Rotation.Degrees0);
 
-        var actorId2 = ActorId.NewId();
-        inventoryRepo.RegisterInventoryForActor(actorId, inventory1);
-        inventoryRepo.RegisterInventoryForActor(actorId2, inventory2);
+        inventoryRepo.RegisterInventory(inventory1);
+        inventoryRepo.RegisterInventory(inventory2);
 
         var handler = new SwapItemsCommandHandler(inventoryRepo, itemRepo, NullLogger<SwapItemsCommandHandler>.Instance);
         var command = new SwapItemsCommand(
-            actorId, itemId1, new GridPosition(0, 0),
-            actorId2, itemId2, new GridPosition(0, 0),
+            inventoryId1, itemId1, new GridPosition(0, 0),
+            inventoryId2, itemId2, new GridPosition(0, 0),
             Rotation.Degrees0);
 
         // Act

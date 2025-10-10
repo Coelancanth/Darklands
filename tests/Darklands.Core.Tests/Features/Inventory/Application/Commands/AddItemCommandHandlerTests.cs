@@ -4,6 +4,7 @@ using Darklands.Core.Features.Inventory.Infrastructure;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
+using InventoryId = Darklands.Core.Features.Inventory.Domain.InventoryId;
 
 namespace Darklands.Core.Tests.Features.Inventory.Application.Commands;
 
@@ -19,7 +20,13 @@ public class AddItemCommandHandlerTests
         var itemId = ItemId.NewId();
         var repository = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
         var handler = new AddItemCommandHandler(repository, NullLogger<AddItemCommandHandler>.Instance);
-        var command = new AddItemCommand(actorId, itemId);
+
+        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
+        #pragma warning disable CS0618 // Type or member is obsolete
+        var invResult = await repository.GetByActorIdAsync(actorId);
+        #pragma warning restore CS0618
+        var inventoryId = invResult.Value.Id;
+        var command = new AddItemCommand(inventoryId, itemId);
 
         // Act
         var result = await handler.Handle(command, default);
@@ -27,7 +34,7 @@ public class AddItemCommandHandlerTests
         // Assert
         result.IsSuccess.Should().BeTrue();
 
-        var inventory = await repository.GetByActorIdAsync(actorId);
+        var inventory = await repository.GetByIdAsync(inventoryId);
         inventory.Value.Contains(itemId).Should().BeTrue();
         inventory.Value.Count.Should().Be(1);
     }
@@ -42,14 +49,20 @@ public class AddItemCommandHandlerTests
         var repository = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
         var handler = new AddItemCommandHandler(repository, NullLogger<AddItemCommandHandler>.Instance);
 
+        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
+        #pragma warning disable CS0618 // Type or member is obsolete
+        var invResult = await repository.GetByActorIdAsync(actorId);
+        #pragma warning restore CS0618
+        var inventoryId = invResult.Value.Id;
+
         // Fill inventory (default capacity is 20)
         for (int i = 0; i < 20; i++)
         {
-            await handler.Handle(new AddItemCommand(actorId, ItemId.NewId()), default);
+            await handler.Handle(new AddItemCommand(inventoryId, ItemId.NewId()), default);
         }
 
         // Act
-        var result = await handler.Handle(new AddItemCommand(actorId, ItemId.NewId()), default);
+        var result = await handler.Handle(new AddItemCommand(inventoryId, ItemId.NewId()), default);
 
         // Assert
         result.IsFailure.Should().BeTrue();
@@ -67,11 +80,17 @@ public class AddItemCommandHandlerTests
         var repository = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
         var handler = new AddItemCommandHandler(repository, NullLogger<AddItemCommandHandler>.Instance);
 
+        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
+        #pragma warning disable CS0618 // Type or member is obsolete
+        var invResult = await repository.GetByActorIdAsync(actorId);
+        #pragma warning restore CS0618
+        var inventoryId = invResult.Value.Id;
+
         // Add item once
-        await handler.Handle(new AddItemCommand(actorId, itemId), default);
+        await handler.Handle(new AddItemCommand(inventoryId, itemId), default);
 
         // Act
-        var result = await handler.Handle(new AddItemCommand(actorId, itemId), default);
+        var result = await handler.Handle(new AddItemCommand(inventoryId, itemId), default);
 
         // Assert
         result.IsFailure.Should().BeTrue();

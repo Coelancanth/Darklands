@@ -6,6 +6,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Item = Darklands.Core.Features.Item.Domain.Item;
+using InventoryId = Darklands.Core.Features.Inventory.Domain.InventoryId;
 
 namespace Darklands.Core.Tests.Features.Inventory.Application.Commands;
 
@@ -27,8 +28,16 @@ public class MoveItemBetweenContainersCommandHandlerTests
         var itemRepo = new StubItemRepository(item);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
+        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
+        #pragma warning disable CS0618 // Type or member is obsolete
+        var sourceInvResult = await inventoryRepo.GetByActorIdAsync(sourceActorId);
+        var targetInvResult = await inventoryRepo.GetByActorIdAsync(targetActorId);
+        #pragma warning restore CS0618
+        var sourceInventoryId = sourceInvResult.Value.Id;
+        var targetInventoryId = targetInvResult.Value.Id;
+
         // Place item in source inventory
-        var sourceInventory = await inventoryRepo.GetByActorIdAsync(sourceActorId);
+        var sourceInventory = await inventoryRepo.GetByIdAsync(sourceInventoryId);
         sourceInventory.Value.PlaceItemAt(itemId, sourcePos);
         await inventoryRepo.SaveAsync(sourceInventory.Value, default);
 
@@ -38,8 +47,8 @@ public class MoveItemBetweenContainersCommandHandlerTests
             NullLogger<MoveItemBetweenContainersCommandHandler>.Instance);
 
         var command = new MoveItemBetweenContainersCommand(
-            sourceActorId,
-            targetActorId,
+            sourceInventoryId,
+            targetInventoryId,
             itemId,
             targetPos);
 
@@ -50,11 +59,11 @@ public class MoveItemBetweenContainersCommandHandlerTests
         result.IsSuccess.Should().BeTrue();
 
         // Verify item removed from source
-        var updatedSource = await inventoryRepo.GetByActorIdAsync(sourceActorId);
+        var updatedSource = await inventoryRepo.GetByIdAsync(sourceInventoryId);
         updatedSource.Value.Contains(itemId).Should().BeFalse();
 
         // Verify item added to target
-        var updatedTarget = await inventoryRepo.GetByActorIdAsync(targetActorId);
+        var updatedTarget = await inventoryRepo.GetByIdAsync(targetInventoryId);
         updatedTarget.Value.Contains(itemId).Should().BeTrue();
         updatedTarget.Value.GetItemPosition(itemId).Value.Should().Be(targetPos);
     }
@@ -74,8 +83,14 @@ public class MoveItemBetweenContainersCommandHandlerTests
         var itemRepo = new StubItemRepository(item);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
+        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
+        #pragma warning disable CS0618 // Type or member is obsolete
+        var invResult = await inventoryRepo.GetByActorIdAsync(actorId);
+        #pragma warning restore CS0618
+        var inventoryId = invResult.Value.Id;
+
         // Place item at source position
-        var inventory = await inventoryRepo.GetByActorIdAsync(actorId);
+        var inventory = await inventoryRepo.GetByIdAsync(inventoryId);
         inventory.Value.PlaceItemAt(itemId, sourcePos);
         await inventoryRepo.SaveAsync(inventory.Value, default);
 
@@ -85,8 +100,8 @@ public class MoveItemBetweenContainersCommandHandlerTests
             NullLogger<MoveItemBetweenContainersCommandHandler>.Instance);
 
         var command = new MoveItemBetweenContainersCommand(
-            actorId,
-            actorId,
+            inventoryId,
+            inventoryId,
             itemId,
             targetPos);
 
@@ -96,7 +111,7 @@ public class MoveItemBetweenContainersCommandHandlerTests
         // Assert
         result.IsSuccess.Should().BeTrue();
 
-        var updatedInventory = await inventoryRepo.GetByActorIdAsync(actorId);
+        var updatedInventory = await inventoryRepo.GetByIdAsync(inventoryId);
         updatedInventory.Value.Contains(itemId).Should().BeTrue();
         updatedInventory.Value.GetItemPosition(itemId).Value.Should().Be(targetPos);
     }
@@ -115,15 +130,22 @@ public class MoveItemBetweenContainersCommandHandlerTests
         var itemRepo = new StubItemRepository(potion);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
+        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
+        #pragma warning disable CS0618 // Type or member is obsolete
+        var sourceInvResult = await inventoryRepo.GetByActorIdAsync(sourceActorId);
+        var targetInvResult = await inventoryRepo.GetByActorIdAsync(targetActorId);
+        #pragma warning restore CS0618
+        var sourceInventoryId = sourceInvResult.Value.Id;
+        var targetInventoryId = targetInvResult.Value.Id;
+
         // Place potion in source inventory
-        var sourceInventory = await inventoryRepo.GetByActorIdAsync(sourceActorId);
+        var sourceInventory = await inventoryRepo.GetByIdAsync(sourceInventoryId);
         sourceInventory.Value.PlaceItemAt(itemId, new GridPosition(0, 0));
         await inventoryRepo.SaveAsync(sourceInventory.Value, default);
 
         // Create weapon-only target inventory
-        var targetInventory = await inventoryRepo.GetByActorIdAsync(targetActorId);
         var weaponInventory = Core.Features.Inventory.Domain.Inventory.Create(
-            targetInventory.Value.Id,
+            targetInventoryId,
             gridWidth: 1,
             gridHeight: 4,
             ContainerType.WeaponOnly).Value;
@@ -135,8 +157,8 @@ public class MoveItemBetweenContainersCommandHandlerTests
             NullLogger<MoveItemBetweenContainersCommandHandler>.Instance);
 
         var command = new MoveItemBetweenContainersCommand(
-            sourceActorId,
-            targetActorId,
+            sourceInventoryId,
+            targetInventoryId,
             itemId,
             new GridPosition(0, 0));
 
@@ -176,20 +198,27 @@ public class MoveItemBetweenContainersCommandHandlerTests
         var itemRepo = new StubItemRepository(potion);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
+        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
+        #pragma warning disable CS0618 // Type or member is obsolete
+        var sourceInvResult = await inventoryRepo.GetByActorIdAsync(sourceActorId);
+        var targetInvResult = await inventoryRepo.GetByActorIdAsync(targetActorId);
+        #pragma warning restore CS0618
+        var sourceInventoryId = sourceInvResult.Value.Id;
+        var targetInventoryId = targetInvResult.Value.Id;
+
         // Place potion in source inventory at specific position
-        var sourceInventory = await inventoryRepo.GetByActorIdAsync(sourceActorId);
+        var sourceInventory = await inventoryRepo.GetByIdAsync(sourceInventoryId);
         sourceInventory.Value.PlaceItemAt(itemId, sourcePos);
         await inventoryRepo.SaveAsync(sourceInventory.Value, default);
 
         // Verify initial state: Potion in source at (2,1)
-        sourceInventory = await inventoryRepo.GetByActorIdAsync(sourceActorId);
+        sourceInventory = await inventoryRepo.GetByIdAsync(sourceInventoryId);
         sourceInventory.Value.Contains(itemId).Should().BeTrue();
         sourceInventory.Value.GetItemPosition(itemId).Value.Should().Be(sourcePos);
 
         // Create weapon-only target inventory (will reject potion)
-        var targetInventory = await inventoryRepo.GetByActorIdAsync(targetActorId);
         var weaponSlot = Core.Features.Inventory.Domain.Inventory.Create(
-            targetInventory.Value.Id,
+            targetInventoryId,
             gridWidth: 1,
             gridHeight: 1,
             ContainerType.WeaponOnly).Value;
@@ -201,8 +230,8 @@ public class MoveItemBetweenContainersCommandHandlerTests
             NullLogger<MoveItemBetweenContainersCommandHandler>.Instance);
 
         var command = new MoveItemBetweenContainersCommand(
-            sourceActorId,
-            targetActorId,
+            sourceInventoryId,
+            targetInventoryId,
             itemId,
             new GridPosition(0, 0));
 
@@ -214,12 +243,12 @@ public class MoveItemBetweenContainersCommandHandlerTests
         result.Error.Should().Contain("weapon");
 
         // CRITICAL: Verify item STILL in source inventory (not lost!)
-        var finalSourceState = await inventoryRepo.GetByActorIdAsync(sourceActorId);
+        var finalSourceState = await inventoryRepo.GetByIdAsync(sourceInventoryId);
         finalSourceState.Value.Contains(itemId).Should().BeTrue("item must remain in source after failed validation");
         finalSourceState.Value.GetItemPosition(itemId).Value.Should().Be(sourcePos, "item position should be unchanged");
 
         // Verify item NOT in target inventory
-        var finalTargetState = await inventoryRepo.GetByActorIdAsync(targetActorId);
+        var finalTargetState = await inventoryRepo.GetByIdAsync(targetInventoryId);
         finalTargetState.Value.Contains(itemId).Should().BeFalse("item should not be added to target after validation failure");
     }
 
@@ -242,16 +271,23 @@ public class MoveItemBetweenContainersCommandHandlerTests
         var itemRepo = new StubItemRepository(multiCellItem);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
+        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
+        #pragma warning disable CS0618 // Type or member is obsolete
+        var sourceInvResult = await inventoryRepo.GetByActorIdAsync(sourceActorId);
+        var targetInvResult = await inventoryRepo.GetByActorIdAsync(targetActorId);
+        #pragma warning restore CS0618
+        var sourceInventoryId = sourceInvResult.Value.Id;
+        var targetInventoryId = targetInvResult.Value.Id;
+
         // Create source backpack (10×10 grid) and place 2×2 item at (1,1)
-        var sourceInventory = await inventoryRepo.GetByActorIdAsync(sourceActorId);
+        var sourceInventory = await inventoryRepo.GetByIdAsync(sourceInventoryId);
         sourceInventory.Value.PlaceItemAt(itemId, sourcePos, 2, 2);
         await inventoryRepo.SaveAsync(sourceInventory.Value, default);
 
         // Create target backpack (10×10 grid, empty)
-        var targetInventory = await inventoryRepo.GetByActorIdAsync(targetActorId);
         var emptyBackpack = Core.Features.Inventory.Domain.Inventory.Create(
-            targetInventory.Value.Id, 10, 10, ContainerType.General).Value;
-        inventoryRepo.RegisterInventoryForActor(targetActorId, emptyBackpack);
+            targetInventoryId, 10, 10, ContainerType.General).Value;
+        inventoryRepo.RegisterInventory(emptyBackpack);
 
         var handler = new MoveItemBetweenContainersCommandHandler(
             inventoryRepo,
@@ -259,7 +295,7 @@ public class MoveItemBetweenContainersCommandHandlerTests
             NullLogger<MoveItemBetweenContainersCommandHandler>.Instance);
 
         var command = new MoveItemBetweenContainersCommand(
-            sourceActorId, targetActorId, itemId, targetPos);
+            sourceInventoryId, targetInventoryId, itemId, targetPos);
 
         // Act: Move 2×2 item from source → target
         var result = await handler.Handle(command, default);
@@ -268,11 +304,11 @@ public class MoveItemBetweenContainersCommandHandlerTests
         result.IsSuccess.Should().BeTrue();
 
         // Verify item removed from source
-        var updatedSource = await inventoryRepo.GetByActorIdAsync(sourceActorId);
+        var updatedSource = await inventoryRepo.GetByIdAsync(sourceInventoryId);
         updatedSource.Value.Contains(itemId).Should().BeFalse();
 
         // CRITICAL: Verify item STILL occupies 2×2 cells in target (not collapsed to 1×1)
-        var updatedTarget = await inventoryRepo.GetByActorIdAsync(targetActorId);
+        var updatedTarget = await inventoryRepo.GetByIdAsync(targetInventoryId);
         updatedTarget.Value.Contains(itemId).Should().BeTrue();
         updatedTarget.Value.GetItemPosition(itemId).Value.Should().Be(targetPos);
 

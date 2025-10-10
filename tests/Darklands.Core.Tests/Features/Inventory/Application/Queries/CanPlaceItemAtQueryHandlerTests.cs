@@ -6,6 +6,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Item = Darklands.Core.Features.Item.Domain.Item;
+using InventoryId = Darklands.Core.Features.Inventory.Domain.InventoryId;
 
 namespace Darklands.Core.Tests.Features.Inventory.Application.Queries;
 
@@ -25,12 +26,18 @@ public class CanPlaceItemAtQueryHandlerTests
         var itemRepo = new StubItemRepository(item);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
+        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
+        #pragma warning disable CS0618 // Type or member is obsolete
+        var invResult = await inventoryRepo.GetByActorIdAsync(actorId);
+        #pragma warning restore CS0618
+        var inventoryId = invResult.Value.Id;
+
         var handler = new CanPlaceItemAtQueryHandler(
             inventoryRepo,
             itemRepo,
             NullLogger<CanPlaceItemAtQueryHandler>.Instance);
 
-        var query = new CanPlaceItemAtQuery(actorId, itemId, position);
+        var query = new CanPlaceItemAtQuery(inventoryId, itemId, position);
 
         // Act
         var result = await handler.Handle(query, default);
@@ -54,8 +61,14 @@ public class CanPlaceItemAtQueryHandlerTests
         var itemRepo = new StubItemRepository(item1, item2);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
+        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
+        #pragma warning disable CS0618 // Type or member is obsolete
+        var invResult = await inventoryRepo.GetByActorIdAsync(actorId);
+        #pragma warning restore CS0618
+        var inventoryId = invResult.Value.Id;
+
         // Place item1 at position
-        var inventory = await inventoryRepo.GetByActorIdAsync(actorId);
+        var inventory = await inventoryRepo.GetByIdAsync(inventoryId);
         inventory.Value.PlaceItemAt(itemId1, position);
         await inventoryRepo.SaveAsync(inventory.Value, default);
 
@@ -64,7 +77,7 @@ public class CanPlaceItemAtQueryHandlerTests
             itemRepo,
             NullLogger<CanPlaceItemAtQueryHandler>.Instance);
 
-        var query = new CanPlaceItemAtQuery(actorId, itemId2, position);
+        var query = new CanPlaceItemAtQuery(inventoryId, itemId2, position);
 
         // Act
         var result = await handler.Handle(query, default);
@@ -88,10 +101,15 @@ public class CanPlaceItemAtQueryHandlerTests
         var itemRepo = new StubItemRepository(weapon);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
+        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
+        #pragma warning disable CS0618 // Type or member is obsolete
+        var invResult = await inventoryRepo.GetByActorIdAsync(actorId);
+        #pragma warning restore CS0618
+        var inventoryId = invResult.Value.Id;
+
         // Create weapon-only inventory
-        var inventory = await inventoryRepo.GetByActorIdAsync(actorId);
         var weaponInventory = Core.Features.Inventory.Domain.Inventory.Create(
-            inventory.Value.Id,
+            inventoryId,
             gridWidth: 1,
             gridHeight: 4,
             ContainerType.WeaponOnly).Value;
@@ -102,7 +120,7 @@ public class CanPlaceItemAtQueryHandlerTests
             itemRepo,
             NullLogger<CanPlaceItemAtQueryHandler>.Instance);
 
-        var query = new CanPlaceItemAtQuery(actorId, itemId, position);
+        var query = new CanPlaceItemAtQuery(inventoryId, itemId, position);
 
         // Act
         var result = await handler.Handle(query, default);
@@ -126,10 +144,15 @@ public class CanPlaceItemAtQueryHandlerTests
         var itemRepo = new StubItemRepository(potion);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
+        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
+        #pragma warning disable CS0618 // Type or member is obsolete
+        var invResult = await inventoryRepo.GetByActorIdAsync(actorId);
+        #pragma warning restore CS0618
+        var inventoryId = invResult.Value.Id;
+
         // Create weapon-only inventory
-        var inventory = await inventoryRepo.GetByActorIdAsync(actorId);
         var weaponInventory = Core.Features.Inventory.Domain.Inventory.Create(
-            inventory.Value.Id,
+            inventoryId,
             gridWidth: 1,
             gridHeight: 4,
             ContainerType.WeaponOnly).Value;
@@ -140,7 +163,7 @@ public class CanPlaceItemAtQueryHandlerTests
             itemRepo,
             NullLogger<CanPlaceItemAtQueryHandler>.Instance);
 
-        var query = new CanPlaceItemAtQuery(actorId, itemId, position);
+        var query = new CanPlaceItemAtQuery(inventoryId, itemId, position);
 
         // Act
         var result = await handler.Handle(query, default);

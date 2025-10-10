@@ -34,10 +34,10 @@ public class GetOccupiedCellsQueryHandlerTests
         var inventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(inventoryId, 5, 5, ContainerType.General).Value;
         var position = new GridPosition(1, 1);
         inventory.PlaceItemAt(itemId, position, item.Shape, Rotation.Degrees0);
-        inventoryRepo.RegisterInventoryForActor(actorId, inventory);
+        inventoryRepo.RegisterInventory(inventory);
 
         var handler = new GetOccupiedCellsQueryHandler(inventoryRepo, NullLogger<GetOccupiedCellsQueryHandler>.Instance);
-        var query = new GetOccupiedCellsQuery(actorId, itemId);
+        var query = new GetOccupiedCellsQuery(inventoryId, itemId);
 
         // Act
         var result = await handler.Handle(query, CancellationToken.None);
@@ -70,10 +70,10 @@ public class GetOccupiedCellsQueryHandlerTests
         var inventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(inventoryId, 5, 5, ContainerType.General).Value;
         var position = new GridPosition(1, 1);
         inventory.PlaceItemAt(itemId, position, item.Shape, Rotation.Degrees90);
-        inventoryRepo.RegisterInventoryForActor(actorId, inventory);
+        inventoryRepo.RegisterInventory(inventory);
 
         var handler = new GetOccupiedCellsQueryHandler(inventoryRepo, NullLogger<GetOccupiedCellsQueryHandler>.Instance);
-        var query = new GetOccupiedCellsQuery(actorId, itemId);
+        var query = new GetOccupiedCellsQuery(inventoryId, itemId);
 
         // Act
         var result = await handler.Handle(query, CancellationToken.None);
@@ -105,8 +105,14 @@ public class GetOccupiedCellsQueryHandlerTests
 
         // Auto-created inventory won't have this item
 
+        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
+        #pragma warning disable CS0618 // Type or member is obsolete
+        var invResult = await inventoryRepo.GetByActorIdAsync(actorId);
+        #pragma warning restore CS0618
+        var inventoryId = invResult.Value.Id;
+
         var handler = new GetOccupiedCellsQueryHandler(inventoryRepo, NullLogger<GetOccupiedCellsQueryHandler>.Instance);
-        var query = new GetOccupiedCellsQuery(actorId, itemId);
+        var query = new GetOccupiedCellsQuery(inventoryId, itemId);
 
         // Act
         var result = await handler.Handle(query, CancellationToken.None);

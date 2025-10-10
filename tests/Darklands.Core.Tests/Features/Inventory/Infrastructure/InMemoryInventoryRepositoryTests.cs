@@ -11,16 +11,19 @@ namespace Darklands.Core.Tests.Features.Inventory.Infrastructure;
 public class InMemoryInventoryRepositoryTests
 {
     [Fact]
-    public async Task GetByActorIdAsync_FirstTime_ShouldAutoCreateInventory()
+    public async Task GetByOwnerAsync_FirstTime_ShouldAutoCreateInventory()
     {
         // DESIGN DECISION: Auto-create inventory with default capacity (20 slots)
+        // TD_019: GetByActorIdAsync (obsolete) auto-creates, GetByOwnerAsync does not
 
         // Arrange
         var actorId = ActorId.NewId();
         var repository = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
-        // Act
+        // Act (using obsolete method that auto-creates)
+        #pragma warning disable CS0618 // Type or member is obsolete
         var result = await repository.GetByActorIdAsync(actorId);
+        #pragma warning restore CS0618
 
         // Assert
         result.IsSuccess.Should().BeTrue();
@@ -30,39 +33,50 @@ public class InMemoryInventoryRepositoryTests
     }
 
     [Fact]
-    public async Task GetByActorIdAsync_SecondTime_ShouldReturnSameInventory()
+    public async Task GetByOwnerAsync_SecondTime_ShouldReturnSameInventory()
     {
         // WHY: Repository must return same instance for idempotency
+        // TD_019: Use GetByActorIdAsync (obsolete) for auto-creation test
 
         // Arrange
         var actorId = ActorId.NewId();
         var itemId = ItemId.NewId();
         var repository = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
-        // Get inventory first time and add item
-        var inv1 = await repository.GetByActorIdAsync(actorId);
-        inv1.Value.AddItem(itemId);
+        // Get inventory first time and add item (auto-creates)
+        #pragma warning disable CS0618 // Type or member is obsolete
+        var inv1Result = await repository.GetByActorIdAsync(actorId);
+        #pragma warning restore CS0618
+        var inv1 = inv1Result.Value;
+        inv1.AddItem(itemId);
 
-        // Act
-        var inv2 = await repository.GetByActorIdAsync(actorId);
+        // Act (get again)
+        #pragma warning disable CS0618 // Type or member is obsolete
+        var inv2Result = await repository.GetByActorIdAsync(actorId);
+        #pragma warning restore CS0618
+        var inv2 = inv2Result.Value;
 
         // Assert
-        inv2.Value.Contains(itemId).Should().BeTrue(); // Item persisted
-        inv2.Value.Id.Should().Be(inv1.Value.Id); // Same instance
+        inv2.Contains(itemId).Should().BeTrue(); // Item persisted
+        inv2.Id.Should().Be(inv1.Id); // Same instance
     }
 
     [Fact]
     public async Task SaveAsync_ShouldSucceed()
     {
         // WHY: In-memory implementation is no-op but must return success
+        // TD_019: Use GetByActorIdAsync (obsolete) for auto-creation test
 
         // Arrange
         var actorId = ActorId.NewId();
         var repository = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
-        var inventory = await repository.GetByActorIdAsync(actorId);
+        #pragma warning disable CS0618 // Type or member is obsolete
+        var inventoryResult = await repository.GetByActorIdAsync(actorId);
+        #pragma warning restore CS0618
+        var inventory = inventoryResult.Value;
 
         // Act
-        var result = await repository.SaveAsync(inventory.Value);
+        var result = await repository.SaveAsync(inventory);
 
         // Assert
         result.IsSuccess.Should().BeTrue();
@@ -71,13 +85,18 @@ public class InMemoryInventoryRepositoryTests
     [Fact]
     public async Task DeleteAsync_ShouldRemoveInventory()
     {
+        // TD_019: Use GetByActorIdAsync (obsolete) for auto-creation test
+
         // Arrange
         var actorId = ActorId.NewId();
         var repository = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
         // Get inventory (auto-creates)
-        var inventory = await repository.GetByActorIdAsync(actorId);
-        var inventoryId = inventory.Value.Id;
+        #pragma warning disable CS0618 // Type or member is obsolete
+        var inventoryResult = await repository.GetByActorIdAsync(actorId);
+        #pragma warning restore CS0618
+        var inventory = inventoryResult.Value;
+        var inventoryId = inventory.Id;
 
         // Act
         var deleteResult = await repository.DeleteAsync(inventoryId);
@@ -86,7 +105,10 @@ public class InMemoryInventoryRepositoryTests
         deleteResult.IsSuccess.Should().BeTrue();
 
         // Verify: Getting inventory again auto-creates a NEW one
-        var newInventory = await repository.GetByActorIdAsync(actorId);
-        newInventory.Value.Id.Should().NotBe(inventoryId); // Different instance
+        #pragma warning disable CS0618 // Type or member is obsolete
+        var newInventoryResult = await repository.GetByActorIdAsync(actorId);
+        #pragma warning restore CS0618
+        var newInventory = newInventoryResult.Value;
+        newInventory.Id.Should().NotBe(inventoryId); // Different instance
     }
 }

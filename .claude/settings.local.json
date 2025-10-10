@@ -245,7 +245,8 @@
       "Bash(\"src/Darklands.Core/Features/Inventory/Application/Commands/PlaceItemAtPositionCommandHandler.cs\")",
       "Bash(\"src/Darklands.Core/Features/Inventory/Application/Queries/GetItemRenderPositionQuery.cs\" )",
       "Bash(\"src/Darklands.Core/Features/Inventory/Application/Queries/CalculateHighlightCellsQuery.cs\")",
-      "Bash(\"src/Darklands.Core/Features/Inventory/Application/Queries/CalculateHighlightCellsQueryHandler.cs\")"
+      "Bash(\"src/Darklands.Core/Features/Inventory/Application/Queries/CalculateHighlightCellsQueryHandler.cs\")",
+      "Bash(./scripts/core/build.ps1 test \"Category=Inventory\")"
     ],
     "deny": [],
     "ask": [],

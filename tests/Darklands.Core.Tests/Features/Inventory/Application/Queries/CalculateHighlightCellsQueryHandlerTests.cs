@@ -27,9 +27,15 @@ public class CalculateHighlightCellsQueryHandlerTests
         var itemRepo = new StubItemRepository(item);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
+        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
+        #pragma warning disable CS0618 // Type or member is obsolete
+        var invResult = await inventoryRepo.GetByActorIdAsync(actorId);
+        #pragma warning restore CS0618
+        var inventoryId = invResult.Value.Id;
+
         var handler = new CalculateHighlightCellsQueryHandler(inventoryRepo, itemRepo, NullLogger<CalculateHighlightCellsQueryHandler>.Instance);
 
-        var query = new CalculateHighlightCellsQuery(actorId, itemId, position, rotation);
+        var query = new CalculateHighlightCellsQuery(inventoryId, itemId, position, rotation);
 
         // Act
         var result = await handler.Handle(query, CancellationToken.None);
@@ -60,9 +66,15 @@ public class CalculateHighlightCellsQueryHandlerTests
         var itemRepo = new StubItemRepository(item);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
+        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
+        #pragma warning disable CS0618 // Type or member is obsolete
+        var invResult = await inventoryRepo.GetByActorIdAsync(actorId);
+        #pragma warning restore CS0618
+        var inventoryId = invResult.Value.Id;
+
         var handler = new CalculateHighlightCellsQueryHandler(inventoryRepo, itemRepo, NullLogger<CalculateHighlightCellsQueryHandler>.Instance);
 
-        var query = new CalculateHighlightCellsQuery(actorId, itemId, position, rotation);
+        var query = new CalculateHighlightCellsQuery(inventoryId, itemId, position, rotation);
 
         // Act
         var result = await handler.Handle(query, CancellationToken.None);
@@ -95,16 +107,16 @@ public class CalculateHighlightCellsQueryHandlerTests
         var itemRepo = new StubItemRepository(item);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
-        // Create WeaponOnly container and register it for this actor
+        // Create WeaponOnly container and register it
         var inventoryId = new Darklands.Core.Features.Inventory.Domain.InventoryId(Guid.NewGuid());
         var inventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(
             inventoryId,
             1, 1, ContainerType.WeaponOnly).Value;
-        inventoryRepo.RegisterInventoryForActor(actorId, inventory);
+        inventoryRepo.RegisterInventory(inventory);
 
         var handler = new CalculateHighlightCellsQueryHandler(inventoryRepo, itemRepo, NullLogger<CalculateHighlightCellsQueryHandler>.Instance);
 
-        var query = new CalculateHighlightCellsQuery(actorId, itemId, position, rotation);
+        var query = new CalculateHighlightCellsQuery(inventoryId, itemId, position, rotation);
 
         // Act
         var result = await handler.Handle(query, CancellationToken.None);
@@ -127,9 +139,15 @@ public class CalculateHighlightCellsQueryHandlerTests
         var itemRepo = new StubItemRepository(); // Empty repository
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
+        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
+        #pragma warning disable CS0618 // Type or member is obsolete
+        var invResult = await inventoryRepo.GetByActorIdAsync(actorId);
+        #pragma warning restore CS0618
+        var inventoryId = invResult.Value.Id;
+
         var handler = new CalculateHighlightCellsQueryHandler(inventoryRepo, itemRepo, NullLogger<CalculateHighlightCellsQueryHandler>.Instance);
 
-        var query = new CalculateHighlightCellsQuery(actorId, itemId, position, Rotation.Degrees0);
+        var query = new CalculateHighlightCellsQuery(inventoryId, itemId, position, Rotation.Degrees0);
 
         // Act
         var result = await handler.Handle(query, CancellationToken.None);
@@ -153,11 +171,15 @@ public class CalculateHighlightCellsQueryHandlerTests
         var itemRepo = new StubItemRepository(item);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
-        // Don't register inventory - it will auto-create as General container
+        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
+        #pragma warning disable CS0618 // Type or member is obsolete
+        var invResult = await inventoryRepo.GetByActorIdAsync(actorId);
+        #pragma warning restore CS0618
+        var inventoryId = invResult.Value.Id;
 
         var handler = new CalculateHighlightCellsQueryHandler(inventoryRepo, itemRepo, NullLogger<CalculateHighlightCellsQueryHandler>.Instance);
 
-        var query = new CalculateHighlightCellsQuery(actorId, itemId, position, Rotation.Degrees0);
+        var query = new CalculateHighlightCellsQuery(inventoryId, itemId, position, Rotation.Degrees0);
 
         // Act
         var result = await handler.Handle(query, CancellationToken.None);

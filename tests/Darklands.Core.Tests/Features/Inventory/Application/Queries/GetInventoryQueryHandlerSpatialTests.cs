@@ -23,10 +23,13 @@ public class GetInventoryQueryHandlerSpatialTests
             repository,
             NullLogger<GetInventoryQueryHandler>.Instance);
 
-        // Create spatial inventory (default 20 capacity → 5×4 grid)
-        var inventory = await repository.GetByActorIdAsync(actorId);
+        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
+        #pragma warning disable CS0618 // Type or member is obsolete
+        var invResult = await repository.GetByActorIdAsync(actorId);
+        #pragma warning restore CS0618
+        var inventoryId = invResult.Value.Id;
 
-        var query = new GetInventoryQuery(actorId);
+        var query = new GetInventoryQuery(inventoryId);
 
         // Act
         var result = await handler.Handle(query, default);
@@ -55,8 +58,14 @@ public class GetInventoryQueryHandlerSpatialTests
 
         var repository = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
+        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
+        #pragma warning disable CS0618 // Type or member is obsolete
+        var invResult = await repository.GetByActorIdAsync(actorId);
+        #pragma warning restore CS0618
+        var inventoryId = invResult.Value.Id;
+
         // Place items
-        var inventory = await repository.GetByActorIdAsync(actorId);
+        var inventory = await repository.GetByIdAsync(inventoryId);
         inventory.Value.PlaceItemAt(itemId1, pos1);
         inventory.Value.PlaceItemAt(itemId2, pos2);
         await repository.SaveAsync(inventory.Value, default);
@@ -65,7 +74,7 @@ public class GetInventoryQueryHandlerSpatialTests
             repository,
             NullLogger<GetInventoryQueryHandler>.Instance);
 
-        var query = new GetInventoryQuery(actorId);
+        var query = new GetInventoryQuery(inventoryId);
 
         // Act
         var result = await handler.Handle(query, default);

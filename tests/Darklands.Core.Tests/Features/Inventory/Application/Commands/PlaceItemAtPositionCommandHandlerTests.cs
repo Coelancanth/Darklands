@@ -6,6 +6,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Item = Darklands.Core.Features.Item.Domain.Item;
+using InventoryId = Darklands.Core.Features.Inventory.Domain.InventoryId;
 
 namespace Darklands.Core.Tests.Features.Inventory.Application.Commands;
 
@@ -25,12 +26,18 @@ public class PlaceItemAtPositionCommandHandlerTests
         var itemRepo = new StubItemRepository(item);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
+        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
+        #pragma warning disable CS0618 // Type or member is obsolete
+        var invResult = await inventoryRepo.GetByActorIdAsync(actorId);
+        #pragma warning restore CS0618
+        var inventoryId = invResult.Value.Id;
+
         var handler = new PlaceItemAtPositionCommandHandler(
             inventoryRepo,
             itemRepo,
             NullLogger<PlaceItemAtPositionCommandHandler>.Instance);
 
-        var command = new PlaceItemAtPositionCommand(actorId, itemId, position);
+        var command = new PlaceItemAtPositionCommand(inventoryId, itemId, position);
 
         // Act
         var result = await handler.Handle(command, default);
@@ -38,7 +45,7 @@ public class PlaceItemAtPositionCommandHandlerTests
         // Assert
         result.IsSuccess.Should().BeTrue();
 
-        var inventory = await inventoryRepo.GetByActorIdAsync(actorId);
+        var inventory = await inventoryRepo.GetByIdAsync(inventoryId);
         inventory.Value.Contains(itemId).Should().BeTrue();
         inventory.Value.GetItemPosition(itemId).Value.Should().Be(position);
     }
@@ -57,10 +64,15 @@ public class PlaceItemAtPositionCommandHandlerTests
         var itemRepo = new StubItemRepository(weapon);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
+        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
+        #pragma warning disable CS0618 // Type or member is obsolete
+        var invResult = await inventoryRepo.GetByActorIdAsync(actorId);
+        #pragma warning restore CS0618
+        var inventoryId = invResult.Value.Id;
+
         // Create weapon-only inventory
-        var inventory = await inventoryRepo.GetByActorIdAsync(actorId);
         var weaponInventory = Core.Features.Inventory.Domain.Inventory.Create(
-            inventory.Value.Id,
+            inventoryId,
             gridWidth: 1,
             gridHeight: 4,
             ContainerType.WeaponOnly).Value;
@@ -71,7 +83,7 @@ public class PlaceItemAtPositionCommandHandlerTests
             itemRepo,
             NullLogger<PlaceItemAtPositionCommandHandler>.Instance);
 
-        var command = new PlaceItemAtPositionCommand(actorId, itemId, position);
+        var command = new PlaceItemAtPositionCommand(inventoryId, itemId, position);
 
         // Act
         var result = await handler.Handle(command, default);
@@ -94,10 +106,15 @@ public class PlaceItemAtPositionCommandHandlerTests
         var itemRepo = new StubItemRepository(potion);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
+        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
+        #pragma warning disable CS0618 // Type or member is obsolete
+        var invResult = await inventoryRepo.GetByActorIdAsync(actorId);
+        #pragma warning restore CS0618
+        var inventoryId = invResult.Value.Id;
+
         // Create weapon-only inventory
-        var inventory = await inventoryRepo.GetByActorIdAsync(actorId);
         var weaponInventory = Core.Features.Inventory.Domain.Inventory.Create(
-            inventory.Value.Id,
+            inventoryId,
             gridWidth: 1,
             gridHeight: 4,
             ContainerType.WeaponOnly).Value;
@@ -108,7 +125,7 @@ public class PlaceItemAtPositionCommandHandlerTests
             itemRepo,
             NullLogger<PlaceItemAtPositionCommandHandler>.Instance);
 
-        var command = new PlaceItemAtPositionCommand(actorId, itemId, position);
+        var command = new PlaceItemAtPositionCommand(inventoryId, itemId, position);
 
         // Act
         var result = await handler.Handle(command, default);
@@ -130,12 +147,18 @@ public class PlaceItemAtPositionCommandHandlerTests
         var itemRepo = new StubItemRepository(item);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
+        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
+        #pragma warning disable CS0618 // Type or member is obsolete
+        var invResult = await inventoryRepo.GetByActorIdAsync(actorId);
+        #pragma warning restore CS0618
+        var inventoryId = invResult.Value.Id;
+
         var handler = new PlaceItemAtPositionCommandHandler(
             inventoryRepo,
             itemRepo,
             NullLogger<PlaceItemAtPositionCommandHandler>.Instance);
 
-        var command = new PlaceItemAtPositionCommand(actorId, itemId, position);
+        var command = new PlaceItemAtPositionCommand(inventoryId, itemId, position);
 
         // Act
         var result = await handler.Handle(command, default);

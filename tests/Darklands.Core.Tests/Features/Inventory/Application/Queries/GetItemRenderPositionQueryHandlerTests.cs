@@ -35,10 +35,10 @@ public class GetItemRenderPositionQueryHandlerTests
         var inventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(inventoryId, 5, 5, ContainerType.General).Value;
         var position = new GridPosition(1, 1);
         inventory.PlaceItemAt(itemId, position, item.Shape, Rotation.Degrees0);
-        inventoryRepo.RegisterInventoryForActor(actorId, inventory);
+        inventoryRepo.RegisterInventory(inventory);
 
         var handler = new GetItemRenderPositionQueryHandler(inventoryRepo, itemRepo, NullLogger<GetItemRenderPositionQueryHandler>.Instance);
-        var query = new GetItemRenderPositionQuery(actorId, itemId);
+        var query = new GetItemRenderPositionQuery(inventoryId, itemId);
 
         // Act
         var result = await handler.Handle(query, CancellationToken.None);
@@ -71,10 +71,10 @@ public class GetItemRenderPositionQueryHandlerTests
         var inventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(inventoryId, 1, 1, ContainerType.WeaponOnly).Value;
         var position = new GridPosition(0, 0);
         inventory.PlaceItemAt(itemId, position, item.Shape, Rotation.Degrees0); // Should succeed
-        inventoryRepo.RegisterInventoryForActor(actorId, inventory);
+        inventoryRepo.RegisterInventory(inventory);
 
         var handler = new GetItemRenderPositionQueryHandler(inventoryRepo, itemRepo, NullLogger<GetItemRenderPositionQueryHandler>.Instance);
-        var query = new GetItemRenderPositionQuery(actorId, itemId);
+        var query = new GetItemRenderPositionQuery(inventoryId, itemId);
 
         // Act
         var result = await handler.Handle(query, CancellationToken.None);
@@ -97,8 +97,14 @@ public class GetItemRenderPositionQueryHandlerTests
         var itemRepo = new StubItemRepository(); // Empty
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
+        // TD_019: Use obsolete GetByActorIdAsync for test setup (auto-creates inventory)
+        #pragma warning disable CS0618 // Type or member is obsolete
+        var invResult = await inventoryRepo.GetByActorIdAsync(actorId);
+        #pragma warning restore CS0618
+        var inventoryId = invResult.Value.Id;
+
         var handler = new GetItemRenderPositionQueryHandler(inventoryRepo, itemRepo, NullLogger<GetItemRenderPositionQueryHandler>.Instance);
-        var query = new GetItemRenderPositionQuery(actorId, itemId);
+        var query = new GetItemRenderPositionQuery(inventoryId, itemId);
 
         // Act
         var result = await handler.Handle(query, CancellationToken.None);
