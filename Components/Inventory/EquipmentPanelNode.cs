@@ -59,6 +59,12 @@ public partial class EquipmentPanelNode : Control
     public ActorId? OwnerActorId { get; set; }
 
     /// <summary>
+    /// Inventory ID for the player's inventory (where unequipped items go).
+    /// TD_019 Phase 4: Required to pass to child EquipmentSlotNodes.
+    /// </summary>
+    public Darklands.Core.Features.Inventory.Domain.InventoryId? PlayerInventoryId { get; set; }
+
+    /// <summary>
     /// Panel title (displayed above equipment slots).
     /// </summary>
     [Export] public string PanelTitle { get; set; } = "Equipment";
@@ -117,6 +123,12 @@ public partial class EquipmentPanelNode : Control
         if (OwnerActorId == null)
         {
             _logger.LogError("OwnerActorId not assigned");
+            return;
+        }
+
+        if (PlayerInventoryId == null)
+        {
+            _logger.LogError("PlayerInventoryId not assigned");
             return;
         }
 
@@ -228,6 +240,7 @@ public partial class EquipmentPanelNode : Control
                 Slot = slot,
                 SlotTitle = GetSlotTitle(slot),
                 OwnerActorId = OwnerActorId,
+                PlayerInventoryId = PlayerInventoryId, // TD_019 Phase 4: Pass PlayerInventoryId to child slots
                 CellSize = CellSize,
                 Mediator = _mediator,
                 ItemTileSet = _itemTileSet,

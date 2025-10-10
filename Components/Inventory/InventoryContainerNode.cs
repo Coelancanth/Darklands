@@ -53,9 +53,10 @@ public partial class InventoryContainerNode : Control
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     /// <summary>
-    /// Actor ID for this inventory (assign via code from parent controller).
+    /// Inventory ID for this container (assign via code from parent controller).
+    /// TD_019 Phase 4: Changed from ActorId to InventoryId (Inventory-First architecture).
     /// </summary>
-    public ActorId? OwnerActorId { get; set; }
+    public InventoryId? InventoryId { get; set; }
 
     /// <summary>
     /// Container title (displayed above grid).
@@ -143,9 +144,9 @@ public partial class InventoryContainerNode : Control
         _mediator = Mediator;
         _itemTileSet = ItemTileSet; // Optional for Phase 1
 
-        if (OwnerActorId == null)
+        if (InventoryId == null)
         {
-            _logger.LogError("OwnerActorId not assigned");
+            _logger.LogError("InventoryId not assigned");
             return;
         }
 
@@ -314,10 +315,11 @@ public partial class InventoryContainerNode : Control
         // WHY: Use origin position for commands (not clicked cell)
         // NOTE: Rotation is stored in static _sharedDragRotation and read by target container
         // (drag data is immutable, but rotation can change via scroll wheel after drag starts)
+        // TD_019 Phase 4: Changed sourceActorIdGuid → sourceInventoryIdGuid (Inventory-First)
         var dragData = new Godot.Collections.Dictionary
         {
             ["itemIdGuid"] = itemId.Value.ToString(),
-            ["sourceActorIdGuid"] = OwnerActorId?.Value.ToString() ?? string.Empty,
+            ["sourceInventoryIdGuid"] = InventoryId?.Value.ToString() ?? string.Empty,
             ["sourceX"] = origin.X,
             ["sourceY"] = origin.Y
         };
@@ -366,7 +368,7 @@ public partial class InventoryContainerNode : Control
 
         // PHASE 4: Delegate ALL validation to Core (no business logic in Presentation!)
         // WHY: Single source of truth - Core owns collision detection with L-shape support
-        if (OwnerActorId == null)
+        if (InventoryId == null)
         {
             ClearDragHighlights();
             return false;
@@ -377,7 +379,7 @@ public partial class InventoryContainerNode : Control
 
         // Delegate to Core: Validates bounds, collision (with L-shapes!), type compatibility
         var canPlaceQuery = new CanPlaceItemAtQuery(
-            OwnerActorId.Value,
+            InventoryId.Value,
             itemId,
             targetPos.Value,
             dragRotation);
@@ -419,7 +421,7 @@ public partial class InventoryContainerNode : Control
         var itemId = _draggingItemId.Value;
 
         // PHASE 4: Delegate ALL validation to Core (no business logic in Presentation!)
-        if (OwnerActorId == null)
+        if (InventoryId == null)
         {
             ClearDragHighlights();
             return;
@@ -427,7 +429,7 @@ public partial class InventoryContainerNode : Control
 
         // Delegate to Core: Validates bounds, collision (with L-shapes!), type compatibility
         var canPlaceQuery = new CanPlaceItemAtQuery(
-            OwnerActorId.Value,
+            InventoryId.Value,
             itemId,
             targetPos.Value,
             _sharedDragRotation);
@@ -461,13 +463,13 @@ public partial class InventoryContainerNode : Control
         _sharedDragPreviewSprite = null; // BR_009: Clear shared preview sprite reference
 
         var itemIdGuidStr = dragData["itemIdGuid"].AsString();
-        var sourceActorIdGuidStr = dragData["sourceActorIdGuid"].AsString();
+        var sourceInventoryIdGuidStr = dragData["sourceInventoryIdGuid"].AsString(); // TD_019 Phase 4: Renamed from sourceActorIdGuid
 
-        _logger.LogDebug("Parsing GUIDs: ItemId={ItemGuid}, SourceActor={ActorGuid}",
-            itemIdGuidStr, sourceActorIdGuidStr);
+        _logger.LogDebug("Parsing GUIDs: ItemId={ItemGuid}, SourceInventory={InventoryGuid}",
+            itemIdGuidStr, sourceInventoryIdGuidStr);
 
         if (!Guid.TryParse(itemIdGuidStr, out var itemIdGuid) ||
-            !Guid.TryParse(sourceActorIdGuidStr, out var sourceActorIdGuid))
+            !Guid.TryParse(sourceInventoryIdGuidStr, out var sourceInventoryIdGuid))
         {
             _logger.LogError("Failed to parse drag data GUIDs");
             return;
@@ -482,7 +484,7 @@ public partial class InventoryContainerNode : Control
 
         // Reconstruct value objects from Guids
         var itemId = new ItemId(itemIdGuid);
-        var sourceActorId = new ActorId(sourceActorIdGuid);
+        var sourceInventoryId = new Darklands.Core.Features.Inventory.Domain.InventoryId(sourceInventoryIdGuid); // TD_019 Phase 4: Use InventoryId
 
         // VS_032 Phase 4 Option B: Detect equipment source and unequip instead of move
         bool isEquipmentSource = dragData.ContainsKey("sourceSlot");
@@ -491,6 +493,14 @@ public partial class InventoryContainerNode : Control
         {
             // Source: Equipment Slot → Target: Inventory Container (Option B - Unequip)
             var sourceSlot = (Darklands.Core.Features.Equipment.Domain.EquipmentSlot)dragData["sourceSlot"].AsInt32();
+            var sourceActorIdGuidStr = dragData["sourceActorIdGuid"].AsString(); // Equipment drag includes actor ID
+            if (!Guid.TryParse(sourceActorIdGuidStr, out var sourceActorIdGuid))
+            {
+                _logger.LogError("Failed to parse sourceActorIdGuid from equipment drag data");
+                return;
+            }
+            var sourceActorId = new ActorId(sourceActorIdGuid);
+
             _logger.LogInformation("Drop confirmed: Unequipping item {ItemId} from {SourceSlot} to inventory at ({X}, {Y})",
                 itemId, sourceSlot, targetPos.Value.X, targetPos.Value.Y);
 
@@ -502,7 +512,7 @@ public partial class InventoryContainerNode : Control
             _logger.LogInformation("Drop confirmed: Moving item {ItemId} to ({X}, {Y}) with rotation {Rotation}",
                 itemId, targetPos.Value.X, targetPos.Value.Y, dropRotation);
 
-            MoveItemAsync(sourceActorId, itemId, targetPos.Value, dropRotation);
+            MoveItemAsync(sourceInventoryId, itemId, targetPos.Value, dropRotation);
         }
     }
 
@@ -563,10 +573,10 @@ public partial class InventoryContainerNode : Control
 
     private async Task LoadInventoryAsync()
     {
-        if (OwnerActorId == null)
+        if (InventoryId == null)
             return;
 
-        var query = new GetInventoryQuery(OwnerActorId.Value);
+        var query = new GetInventoryQuery(InventoryId.Value);
         var result = await _mediator.Send(query);
 
         if (result.IsFailure)
@@ -627,7 +637,7 @@ public partial class InventoryContainerNode : Control
         {
             // TD_004 Phase 2: Delegate occupied cell calculation to Core
             // Core handles: shape rotation, L-shape OccupiedCells iteration, rectangle fallback
-            var occupiedCellsQuery = new GetOccupiedCellsQuery(OwnerActorId.Value, itemId);
+            var occupiedCellsQuery = new GetOccupiedCellsQuery(InventoryId.Value, itemId);
             var occupiedCellsResult = await _mediator.Send(occupiedCellsQuery);
 
             if (occupiedCellsResult.IsSuccess)
@@ -819,7 +829,7 @@ public partial class InventoryContainerNode : Control
             {
                 // TD_004 Phase 2: Delegate render positioning to Core
                 // Core handles: equipment slot detection + centering rule
-                var renderPosQuery = new GetItemRenderPositionQuery(OwnerActorId!.Value, itemId);
+                var renderPosQuery = new GetItemRenderPositionQuery(InventoryId!.Value, itemId);
                 var renderPosResult = await _mediator.Send(renderPosQuery);
 
                 int separationX = 2;
@@ -993,7 +1003,7 @@ public partial class InventoryContainerNode : Control
         // TD_004 Phase 2: Delegate to Core for highlight cell calculation
         // Core handles: shape rotation, equipment slot override, L-shape support
         var highlightQuery = new CalculateHighlightCellsQuery(
-            OwnerActorId!.Value,
+            InventoryId!.Value,
             itemId,
             origin,
             rotation);
@@ -1051,14 +1061,14 @@ public partial class InventoryContainerNode : Control
 
     // TD_003 Phase 3: SwapItemsSafeAsync removed - swap logic now in EquipmentSlotNode component
 
-    private async void MoveItemAsync(ActorId sourceActorId, ItemId itemId, GridPosition targetPos, Rotation rotation)
+    private async void MoveItemAsync(Darklands.Core.Features.Inventory.Domain.InventoryId sourceInventoryId, ItemId itemId, GridPosition targetPos, Rotation rotation)
     {
-        if (OwnerActorId == null)
+        if (InventoryId == null)
             return;
 
         var command = new MoveItemBetweenContainersCommand(
-            sourceActorId,
-            OwnerActorId.Value,
+            sourceInventoryId,
+            InventoryId.Value,
             itemId,
             targetPos,
             rotation); // PHASE 3: Pass rotation from drag-drop
@@ -1096,14 +1106,16 @@ public partial class InventoryContainerNode : Control
         GridPosition targetPos,
         Rotation rotation)
     {
-        if (OwnerActorId == null)
+        if (InventoryId == null)
             return;
 
         _logger.LogInformation("Unequipping item {ItemId} from {SourceSlot}", itemId, sourceSlot);
 
         // Step 1: Unequip from equipment slot (places item in inventory at default position)
+        // TD_019 Phase 4: UnequipItemCommand signature: (ActorId, InventoryId, EquipmentSlot)
         var unequipCommand = new Darklands.Core.Features.Equipment.Application.Commands.UnequipItemCommand(
             actorId,
+            InventoryId.Value, // Target inventory for unequipped item
             sourceSlot);
 
         var unequipResult = await _mediator.Send(unequipCommand);
@@ -1119,36 +1131,24 @@ public partial class InventoryContainerNode : Control
 
         // Step 2: Move item to desired position (UnequipItemCommand places at default position 0,0)
         // WHY: User dragged to specific position - honor their drop location!
-        // NOTE: For same-actor unequip, item is already in inventory - just move it
-        // NOTE: For cross-actor unequip, item stays in source actor's inventory (not implemented yet)
-        if (actorId.Equals(OwnerActorId.Value))
+        // TD_019 Phase 4: Item is now placed in the target inventory we specified (InventoryId.Value)
+        // Just need to move it to the desired position with rotation
+        var moveCommand = new Darklands.Core.Features.Inventory.Application.Commands.PlaceItemAtPositionCommand(
+            InventoryId.Value,
+            itemId,
+            targetPos,
+            rotation); // BR_008 FIX: Pass rotation from drag-drop
+
+        var moveResult = await _mediator.Send(moveCommand);
+
+        if (moveResult.IsFailure)
         {
-            // Same actor - move item to drop position with rotation
-            // BR_008 FIX: Pass rotation parameter to preserve drag rotation state
-            var moveCommand = new Darklands.Core.Features.Inventory.Application.Commands.PlaceItemAtPositionCommand(
-                actorId,
-                itemId,
-                targetPos,
-                rotation); // BR_008 FIX: Pass rotation from drag-drop
-
-            var moveResult = await _mediator.Send(moveCommand);
-
-            if (moveResult.IsFailure)
-            {
-                _logger.LogWarning("Unequipped successfully, but failed to move to drop position: {Error}", moveResult.Error);
-                // Item is still in inventory at (0,0), not lost - acceptable fallback
-            }
-            else
-            {
-                _logger.LogInformation("Item placed at ({X}, {Y}) with rotation {Rotation}", targetPos.X, targetPos.Y, rotation);
-            }
+            _logger.LogWarning("Unequipped successfully, but failed to move to drop position: {Error}", moveResult.Error);
+            // Item is still in inventory at (0,0), not lost - acceptable fallback
         }
         else
         {
-            // Different actors - item is in source actor's inventory after unequip
-            _logger.LogDebug("Cross-actor unequip: Item {ItemId} unequipped from {SourceActor}, now in source inventory (not transferred to {TargetActor})",
-                itemId, actorId, OwnerActorId.Value);
-            // TODO: Add cross-actor transfer support if needed (currently not implemented)
+            _logger.LogInformation("Item placed at ({X}, {Y}) with rotation {Rotation}", targetPos.X, targetPos.Y, rotation);
         }
 
         // Emit signal to refresh all containers
@@ -1264,10 +1264,10 @@ public partial class InventoryContainerNode : Control
     /// </summary>
     private async void RotateItemAsync(ItemId itemId, Rotation newRotation)
     {
-        if (OwnerActorId == null)
+        if (InventoryId == null)
             return;
 
-        var command = new RotateItemCommand(OwnerActorId.Value, itemId, newRotation);
+        var command = new RotateItemCommand(InventoryId.Value, itemId, newRotation);
         var result = await _mediator.Send(command);
 
         if (result.IsFailure)

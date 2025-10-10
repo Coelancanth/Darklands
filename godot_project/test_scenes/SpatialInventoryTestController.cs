@@ -55,6 +55,10 @@ public partial class SpatialInventoryTestController : Control
     private ActorId _playerActorId = ActorId.NewId();      // Player: has backpack + equipment
     private ActorId _enemyLootActorId = ActorId.NewId();   // Enemy/Chest: separate inventory for cross-actor testing
 
+    // TD_019 Phase 4: Track InventoryId (primary key) instead of just ActorId
+    private InventoryId _playerBackpackId = InventoryId.NewId();   // Player's main inventory
+    private InventoryId _enemyLootId = InventoryId.NewId();        // Enemy/chest loot inventory
+
     // Container references (for cross-container refresh)
     // VS_032 Phase 4: Realistic model - player backpack + equipment, enemy loot
     private Components.Inventory.InventoryContainerNode? _playerBackpackNode;
@@ -122,6 +126,10 @@ public partial class SpatialInventoryTestController : Control
     public ActorId GetPlayerActorId() => _playerActorId;
     public ActorId GetEnemyLootActorId() => _enemyLootActorId;
 
+    // TD_019 Phase 4: Expose InventoryIds for container nodes
+    public InventoryId GetPlayerBackpackId() => _playerBackpackId;
+    public InventoryId GetEnemyLootId() => _enemyLootId;
+
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // PRIVATE METHODS
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -132,19 +140,23 @@ public partial class SpatialInventoryTestController : Control
         // Player has: backpack (inventory) + equipment
         // Enemy has: loot (inventory only, for cross-actor item transfer testing)
 
-        // Create player backpack: 10×6 grid (60 capacity)
+        // TD_019 Phase 4: Use explicit InventoryId + optional OwnerId pattern
+
+        // Create player backpack: 10×6 grid (60 capacity) owned by player
         var playerBackpack = Darklands.Core.Features.Inventory.Domain.Inventory.Create(
-            InventoryId.NewId(),
+            _playerBackpackId,
             gridWidth: 10,
             gridHeight: 6,
-            ContainerType.General);
+            ContainerType.General,
+            ownerId: _playerActorId);  // TD_019: Owned by player actor
 
-        // Create enemy loot: 8×8 grid (64 capacity)
+        // Create enemy loot: 8×8 grid (64 capacity) owned by enemy
         var enemyLoot = Darklands.Core.Features.Inventory.Domain.Inventory.Create(
-            InventoryId.NewId(),
+            _enemyLootId,
             gridWidth: 8,
             gridHeight: 8,
-            ContainerType.General);
+            ContainerType.General,
+            ownerId: _enemyLootActorId);  // TD_019: Owned by enemy actor
 
         // Create player actor (has both backpack + equipment)
         var playerActor = new Actor(
@@ -155,12 +167,13 @@ public partial class SpatialInventoryTestController : Control
         await _actorRepo.AddActorAsync(playerActor);
         _logger.LogInformation("Created player actor {ActorId} (has backpack + equipment)", _playerActorId);
 
-        // Register inventories with ActorIds
+        // TD_019 Phase 4: Register inventories using new RegisterInventory() pattern (no ActorId needed)
         var repo = (Darklands.Core.Features.Inventory.Infrastructure.InMemoryInventoryRepository)_inventoryRepo;
-        repo.RegisterInventoryForActor(_playerActorId, playerBackpack.Value);     // Player's backpack
-        repo.RegisterInventoryForActor(_enemyLootActorId, enemyLoot.Value);      // Enemy loot (separate actor)
+        repo.RegisterInventory(playerBackpack.Value);     // Player's backpack (OwnerId = _playerActorId)
+        repo.RegisterInventory(enemyLoot.Value);          // Enemy loot (OwnerId = _enemyLootActorId)
 
-        _logger.LogInformation("Inventories initialized: Player backpack (10×6), Enemy loot (8×8)");
+        _logger.LogInformation("Inventories initialized: Player backpack (10×6, ID: {PlayerBackpackId}), Enemy loot (8×8, ID: {EnemyLootId})",
+            _playerBackpackId, _enemyLootId);
 
         await System.Threading.Tasks.Task.CompletedTask;
     }
@@ -198,11 +211,12 @@ public partial class SpatialInventoryTestController : Control
             toolResult.Value.Count,
             armorResult.Value.Count);
 
+        // TD_019 Phase 4: Place items using InventoryId (not ActorId)
         // Place items in Player Backpack (2 weapons for equipment testing)
         if (weaponResult.Value.Count >= 2)
         {
-            await PlaceItemAt(_playerActorId, weaponResult.Value[0].Id, 0, 0, "weapon1");
-            await PlaceItemAt(_playerActorId, weaponResult.Value[1].Id, 2, 0, "weapon2");
+            await PlaceItemAt(_playerBackpackId, weaponResult.Value[0].Id, 0, 0, "weapon1");
+            await PlaceItemAt(_playerBackpackId, weaponResult.Value[1].Id, 2, 0, "weapon2");
         }
 
         // Place items in Enemy Loot (variety of types for cross-actor transfer testing)
@@ -217,18 +231,19 @@ public partial class SpatialInventoryTestController : Control
         {
             if (hasItem && itemId != null)
             {
-                await PlaceItemAt(_enemyLootActorId, itemId.Value, x, y, typeName);
+                await PlaceItemAt(_enemyLootId, itemId.Value, x, y, typeName);
             }
         }
 
         _logger.LogInformation("Test item population complete");
     }
 
-    private async System.Threading.Tasks.Task PlaceItemAt(ActorId actorId, ItemId itemId, int x, int y, string itemName)
+    // TD_019 Phase 4: Updated to use InventoryId instead of ActorId
+    private async System.Threading.Tasks.Task PlaceItemAt(InventoryId inventoryId, ItemId itemId, int x, int y, string itemName)
     {
-        _logger.LogDebug("Placing {ItemName} {ItemId} at ({X},{Y})", itemName, itemId, x, y);
+        _logger.LogDebug("Placing {ItemName} {ItemId} at ({X},{Y}) in inventory {InventoryId}", itemName, itemId, x, y, inventoryId);
         var result = await _mediator.Send(new PlaceItemAtPositionCommand(
-            actorId, itemId, new GridPosition(x, y)));
+            inventoryId, itemId, new GridPosition(x, y)));
 
         if (result.IsFailure)
         {
@@ -265,10 +280,10 @@ public partial class SpatialInventoryTestController : Control
         var backpackBPlaceholder = GetNode<Control>("VBoxContainer/ContainersRow/BackpackB");
         var weaponSlotPlaceholder = GetNode<Control>("VBoxContainer/ContainersRow/WeaponSlot");
 
-        // VS_032 Phase 4: Create Player Backpack (player's main inventory)
+        // TD_019 Phase 4: Create Player Backpack using InventoryId (Inventory-First architecture)
         _playerBackpackNode = new Components.Inventory.InventoryContainerNode
         {
-            OwnerActorId = _playerActorId,
+            InventoryId = _playerBackpackId, // TD_019: Use InventoryId instead of ActorId
             ContainerTitle = "Player Backpack",
             CellSize = 48,
             Mediator = _mediator,
@@ -277,10 +292,10 @@ public partial class SpatialInventoryTestController : Control
         _playerBackpackNode.InventoryChanged += OnInventoryChanged;
         backpackAPlaceholder.AddChild(_playerBackpackNode);
 
-        // VS_032 Phase 4: Create Enemy Loot (separate actor for cross-actor testing)
+        // TD_019 Phase 4: Create Enemy Loot using InventoryId (Inventory-First architecture)
         _enemyLootNode = new Components.Inventory.InventoryContainerNode
         {
-            OwnerActorId = _enemyLootActorId,
+            InventoryId = _enemyLootId, // TD_019: Use InventoryId instead of ActorId
             ContainerTitle = "Enemy Loot",
             CellSize = 48,
             Mediator = _mediator,
@@ -289,10 +304,11 @@ public partial class SpatialInventoryTestController : Control
         _enemyLootNode.InventoryChanged += OnInventoryChanged;
         backpackBPlaceholder.AddChild(_enemyLootNode);
 
-        // VS_032 Phase 4: Create Equipment Panel (player's equipment - same actor as backpack!)
+        // TD_019 Phase 4: Create Equipment Panel (player's equipment - uses ActorId + InventoryId)
         _equipmentPanel = new Components.Inventory.EquipmentPanelNode
         {
-            OwnerActorId = _playerActorId, // SAME actor as backpack - this is key!
+            OwnerActorId = _playerActorId,         // Actor who owns equipment
+            PlayerInventoryId = _playerBackpackId, // Inventory where unequipped items go
             PanelTitle = "Equipment",
             CellSize = 96,
             Mediator = _mediator,

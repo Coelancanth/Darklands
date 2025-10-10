@@ -64,6 +64,12 @@ public partial class EquipmentSlotNode : Control
     public ActorId? OwnerActorId { get; set; }
 
     /// <summary>
+    /// Inventory ID for the player's inventory (where unequipped items go).
+    /// TD_019 Phase 4: Required for UnequipItemCommand (target inventory).
+    /// </summary>
+    public Darklands.Core.Features.Inventory.Domain.InventoryId? PlayerInventoryId { get; set; }
+
+    /// <summary>
     /// Equipment slot type (MainHand, OffHand, Head, Torso, Legs).
     /// VS_032 Phase 4: Added for new equipment system.
     /// </summary>
@@ -135,6 +141,12 @@ public partial class EquipmentSlotNode : Control
         if (OwnerActorId == null)
         {
             _logger.LogError("OwnerActorId not assigned");
+            return;
+        }
+
+        if (PlayerInventoryId == null)
+        {
+            _logger.LogError("PlayerInventoryId not assigned");
             return;
         }
 
@@ -631,14 +643,15 @@ public partial class EquipmentSlotNode : Control
     /// </summary>
     private async void EquipItemAsync(ItemId itemId)
     {
-        if (OwnerActorId == null)
+        if (OwnerActorId == null || PlayerInventoryId == null)
             return;
 
         _logger.LogInformation("Equipping item {ItemId} to {Slot}", itemId, Slot);
 
-        // VS_032 Phase 4: Always pass isTwoHanded=false (deferred to Phase 5 data-driven)
+        // TD_019 Phase 4: EquipItemCommand now requires sourceInventoryId parameter
         var command = new EquipItemCommand(
             OwnerActorId.Value,
+            PlayerInventoryId.Value,
             itemId,
             Slot,
             false); // Positional parameter for IsTwoHanded
@@ -662,15 +675,16 @@ public partial class EquipmentSlotNode : Control
     /// </summary>
     private async void SwapEquipmentAsync(ItemId newItemId)
     {
-        if (OwnerActorId == null)
+        if (OwnerActorId == null || PlayerInventoryId == null)
             return;
 
         _logger.LogInformation("Swapping equipment in {Slot}: {NewItem} ↔ {OldItem}",
             Slot, newItemId, _currentItemId);
 
-        // VS_032 Phase 4: Always pass isTwoHanded=false (deferred to Phase 5 data-driven)
+        // TD_019 Phase 4: SwapEquipmentCommand now requires inventoryId parameter
         var command = new SwapEquipmentCommand(
             OwnerActorId.Value,
+            PlayerInventoryId.Value,
             newItemId,
             Slot,
             false); // Positional parameter for IsTwoHanded
@@ -698,14 +712,15 @@ public partial class EquipmentSlotNode : Control
     /// </remarks>
     private async void MoveEquipmentAsync(ItemId itemId, EquipmentSlot sourceSlot, EquipmentSlot targetSlot)
     {
-        if (OwnerActorId == null)
+        if (OwnerActorId == null || PlayerInventoryId == null)
             return;
 
         _logger.LogInformation("Moving item {ItemId} from {SourceSlot} to {TargetSlot}",
             itemId, sourceSlot, targetSlot);
 
         // Step 1: Unequip from source slot
-        var unequipCommand = new UnequipItemCommand(OwnerActorId.Value, sourceSlot);
+        // TD_019 Phase 4: UnequipItemCommand signature: (ActorId, InventoryId, EquipmentSlot)
+        var unequipCommand = new UnequipItemCommand(OwnerActorId.Value, PlayerInventoryId.Value, sourceSlot);
         var unequipResult = await _mediator.Send(unequipCommand);
 
         if (unequipResult.IsFailure)
@@ -716,7 +731,8 @@ public partial class EquipmentSlotNode : Control
         }
 
         // Step 2: Equip to target slot
-        var equipCommand = new EquipItemCommand(OwnerActorId.Value, itemId, targetSlot, false);
+        // TD_019 Phase 4: EquipItemCommand now requires sourceInventoryId parameter
+        var equipCommand = new EquipItemCommand(OwnerActorId.Value, PlayerInventoryId.Value, itemId, targetSlot, false);
         var equipResult = await _mediator.Send(equipCommand);
 
         if (equipResult.IsFailure)
@@ -742,7 +758,7 @@ public partial class EquipmentSlotNode : Control
     /// </remarks>
     private async void SwapEquipmentSlotsAsync(EquipmentSlot slotA, EquipmentSlot slotB)
     {
-        if (OwnerActorId == null)
+        if (OwnerActorId == null || PlayerInventoryId == null)
             return;
 
         _logger.LogInformation("Swapping items between {SlotA} and {SlotB}", slotA, slotB);
@@ -761,7 +777,8 @@ public partial class EquipmentSlotNode : Control
         }
 
         // Step 1: Unequip from slot A
-        var unequipA = new UnequipItemCommand(OwnerActorId.Value, slotA);
+        // TD_019 Phase 4: UnequipItemCommand signature: (ActorId, InventoryId, EquipmentSlot)
+        var unequipA = new UnequipItemCommand(OwnerActorId.Value, PlayerInventoryId.Value, slotA);
         var resultA = await _mediator.Send(unequipA);
 
         if (resultA.IsFailure)
@@ -772,7 +789,8 @@ public partial class EquipmentSlotNode : Control
         }
 
         // Step 2: Unequip from slot B
-        var unequipB = new UnequipItemCommand(OwnerActorId.Value, slotB);
+        // TD_019 Phase 4: UnequipItemCommand signature: (ActorId, InventoryId, EquipmentSlot)
+        var unequipB = new UnequipItemCommand(OwnerActorId.Value, PlayerInventoryId.Value, slotB);
         var resultB = await _mediator.Send(unequipB);
 
         if (resultB.IsFailure)
@@ -784,7 +802,8 @@ public partial class EquipmentSlotNode : Control
         }
 
         // Step 3: Equip B's item to slot A
-        var equipToA = new EquipItemCommand(OwnerActorId.Value, itemInSlotB.Value, slotA, false);
+        // TD_019 Phase 4: EquipItemCommand now requires sourceInventoryId parameter
+        var equipToA = new EquipItemCommand(OwnerActorId.Value, PlayerInventoryId.Value, itemInSlotB.Value, slotA, false);
         var equipAResult = await _mediator.Send(equipToA);
 
         if (equipAResult.IsFailure)
@@ -795,7 +814,8 @@ public partial class EquipmentSlotNode : Control
         }
 
         // Step 4: Equip A's item to slot B
-        var equipToB = new EquipItemCommand(OwnerActorId.Value, itemInSlotA.Value, slotB, false);
+        // TD_019 Phase 4: EquipItemCommand now requires sourceInventoryId parameter
+        var equipToB = new EquipItemCommand(OwnerActorId.Value, PlayerInventoryId.Value, itemInSlotA.Value, slotB, false);
         var equipBResult = await _mediator.Send(equipToB);
 
         if (equipBResult.IsFailure)

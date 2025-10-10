@@ -43,6 +43,7 @@ public partial class InventoryPanelNode : VBoxContainer
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     private ActorId _actorId;
+    private Darklands.Core.Features.Inventory.Domain.InventoryId _inventoryId; // TD_019: Use InventoryId for commands
     private readonly List<ItemId> _addedItems = new();
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -76,8 +77,10 @@ public partial class InventoryPanelNode : VBoxContainer
 
         // Create test actor (in real game, this would be the player's ActorId)
         _actorId = ActorId.NewId();
+        // TD_019: Create inventory ID (in real game, this would be retrieved from actor's inventory)
+        _inventoryId = Darklands.Core.Features.Inventory.Domain.InventoryId.NewId();
 
-        _logger.LogInformation("InventoryPanelNode initialized for actor {ActorId}", _actorId);
+        _logger.LogInformation("InventoryPanelNode initialized for actor {ActorId}, inventory {InventoryId}", _actorId, _inventoryId);
 
         // NOTE: Button signals connected in scene file (inventory_panel.tscn)
         // Do NOT wire up here - causes double press!
@@ -101,7 +104,7 @@ public partial class InventoryPanelNode : VBoxContainer
         var itemId = ItemId.NewId();
         _logger?.LogDebug("Adding test item {ItemId}", itemId);
 
-        var command = new AddItemCommand(_actorId, itemId);
+        var command = new AddItemCommand(_inventoryId, itemId); // TD_019: Use InventoryId
         var result = await _mediator.Send(command);
 
         if (result.IsFailure)
@@ -137,7 +140,7 @@ public partial class InventoryPanelNode : VBoxContainer
         var itemToRemove = _addedItems[^1];
         _logger?.LogDebug("Removing item {ItemId}", itemToRemove);
 
-        var command = new RemoveItemCommand(_actorId, itemToRemove);
+        var command = new RemoveItemCommand(_inventoryId, itemToRemove); // TD_019: Use InventoryId
         var result = await _mediator.Send(command);
 
         if (result.IsFailure)
@@ -165,7 +168,7 @@ public partial class InventoryPanelNode : VBoxContainer
             return;
 
         // Query current inventory state
-        var query = new GetInventoryQuery(_actorId);
+        var query = new GetInventoryQuery(_inventoryId); // TD_019: Use InventoryId
         var result = await _mediator.Send(query);
 
         if (result.IsFailure)
