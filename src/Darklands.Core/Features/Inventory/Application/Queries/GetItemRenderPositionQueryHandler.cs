@@ -42,7 +42,7 @@ public sealed class GetItemRenderPositionQueryHandler
         CancellationToken cancellationToken)
     {
         // Get inventory
-        var inventoryResult = await _inventories.GetByActorIdAsync(query.ContainerId, cancellationToken);
+        var inventoryResult = await _inventories.GetByIdAsync(query.InventoryId, cancellationToken);
         if (inventoryResult.IsFailure)
             return Result.Failure<ItemRenderPosition>(inventoryResult.Error);
 

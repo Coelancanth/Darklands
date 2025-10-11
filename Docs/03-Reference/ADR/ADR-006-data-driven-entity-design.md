@@ -17,6 +17,9 @@
 - [ADR-004: Feature-Based Clean Architecture](./ADR-004-feature-based-clean-architecture.md) - Templates are cross-cutting infrastructure
 - [ADR-005: Internationalization Architecture](./ADR-005-internationalization-architecture.md) - Templates store translation keys
 
+**Related Roadmaps**:
+- [Roadmap_Toolchain.md](../../02-Design/Game/Roadmap_Toolchain.md) - Visual editor tools built on this architecture (Item Editor, Translation Manager, Template Browser)
+
 ---
 
 ## Context
@@ -613,6 +616,8 @@ DESC_ACTOR_GOBLIN,虚弱但狡猾的生物，喜欢群体攻击。
 
 ### Three-Layer Validation
 
+**Philosophy**: **Fail-fast at every layer** - catch errors at design-time, build-time, and load-time. Never allow invalid data to reach production.
+
 **1. Design-Time Validation** (Godot Editor):
 - `[Export]` attributes provide type checking
 - Can't assign string to int property
@@ -697,6 +702,51 @@ public Result LoadTemplates()
 **Fail-Fast Philosophy**: Invalid templates cause startup failure (development), not runtime crash (production).
 
 **Load-Time Fail-Fast Behavior**: If ANY template fails to load (`GD.Load()` returns null) or has invalid data (empty Id, invalid stats), `LoadTemplates()` immediately returns `Result.Failure` and **blocks game startup**. This prevents broken templates from causing runtime crashes later (e.g., spawning entity with corrupted data).
+
+---
+
+### JSON Schema Validation (Optional - Hybrid Approach)
+
+**Challenge**: Godot Resources use `.tres` format (not JSON), so JSON Schema can't directly validate them.
+
+**Hybrid Solution** (when template count > 100):
+```bash
+# scripts/validate-templates-schema.sh (Phase 4+)
+
+for template in data/**/*.tres; do
+    # Convert .tres → temp JSON
+    godot --headless --script scripts/export-tres-to-json.gd "$template"
+
+    # Validate JSON against schema
+    jsonschema -i "$template.json" schemas/ActorTemplate.schema.json
+
+    # Cleanup
+    rm "$template.json"
+done
+```
+
+**JSON Schema Benefits**:
+- ✅ **Standardized validation** (industry-standard tooling)
+- ✅ **Self-documenting** (schema IS the authoritative spec)
+- ✅ **CI/CD integration** (many pre-built GitHub Actions)
+
+**JSON Schema Trade-Offs**:
+- ✅ **PRO**: More robust than bash scripts
+- ❌ **CON**: Requires .tres → JSON conversion (added complexity)
+- ❌ **CON**: Schema files to maintain (ActorTemplate.schema.json)
+- ❌ **CON**: Doesn't replace game-specific validation (business rules need custom code)
+
+**Decision Rule**: Adopt JSON Schema when:
+- Template count > **100** (complexity justifies schema overhead)
+- Multiple tools need validation (external modding tools)
+- Team wants standardized documentation
+
+**Current Approach** (sufficient for Phase 1-3):
+- Bash scripts for build-time validation (simple, no dependencies)
+- Code-based validation in GodotTemplateService (fail-fast loading)
+- Item Editor validation in Phase 2 (real-time feedback)
+
+**Related**: See [Roadmap_Toolchain.md Validation Strategy](../../02-Design/Game/Roadmap_Toolchain.md#validation-strategy-spans-all-tools) for full validation philosophy across all tools.
 
 ---
 

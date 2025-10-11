@@ -37,16 +37,17 @@ layout_mode = 2
 text = "📋 Testing drag-drop inventory with 3 containers:
 • Backpack A (10×6 grid) - General container (accepts all items)
 • Backpack B (8×8 grid) - General container (accepts all items)
-• Weapon Slot (1×1 equipment slot) - WeaponOnly (rejects non-weapon items, swap-focused UX)
+• Equipment Panel (5 slots) - MainHand, OffHand, Head, Torso, Legs (type validation)
 
-🎯 Manual Tests:
+🎯 Manual Tests (VS_032 Phase 4 - Equipment System):
 1. Items should appear in containers (auto-loaded from repository)
-2. Drag item within same container (repositioning)
-3. Drag item between backpack A ↔ backpack B (cross-container movement)
-4. Try dragging non-weapon to weapon slot (should reject)
-5. Drag weapon to weapon slot (should accept)
+2. Drag weapon from backpack → MainHand slot (should equip)
+3. Drag weapon to occupied equipment slot (should swap)
+4. Drag armor from backpack → Head/Torso/Legs (should equip)
+5. Drag weapon to armor slot (should show red - invalid type)
+6. Drag item from equipment → backpack (should unequip)
 
-📦 Phase 1 Scope: All items treated as 1×1 (multi-cell in Phase 2)"
+📦 Equipment System: 5 slots with type validation (weapons vs armor)"
 horizontal_alignment = 1
 autowrap_mode = 3
 
@@ -69,7 +70,7 @@ custom_minimum_size = Vector2(400, 400)
 layout_mode = 2
 
 [node name="WeaponSlot" type="Control" parent="VBoxContainer/ContainersRow"]
-custom_minimum_size = Vector2(150, 200)
+custom_minimum_size = Vector2(150, 600)
 layout_mode = 2
 
 [node name="HSeparator3" type="HSeparator" parent="VBoxContainer"]

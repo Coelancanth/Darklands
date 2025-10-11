@@ -27,9 +27,13 @@ public class CalculateHighlightCellsQueryHandlerTests
         var itemRepo = new StubItemRepository(item);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
+        var inventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, actorId).Value;
+        inventoryRepo.RegisterInventory(inventory);
+        var inventoryId = inventory.Id;
+
         var handler = new CalculateHighlightCellsQueryHandler(inventoryRepo, itemRepo, NullLogger<CalculateHighlightCellsQueryHandler>.Instance);
 
-        var query = new CalculateHighlightCellsQuery(actorId, itemId, position, rotation);
+        var query = new CalculateHighlightCellsQuery(inventoryId, itemId, position, rotation);
 
         // Act
         var result = await handler.Handle(query, CancellationToken.None);
@@ -60,9 +64,13 @@ public class CalculateHighlightCellsQueryHandlerTests
         var itemRepo = new StubItemRepository(item);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
+        var inventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, actorId).Value;
+        inventoryRepo.RegisterInventory(inventory);
+        var inventoryId = inventory.Id;
+
         var handler = new CalculateHighlightCellsQueryHandler(inventoryRepo, itemRepo, NullLogger<CalculateHighlightCellsQueryHandler>.Instance);
 
-        var query = new CalculateHighlightCellsQuery(actorId, itemId, position, rotation);
+        var query = new CalculateHighlightCellsQuery(inventoryId, itemId, position, rotation);
 
         // Act
         var result = await handler.Handle(query, CancellationToken.None);
@@ -95,16 +103,16 @@ public class CalculateHighlightCellsQueryHandlerTests
         var itemRepo = new StubItemRepository(item);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
-        // Create WeaponOnly container and register it for this actor
+        // Create WeaponOnly container and register it
         var inventoryId = new Darklands.Core.Features.Inventory.Domain.InventoryId(Guid.NewGuid());
         var inventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(
             inventoryId,
             1, 1, ContainerType.WeaponOnly).Value;
-        inventoryRepo.RegisterInventoryForActor(actorId, inventory);
+        inventoryRepo.RegisterInventory(inventory);
 
         var handler = new CalculateHighlightCellsQueryHandler(inventoryRepo, itemRepo, NullLogger<CalculateHighlightCellsQueryHandler>.Instance);
 
-        var query = new CalculateHighlightCellsQuery(actorId, itemId, position, rotation);
+        var query = new CalculateHighlightCellsQuery(inventoryId, itemId, position, rotation);
 
         // Act
         var result = await handler.Handle(query, CancellationToken.None);
@@ -127,9 +135,13 @@ public class CalculateHighlightCellsQueryHandlerTests
         var itemRepo = new StubItemRepository(); // Empty repository
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
+        var inventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, actorId).Value;
+        inventoryRepo.RegisterInventory(inventory);
+        var inventoryId = inventory.Id;
+
         var handler = new CalculateHighlightCellsQueryHandler(inventoryRepo, itemRepo, NullLogger<CalculateHighlightCellsQueryHandler>.Instance);
 
-        var query = new CalculateHighlightCellsQuery(actorId, itemId, position, Rotation.Degrees0);
+        var query = new CalculateHighlightCellsQuery(inventoryId, itemId, position, Rotation.Degrees0);
 
         // Act
         var result = await handler.Handle(query, CancellationToken.None);
@@ -153,11 +165,13 @@ public class CalculateHighlightCellsQueryHandlerTests
         var itemRepo = new StubItemRepository(item);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
-        // Don't register inventory - it will auto-create as General container
+        var inventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, actorId).Value;
+        inventoryRepo.RegisterInventory(inventory);
+        var inventoryId = inventory.Id;
 
         var handler = new CalculateHighlightCellsQueryHandler(inventoryRepo, itemRepo, NullLogger<CalculateHighlightCellsQueryHandler>.Instance);
 
-        var query = new CalculateHighlightCellsQuery(actorId, itemId, position, Rotation.Degrees0);
+        var query = new CalculateHighlightCellsQuery(inventoryId, itemId, position, Rotation.Degrees0);
 
         // Act
         var result = await handler.Handle(query, CancellationToken.None);

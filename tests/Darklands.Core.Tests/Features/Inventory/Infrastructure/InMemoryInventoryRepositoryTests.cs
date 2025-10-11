@@ -11,7 +11,7 @@ namespace Darklands.Core.Tests.Features.Inventory.Infrastructure;
 public class InMemoryInventoryRepositoryTests
 {
     [Fact]
-    public async Task GetByActorIdAsync_FirstTime_ShouldAutoCreateInventory()
+    public async Task GetByOwnerAsync_FirstTime_ShouldAutoCreateInventory()
     {
         // DESIGN DECISION: Auto-create inventory with default capacity (20 slots)
 
@@ -19,18 +19,24 @@ public class InMemoryInventoryRepositoryTests
         var actorId = ActorId.NewId();
         var repository = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
+        // Create and register inventory
+        var inventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, actorId).Value;
+        repository.RegisterInventory(inventory);
+
         // Act
-        var result = await repository.GetByActorIdAsync(actorId);
+        var result = await repository.GetByOwnerAsync(actorId);
 
         // Assert
         result.IsSuccess.Should().BeTrue();
-        result.Value.Capacity.Should().Be(20); // Default capacity
-        result.Value.Count.Should().Be(0);
-        result.Value.IsFull.Should().BeFalse();
+        result.Value.Should().ContainSingle(); // Should return list with one inventory
+        var retrievedInventory = result.Value.First();
+        retrievedInventory.Capacity.Should().Be(20); // Default capacity
+        retrievedInventory.Count.Should().Be(0);
+        retrievedInventory.IsFull.Should().BeFalse();
     }
 
     [Fact]
-    public async Task GetByActorIdAsync_SecondTime_ShouldReturnSameInventory()
+    public async Task GetByOwnerAsync_SecondTime_ShouldReturnSameInventory()
     {
         // WHY: Repository must return same instance for idempotency
 
@@ -39,16 +45,19 @@ public class InMemoryInventoryRepositoryTests
         var itemId = ItemId.NewId();
         var repository = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
-        // Get inventory first time and add item
-        var inv1 = await repository.GetByActorIdAsync(actorId);
-        inv1.Value.AddItem(itemId);
+        // Create and register inventory, then add item
+        var inv1 = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, actorId).Value;
+        repository.RegisterInventory(inv1);
+        inv1.AddItem(itemId);
 
-        // Act
-        var inv2 = await repository.GetByActorIdAsync(actorId);
+        // Act (get again)
+        var inv2Result = await repository.GetByOwnerAsync(actorId);
 
         // Assert
-        inv2.Value.Contains(itemId).Should().BeTrue(); // Item persisted
-        inv2.Value.Id.Should().Be(inv1.Value.Id); // Same instance
+        inv2Result.IsSuccess.Should().BeTrue();
+        var inv2 = inv2Result.Value.First(); // Extract from list
+        inv2.Contains(itemId).Should().BeTrue(); // Item persisted
+        inv2.Id.Should().Be(inv1.Id); // Same instance
     }
 
     [Fact]
@@ -59,10 +68,11 @@ public class InMemoryInventoryRepositoryTests
         // Arrange
         var actorId = ActorId.NewId();
         var repository = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
-        var inventory = await repository.GetByActorIdAsync(actorId);
+        var inventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, actorId).Value;
+        repository.RegisterInventory(inventory);
 
         // Act
-        var result = await repository.SaveAsync(inventory.Value);
+        var result = await repository.SaveAsync(inventory);
 
         // Assert
         result.IsSuccess.Should().BeTrue();
@@ -75,9 +85,10 @@ public class InMemoryInventoryRepositoryTests
         var actorId = ActorId.NewId();
         var repository = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
-        // Get inventory (auto-creates)
-        var inventory = await repository.GetByActorIdAsync(actorId);
-        var inventoryId = inventory.Value.Id;
+        // Create and register inventory
+        var inventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, actorId).Value;
+        repository.RegisterInventory(inventory);
+        var inventoryId = inventory.Id;
 
         // Act
         var deleteResult = await repository.DeleteAsync(inventoryId);
@@ -85,8 +96,9 @@ public class InMemoryInventoryRepositoryTests
         // Assert
         deleteResult.IsSuccess.Should().BeTrue();
 
-        // Verify: Getting inventory again auto-creates a NEW one
-        var newInventory = await repository.GetByActorIdAsync(actorId);
-        newInventory.Value.Id.Should().NotBe(inventoryId); // Different instance
+        // TD_019: GetByOwnerAsync returns empty list (not failure) after delete
+        var getResult = await repository.GetByOwnerAsync(actorId);
+        getResult.IsSuccess.Should().BeTrue();
+        getResult.Value.Should().BeEmpty(); // No inventories remain for this actor
     }
 }

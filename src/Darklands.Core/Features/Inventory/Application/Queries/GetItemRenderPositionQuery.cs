@@ -1,6 +1,7 @@
 using CSharpFunctionalExtensions;
 using Darklands.Core.Domain.Common;
 using MediatR;
+using InventoryId = Darklands.Core.Features.Inventory.Domain.InventoryId;
 
 namespace Darklands.Core.Features.Inventory.Application.Queries;
 
@@ -24,7 +25,7 @@ namespace Darklands.Core.Features.Inventory.Application.Queries;
 /// Presentation applies: pixelX = (position.X + offset.X) * CellSize
 /// </remarks>
 public sealed record GetItemRenderPositionQuery(
-    ActorId ContainerId,
+    InventoryId InventoryId,
     ItemId ItemId
 ) : IRequest<Result<ItemRenderPosition>>;
 

@@ -6,6 +6,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Item = Darklands.Core.Features.Item.Domain.Item;
+using InventoryId = Darklands.Core.Features.Inventory.Domain.InventoryId;
 
 namespace Darklands.Core.Tests.Features.Inventory.Application.Commands;
 
@@ -25,12 +26,16 @@ public class PlaceItemAtPositionCommandHandlerTests
         var itemRepo = new StubItemRepository(item);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
+        var inventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, actorId).Value;
+        inventoryRepo.RegisterInventory(inventory);
+        var inventoryId = inventory.Id;
+
         var handler = new PlaceItemAtPositionCommandHandler(
             inventoryRepo,
             itemRepo,
             NullLogger<PlaceItemAtPositionCommandHandler>.Instance);
 
-        var command = new PlaceItemAtPositionCommand(actorId, itemId, position);
+        var command = new PlaceItemAtPositionCommand(inventoryId, itemId, position);
 
         // Act
         var result = await handler.Handle(command, default);
@@ -38,9 +43,9 @@ public class PlaceItemAtPositionCommandHandlerTests
         // Assert
         result.IsSuccess.Should().BeTrue();
 
-        var inventory = await inventoryRepo.GetByActorIdAsync(actorId);
-        inventory.Value.Contains(itemId).Should().BeTrue();
-        inventory.Value.GetItemPosition(itemId).Value.Should().Be(position);
+        var inventoryCheck = await inventoryRepo.GetByIdAsync(inventoryId);
+        inventoryCheck.Value.Contains(itemId).Should().BeTrue();
+        inventoryCheck.Value.GetItemPosition(itemId).Value.Should().Be(position); // TD_019: GetItemPosition returns Result<GridPosition>
     }
 
     [Fact]
@@ -57,10 +62,13 @@ public class PlaceItemAtPositionCommandHandlerTests
         var itemRepo = new StubItemRepository(weapon);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
+        var inventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, actorId).Value;
+        inventoryRepo.RegisterInventory(inventory);
+        var inventoryId = inventory.Id;
+
         // Create weapon-only inventory
-        var inventory = await inventoryRepo.GetByActorIdAsync(actorId);
         var weaponInventory = Core.Features.Inventory.Domain.Inventory.Create(
-            inventory.Value.Id,
+            inventoryId,
             gridWidth: 1,
             gridHeight: 4,
             ContainerType.WeaponOnly).Value;
@@ -71,7 +79,7 @@ public class PlaceItemAtPositionCommandHandlerTests
             itemRepo,
             NullLogger<PlaceItemAtPositionCommandHandler>.Instance);
 
-        var command = new PlaceItemAtPositionCommand(actorId, itemId, position);
+        var command = new PlaceItemAtPositionCommand(inventoryId, itemId, position);
 
         // Act
         var result = await handler.Handle(command, default);
@@ -94,10 +102,13 @@ public class PlaceItemAtPositionCommandHandlerTests
         var itemRepo = new StubItemRepository(potion);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
+        var inventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, actorId).Value;
+        inventoryRepo.RegisterInventory(inventory);
+        var inventoryId = inventory.Id;
+
         // Create weapon-only inventory
-        var inventory = await inventoryRepo.GetByActorIdAsync(actorId);
         var weaponInventory = Core.Features.Inventory.Domain.Inventory.Create(
-            inventory.Value.Id,
+            inventoryId,
             gridWidth: 1,
             gridHeight: 4,
             ContainerType.WeaponOnly).Value;
@@ -108,7 +119,7 @@ public class PlaceItemAtPositionCommandHandlerTests
             itemRepo,
             NullLogger<PlaceItemAtPositionCommandHandler>.Instance);
 
-        var command = new PlaceItemAtPositionCommand(actorId, itemId, position);
+        var command = new PlaceItemAtPositionCommand(inventoryId, itemId, position);
 
         // Act
         var result = await handler.Handle(command, default);
@@ -130,12 +141,16 @@ public class PlaceItemAtPositionCommandHandlerTests
         var itemRepo = new StubItemRepository(item);
         var inventoryRepo = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
 
+        var inventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, actorId).Value;
+        inventoryRepo.RegisterInventory(inventory);
+        var inventoryId = inventory.Id;
+
         var handler = new PlaceItemAtPositionCommandHandler(
             inventoryRepo,
             itemRepo,
             NullLogger<PlaceItemAtPositionCommandHandler>.Instance);
 
-        var command = new PlaceItemAtPositionCommand(actorId, itemId, position);
+        var command = new PlaceItemAtPositionCommand(inventoryId, itemId, position);
 
         // Act
         var result = await handler.Handle(command, default);

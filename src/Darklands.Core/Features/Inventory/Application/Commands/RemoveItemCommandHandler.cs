@@ -27,21 +27,22 @@ public sealed class RemoveItemCommandHandler : IRequestHandler<RemoveItemCommand
         CancellationToken cancellationToken)
     {
         _logger.LogDebug(
-            "Removing item {ItemId} from actor {ActorId}'s inventory",
+            "Removing item {ItemId} from inventory {InventoryId}",
             command.ItemId,
-            command.ActorId);
+            command.InventoryId);
 
         // Railway-oriented programming: Get inventory, remove item, save
+        // TD_019: Use GetByIdAsync (not GetByActorIdAsync)
         return await _inventories
-            .GetByActorIdAsync(command.ActorId, cancellationToken)
+            .GetByIdAsync(command.InventoryId, cancellationToken)
             .Bind(inventory => inventory
                 .RemoveItem(command.ItemId)
                 .Tap(async () =>
                 {
                     _logger.LogInformation(
-                        "Item {ItemId} removed from actor {ActorId}'s inventory (count: {Count}/{Capacity})",
+                        "Item {ItemId} removed from inventory {InventoryId} (count: {Count}/{Capacity})",
                         command.ItemId,
-                        command.ActorId,
+                        command.InventoryId,
                         inventory.Count,
                         inventory.Capacity);
 

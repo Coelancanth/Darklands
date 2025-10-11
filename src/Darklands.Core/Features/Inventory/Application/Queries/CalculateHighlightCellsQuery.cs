@@ -1,6 +1,7 @@
 using CSharpFunctionalExtensions;
 using Darklands.Core.Domain.Common;
 using MediatR;
+using InventoryId = Darklands.Core.Features.Inventory.Domain.InventoryId;
 
 namespace Darklands.Core.Features.Inventory.Application.Queries;
 
@@ -21,7 +22,7 @@ namespace Darklands.Core.Features.Inventory.Application.Queries;
 /// Single Source of Truth for highlight calculation - Presentation just renders results.
 /// </remarks>
 public sealed record CalculateHighlightCellsQuery(
-    ActorId ContainerId,
+    InventoryId InventoryId,
     ItemId ItemId,
     GridPosition Position,
     Rotation Rotation

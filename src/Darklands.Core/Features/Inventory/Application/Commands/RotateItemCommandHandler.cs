@@ -26,23 +26,24 @@ public sealed class RotateItemCommandHandler : IRequestHandler<RotateItemCommand
         CancellationToken cancellationToken)
     {
         _logger.LogDebug(
-            "Rotating item {ItemId} to {Rotation} in actor {ActorId}'s inventory",
+            "Rotating item {ItemId} to {Rotation} in inventory {InventoryId}",
             command.ItemId,
             command.NewRotation,
-            command.ActorId);
+            command.InventoryId);
 
         // Railway-oriented programming: Get inventory, rotate item, save
+        // TD_019: Use GetByIdAsync (not GetByActorIdAsync)
         return await _inventories
-            .GetByActorIdAsync(command.ActorId, cancellationToken)
+            .GetByIdAsync(command.InventoryId, cancellationToken)
             .Bind(inventory => inventory
                 .RotateItem(command.ItemId, command.NewRotation)
                 .Tap(async () =>
                 {
                     _logger.LogInformation(
-                        "Item {ItemId} rotated to {Rotation} in actor {ActorId}'s inventory",
+                        "Item {ItemId} rotated to {Rotation} in inventory {InventoryId}",
                         command.ItemId,
                         command.NewRotation,
-                        command.ActorId);
+                        command.InventoryId);
 
                     await _inventories.SaveAsync(inventory, cancellationToken);
                 }));

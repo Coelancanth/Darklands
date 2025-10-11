@@ -14,20 +14,35 @@ namespace Darklands.Core.Features.Inventory.Application;
 /// ASYNC DESIGN: Methods are async even though in-memory implementation is synchronous.
 /// This future-proofs for SQLite/JSON persistence without changing consumers.
 ///
-/// AUTO-CREATION: GetByActorIdAsync auto-creates inventory if it doesn't exist.
-/// This eliminates boilerplate for MVP (all player-controlled actors need inventories).
+/// TD_019: Inventory-First Architecture
+/// - Primary key: InventoryId (use GetByIdAsync)
+/// - Ownership: Optional ActorId (use GetByOwnerAsync)
+/// - World containers: OwnerId = null (loot, chests)
 /// </remarks>
 public interface IInventoryRepository
 {
     /// <summary>
-    /// Retrieves an actor's inventory. Auto-creates if doesn't exist.
+    /// Retrieves inventory by ID.
     /// </summary>
-    /// <param name="actorId">Actor whose inventory to retrieve</param>
+    /// <param name="inventoryId">Inventory identifier</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Result containing Inventory or error message</returns>
-    Task<Result<InventoryEntity>> GetByActorIdAsync(
-        ActorId actorId,
+    Task<Result<InventoryEntity>> GetByIdAsync(
+        InventoryId inventoryId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Retrieves all inventories owned by an actor.
+    /// </summary>
+    /// <param name="ownerId">Actor who owns the inventories</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Result containing list of owned inventories (may be empty)</returns>
+    Task<Result<IReadOnlyList<InventoryEntity>>> GetByOwnerAsync(
+        ActorId ownerId,
+        CancellationToken cancellationToken = default);
+
+    // TD_019 Phase 5: Removed obsolete GetByActorIdAsync method
+    // All callers now use GetByIdAsync or GetByOwnerAsync explicitly
 
     /// <summary>
     /// Persists inventory changes.

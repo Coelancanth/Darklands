@@ -41,10 +41,10 @@ public sealed class PlaceItemAtPositionCommandHandler
         CancellationToken cancellationToken)
     {
         _logger.LogDebug(
-            "Placing item {ItemId} at position {Position} in actor {ActorId}'s inventory",
+            "Placing item {ItemId} at position {Position} in inventory {InventoryId}",
             command.ItemId,
             command.Position,
-            command.ActorId);
+            command.InventoryId);
 
         // Get item for type validation
         var itemResult = await _items.GetByIdAsync(command.ItemId, cancellationToken);
@@ -54,7 +54,8 @@ public sealed class PlaceItemAtPositionCommandHandler
         var item = itemResult.Value;
 
         // Get inventory
-        var inventoryResult = await _inventories.GetByActorIdAsync(command.ActorId, cancellationToken);
+        // TD_019: Use GetByIdAsync (not GetByActorIdAsync)
+        var inventoryResult = await _inventories.GetByIdAsync(command.InventoryId, cancellationToken);
         if (inventoryResult.IsFailure)
             return inventoryResult;
 
@@ -84,13 +85,37 @@ public sealed class PlaceItemAtPositionCommandHandler
             placementShape = item.Shape;
         }
 
-        // Delegate to domain entity for spatial placement (Phase 4: Pass shape)
-        // WHY: Domain needs ItemShape.OccupiedCells for accurate collision detection
-        var placeResult = inventory.PlaceItemAt(
-            command.ItemId,
-            command.Position,
-            placementShape,
-            rotation: Rotation.Degrees0); // No rotation on initial placement
+        // BR_008 FIX: Support moving existing items (not just adding new ones)
+        // WHY: Equipment unequip adds item at (0,0), then needs to move to drop position
+        bool itemAlreadyInInventory = inventory.Contains(command.ItemId);
+
+        Result placeResult;
+        if (itemAlreadyInInventory)
+        {
+            // Move existing item to new position
+            _logger.LogDebug("Item {ItemId} already in inventory - moving to new position {Position}",
+                command.ItemId, command.Position);
+
+            // Remove from old position, add at new position
+            var removeResult = inventory.RemoveItem(command.ItemId);
+            if (removeResult.IsFailure)
+                return removeResult;
+
+            placeResult = inventory.PlaceItemAt(
+                command.ItemId,
+                command.Position,
+                placementShape,
+                rotation: command.Rotation); // BR_008 FIX: Use command rotation, not hardcoded 0°
+        }
+        else
+        {
+            // Add new item to inventory
+            placeResult = inventory.PlaceItemAt(
+                command.ItemId,
+                command.Position,
+                placementShape,
+                rotation: command.Rotation); // BR_008 FIX: Use command rotation, not hardcoded 0°
+        }
 
         if (placeResult.IsFailure)
             return placeResult;
@@ -99,10 +124,11 @@ public sealed class PlaceItemAtPositionCommandHandler
         await _inventories.SaveAsync(inventory, cancellationToken);
 
         _logger.LogInformation(
-            "Item {ItemId} placed at {Position} in actor {ActorId}'s inventory",
+            "Item {ItemId} placed at {Position} with rotation {Rotation} in actor {ActorId}'s inventory",
             command.ItemId,
             command.Position,
-            command.ActorId);
+            command.Rotation,
+            command.InventoryId);
 
         return Result.Success();
     }

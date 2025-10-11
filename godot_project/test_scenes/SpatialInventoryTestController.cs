@@ -1,6 +1,8 @@
 using System;
 using System.Linq;
+using Darklands.Core.Application.Repositories;
 using Darklands.Core.Domain.Common;
+using Darklands.Core.Domain.Entities;
 using Darklands.Core.Features.Inventory.Application;
 using Darklands.Core.Features.Inventory.Application.Commands;
 using Darklands.Core.Features.Inventory.Application.Queries;
@@ -46,17 +48,22 @@ public partial class SpatialInventoryTestController : Control
     private IMediator _mediator = null!;
     private ILogger<SpatialInventoryTestController> _logger = null!;
     private IInventoryRepository _inventoryRepo = null!;
+    private IActorRepository _actorRepo = null!;
 
-    // Test actor IDs (mock player character IDs for inventories)
-    private ActorId _backpackAActorId = ActorId.NewId();
-    private ActorId _backpackBActorId = ActorId.NewId();
-    private ActorId _weaponSlotActorId = ActorId.NewId();
+    // Test actor IDs
+    // VS_032 Phase 4: Consolidated model - player has backpack + equipment, enemy has separate loot
+    private ActorId _playerActorId = ActorId.NewId();      // Player: has backpack + equipment
+    private ActorId _enemyLootActorId = ActorId.NewId();   // Enemy/Chest: separate inventory for cross-actor testing
+
+    // TD_019 Phase 4: Track InventoryId (primary key) instead of just ActorId
+    private InventoryId _playerBackpackId = InventoryId.NewId();   // Player's main inventory
+    private InventoryId _enemyLootId = InventoryId.NewId();        // Enemy/chest loot inventory
 
     // Container references (for cross-container refresh)
-    // TD_003 Phase 3: Use renamed InventoryContainerNode for Tetris grids
-    private Components.Inventory.InventoryContainerNode? _backpackANode;
-    private Components.Inventory.InventoryContainerNode? _backpackBNode;
-    private Components.Inventory.EquipmentSlotNode? _weaponSlotNode; // TD_003 Phase 1: Use dedicated equipment slot component
+    // VS_032 Phase 4: Realistic model - player backpack + equipment, enemy loot
+    private Components.Inventory.InventoryContainerNode? _playerBackpackNode;
+    private Components.Inventory.InventoryContainerNode? _enemyLootNode;
+    private Components.Inventory.EquipmentPanelNode? _equipmentPanel;
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // GODOT LIFECYCLE
@@ -69,9 +76,11 @@ public partial class SpatialInventoryTestController : Control
         // Resolve dependencies via ServiceLocator
         var mediatorResult = ServiceLocator.GetService<IMediator>();
         var loggerResult = ServiceLocator.GetService<ILogger<SpatialInventoryTestController>>();
-        var repoResult = ServiceLocator.GetService<IInventoryRepository>();
+        var inventoryRepoResult = ServiceLocator.GetService<IInventoryRepository>();
+        var actorRepoResult = ServiceLocator.GetService<IActorRepository>();
 
-        if (mediatorResult.IsFailure || loggerResult.IsFailure || repoResult.IsFailure)
+        if (mediatorResult.IsFailure || loggerResult.IsFailure ||
+            inventoryRepoResult.IsFailure || actorRepoResult.IsFailure)
         {
             GD.PrintErr("[SpatialInventoryTestController] Failed to resolve dependencies");
             return;
@@ -79,7 +88,8 @@ public partial class SpatialInventoryTestController : Control
 
         _mediator = mediatorResult.Value;
         _logger = loggerResult.Value;
-        _inventoryRepo = repoResult.Value;
+        _inventoryRepo = inventoryRepoResult.Value;
+        _actorRepo = actorRepoResult.Value;
 
         // WHY: ItemTileSet optional for Phase 1 (no sprite rendering yet)
         if (ItemTileSet == null)
@@ -113,9 +123,12 @@ public partial class SpatialInventoryTestController : Control
     public IMediator GetMediator() => _mediator;
     public TileSet? GetItemTileSet() => ItemTileSet;
 
-    public ActorId GetBackpackAActorId() => _backpackAActorId;
-    public ActorId GetBackpackBActorId() => _backpackBActorId;
-    public ActorId GetWeaponSlotActorId() => _weaponSlotActorId;
+    public ActorId GetPlayerActorId() => _playerActorId;
+    public ActorId GetEnemyLootActorId() => _enemyLootActorId;
+
+    // TD_019 Phase 4: Expose InventoryIds for container nodes
+    public InventoryId GetPlayerBackpackId() => _playerBackpackId;
+    public InventoryId GetEnemyLootId() => _enemyLootId;
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // PRIVATE METHODS
@@ -123,44 +136,45 @@ public partial class SpatialInventoryTestController : Control
 
     private async System.Threading.Tasks.Task InitializeInventories()
     {
-        // WHY: Explicitly create inventories with correct grid dimensions
-        // Auto-creation uses DefaultCapacity=20, which maps to wrong dimensions
+        // VS_032 Phase 4: Consolidated actor model
+        // Player has: backpack (inventory) + equipment
+        // Enemy has: loot (inventory only, for cross-actor item transfer testing)
 
-        // Backpack A: 10×6 grid (60 capacity)
-        var backpackA = Darklands.Core.Features.Inventory.Domain.Inventory.Create(
-            InventoryId.NewId(),
+        // TD_019 Phase 4: Use explicit InventoryId + optional OwnerId pattern
+
+        // Create player backpack: 10×6 grid (60 capacity) owned by player
+        var playerBackpack = Darklands.Core.Features.Inventory.Domain.Inventory.Create(
+            _playerBackpackId,
             gridWidth: 10,
             gridHeight: 6,
-            ContainerType.General).Value;
+            ContainerType.General,
+            ownerId: _playerActorId);  // TD_019: Owned by player actor
 
-        // Backpack B: 8×8 grid (64 capacity)
-        var backpackB = Darklands.Core.Features.Inventory.Domain.Inventory.Create(
-            InventoryId.NewId(),
+        // Create enemy loot: 8×8 grid (64 capacity) owned by enemy
+        var enemyLoot = Darklands.Core.Features.Inventory.Domain.Inventory.Create(
+            _enemyLootId,
             gridWidth: 8,
             gridHeight: 8,
-            ContainerType.General).Value;
+            ContainerType.General,
+            ownerId: _enemyLootActorId);  // TD_019: Owned by enemy actor
 
-        // Weapon Slot: 1×1 grid (equipment slot - dimensions ignored)
-        // WHY: Equipment slots use 1×1 placement regardless of item size (industry standard)
-        // Application layer overrides dimensions to 1×1 for WeaponOnly containers
-        // Visual: Single large slot (96px cell) displays weapon sprite at full size
-        var weaponSlot = Darklands.Core.Features.Inventory.Domain.Inventory.Create(
-            InventoryId.NewId(),
-            gridWidth: 1,
-            gridHeight: 1,
-            ContainerType.WeaponOnly).Value;
+        // Create player actor (has both backpack + equipment)
+        var playerActor = new Actor(
+            _playerActorId,
+            "test_player"  // nameKey for i18n (not used in test scene)
+        );
 
-        // Register inventories with ActorIds
-        // WHY: Cast to InMemoryInventoryRepository to access RegisterInventoryForActor
-        // (Not part of IInventoryRepository interface - test-only method)
+        await _actorRepo.AddActorAsync(playerActor);
+        _logger.LogInformation("Created player actor {ActorId} (has backpack + equipment)", _playerActorId);
+
+        // TD_019 Phase 4: Register inventories using new RegisterInventory() pattern (no ActorId needed)
         var repo = (Darklands.Core.Features.Inventory.Infrastructure.InMemoryInventoryRepository)_inventoryRepo;
-        repo.RegisterInventoryForActor(_backpackAActorId, backpackA);
-        repo.RegisterInventoryForActor(_backpackBActorId, backpackB);
-        repo.RegisterInventoryForActor(_weaponSlotActorId, weaponSlot);
+        repo.RegisterInventory(playerBackpack.Value);     // Player's backpack (OwnerId = _playerActorId)
+        repo.RegisterInventory(enemyLoot.Value);          // Enemy loot (OwnerId = _enemyLootActorId)
 
-        _logger.LogInformation("Inventories initialized with correct grid dimensions");
+        _logger.LogInformation("Inventories initialized: Player backpack (10×6, ID: {PlayerBackpackId}), Enemy loot (8×8, ID: {EnemyLootId})",
+            _playerBackpackId, _enemyLootId);
 
-        // WHY: Await ensures registration completes before returning
         await System.Threading.Tasks.Task.CompletedTask;
     }
 
@@ -197,14 +211,15 @@ public partial class SpatialInventoryTestController : Control
             toolResult.Value.Count,
             armorResult.Value.Count);
 
-        // Place items in Backpack A (2 weapons - blue)
+        // TD_019 Phase 4: Place items using InventoryId (not ActorId)
+        // Place items in Player Backpack (2 weapons for equipment testing)
         if (weaponResult.Value.Count >= 2)
         {
-            await PlaceItemAt(_backpackAActorId, weaponResult.Value[0].Id, 0, 0, "weapon1");
-            await PlaceItemAt(_backpackAActorId, weaponResult.Value[1].Id, 2, 0, "weapon2");
+            await PlaceItemAt(_playerBackpackId, weaponResult.Value[0].Id, 0, 0, "weapon1");
+            await PlaceItemAt(_playerBackpackId, weaponResult.Value[1].Id, 2, 0, "weapon2");
         }
 
-        // Place items in Backpack B (variety of types for color testing)
+        // Place items in Enemy Loot (variety of types for cross-actor transfer testing)
         var placements = new[]
         {
             (consumableResult.Value.Count > 0, consumableResult.Value.ElementAtOrDefault(0)?.Id, 0, 0, "consumable"),
@@ -216,18 +231,19 @@ public partial class SpatialInventoryTestController : Control
         {
             if (hasItem && itemId != null)
             {
-                await PlaceItemAt(_backpackBActorId, itemId.Value, x, y, typeName);
+                await PlaceItemAt(_enemyLootId, itemId.Value, x, y, typeName);
             }
         }
 
         _logger.LogInformation("Test item population complete");
     }
 
-    private async System.Threading.Tasks.Task PlaceItemAt(ActorId actorId, ItemId itemId, int x, int y, string itemName)
+    // TD_019 Phase 4: Updated to use InventoryId instead of ActorId
+    private async System.Threading.Tasks.Task PlaceItemAt(InventoryId inventoryId, ItemId itemId, int x, int y, string itemName)
     {
-        _logger.LogDebug("Placing {ItemName} {ItemId} at ({X},{Y})", itemName, itemId, x, y);
+        _logger.LogDebug("Placing {ItemName} {ItemId} at ({X},{Y}) in inventory {InventoryId}", itemName, itemId, x, y, inventoryId);
         var result = await _mediator.Send(new PlaceItemAtPositionCommand(
-            actorId, itemId, new GridPosition(x, y)));
+            inventoryId, itemId, new GridPosition(x, y)));
 
         if (result.IsFailure)
         {
@@ -264,44 +280,44 @@ public partial class SpatialInventoryTestController : Control
         var backpackBPlaceholder = GetNode<Control>("VBoxContainer/ContainersRow/BackpackB");
         var weaponSlotPlaceholder = GetNode<Control>("VBoxContainer/ContainersRow/WeaponSlot");
 
-        // Create and attach Backpack A container (TD_003 Phase 3: InventoryContainerNode for Tetris grids)
-        _backpackANode = new Components.Inventory.InventoryContainerNode
+        // TD_019 Phase 4: Create Player Backpack using InventoryId (Inventory-First architecture)
+        _playerBackpackNode = new Components.Inventory.InventoryContainerNode
         {
-            OwnerActorId = _backpackAActorId,
-            ContainerTitle = "Backpack A",
+            InventoryId = _playerBackpackId, // TD_019: Use InventoryId instead of ActorId
+            ContainerTitle = "Player Backpack",
             CellSize = 48,
             Mediator = _mediator,
             ItemTileSet = ItemTileSet
         };
-        _backpackANode.InventoryChanged += OnInventoryChanged;
-        backpackAPlaceholder.AddChild(_backpackANode);
+        _playerBackpackNode.InventoryChanged += OnInventoryChanged;
+        backpackAPlaceholder.AddChild(_playerBackpackNode);
 
-        // Create and attach Backpack B container (TD_003 Phase 3: InventoryContainerNode for Tetris grids)
-        _backpackBNode = new Components.Inventory.InventoryContainerNode
+        // TD_019 Phase 4: Create Enemy Loot using InventoryId (Inventory-First architecture)
+        _enemyLootNode = new Components.Inventory.InventoryContainerNode
         {
-            OwnerActorId = _backpackBActorId,
-            ContainerTitle = "Backpack B",
+            InventoryId = _enemyLootId, // TD_019: Use InventoryId instead of ActorId
+            ContainerTitle = "Enemy Loot",
             CellSize = 48,
             Mediator = _mediator,
             ItemTileSet = ItemTileSet
         };
-        _backpackBNode.InventoryChanged += OnInventoryChanged;
-        backpackBPlaceholder.AddChild(_backpackBNode);
+        _enemyLootNode.InventoryChanged += OnInventoryChanged;
+        backpackBPlaceholder.AddChild(_enemyLootNode);
 
-        // Create and attach Weapon Slot (TD_003 Phase 1: dedicated EquipmentSlotNode)
-        // WHY: Equipment slots have different UX (swap-focused, no rotation, centered scaling)
-        _weaponSlotNode = new Components.Inventory.EquipmentSlotNode
+        // TD_019 Phase 4: Create Equipment Panel (player's equipment - uses ActorId + InventoryId)
+        _equipmentPanel = new Components.Inventory.EquipmentPanelNode
         {
-            OwnerActorId = _weaponSlotActorId,
-            SlotTitle = "Weapon Slot", // Note: SlotTitle instead of ContainerTitle
-            CellSize = 96, // Larger cell for weapon display
+            OwnerActorId = _playerActorId,         // Actor who owns equipment
+            PlayerInventoryId = _playerBackpackId, // Inventory where unequipped items go
+            PanelTitle = "Equipment",
+            CellSize = 96,
             Mediator = _mediator,
             ItemTileSet = ItemTileSet
         };
-        _weaponSlotNode.InventoryChanged += OnInventoryChanged;
-        weaponSlotPlaceholder.AddChild(_weaponSlotNode);
+        _equipmentPanel.InventoryChanged += OnInventoryChanged;
+        weaponSlotPlaceholder.AddChild(_equipmentPanel);
 
-        _logger.LogInformation("Container nodes attached to scene");
+        _logger.LogInformation("Container nodes attached: Player (backpack + equipment), Enemy (loot)");
     }
 
     /// <summary>
@@ -312,9 +328,10 @@ public partial class SpatialInventoryTestController : Control
     {
         _logger.LogDebug("Inventory changed signal received - refreshing all containers");
 
-        // Refresh all SpatialInventoryContainerNode instances
-        _backpackANode?.RefreshDisplay();
-        _backpackBNode?.RefreshDisplay();
-        _weaponSlotNode?.RefreshDisplay();
+        // Refresh all container instances
+        _playerBackpackNode?.RefreshDisplay();
+        _enemyLootNode?.RefreshDisplay();
+        // VS_032 Phase 4: Equipment panel refreshes all 5 slots at once
+        _equipmentPanel?.RefreshDisplay();
     }
 }

@@ -4,6 +4,7 @@ using Darklands.Core.Features.Inventory.Infrastructure;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
+using InventoryId = Darklands.Core.Features.Inventory.Domain.InventoryId;
 
 namespace Darklands.Core.Tests.Features.Inventory.Application.Commands;
 
@@ -21,18 +22,22 @@ public class RemoveItemCommandHandlerTests
         var addHandler = new AddItemCommandHandler(repository, NullLogger<AddItemCommandHandler>.Instance);
         var removeHandler = new RemoveItemCommandHandler(repository, NullLogger<RemoveItemCommandHandler>.Instance);
 
+        var inventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, actorId).Value;
+        repository.RegisterInventory(inventory);
+        var inventoryId = inventory.Id;
+
         // Add item first
-        await addHandler.Handle(new AddItemCommand(actorId, itemId), default);
+        await addHandler.Handle(new AddItemCommand(inventoryId, itemId), default);
 
         // Act
-        var result = await removeHandler.Handle(new RemoveItemCommand(actorId, itemId), default);
+        var result = await removeHandler.Handle(new RemoveItemCommand(inventoryId, itemId), default);
 
         // Assert
         result.IsSuccess.Should().BeTrue();
 
-        var inventory = await repository.GetByActorIdAsync(actorId);
-        inventory.Value.Contains(itemId).Should().BeFalse();
-        inventory.Value.Count.Should().Be(0);
+        var inventoryCheck = await repository.GetByIdAsync(inventoryId);
+        inventoryCheck.Value.Contains(itemId).Should().BeFalse();
+        inventoryCheck.Value.Count.Should().Be(0);
     }
 
     [Fact]
@@ -44,8 +49,12 @@ public class RemoveItemCommandHandlerTests
         var repository = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
         var handler = new RemoveItemCommandHandler(repository, NullLogger<RemoveItemCommandHandler>.Instance);
 
+        var inventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, actorId).Value;
+        repository.RegisterInventory(inventory);
+        var inventoryId = inventory.Id;
+
         // Act
-        var result = await handler.Handle(new RemoveItemCommand(actorId, itemId), default);
+        var result = await handler.Handle(new RemoveItemCommand(inventoryId, itemId), default);
 
         // Assert
         result.IsFailure.Should().BeTrue();

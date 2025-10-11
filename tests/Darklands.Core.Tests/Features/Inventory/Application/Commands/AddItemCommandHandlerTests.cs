@@ -4,6 +4,7 @@ using Darklands.Core.Features.Inventory.Infrastructure;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
+using InventoryId = Darklands.Core.Features.Inventory.Domain.InventoryId;
 
 namespace Darklands.Core.Tests.Features.Inventory.Application.Commands;
 
@@ -19,7 +20,11 @@ public class AddItemCommandHandlerTests
         var itemId = ItemId.NewId();
         var repository = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
         var handler = new AddItemCommandHandler(repository, NullLogger<AddItemCommandHandler>.Instance);
-        var command = new AddItemCommand(actorId, itemId);
+
+        var inventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, actorId).Value;
+        repository.RegisterInventory(inventory);
+        var inventoryId = inventory.Id;
+        var command = new AddItemCommand(inventoryId, itemId);
 
         // Act
         var result = await handler.Handle(command, default);
@@ -27,9 +32,9 @@ public class AddItemCommandHandlerTests
         // Assert
         result.IsSuccess.Should().BeTrue();
 
-        var inventory = await repository.GetByActorIdAsync(actorId);
-        inventory.Value.Contains(itemId).Should().BeTrue();
-        inventory.Value.Count.Should().Be(1);
+        var inventoryResult = await repository.GetByIdAsync(inventoryId);
+        inventoryResult.Value.Contains(itemId).Should().BeTrue();
+        inventoryResult.Value.Count.Should().Be(1);
     }
 
     [Fact]
@@ -42,14 +47,18 @@ public class AddItemCommandHandlerTests
         var repository = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
         var handler = new AddItemCommandHandler(repository, NullLogger<AddItemCommandHandler>.Instance);
 
+        var inventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, actorId).Value;
+        repository.RegisterInventory(inventory);
+        var inventoryId = inventory.Id;
+
         // Fill inventory (default capacity is 20)
         for (int i = 0; i < 20; i++)
         {
-            await handler.Handle(new AddItemCommand(actorId, ItemId.NewId()), default);
+            await handler.Handle(new AddItemCommand(inventoryId, ItemId.NewId()), default);
         }
 
         // Act
-        var result = await handler.Handle(new AddItemCommand(actorId, ItemId.NewId()), default);
+        var result = await handler.Handle(new AddItemCommand(inventoryId, ItemId.NewId()), default);
 
         // Assert
         result.IsFailure.Should().BeTrue();
@@ -67,11 +76,15 @@ public class AddItemCommandHandlerTests
         var repository = new InMemoryInventoryRepository(NullLogger<InMemoryInventoryRepository>.Instance);
         var handler = new AddItemCommandHandler(repository, NullLogger<AddItemCommandHandler>.Instance);
 
+        var inventory = Darklands.Core.Features.Inventory.Domain.Inventory.Create(Darklands.Core.Features.Inventory.Domain.InventoryId.NewId(), 20, actorId).Value;
+        repository.RegisterInventory(inventory);
+        var inventoryId = inventory.Id;
+
         // Add item once
-        await handler.Handle(new AddItemCommand(actorId, itemId), default);
+        await handler.Handle(new AddItemCommand(inventoryId, itemId), default);
 
         // Act
-        var result = await handler.Handle(new AddItemCommand(actorId, itemId), default);
+        var result = await handler.Handle(new AddItemCommand(inventoryId, itemId), default);
 
         // Assert
         result.IsFailure.Should().BeTrue();

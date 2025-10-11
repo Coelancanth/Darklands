@@ -53,9 +53,10 @@ public partial class InventoryContainerNode : Control
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     /// <summary>
-    /// Actor ID for this inventory (assign via code from parent controller).
+    /// Inventory ID for this container (assign via code from parent controller).
+    /// TD_019 Phase 4: Changed from ActorId to InventoryId (Inventory-First architecture).
     /// </summary>
-    public ActorId? OwnerActorId { get; set; }
+    public InventoryId? InventoryId { get; set; }
 
     /// <summary>
     /// Container title (displayed above grid).
@@ -97,11 +98,13 @@ public partial class InventoryContainerNode : Control
     // PHASE 3: Drag-time rotation state (SHARED across all container instances for cross-container drag support)
     // WHY: Godot's drag data is immutable after _GetDragData, but scroll wheel rotates AFTER drag starts
     // Solution: Static variable allows target container to read latest rotation from source container
-    private static Rotation _sharedDragRotation = default(Darklands.Core.Domain.Common.Rotation);
+    // BR_009 FIX: Changed from private to internal so EquipmentSlotNode can set rotation to 0° when dragging from equipment
+    internal static Rotation _sharedDragRotation = default(Darklands.Core.Domain.Common.Rotation);
+    // BR_009 FIX: Make drag preview sprite static so equipment slots can share rotatable previews
+    internal static TextureRect? _sharedDragPreviewSprite = null; // Sprite inside preview for rotation updates (shared across all containers)
     private bool _isDragging = false; // Track if drag is active
     private ItemId? _draggingItemId = null; // Track which item is being dragged
     private Control? _dragPreviewNode = null; // Custom drag preview that we can update
-    private TextureRect? _dragPreviewSprite = null; // Sprite inside preview for rotation updates
 
     // TD_003 Phase 3: Highlight constants moved to InventoryRenderHelper (DRY)
 
@@ -141,9 +144,9 @@ public partial class InventoryContainerNode : Control
         _mediator = Mediator;
         _itemTileSet = ItemTileSet; // Optional for Phase 1
 
-        if (OwnerActorId == null)
+        if (InventoryId == null)
         {
-            _logger.LogError("OwnerActorId not assigned");
+            _logger.LogError("InventoryId not assigned");
             return;
         }
 
@@ -200,8 +203,10 @@ public partial class InventoryContainerNode : Control
 
             // PHASE 3: Mouse scroll during drag to rotate item
             // WHY: Rotate while dragging (Tetris/Diablo UX pattern)
+            // BR_009 FIX: Check Godot's IsDragging() instead of _isDragging to support equipment → inventory drags
             // CRITICAL: Only handle when Pressed == true to avoid double-firing
-            if (_isDragging && mouseButton.Pressed &&
+            bool isAnyDragActive = GetViewport().GuiIsDragging();
+            if (isAnyDragActive && mouseButton.Pressed &&
                 (mouseButton.ButtonIndex == MouseButton.WheelDown || mouseButton.ButtonIndex == MouseButton.WheelUp))
             {
                 // Calculate new rotation (scroll DOWN = clockwise, scroll UP = counter-clockwise)
@@ -215,16 +220,16 @@ public partial class InventoryContainerNode : Control
 
                 _sharedDragRotation = newRotation;
 
-                _logger.LogInformation("ROTATION STATE: _sharedDragRotation = {SharedRotation}, _dragPreviewSprite exists: {PreviewExists}",
-                    _sharedDragRotation, _dragPreviewSprite != null);
+                _logger.LogInformation("ROTATION STATE: _sharedDragRotation = {SharedRotation}, _sharedDragPreviewSprite exists: {PreviewExists}",
+                    _sharedDragRotation, _sharedDragPreviewSprite != null);
 
                 // PHASE 3 FIX: Update sprite preview - ONLY rotation changes (single-layer approach)
                 // WHY: Container is base-sized, texture just rotates inside via PivotOffset
-                if (_dragPreviewSprite != null)
+                if (_sharedDragPreviewSprite != null)
                 {
                     // Simply update rotation - size and position stay constant!
                     var radians = RotationHelper.ToRadians(_sharedDragRotation);
-                    _dragPreviewSprite.Rotation = radians;
+                    _sharedDragPreviewSprite.Rotation = radians;
 
                     _logger.LogInformation("DRAG PREVIEW updated: rotation = {Rotation} ({Radians} rad)",
                         _sharedDragRotation, radians);
@@ -310,10 +315,11 @@ public partial class InventoryContainerNode : Control
         // WHY: Use origin position for commands (not clicked cell)
         // NOTE: Rotation is stored in static _sharedDragRotation and read by target container
         // (drag data is immutable, but rotation can change via scroll wheel after drag starts)
+        // TD_019 Phase 4: Changed sourceActorIdGuid → sourceInventoryIdGuid (Inventory-First)
         var dragData = new Godot.Collections.Dictionary
         {
             ["itemIdGuid"] = itemId.Value.ToString(),
-            ["sourceActorIdGuid"] = OwnerActorId?.Value.ToString() ?? string.Empty,
+            ["sourceInventoryIdGuid"] = InventoryId?.Value.ToString() ?? string.Empty,
             ["sourceX"] = origin.X,
             ["sourceY"] = origin.Y
         };
@@ -362,7 +368,7 @@ public partial class InventoryContainerNode : Control
 
         // PHASE 4: Delegate ALL validation to Core (no business logic in Presentation!)
         // WHY: Single source of truth - Core owns collision detection with L-shape support
-        if (OwnerActorId == null)
+        if (InventoryId == null)
         {
             ClearDragHighlights();
             return false;
@@ -373,7 +379,7 @@ public partial class InventoryContainerNode : Control
 
         // Delegate to Core: Validates bounds, collision (with L-shapes!), type compatibility
         var canPlaceQuery = new CanPlaceItemAtQuery(
-            OwnerActorId.Value,
+            InventoryId.Value,
             itemId,
             targetPos.Value,
             dragRotation);
@@ -415,7 +421,7 @@ public partial class InventoryContainerNode : Control
         var itemId = _draggingItemId.Value;
 
         // PHASE 4: Delegate ALL validation to Core (no business logic in Presentation!)
-        if (OwnerActorId == null)
+        if (InventoryId == null)
         {
             ClearDragHighlights();
             return;
@@ -423,7 +429,7 @@ public partial class InventoryContainerNode : Control
 
         // Delegate to Core: Validates bounds, collision (with L-shapes!), type compatibility
         var canPlaceQuery = new CanPlaceItemAtQuery(
-            OwnerActorId.Value,
+            InventoryId.Value,
             itemId,
             targetPos.Value,
             _sharedDragRotation);
@@ -454,18 +460,16 @@ public partial class InventoryContainerNode : Control
         _isDragging = false;
         _draggingItemId = null;
         _dragPreviewNode = null;
-        _dragPreviewSprite = null;
+        _sharedDragPreviewSprite = null; // BR_009: Clear shared preview sprite reference
+
+        // TD_019 Phase 4 FIX: Check source type FIRST before reading sourceInventoryIdGuid
+        // WHY: Equipment drags have sourceActorIdGuid, inventory drags have sourceInventoryIdGuid
+        bool isEquipmentSource = dragData.ContainsKey("sourceSlot");
 
         var itemIdGuidStr = dragData["itemIdGuid"].AsString();
-        var sourceActorIdGuidStr = dragData["sourceActorIdGuid"].AsString();
-
-        _logger.LogDebug("Parsing GUIDs: ItemId={ItemGuid}, SourceActor={ActorGuid}",
-            itemIdGuidStr, sourceActorIdGuidStr);
-
-        if (!Guid.TryParse(itemIdGuidStr, out var itemIdGuid) ||
-            !Guid.TryParse(sourceActorIdGuidStr, out var sourceActorIdGuid))
+        if (!Guid.TryParse(itemIdGuidStr, out var itemIdGuid))
         {
-            _logger.LogError("Failed to parse drag data GUIDs");
+            _logger.LogError("Failed to parse itemIdGuid");
             return;
         }
 
@@ -476,15 +480,42 @@ public partial class InventoryContainerNode : Control
             return;
         }
 
-        // Reconstruct value objects from Guids
         var itemId = new ItemId(itemIdGuid);
-        var sourceActorId = new ActorId(sourceActorIdGuid);
 
-        // TD_003 Phase 3: Inventory containers always do regular moves (swap logic moved to EquipmentSlotNode)
-        _logger.LogInformation("Drop confirmed: Moving item {ItemId} to ({X}, {Y}) with rotation {Rotation}",
-            itemId, targetPos.Value.X, targetPos.Value.Y, dropRotation);
+        if (isEquipmentSource)
+        {
+            // Source: Equipment Slot → Target: Inventory Container (Option B - Unequip)
+            var sourceSlot = (Darklands.Core.Features.Equipment.Domain.EquipmentSlot)dragData["sourceSlot"].AsInt32();
+            var sourceActorIdGuidStr = dragData["sourceActorIdGuid"].AsString(); // Equipment drag includes actor ID
+            if (!Guid.TryParse(sourceActorIdGuidStr, out var sourceActorIdGuid))
+            {
+                _logger.LogError("Failed to parse sourceActorIdGuid from equipment drag data");
+                return;
+            }
+            var sourceActorId = new ActorId(sourceActorIdGuid);
 
-        MoveItemAsync(sourceActorId, itemId, targetPos.Value, dropRotation);
+            _logger.LogInformation("Drop confirmed: Unequipping item {ItemId} from {SourceSlot} to inventory at ({X}, {Y})",
+                itemId, sourceSlot, targetPos.Value.X, targetPos.Value.Y);
+
+            UnequipItemAsync(sourceActorId, itemId, sourceSlot, targetPos.Value, dropRotation);
+        }
+        else
+        {
+            // Source: Inventory → Target: Inventory (original behavior)
+            // TD_019 Phase 4: Read sourceInventoryIdGuid only for inventory-to-inventory drags
+            var sourceInventoryIdGuidStr = dragData["sourceInventoryIdGuid"].AsString();
+            if (!Guid.TryParse(sourceInventoryIdGuidStr, out var sourceInventoryIdGuid))
+            {
+                _logger.LogError("Failed to parse sourceInventoryIdGuid");
+                return;
+            }
+            var sourceInventoryId = new Darklands.Core.Features.Inventory.Domain.InventoryId(sourceInventoryIdGuid);
+
+            _logger.LogInformation("Drop confirmed: Moving item {ItemId} to ({X}, {Y}) with rotation {Rotation}",
+                itemId, targetPos.Value.X, targetPos.Value.Y, dropRotation);
+
+            MoveItemAsync(sourceInventoryId, itemId, targetPos.Value, dropRotation);
+        }
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -544,10 +575,10 @@ public partial class InventoryContainerNode : Control
 
     private async Task LoadInventoryAsync()
     {
-        if (OwnerActorId == null)
+        if (InventoryId == null)
             return;
 
-        var query = new GetInventoryQuery(OwnerActorId.Value);
+        var query = new GetInventoryQuery(InventoryId.Value);
         var result = await _mediator.Send(query);
 
         if (result.IsFailure)
@@ -608,7 +639,7 @@ public partial class InventoryContainerNode : Control
         {
             // TD_004 Phase 2: Delegate occupied cell calculation to Core
             // Core handles: shape rotation, L-shape OccupiedCells iteration, rectangle fallback
-            var occupiedCellsQuery = new GetOccupiedCellsQuery(OwnerActorId.Value, itemId);
+            var occupiedCellsQuery = new GetOccupiedCellsQuery(InventoryId.Value, itemId);
             var occupiedCellsResult = await _mediator.Send(occupiedCellsQuery);
 
             if (occupiedCellsResult.IsSuccess)
@@ -800,7 +831,7 @@ public partial class InventoryContainerNode : Control
             {
                 // TD_004 Phase 2: Delegate render positioning to Core
                 // Core handles: equipment slot detection + centering rule
-                var renderPosQuery = new GetItemRenderPositionQuery(OwnerActorId!.Value, itemId);
+                var renderPosQuery = new GetItemRenderPositionQuery(InventoryId!.Value, itemId);
                 var renderPosResult = await _mediator.Send(renderPosQuery);
 
                 int separationX = 2;
@@ -974,7 +1005,7 @@ public partial class InventoryContainerNode : Control
         // TD_004 Phase 2: Delegate to Core for highlight cell calculation
         // Core handles: shape rotation, equipment slot override, L-shape support
         var highlightQuery = new CalculateHighlightCellsQuery(
-            OwnerActorId!.Value,
+            InventoryId!.Value,
             itemId,
             origin,
             rotation);
@@ -1032,14 +1063,14 @@ public partial class InventoryContainerNode : Control
 
     // TD_003 Phase 3: SwapItemsSafeAsync removed - swap logic now in EquipmentSlotNode component
 
-    private async void MoveItemAsync(ActorId sourceActorId, ItemId itemId, GridPosition targetPos, Rotation rotation)
+    private async void MoveItemAsync(Darklands.Core.Features.Inventory.Domain.InventoryId sourceInventoryId, ItemId itemId, GridPosition targetPos, Rotation rotation)
     {
-        if (OwnerActorId == null)
+        if (InventoryId == null)
             return;
 
         var command = new MoveItemBetweenContainersCommand(
-            sourceActorId,
-            OwnerActorId.Value,
+            sourceInventoryId,
+            InventoryId.Value,
             itemId,
             targetPos,
             rotation); // PHASE 3: Pass rotation from drag-drop
@@ -1057,6 +1088,72 @@ public partial class InventoryContainerNode : Control
 
         // Emit signal to notify parent controller
         // WHY: Cross-container moves affect both source and target inventories
+        EmitSignal(SignalName.InventoryChanged);
+    }
+
+    /// <summary>
+    /// Unequips item from equipment slot and places it in this inventory container.
+    /// VS_032 Phase 4 Option B: Equipment → Inventory drag-drop support.
+    /// </summary>
+    /// <remarks>
+    /// Implementation: UnequipItemCommand places item in inventory automatically.
+    /// We DON'T need MoveItemBetweenContainersCommand - the unequip does the transfer!
+    /// However, UnequipItemCommand doesn't support placement at specific position/rotation,
+    /// so we need to unequip THEN move to desired position.
+    /// </remarks>
+    private async void UnequipItemAsync(
+        ActorId actorId,
+        ItemId itemId,
+        Darklands.Core.Features.Equipment.Domain.EquipmentSlot sourceSlot,
+        GridPosition targetPos,
+        Rotation rotation)
+    {
+        if (InventoryId == null)
+            return;
+
+        _logger.LogInformation("Unequipping item {ItemId} from {SourceSlot}", itemId, sourceSlot);
+
+        // Step 1: Unequip from equipment slot (places item in inventory at default position)
+        // TD_019 Phase 4: UnequipItemCommand signature: (ActorId, InventoryId, EquipmentSlot)
+        var unequipCommand = new Darklands.Core.Features.Equipment.Application.Commands.UnequipItemCommand(
+            actorId,
+            InventoryId.Value, // Target inventory for unequipped item
+            sourceSlot);
+
+        var unequipResult = await _mediator.Send(unequipCommand);
+
+        if (unequipResult.IsFailure)
+        {
+            _logger.LogError("Failed to unequip item: {Error}", unequipResult.Error);
+            EmitSignal(SignalName.InventoryChanged);
+            return;
+        }
+
+        _logger.LogInformation("Item unequipped from {SourceSlot}, now in inventory", sourceSlot);
+
+        // Step 2: Move item to desired position (UnequipItemCommand places at default position 0,0)
+        // WHY: User dragged to specific position - honor their drop location!
+        // TD_019 Phase 4: Item is now placed in the target inventory we specified (InventoryId.Value)
+        // Just need to move it to the desired position with rotation
+        var moveCommand = new Darklands.Core.Features.Inventory.Application.Commands.PlaceItemAtPositionCommand(
+            InventoryId.Value,
+            itemId,
+            targetPos,
+            rotation); // BR_008 FIX: Pass rotation from drag-drop
+
+        var moveResult = await _mediator.Send(moveCommand);
+
+        if (moveResult.IsFailure)
+        {
+            _logger.LogWarning("Unequipped successfully, but failed to move to drop position: {Error}", moveResult.Error);
+            // Item is still in inventory at (0,0), not lost - acceptable fallback
+        }
+        else
+        {
+            _logger.LogInformation("Item placed at ({X}, {Y}) with rotation {Rotation}", targetPos.X, targetPos.Y, rotation);
+        }
+
+        // Emit signal to refresh all containers
         EmitSignal(SignalName.InventoryChanged);
     }
 
@@ -1130,7 +1227,8 @@ public partial class InventoryContainerNode : Control
         };
 
         // Create sprite preview (single-layer: texture fills container, rotates around center)
-        _dragPreviewSprite = new TextureRect
+        // BR_009 FIX: Use shared static sprite so equipment slots can also create rotatable previews
+        _sharedDragPreviewSprite = new TextureRect
         {
             Texture = atlasTexture,
             TextureFilter = CanvasItem.TextureFilterEnum.Nearest,
@@ -1157,7 +1255,7 @@ public partial class InventoryContainerNode : Control
             CustomMinimumSize = new Vector2(baseSpriteWidth, baseSpriteHeight),
             Size = new Vector2(baseSpriteWidth, baseSpriteHeight)
         };
-        offsetContainer.AddChild(_dragPreviewSprite);
+        offsetContainer.AddChild(_sharedDragPreviewSprite);
         previewRoot.AddChild(offsetContainer);
         _dragPreviewNode = previewRoot;
     }
@@ -1168,10 +1266,10 @@ public partial class InventoryContainerNode : Control
     /// </summary>
     private async void RotateItemAsync(ItemId itemId, Rotation newRotation)
     {
-        if (OwnerActorId == null)
+        if (InventoryId == null)
             return;
 
-        var command = new RotateItemCommand(OwnerActorId.Value, itemId, newRotation);
+        var command = new RotateItemCommand(InventoryId.Value, itemId, newRotation);
         var result = await _mediator.Send(command);
 
         if (result.IsFailure)

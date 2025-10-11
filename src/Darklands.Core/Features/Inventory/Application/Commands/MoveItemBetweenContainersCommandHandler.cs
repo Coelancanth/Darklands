@@ -42,10 +42,10 @@ public sealed class MoveItemBetweenContainersCommandHandler
         CancellationToken cancellationToken)
     {
         _logger.LogDebug(
-            "Moving item {ItemId} from actor {SourceActorId} to actor {TargetActorId} at position {TargetPosition}",
+            "Moving item {ItemId} from inventory {SourceInventoryId} to inventory {TargetInventoryId} at position {TargetPosition}",
             command.ItemId,
-            command.SourceActorId,
-            command.TargetActorId,
+            command.SourceInventoryId,
+            command.TargetInventoryId,
             command.TargetPosition);
 
         // Get item for type validation
@@ -55,15 +55,14 @@ public sealed class MoveItemBetweenContainersCommandHandler
 
         var item = itemResult.Value;
 
-        // Get source inventory
-        var sourceResult = await _inventories.GetByActorIdAsync(command.SourceActorId, cancellationToken);
+        // TD_019: Get inventories by ID (not ActorId)
+        var sourceResult = await _inventories.GetByIdAsync(command.SourceInventoryId, cancellationToken);
         if (sourceResult.IsFailure)
             return sourceResult;
 
         var sourceInventory = sourceResult.Value;
 
-        // Get target inventory
-        var targetResult = await _inventories.GetByActorIdAsync(command.TargetActorId, cancellationToken);
+        var targetResult = await _inventories.GetByIdAsync(command.TargetInventoryId, cancellationToken);
         if (targetResult.IsFailure)
             return targetResult;
 
@@ -82,7 +81,8 @@ public sealed class MoveItemBetweenContainersCommandHandler
         }
 
         // Check if this is intra-container repositioning (same inventory)
-        bool isSameContainer = command.SourceActorId == command.TargetActorId;
+        // TD_019: Compare InventoryId (not ActorId)
+        bool isSameContainer = command.SourceInventoryId == command.TargetInventoryId;
 
         if (isSameContainer)
         {
@@ -190,10 +190,10 @@ public sealed class MoveItemBetweenContainersCommandHandler
         }
 
         _logger.LogInformation(
-            "Item {ItemId} moved from actor {SourceActorId} to actor {TargetActorId} at position {TargetPosition}",
+            "Item {ItemId} moved from inventory {SourceInventoryId} to inventory {TargetInventoryId} at position {TargetPosition}",
             command.ItemId,
-            command.SourceActorId,
-            command.TargetActorId,
+            command.SourceInventoryId,
+            command.TargetInventoryId,
             command.TargetPosition);
 
         return Result.Success();

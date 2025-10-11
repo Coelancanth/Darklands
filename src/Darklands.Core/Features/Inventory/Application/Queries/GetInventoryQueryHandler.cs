@@ -27,14 +27,15 @@ public sealed class GetInventoryQueryHandler
         CancellationToken cancellationToken)
     {
         _logger.LogDebug(
-            "Retrieving inventory for actor {ActorId}",
-            query.ActorId);
+            "Retrieving inventory {InventoryId}",
+            query.InventoryId);
 
+        // TD_019: Use GetByIdAsync (not GetByActorIdAsync)
         return await _inventories
-            .GetByActorIdAsync(query.ActorId, cancellationToken)
+            .GetByIdAsync(query.InventoryId, cancellationToken)
             .Map(inventory => new InventoryDto(
                 inventory.Id,
-                query.ActorId,
+                inventory.OwnerId, // TD_019: Use OwnerId from domain (nullable)
                 inventory.Capacity,
                 inventory.Count,
                 inventory.IsFull,
