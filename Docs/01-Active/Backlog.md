@@ -81,18 +81,6 @@
 
 ---
 
-
-
-*Recently completed and archived (2025-10-06):*
-- **VS_020**: Basic Combat System (Attacks & Damage) - All 4 phases complete! Click-to-attack combat UI, component pattern (Actor + HealthComponent + WeaponComponent), ExecuteAttackCommand with range validation (melee adjacent, ranged line-of-sight), damage application, death handling bug fix. All 428 tests GREEN. Ready for VS_011 (Enemy AI). ✅ (2025-10-06 19:03) *See: [Completed_Backlog_2025-10_Part2.md](../07-Archive/Completed_Backlog_2025-10_Part2.md) for full archive*
-
----
-
-*Recently completed and archived (2025-10-04 19:35):*
-- **VS_007**: Time-Unit Turn Queue System - Complete 4-phase implementation with natural mode detection, 49 new tests GREEN, 6 follow-ups complete. ✅ (2025-10-04 17:38)
-
----
-
 ## 💡 Ideas (Future Work)
 *Future features, nice-to-haves, deferred work*
 
