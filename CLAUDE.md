@@ -245,6 +245,64 @@ src/Darklands.Core/
 
 **See**: [ADR-004: Feature-Based Clean Architecture](Docs/03-Reference/ADR/ADR-004-feature-based-clean-architecture.md)
 
+### File Organization Convention - Presentation Layer
+
+**CONVENTION**: All new Godot nodes go to `godot_project/` with feature-based organization.
+
+**Directory Structure:**
+```
+godot_project/
+├── features/                      # Feature-based Godot nodes
+│   ├── combat/                   # (future: CombatUINode, AttackButtonNode)
+│   ├── equipment/                # EquipmentPanelNode, EquipmentSlotNode
+│   ├── health/                   # HealthBarNode
+│   ├── inventory/                # InventoryContainerNode, InventoryPanelNode, etc.
+│   ├── item/                     # ItemShapeResource, ItemSpriteNode
+│   └── worldgen/                 # WorldMapOrchestratorNode, WorldMapRendererNode, etc.
+│
+├── infrastructure/               # Godot presentation infrastructure
+│   ├── events/                   # EventAwareNode, GodotEventBus
+│   ├── logging/                  # GodotConsoleSink, LoggingService
+│   ├── templates/                # ActorTemplate, GodotTemplateService
+│   ├── repositories/             # TileSetItemRepository (Godot-specific repos)
+│   └── debug/                    # DebugConsole, DebugConsoleController
+│
+├── scenes/                       # Main game scenes (Main.tscn, Main.cs)
+└── test_scenes/                  # Test/demo scenes (SpatialInventoryTestScene, etc.)
+```
+
+**Placement Rules:**
+1. **Feature nodes** → `godot_project/features/{feature_name}/`
+   - Example: `EquipmentPanelNode.cs` → `godot_project/features/equipment/`
+   - Matches Core feature structure: `src/Darklands.Core/Features/Equipment/`
+2. **Infrastructure code** → `godot_project/infrastructure/{subsystem}/`
+   - Example: `GodotEventBus.cs` → `godot_project/infrastructure/events/`
+3. **Scenes** → `godot_project/scenes/` (main) or `godot_project/test_scenes/` (testing)
+4. **Base classes** → `godot_project/infrastructure/` (e.g., `EventAwareNode`)
+
+**Namespace Convention:**
+```csharp
+// Feature nodes
+namespace Darklands.Presentation.Features.Equipment;
+
+// Infrastructure
+namespace Darklands.Presentation.Infrastructure.Events;
+
+// Scenes
+namespace Darklands.Presentation.Scenes;
+```
+
+**Legacy Code:**
+- Existing files in `Components/`, `Infrastructure/`, `Views/` at root remain until actively refactored
+- When touching legacy code, consider moving to `godot_project/` structure
+- No mass migration required - incremental cleanup preferred
+
+**Why This Convention:**
+- ✅ Clear separation: Core (`src/`) vs Presentation (`godot_project/`)
+- ✅ Feature alignment: Both layers mirror each other structurally
+- ✅ Scalability: Easy to locate/add feature-specific Godot nodes
+- ✅ Prevents root pollution: All Godot code under `godot_project/`
+
 ### Logging - Microsoft.Extensions.Logging + Serilog
 
 **Core uses ONLY abstractions:**
