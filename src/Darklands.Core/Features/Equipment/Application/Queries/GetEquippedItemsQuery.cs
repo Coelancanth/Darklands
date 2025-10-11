@@ -23,7 +23,7 @@ namespace Darklands.Core.Features.Equipment.Application.Queries;
 /// <para><b>Empty Slots</b>:</para>
 /// <para>
 /// Dictionary only contains occupied slots. Check with `result.Value.TryGetValue(slot, out itemId)`.
-/// Missing key = empty slot (show placeholder sprite in UI).
+/// Empty slots are not in dictionary (show placeholder sprite in UI).
 /// </para>
 ///
 /// <para><b>Two-Handed Weapons</b>:</para>
