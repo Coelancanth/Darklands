@@ -253,9 +253,10 @@ public partial class WorldMapProbeNode : Node
             _ => $"Cell ({x},{y})\nUnknown view"
         };
 
-        // Log probe result with all relevant data
-        _logger?.LogInformation("Probed cell ({X},{Y}): Original={Original:F3}, PostProcessed={PostProcessed:F3}, Ocean={Ocean}, PlateId={PlateId}",
-            x, y, originalElevation, postProcessedElevation, isOcean, plateId);
+        // Log probe result - output the SAME formatted data to console for easy debugging
+        // This makes the Godot Output panel show exactly what the UI panel displays
+        _logger?.LogInformation("[WorldGen] PROBE ({ViewMode}):\n{ProbeData}",
+            viewMode, probeData);
 
         EmitSignal(SignalName.CellProbed, x, y, probeData);
     }
