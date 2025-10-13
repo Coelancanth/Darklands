@@ -256,6 +256,17 @@ public partial class WorldMapRendererNode : Sprite2D
                 }
                 break;
 
+            case MapViewMode.ErosionHotspots:
+                if (_worldData.Phase1Erosion != null && _worldData.Phase1Erosion.FilledHeightmap != null && _worldData.Phase1Erosion.FlowAccumulation != null && _worldData.Thresholds != null)
+                {
+                    RenderErosionHotspots(_worldData.Phase1Erosion.FilledHeightmap, _worldData.Phase1Erosion.FlowAccumulation, _worldData.Thresholds);
+                }
+                else
+                {
+                    _logger?.LogWarning("ErosionHotspots not available");
+                }
+                break;
+
             default:
                 _logger?.LogError("Unknown view mode: {ViewMode}", _currentViewMode);
                 break;
@@ -1033,7 +1044,104 @@ public partial class WorldMapRendererNode : Sprite2D
         float sourceDensity = (riverSources.Count / (float)totalCells) * 100f;
 
         _logger?.LogInformation(
-            "RIVER SOURCES: {Count} detected | Density={Density:F2}% of total cells (expect 0.01-0.1% for 512x512 = 5-15 major rivers)",
-            riverSources.Count, sourceDensity);
+            "RIVER SOURCES (CORRECTED): {Count} major rivers (threshold-crossing algorithm)",
+            riverSources.Count);
+    }
+
+    /// <summary>
+    /// Renders erosion hotspots (VS_029 - repurposed from old algorithm).
+    /// Colored elevation base + Magenta markers at high-energy zones.
+    /// Purpose: Erosion masking for VS_030+ particle erosion (canyon/gorge formation).
+    /// </summary>
+    private void RenderErosionHotspots(float[,] heightmap, float[,] flowAccumulation, ElevationThresholds thresholds)
+    {
+        int h = heightmap.GetLength(0);
+        int w = heightmap.GetLength(1);
+        var image = Image.CreateEmpty(w, h, false, Image.Format.Rgb8);
+
+        // Step 1: Render colored elevation base
+        float min = float.MaxValue, max = float.MinValue;
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                float v = heightmap[y, x];
+                if (v < min) min = v;
+                if (v > max) max = v;
+            }
+        }
+
+        float delta = Math.Max(1e-6f, max - min);
+
+        // Normalize and calculate quantiles
+        var normalizedHeightmap = new float[h, w];
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                normalizedHeightmap[y, x] = (heightmap[y, x] - min) / delta;
+            }
+        }
+
+        float q15 = FindQuantile(normalizedHeightmap, 0.15f);
+        float q70 = FindQuantile(normalizedHeightmap, 0.70f);
+        float q75 = FindQuantile(normalizedHeightmap, 0.75f);
+        float q90 = FindQuantile(normalizedHeightmap, 0.90f);
+        float q95 = FindQuantile(normalizedHeightmap, 0.95f);
+        float q99 = FindQuantile(normalizedHeightmap, 0.99f);
+
+        // Render colored elevation
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                float elevation = normalizedHeightmap[y, x];
+                Color color = GetQuantileTerrainColor(elevation, q15, q70, q75, q90, q95, q99);
+                image.SetPixel(x, y, color);
+            }
+        }
+
+        // Step 2: Detect and mark erosion hotspots (high elevation + high flow accumulation)
+        // Calculate p95 accumulation threshold for "high flow"
+        var sortedAccumulation = new System.Collections.Generic.List<float>(w * h);
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                sortedAccumulation.Add(flowAccumulation[y, x]);
+            }
+        }
+        sortedAccumulation.Sort();
+        float accumulationP95 = GetPercentileFromSorted(sortedAccumulation, 0.95f);
+
+        // Mark hotspots with magenta markers
+        Color hotspotMarker = new Color(1f, 0f, 1f);  // Magenta (high-energy zones)
+        int hotspotCount = 0;
+
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                // High elevation + high flow = erosion hotspot
+                bool isHighElevation = heightmap[y, x] >= thresholds.MountainLevel;
+                bool isHighFlow = flowAccumulation[y, x] >= accumulationP95;
+
+                if (isHighElevation && isHighFlow)
+                {
+                    image.SetPixel(x, y, hotspotMarker);
+                    hotspotCount++;
+                }
+            }
+        }
+
+        Texture = ImageTexture.CreateFromImage(image);
+
+        // Calculate density
+        int totalCells = w * h;
+        float hotspotDensity = (hotspotCount / (float)totalCells) * 100f;
+
+        _logger?.LogInformation(
+            "EROSION HOTSPOTS: {Count} detected | High elevation + high flow (p95) = Maximum erosive potential | Density={Density:F3}% (canyon/gorge zones for VS_030+)",
+            hotspotCount, hotspotDensity);
     }
 }

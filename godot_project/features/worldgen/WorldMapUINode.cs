@@ -127,6 +127,7 @@ public partial class WorldMapUINode : Control
         _viewModeDropdown.AddItem("Erosion: 2. Flow Directions", (int)MapViewMode.FlowDirections);
         _viewModeDropdown.AddItem("Erosion: 3. Flow Accumulation", (int)MapViewMode.FlowAccumulation);
         _viewModeDropdown.AddItem("Erosion: 4. River Sources", (int)MapViewMode.RiverSources);
+        _viewModeDropdown.AddItem("Erosion: 5. Erosion Hotspots", (int)MapViewMode.ErosionHotspots);
 
         _viewModeDropdown.Selected = 0;  // ColoredOriginalElevation is default
         _viewModeDropdown.ItemSelected += OnViewModeSelected;
