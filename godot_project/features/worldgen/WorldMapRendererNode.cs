@@ -444,17 +444,49 @@ public partial class WorldMapRendererNode : Sprite2D
             }
         }
 
-        // Step 4: Render with water-first logic (FIX: semantic water colors, then quantile terrain colors)
-        // Color scheme: Ocean (depth gradient) → Medium blue (inner seas) → Cyan (lakes) → Green+ (land)
+        // Step 4: Render with unified water-land gradient (ColorBrewer-inspired)
+        //
+        // UNIFIED COLOR SCHEME (converges at sea level 1.0):
+        // ┌─────────────────────────────────────────────────────────────┐
+        // │ BELOW SEA LEVEL (0.0 - 1.0): Water Bodies (depth gradients) │
+        // ├─────────────────────────────────────────────────────────────┤
+        // │ Ocean:      Deep #08519C → Sea Level #9ECAE1                │
+        // │ Inner Seas: Deep #006D5B → Sea Level #9ECAE1 (teal hues)    │
+        // │ Lakes:      Deep #0077B6 → Sea Level #9ECAE1 (turquoise)    │
+        // ├─────────────────────────────────────────────────────────────┤
+        // │ ABOVE SEA LEVEL (1.0+): Land (elevation gradients)          │
+        // ├─────────────────────────────────────────────────────────────┤
+        // │ Lowlands:   Sea Level #9ECAE1 → Green #66BD63               │
+        // │ Hills:      Yellow #FFFFBF → Orange #FDAE61                  │
+        // │ Mountains:  Orange → Brown-Red #D73027 → Dark Brown #A50026 │
+        // └─────────────────────────────────────────────────────────────┘
 
-        // Ocean depth gradient (ColorBrewer2 Blues sequential): Shallow → Deep
-        Color oceanShallow = new Color(0.776f, 0.859f, 0.937f);    // Light blue #C6DBEF (shallow coastal water)
-        Color oceanMedium = new Color(0.420f, 0.682f, 0.839f);     // Medium blue #6BAED6 (mid-depth)
-        Color oceanDeep = new Color(0.031f, 0.318f, 0.612f);       // Dark blue #08519C (deep ocean trenches)
+        // SEA LEVEL convergence point (all water types meet here)
+        Color seaLevelColor = new Color(0.620f, 0.792f, 0.882f);   // #9ECAE1 (light cyan-blue)
 
-        // Inner seas & lakes (distinct from ocean gradient)
-        Color innerSeaColor = new Color(0f, 0.392f, 0.784f);       // Medium blue (RGB: 0, 100, 200) - large landlocked water
-        Color lakeColor = new Color(0f, 0.784f, 0.784f);           // Cyan (RGB: 0, 200, 200) - small landlocked water
+        // BELOW SEA LEVEL: Water body deep colors (starting points)
+        Color oceanDeep = new Color(0.031f, 0.318f, 0.612f);       // Dark blue #08519C (deep ocean)
+        Color innerSeaDeep = new Color(0.000f, 0.427f, 0.357f);    // Dark teal #006D5B (deep inner sea)
+        Color lakeDeep = new Color(0.000f, 0.467f, 0.714f);        // Dark turquoise #0077B6 (deep lake)
+
+        // Calculate per-basin minimum elevations (for basin-relative normalization)
+        var basinMinElevations = new System.Collections.Generic.Dictionary<int, float>();
+        if (preservedBasins != null)
+        {
+            foreach (var basin in preservedBasins)
+            {
+                float basinMin = float.MaxValue;
+                foreach (var (cellX, cellY) in basin.Cells)
+                {
+                    if (cellX >= 0 && cellX < w && cellY >= 0 && cellY < h)
+                    {
+                        float elev = heightmap[cellY, cellX];
+                        if (elev < basinMin) basinMin = elev;
+                    }
+                }
+                basinMinElevations[basin.BasinId] = basinMin;
+            }
+        }
 
         int innerSeaCount = 0, lakeCount = 0;
 
@@ -464,42 +496,42 @@ public partial class WorldMapRendererNode : Sprite2D
             {
                 Color color;
 
-                // Check WATER BODIES FIRST - semantic coloring takes precedence over terrain elevation
+                // Check WATER BODIES FIRST - water gradient (below sea level) vs land gradient (above sea level)
 
-                // 1. Ocean (border-connected water) - DEPTH GRADIENT based on elevation
+                float cellElevation = heightmap[y, x];  // Raw elevation value
+
+                // 1. Ocean (border-connected water) - DEPTH GRADIENT (global min → 1.0 sea level)
                 if (oceanMask != null && oceanMask[y, x])
                 {
                     // Use normalized elevation for ocean depth gradient
                     // Lower elevation = deeper ocean = darker blue
-                    // Higher elevation = shallow ocean = lighter blue
-                    float oceanDepth = normalizedHeightmap[y, x];
+                    // Higher elevation (→ 1.0) = shallow ocean = converges to sea level color
+                    float oceanDepthNorm = normalizedHeightmap[y, x];
 
-                    // Ocean gradient: Three-stop gradient for better depth perception
-                    if (oceanDepth < 0.33f)
-                    {
-                        // Deep ocean (0.0 - 0.33) - Dark to Medium blue
-                        color = Gradient(oceanDepth, 0.0f, 0.33f, oceanDeep, oceanMedium);
-                    }
-                    else
-                    {
-                        // Shallow ocean (0.33 - 1.0) - Medium to Light blue
-                        color = Gradient(oceanDepth, 0.33f, 1.0f, oceanMedium, oceanShallow);
-                    }
+                    // Ocean gradient: Deep blue → Sea level color (smooth convergence to coastline)
+                    color = Gradient(oceanDepthNorm, 0.0f, 1.0f, oceanDeep, seaLevelColor);
                 }
-                // 2. Inner seas & lakes (landlocked water from preserved basins)
+                // 2. Inner seas & lakes (landlocked water) - PER-BASIN DEPTH GRADIENT
                 else if (basinCellLookup.TryGetValue((x, y), out var basin))
                 {
-                    // Classify by basin size: Large basins = inner seas, small basins = lakes
                     const int INNER_SEA_THRESHOLD = 1000;  // Cells (matches TD_023 classification)
+
+                    // Get basin-relative normalized depth (basin floor = 0.0, sea level 1.0 = 1.0)
+                    float basinMinElev = basinMinElevations[basin.BasinId];
+                    float seaLevel = 1.0f;  // WorldGenConstants.SEA_LEVEL_RAW
+                    float basinDepthNorm = (cellElevation - basinMinElev) / Math.Max(0.001f, seaLevel - basinMinElev);
+                    basinDepthNorm = Mathf.Clamp(basinDepthNorm, 0f, 1f);  // Safety clamp
 
                     if (basin.Area >= INNER_SEA_THRESHOLD)
                     {
-                        color = innerSeaColor;  // Medium blue (Caspian Sea analog)
+                        // Inner sea: Dark teal → Sea level color (teal spectrum for distinction from ocean)
+                        color = Gradient(basinDepthNorm, 0.0f, 1.0f, innerSeaDeep, seaLevelColor);
                         innerSeaCount++;
                     }
                     else
                     {
-                        color = lakeColor;  // Cyan (small lakes)
+                        // Lake: Dark turquoise → Sea level color (turquoise spectrum distinct from seas)
+                        color = Gradient(basinDepthNorm, 0.0f, 1.0f, lakeDeep, seaLevelColor);
                         lakeCount++;
                     }
                 }
