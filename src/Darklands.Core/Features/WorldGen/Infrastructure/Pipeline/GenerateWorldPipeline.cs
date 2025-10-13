@@ -139,6 +139,42 @@ public class GenerateWorldPipeline : IWorldGenerationPipeline
             "Stage 5 complete: Coastal moisture enhancement applied (maritime vs continental climates)");
 
         // ═══════════════════════════════════════════════════════════════════════
+        // STAGE 6: Phase 1 Erosion - Flow Directions & Accumulation (VS_029)
+        // ═══════════════════════════════════════════════════════════════════════
+        // Pit filling + D-8 flow directions + topological sort + flow accumulation + river sources
+        // Produces: Phase1ErosionData (foundation for river tracing visualization)
+
+        // STEP 6a: Detect local minima BEFORE pit-filling (diagnostic baseline)
+        var preFillingMinima = Algorithms.LocalMinimaDetector.Detect(
+            postProcessed.ProcessedHeightmap,
+            postProcessed.OceanMask!);
+
+        _logger.LogInformation(
+            "Pre-filling sinks detected: {Count} local minima ({Percentage:F1}% of land cells) - baseline for pit-filling validation",
+            preFillingMinima.Count,
+            CalculateLandPercentage(preFillingMinima.Count, postProcessed.ProcessedHeightmap, postProcessed.OceanMask!));
+
+        // STEP 6b: Run Phase 1 erosion pipeline (includes pit-filling)
+        var phase1Erosion = HydraulicErosionProcessor.ProcessPhase1(
+            heightmap: postProcessed.ProcessedHeightmap,
+            oceanMask: postProcessed.OceanMask!,
+            precipitation: coastalMoistureResult.FinalMap,  // VS_028 final precipitation
+            thresholds: thresholds);
+
+        // STEP 6c: Calculate pit-filling effectiveness (diagnostic comparison)
+        var postFillingMinima = phase1Erosion.Lakes.Count;  // Lakes = preserved sinks after filling
+        var sinkReductionPercent = preFillingMinima.Count > 0
+            ? ((preFillingMinima.Count - postFillingMinima) / (float)preFillingMinima.Count) * 100f
+            : 0f;
+
+        _logger.LogInformation(
+            "Stage 6 complete: Phase 1 erosion (pit-filling: {PreCount} -> {PostCount} sinks, {Reduction:F1}% reduction | rivers: {RiverCount} sources detected)",
+            preFillingMinima.Count,
+            postFillingMinima,
+            sinkReductionPercent,
+            phase1Erosion.RiverSources.Count);
+
+        // ═══════════════════════════════════════════════════════════════════════
         // ASSEMBLE RESULT (VS_024: Dual-heightmap + thresholds architecture)
         // ═══════════════════════════════════════════════════════════════════════
 
@@ -164,11 +200,13 @@ public class GenerateWorldPipeline : IWorldGenerationPipeline
             precipitationThresholds: precipResult.Thresholds,              // Quantile-based classification
             withRainShadowPrecipitationMap: rainShadowResult.WithRainShadowMap, // VS_027 Stage 4 (+ rain shadow)
             precipitationFinal: coastalMoistureResult.FinalMap,            // VS_028 Stage 5 (FINAL - for erosion!)
-            precipitationMap: null   // Deprecated (use finalPrecipitationMap)
+            precipitationMap: null,                                        // Deprecated (use finalPrecipitationMap)
+            phase1Erosion: phase1Erosion,                                  // VS_029 Stage 6 (D-8 flow visualization)
+            preFillingLocalMinima: preFillingMinima                        // VS_029 diagnostic (pit-filling baseline)
         );
 
         _logger.LogInformation(
-            "Pipeline complete: {Width}x{Height} world with Stage 1 (elevation) + Stage 2 (temperature) + Stage 3 (precipitation) + Stage 4 (rain shadow) + Stage 5 (coastal moisture)",
+            "Pipeline complete: {Width}x{Height} world with Stage 1 (elevation) + Stage 2 (temperature) + Stage 3 (precipitation) + Stage 4 (rain shadow) + Stage 5 (coastal moisture) + Stage 6 (erosion phase 1)",
             result.Width, result.Height);
 
         return Result.Success(result);
@@ -254,5 +292,27 @@ public class GenerateWorldPipeline : IWorldGenerationPipeline
         }
 
         return (min, max);
+    }
+
+    /// <summary>
+    /// Calculates the percentage of land cells that a given count represents.
+    /// Used for pit-filling diagnostics (VS_029).
+    /// </summary>
+    private static float CalculateLandPercentage(int count, float[,] heightmap, bool[,] oceanMask)
+    {
+        int height = heightmap.GetLength(0);
+        int width = heightmap.GetLength(1);
+
+        int landCells = 0;
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                if (!oceanMask[y, x])
+                    landCells++;
+            }
+        }
+
+        return landCells > 0 ? (count / (float)landCells) * 100f : 0f;
     }
 }

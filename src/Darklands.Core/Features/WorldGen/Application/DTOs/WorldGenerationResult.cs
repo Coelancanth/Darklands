@@ -170,6 +170,21 @@ public record WorldGenerationResult
     public float[,]? PrecipitationMap { get; init; }
 
     /// <summary>
+    /// Phase 1 erosion data for D-8 flow visualization (VS_029).
+    /// Contains: FilledHeightmap, FlowDirections, FlowAccumulation, RiverSources, Lakes.
+    /// Computed AFTER VS_028 (PrecipitationFinal required for flow accumulation).
+    /// </summary>
+    public Phase1ErosionData? Phase1Erosion { get; init; }
+
+    /// <summary>
+    /// Local minima detected BEFORE pit-filling algorithm (VS_029 diagnostic).
+    /// Baseline for pit-filling effectiveness comparison: PreFillingLocalMinima → PostFillingLocalMinima.
+    /// Expected: 5-20% of land cells (raw heightmap has many artifacts).
+    /// Used to validate pit-filling algorithm: reduction = (pre - post) / pre (expect 70-90% reduction).
+    /// </summary>
+    public List<(int x, int y)>? PreFillingLocalMinima { get; init; }
+
+    /// <summary>
     /// Raw native output preserved for debugging and visualization.
     /// Always available regardless of pipeline stages.
     /// </summary>
@@ -207,7 +222,9 @@ public record WorldGenerationResult
         PrecipitationThresholds? precipitationThresholds = null,
         float[,]? withRainShadowPrecipitationMap = null,
         float[,]? precipitationFinal = null,
-        float[,]? precipitationMap = null)
+        float[,]? precipitationMap = null,
+        Phase1ErosionData? phase1Erosion = null,
+        List<(int x, int y)>? preFillingLocalMinima = null)
     {
         Heightmap = heightmap;
         PostProcessedHeightmap = postProcessedHeightmap;
@@ -230,6 +247,8 @@ public record WorldGenerationResult
         WithRainShadowPrecipitationMap = withRainShadowPrecipitationMap;
         PrecipitationFinal = precipitationFinal;
         PrecipitationMap = precipitationMap;
+        Phase1Erosion = phase1Erosion;
+        PreFillingLocalMinima = preFillingLocalMinima;
         RawNativeOutput = rawNativeOutput;
     }
 }

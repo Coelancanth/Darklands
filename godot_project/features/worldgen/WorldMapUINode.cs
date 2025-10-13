@@ -119,6 +119,15 @@ public partial class WorldMapUINode : Control
         _viewModeDropdown.AddItem("Precipitation: 4. + Rain Shadow", (int)MapViewMode.PrecipitationWithRainShadow);
         _viewModeDropdown.AddItem("Precipitation: 5. FINAL (+ Coastal)", (int)MapViewMode.PrecipitationFinal);
 
+        // VS_029: D-8 Flow visualization debug views
+        _viewModeDropdown.AddSeparator("─── Erosion Debug (VS_029) ───");
+        _viewModeDropdown.AddItem("Erosion: 0A. Sinks (PRE-Filling)", (int)MapViewMode.SinksPreFilling);
+        _viewModeDropdown.AddItem("Erosion: 0B. Sinks (POST-Filling)", (int)MapViewMode.SinksPostFilling);
+        _viewModeDropdown.AddItem("Erosion: 1. Filled Elevation", (int)MapViewMode.FilledElevation);
+        _viewModeDropdown.AddItem("Erosion: 2. Flow Directions", (int)MapViewMode.FlowDirections);
+        _viewModeDropdown.AddItem("Erosion: 3. Flow Accumulation", (int)MapViewMode.FlowAccumulation);
+        _viewModeDropdown.AddItem("Erosion: 4. River Sources", (int)MapViewMode.RiverSources);
+
         _viewModeDropdown.Selected = 0;  // ColoredOriginalElevation is default
         _viewModeDropdown.ItemSelected += OnViewModeSelected;
         container.AddChild(_viewModeDropdown);

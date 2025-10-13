@@ -82,12 +82,12 @@
 ## 💡 Ideas (Future Work)
 *Future features, nice-to-haves, deferred work*
 
-### VS_029: D-8 Flow Direction Visualization (Heightmap Validation)
-**Status**: Proposed (Implementation Ready)
-**Owner**: Tech Lead → Dev Engineer (implement)
-**Size**: S (~4-6h)
+### VS_029: D-8 Flow Direction Visualization (Heightmap Validation) + River Source Algorithm Correction
+**Status**: In Progress (Core Complete, UI Layer Remaining)
+**Owner**: Dev Engineer
+**Size**: S (~4-6h base + 2h correction)
 **Priority**: Ideas (worldgen quality validation)
-**Markers**: [WORLDGEN] [VISUALIZATION] [DEBUG-TOOLING]
+**Markers**: [WORLDGEN] [VISUALIZATION] [DEBUG-TOOLING] [ALGORITHM-CORRECTION]
 
 **What**: Add debug visualization for existing D-8 flow direction algorithm to validate heightmap quality and implementation correctness through 4 new view modes (FlowDirections, FlowAccumulation, RiverSources, Sinks).
 
@@ -346,6 +346,47 @@ Fixed topological sort → Re-run worldgen → Start from Step 3 (FlowAccumulati
 - **Effort justification**: 4-6h investment validates 20-28h particle erosion foundation
 - **Success Metric**: Sink analysis shows >85% ocean, <10% inland pits (healthy heightmap!)
 - **Next step after VS_029**: Implement full particle-based erosion (rename existing VS_029 Roadmap spec to VS_030?)
+
+**Dev Engineer Implementation Progress** (2025-10-13):
+
+✅ **COMPLETED - Phases 1-4 (Original Scope)**:
+- Phase 1: Core Integration - WorldGenerationResult extended with Phase1ErosionData + PreFillingLocalMinima
+- Phase 2: View Modes - Added 6 new MapViewMode enum values (SinksPreFilling, SinksPostFilling, FilledElevation, FlowDirections, FlowAccumulation, RiverSources)
+- Phase 3: Rendering Logic - 6 rendering methods implemented with comprehensive diagnostic logging
+- Phase 4: UI Integration - Dropdown options added to WorldMapUINode
+- Tests: All 495+ tests GREEN, clean build (zero warnings)
+- Manual Validation: Flow directions, flow accumulation visualizations working
+
+✅ **COMPLETED - Algorithm Correction (Based on tmp.md Critique)**:
+- **Root Cause**: Original RiverSourceDetector had fundamental logical flaw - used "high elevation + high accumulation" which finds major rivers IN mountains, not river ORIGINS
+- **Key Insight**: "A point cannot simultaneously be a 'starting point' and a 'result'" - sources need LOW accumulation (just crossed threshold), not HIGH accumulation (already a major river)
+- **Fix Implemented**: Two-step hybrid approach
+  - Step 1: `DetectAllSources()` - Threshold-crossing algorithm (finds where flow FIRST becomes "a river")
+  - Step 2: `FilterMajorRivers()` - Downstream tracing ranks sources by importance, selects top 5-15
+  - Preserved: `DetectErosionHotspots()` - Old algorithm repurposed for VS_030+ erosion masking (high elevation + high flow = canyon zones)
+- **Files Modified**:
+  - RiverSourceDetector.cs - Complete rewrite (352 lines, 3 methods)
+  - HydraulicErosionProcessor.cs - Updated to use two-step process
+  - MapViewMode.cs - Added ErosionHotspots enum value
+- **Build Status**: Core compiles cleanly, all tests pass
+
+🚧 **REMAINING WORK - Presentation Layer** (Next Session):
+1. **WorldMapRendererNode.cs** (~30 min):
+   - Add `case MapViewMode.ErosionHotspots:` to switch statement (line ~193+)
+   - Implement `RenderErosionHotspots()` method (copy RenderRiverSources, change cyan→magenta markers)
+   - Update `RenderRiverSources()` logging to show: "RIVER SOURCES (CORRECTED): {AllCount} threshold crossings detected | Filtered to {FilteredCount} major rivers"
+2. **WorldMapUINode.cs** (~5 min):
+   - Add dropdown item: `_viewModeDropdown.AddItem("Erosion: 5. Erosion Hotspots", (int)MapViewMode.ErosionHotspots);` (after line 129)
+3. **Testing** (~15 min):
+   - Regenerate world, verify River Sources view now shows true origins (scattered sources, not just mountain arteries)
+   - Verify Erosion Hotspots view shows high-energy canyon zones (magenta markers)
+   - Confirm log output shows corrected algorithm metrics
+4. **Final commit** - Presentation layer changes
+
+**Expected Outcome After Completion**:
+- River Sources: Shows physically correct river origins (100s of threshold crossings → filtered to 5-15 major)
+- Erosion Hotspots: Shows high-erosion zones for particle erosion masking (VS_030+)
+- Both views serve distinct purposes: Physical correctness (sources) vs artistic control (hotspots)
 
 ---
 

@@ -111,17 +111,26 @@ public static class HydraulicErosionProcessor
             height);
 
         // ═══════════════════════════════════════════════════════════════════════
-        // STEP 1e: River Source Detection (O(n) - Threshold Check)
+        // STEP 1e: River Source Detection (O(n) - TWO-STEP: Threshold-Crossing + Filtering)
         // ═══════════════════════════════════════════════════════════════════════
-        // Find mountain cells with large accumulated flow (realistic river density!)
+        // NEW ALGORITHM (CORRECTED):
+        // Step 1: Find ALL threshold-crossing points (where flow FIRST becomes "a river")
+        // Step 2: Filter to select only MAJOR rivers (ranked by downstream importance)
 
-        var riverSources = RiverSourceDetector.Detect(
-            filledHeightmap,
+        // Step 1: Detect all potential sources (physically correct threshold-crossing)
+        var allPotentialSources = RiverSourceDetector.DetectAllSources(
             flowAccumulation,
-            thresholds.MountainLevel,
-            accumulationThreshold,
-            width,
-            height);
+            flowDirections,
+            oceanMask,
+            threshold: null);  // Uses adaptive 15th percentile threshold
+
+        // Step 2: Filter to select major rivers only (artistic control)
+        var riverSources = RiverSourceDetector.FilterMajorRivers(
+            allPotentialSources,
+            flowAccumulation,
+            flowDirections,
+            oceanMask,
+            maxMajorRivers: 15);  // Target 5-15 major rivers
 
         // ═══════════════════════════════════════════════════════════════════════
         // RETURN: Phase 1 Erosion Data (foundation for river tracing)

@@ -190,6 +190,72 @@ public partial class WorldMapRendererNode : Sprite2D
                 }
                 break;
 
+            case MapViewMode.SinksPreFilling:
+                if (_worldData.PreFillingLocalMinima != null && _worldData.PostProcessedHeightmap != null && _worldData.OceanMask != null)
+                {
+                    RenderSinksPreFilling(_worldData.PostProcessedHeightmap, _worldData.OceanMask, _worldData.PreFillingLocalMinima);
+                }
+                else
+                {
+                    _logger?.LogWarning("SinksPreFilling data not available");
+                }
+                break;
+
+            case MapViewMode.SinksPostFilling:
+                if (_worldData.Phase1Erosion != null && _worldData.Phase1Erosion.FilledHeightmap != null && _worldData.OceanMask != null)
+                {
+                    RenderSinksPostFilling(_worldData.Phase1Erosion.FilledHeightmap, _worldData.OceanMask, _worldData.Phase1Erosion.Lakes);
+                }
+                else
+                {
+                    _logger?.LogWarning("SinksPostFilling data not available");
+                }
+                break;
+
+            case MapViewMode.FilledElevation:
+                if (_worldData.Phase1Erosion != null)
+                {
+                    RenderColoredElevation(_worldData.Phase1Erosion.FilledHeightmap);
+                }
+                else
+                {
+                    _logger?.LogWarning("FilledElevation not available");
+                }
+                break;
+
+            case MapViewMode.FlowDirections:
+                if (_worldData.Phase1Erosion != null)
+                {
+                    RenderFlowDirections(_worldData.Phase1Erosion.FlowDirections);
+                }
+                else
+                {
+                    _logger?.LogWarning("FlowDirections not available");
+                }
+                break;
+
+            case MapViewMode.FlowAccumulation:
+                if (_worldData.Phase1Erosion != null)
+                {
+                    RenderFlowAccumulation(_worldData.Phase1Erosion.FlowAccumulation);
+                }
+                else
+                {
+                    _logger?.LogWarning("FlowAccumulation not available");
+                }
+                break;
+
+            case MapViewMode.RiverSources:
+                if (_worldData.Phase1Erosion != null && _worldData.Phase1Erosion.FilledHeightmap != null)
+                {
+                    RenderRiverSources(_worldData.Phase1Erosion.FilledHeightmap, _worldData.Phase1Erosion.RiverSources);
+                }
+                else
+                {
+                    _logger?.LogWarning("RiverSources not available");
+                }
+                break;
+
             default:
                 _logger?.LogError("Unknown view mode: {ViewMode}", _currentViewMode);
                 break;
@@ -622,5 +688,352 @@ public partial class WorldMapRendererNode : Sprite2D
 
         float t = Mathf.Clamp((value - min) / delta, 0f, 1f);
         return colorA.Lerp(colorB, t);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // VS_029: D-8 Flow Visualization Rendering Methods
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Renders sinks BEFORE pit-filling (VS_029 Step 0A).
+    /// Grayscale elevation + Red markers for ALL local minima (artifacts + real pits).
+    /// Purpose: Baseline for pit-filling effectiveness comparison.
+    /// </summary>
+    private void RenderSinksPreFilling(float[,] heightmap, bool[,] oceanMask, System.Collections.Generic.List<(int x, int y)> sinks)
+    {
+        int h = heightmap.GetLength(0);
+        int w = heightmap.GetLength(1);
+        var image = Image.CreateEmpty(w, h, false, Image.Format.Rgb8);
+
+        // Step 1: Render grayscale elevation base
+        float min = float.MaxValue, max = float.MinValue;
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                float v = heightmap[y, x];
+                if (v < min) min = v;
+                if (v > max) max = v;
+            }
+        }
+
+        float delta = Math.Max(1e-6f, max - min);
+
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                float t = (heightmap[y, x] - min) / delta;
+                image.SetPixel(x, y, new Color(t, t, t));
+            }
+        }
+
+        // Step 2: Mark sinks with red markers
+        Color sinkMarker = new Color(1f, 0f, 0f);  // Bright red
+        foreach (var (x, y) in sinks)
+        {
+            if (x >= 0 && x < w && y >= 0 && y < h)
+            {
+                image.SetPixel(x, y, sinkMarker);
+            }
+        }
+
+        Texture = ImageTexture.CreateFromImage(image);
+
+        // Calculate land cell percentage
+        int landCells = 0;
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                if (!oceanMask[y, x]) landCells++;
+            }
+        }
+
+        float landPercentage = landCells > 0 ? (sinks.Count / (float)landCells) * 100f : 0f;
+
+        _logger?.LogInformation(
+            "PRE-FILLING SINKS: Total={Count} ({Percentage:F1}% of land cells) | BASELINE for pit-filling | Ocean sinks excluded",
+            sinks.Count, landPercentage);
+    }
+
+    /// <summary>
+    /// Renders sinks AFTER pit-filling (VS_029 Step 0B).
+    /// Grayscale elevation + Red markers for preserved lakes.
+    /// Purpose: Validate pit-filling algorithm (artifacts filled, real lakes preserved).
+    /// </summary>
+    private void RenderSinksPostFilling(float[,] heightmap, bool[,] oceanMask, System.Collections.Generic.List<(int x, int y)> lakes)
+    {
+        int h = heightmap.GetLength(0);
+        int w = heightmap.GetLength(1);
+        var image = Image.CreateEmpty(w, h, false, Image.Format.Rgb8);
+
+        // Step 1: Render grayscale elevation base (filled heightmap)
+        float min = float.MaxValue, max = float.MinValue;
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                float v = heightmap[y, x];
+                if (v < min) min = v;
+                if (v > max) max = v;
+            }
+        }
+
+        float delta = Math.Max(1e-6f, max - min);
+
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                float t = (heightmap[y, x] - min) / delta;
+                image.SetPixel(x, y, new Color(t, t, t));
+            }
+        }
+
+        // Step 2: Mark preserved lakes with red markers
+        Color lakeMarker = new Color(1f, 0f, 0f);  // Bright red
+        foreach (var (x, y) in lakes)
+        {
+            if (x >= 0 && x < w && y >= 0 && y < h)
+            {
+                image.SetPixel(x, y, lakeMarker);
+            }
+        }
+
+        Texture = ImageTexture.CreateFromImage(image);
+
+        // Calculate land cell percentage
+        int landCells = 0;
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                if (!oceanMask[y, x]) landCells++;
+            }
+        }
+
+        float landPercentage = landCells > 0 ? (lakes.Count / (float)landCells) * 100f : 0f;
+
+        _logger?.LogInformation(
+            "POST-FILLING SINKS: Total={Count} ({Percentage:F1}% of land cells) | Lakes preserved={LakeCount}",
+            lakes.Count, landPercentage, lakes.Count);
+    }
+
+    /// <summary>
+    /// Renders D-8 flow directions (VS_029 Step 2).
+    /// 8-color gradient: N=Red, NE=Yellow, E=Green, SE=Cyan, S=Blue, SW=Purple, W=Magenta, NW=Orange, Sink=Black.
+    /// Purpose: Validate D-8 algorithm correctness (steepest descent).
+    /// </summary>
+    private void RenderFlowDirections(int[,] flowDirections)
+    {
+        int h = flowDirections.GetLength(0);
+        int w = flowDirections.GetLength(1);
+        var image = Image.CreateEmpty(w, h, false, Image.Format.Rgb8);
+
+        // Direction colors (8 directions + sink)
+        Color[] directionColors = new Color[9]
+        {
+            new Color(1f, 0f, 0f),      // 0: North - Red
+            new Color(1f, 1f, 0f),      // 1: NE - Yellow
+            new Color(0f, 1f, 0f),      // 2: East - Green
+            new Color(0f, 1f, 1f),      // 3: SE - Cyan
+            new Color(0f, 0f, 1f),      // 4: South - Blue
+            new Color(0.5f, 0f, 0.5f),  // 5: SW - Purple
+            new Color(1f, 0f, 1f),      // 6: West - Magenta
+            new Color(1f, 0.5f, 0f),    // 7: NW - Orange
+            new Color(0f, 0f, 0f)       // -1: Sink - Black
+        };
+
+        // Count direction distribution for logging
+        int[] directionCounts = new int[9];
+
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                int dir = flowDirections[y, x];
+                int colorIndex = dir == -1 ? 8 : dir;  // -1 (sink) → index 8
+                image.SetPixel(x, y, directionColors[colorIndex]);
+
+                // Count for stats
+                directionCounts[colorIndex]++;
+            }
+        }
+
+        Texture = ImageTexture.CreateFromImage(image);
+
+        // Calculate statistics
+        int totalCells = w * h;
+        float sinkPercent = (directionCounts[8] / (float)totalCells) * 100f;
+
+        _logger?.LogInformation(
+            "FLOW DIRECTIONS: Distribution N={N:F1}% NE={NE:F1}% E={E:F1}% SE={SE:F1}% S={S:F1}% SW={SW:F1}% W={W:F1}% NW={NW:F1}% Sinks={Sinks:F1}% ({SinkCount} cells)",
+            (directionCounts[0] / (float)totalCells) * 100f,
+            (directionCounts[1] / (float)totalCells) * 100f,
+            (directionCounts[2] / (float)totalCells) * 100f,
+            (directionCounts[3] / (float)totalCells) * 100f,
+            (directionCounts[4] / (float)totalCells) * 100f,
+            (directionCounts[5] / (float)totalCells) * 100f,
+            (directionCounts[6] / (float)totalCells) * 100f,
+            (directionCounts[7] / (float)totalCells) * 100f,
+            sinkPercent,
+            directionCounts[8]);
+    }
+
+    /// <summary>
+    /// Renders flow accumulation (VS_029 Step 3).
+    /// Heat map: Blue (low) → Green → Yellow → Red (high drainage).
+    /// Purpose: Validate topological sort (drainage concentration in valleys).
+    /// </summary>
+    private void RenderFlowAccumulation(float[,] flowAccumulation)
+    {
+        int h = flowAccumulation.GetLength(0);
+        int w = flowAccumulation.GetLength(1);
+        var image = Image.CreateEmpty(w, h, false, Image.Format.Rgb8);
+
+        // Find min/max for normalization
+        float min = float.MaxValue, max = float.MinValue;
+        double sum = 0;
+        int count = 0;
+
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                float v = flowAccumulation[y, x];
+                if (v < min) min = v;
+                if (v > max) max = v;
+                sum += v;
+                count++;
+            }
+        }
+
+        float mean = (float)(sum / count);
+        float delta = Math.Max(1e-6f, max - min);
+
+        // Calculate 95th percentile for river valley detection
+        var sortedValues = new System.Collections.Generic.List<float>(w * h);
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                sortedValues.Add(flowAccumulation[y, x]);
+            }
+        }
+        sortedValues.Sort();
+        float p95 = GetPercentileFromSorted(sortedValues, 0.95f);
+
+        // Render heat map (Blue → Green → Yellow → Red)
+        Color lowColor = new Color(0f, 0f, 1f);       // Blue (low accumulation)
+        Color medColor = new Color(0f, 1f, 0f);       // Green (medium)
+        Color highColor = new Color(1f, 1f, 0f);      // Yellow (high)
+        Color veryHighColor = new Color(1f, 0f, 0f);  // Red (river valleys)
+
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                float t = (flowAccumulation[y, x] - min) / delta;  // Normalize [0,1]
+
+                Color color;
+                if (t < 0.33f)
+                {
+                    color = Gradient(t, 0f, 0.33f, lowColor, medColor);
+                }
+                else if (t < 0.66f)
+                {
+                    color = Gradient(t, 0.33f, 0.66f, medColor, highColor);
+                }
+                else
+                {
+                    color = Gradient(t, 0.66f, 1.0f, highColor, veryHighColor);
+                }
+
+                image.SetPixel(x, y, color);
+            }
+        }
+
+        Texture = ImageTexture.CreateFromImage(image);
+
+        float p95ToMeanRatio = mean > 0 ? p95 / mean : 0f;
+
+        _logger?.LogInformation(
+            "FLOW ACCUMULATION: min={Min:F4}, max={Max:F4}, mean={Mean:F4}, p95={P95:F4} | p95/mean={Ratio:F1}x (expect >5x for river valleys)",
+            min, max, mean, p95, p95ToMeanRatio);
+    }
+
+    /// <summary>
+    /// Renders river sources (VS_029 Step 4).
+    /// Colored elevation base + Cyan markers at spawn points.
+    /// Purpose: Validate source detection thresholds (expect 5-15 major rivers).
+    /// </summary>
+    private void RenderRiverSources(float[,] heightmap, System.Collections.Generic.List<(int x, int y)> riverSources)
+    {
+        int h = heightmap.GetLength(0);
+        int w = heightmap.GetLength(1);
+        var image = Image.CreateEmpty(w, h, false, Image.Format.Rgb8);
+
+        // Step 1: Render colored elevation base (reuse existing logic)
+        float min = float.MaxValue, max = float.MinValue;
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                float v = heightmap[y, x];
+                if (v < min) min = v;
+                if (v > max) max = v;
+            }
+        }
+
+        float delta = Math.Max(1e-6f, max - min);
+
+        // Normalize and calculate quantiles
+        var normalizedHeightmap = new float[h, w];
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                normalizedHeightmap[y, x] = (heightmap[y, x] - min) / delta;
+            }
+        }
+
+        float q15 = FindQuantile(normalizedHeightmap, 0.15f);
+        float q70 = FindQuantile(normalizedHeightmap, 0.70f);
+        float q75 = FindQuantile(normalizedHeightmap, 0.75f);
+        float q90 = FindQuantile(normalizedHeightmap, 0.90f);
+        float q95 = FindQuantile(normalizedHeightmap, 0.95f);
+        float q99 = FindQuantile(normalizedHeightmap, 0.99f);
+
+        // Render colored elevation
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                float elevation = normalizedHeightmap[y, x];
+                Color color = GetQuantileTerrainColor(elevation, q15, q70, q75, q90, q95, q99);
+                image.SetPixel(x, y, color);
+            }
+        }
+
+        // Step 2: Mark river sources with cyan markers
+        Color sourceMarker = new Color(0f, 1f, 1f);  // Cyan (stands out on terrain)
+        foreach (var (x, y) in riverSources)
+        {
+            if (x >= 0 && x < w && y >= 0 && y < h)
+            {
+                image.SetPixel(x, y, sourceMarker);
+            }
+        }
+
+        Texture = ImageTexture.CreateFromImage(image);
+
+        // Calculate density (sources per land area)
+        int totalCells = w * h;
+        float sourceDensity = (riverSources.Count / (float)totalCells) * 100f;
+
+        _logger?.LogInformation(
+            "RIVER SOURCES: {Count} detected | Density={Density:F2}% of total cells (expect 0.01-0.1% for 512x512 = 5-15 major rivers)",
+            riverSources.Count, sourceDensity);
     }
 }
