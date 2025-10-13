@@ -103,6 +103,14 @@ public partial class WorldMapProbeNode : Node
             MapViewMode.PrecipitationWithRainShadow => HIGHLIGHT_COLOR_COLORED,
             MapViewMode.PrecipitationFinal => HIGHLIGHT_COLOR_COLORED,
 
+            // VS_029: Erosion debug modes - use magenta on grayscale, red on colored
+            MapViewMode.SinksPreFilling => HIGHLIGHT_COLOR_RAW,         // Magenta on grayscale
+            MapViewMode.SinksPostFilling => HIGHLIGHT_COLOR_RAW,        // Magenta on grayscale
+            MapViewMode.FlowDirections => HIGHLIGHT_COLOR_COLORED,      // Red on 8-color gradient
+            MapViewMode.FlowAccumulation => HIGHLIGHT_COLOR_COLORED,    // Red on heat map
+            MapViewMode.RiverSources => HIGHLIGHT_COLOR_RAW,            // Magenta on grayscale
+            MapViewMode.ErosionHotspots => HIGHLIGHT_COLOR_COLORED,     // Red on colored elevation
+
             _ => HIGHLIGHT_COLOR_COLORED
         };
 
@@ -222,6 +230,25 @@ public partial class WorldMapProbeNode : Node
             // VS_028: Coastal moisture mode - show stage 5 with distance + bonus info
             MapViewMode.PrecipitationFinal =>
                 BuildCoastalMoistureProbeData(x, y, worldData),
+
+            // VS_029: Erosion debug modes - D-8 flow visualization
+            MapViewMode.SinksPreFilling =>
+                BuildSinksPreFillingProbeData(x, y, worldData),
+
+            MapViewMode.SinksPostFilling =>
+                BuildSinksPostFillingProbeData(x, y, worldData),
+
+            MapViewMode.FlowDirections =>
+                BuildFlowDirectionsProbeData(x, y, worldData),
+
+            MapViewMode.FlowAccumulation =>
+                BuildFlowAccumulationProbeData(x, y, worldData),
+
+            MapViewMode.RiverSources =>
+                BuildRiverSourcesProbeData(x, y, worldData),
+
+            MapViewMode.ErosionHotspots =>
+                BuildErosionHotspotsProbeData(x, y, worldData),
 
             _ => $"Cell ({x},{y})\nUnknown view"
         };
@@ -591,5 +618,392 @@ public partial class WorldMapProbeNode : Node
         }
 
         return header + rainShadow + final + bonus + elevInfo;
+    }
+
+    /// <summary>
+    /// Builds probe data for Sinks (PRE-Filling) view (VS_029 Step 0A).
+    /// Shows: raw elevation, whether this cell is a local minimum (sink), total pre-filling sink count.
+    /// </summary>
+    private string BuildSinksPreFillingProbeData(
+        int x,
+        int y,
+        Core.Features.WorldGen.Application.DTOs.WorldGenerationResult worldData)
+    {
+        var data = $"Cell ({x},{y})\nPRE-Filling Sinks\n\n";
+
+        // Get elevation (use post-processed before pit-filling)
+        float? elevation = worldData.PostProcessedHeightmap?[y, x];
+        bool? isOcean = worldData.OceanMask?[y, x];
+
+        // Check if this cell is a pre-filling sink
+        bool isSink = worldData.PreFillingLocalMinima?.Contains((x, y)) ?? false;
+
+        // Show elevation
+        if (elevation.HasValue)
+            data += $"Elevation: {elevation.Value:F2}\n";
+
+        // Ocean status
+        if (isOcean == true)
+            data += "Type: Ocean\n";
+        else
+            data += "Type: Land\n";
+
+        data += "\n";
+
+        // Show sink status
+        if (isSink)
+            data += "LOCAL MINIMUM\n(Sink before pit-filling)\n";
+        else
+            data += "Not a sink\n";
+
+        // Show total count
+        int totalSinks = worldData.PreFillingLocalMinima?.Count ?? 0;
+        data += $"\nTotal Pre-Filling Sinks: {totalSinks}\n";
+
+        // Calculate percentage of land cells
+        if (totalSinks > 0 && worldData.OceanMask != null)
+        {
+            int landCells = 0;
+            for (int j = 0; j < worldData.Height; j++)
+                for (int i = 0; i < worldData.Width; i++)
+                    if (!worldData.OceanMask[j, i]) landCells++;
+
+            float percentage = landCells > 0 ? (totalSinks * 100f / landCells) : 0f;
+            data += $"({percentage:F1}% of land cells)\n";
+        }
+
+        return data;
+    }
+
+    /// <summary>
+    /// Builds probe data for Sinks (POST-Filling) view (VS_029 Step 0B).
+    /// Shows: filled elevation, whether this cell is still a sink, reduction from pre-filling.
+    /// </summary>
+    private string BuildSinksPostFillingProbeData(
+        int x,
+        int y,
+        Core.Features.WorldGen.Application.DTOs.WorldGenerationResult worldData)
+    {
+        var data = $"Cell ({x},{y})\nPOST-Filling Sinks\n\n";
+
+        var erosionData = worldData.Phase1Erosion;
+        if (erosionData == null)
+        {
+            return data + "(No erosion data - regenerate world)";
+        }
+
+        // Get filled elevation
+        float filledElevation = erosionData.FilledHeightmap[y, x];
+        bool? isOcean = worldData.OceanMask?[y, x];
+
+        // Check if this cell is a post-filling sink (flow direction = -1)
+        int flowDir = erosionData.FlowDirections[y, x];
+        bool isSink = flowDir == -1;
+
+        // Show elevation
+        data += $"Elevation: {filledElevation:F2}\n";
+
+        // Ocean status
+        if (isOcean == true)
+            data += "Type: Ocean\n";
+        else
+            data += "Type: Land\n";
+
+        data += "\n";
+
+        // Show sink status
+        if (isSink)
+        {
+            // Check if it's a preserved lake
+            bool isLake = erosionData.Lakes.Contains((x, y));
+            if (isLake)
+                data += "PRESERVED LAKE\n(Large endorheic basin)\n";
+            else
+                data += "LOCAL MINIMUM\n(Remaining sink)\n";
+        }
+        else
+            data += "Not a sink\n(Drains to lower cell)\n";
+
+        // Show reduction statistics
+        int preSinks = worldData.PreFillingLocalMinima?.Count ?? 0;
+        int postSinks = 0;
+
+        // Count post-filling sinks
+        for (int j = 0; j < worldData.Height; j++)
+            for (int i = 0; i < worldData.Width; i++)
+                if (erosionData.FlowDirections[j, i] == -1) postSinks++;
+
+        data += $"\nPit-Filling Results:\n";
+        data += $"Before: {preSinks} sinks\n";
+        data += $"After: {postSinks} sinks\n";
+
+        if (preSinks > 0)
+        {
+            float reduction = ((preSinks - postSinks) * 100f) / preSinks;
+            data += $"Reduction: {reduction:F1}%\n";
+        }
+
+        return data;
+    }
+
+    /// <summary>
+    /// Builds probe data for Flow Directions view (VS_029 Step 2).
+    /// Shows: flow direction code, compass direction, elevation, whether cell drains.
+    /// </summary>
+    private string BuildFlowDirectionsProbeData(
+        int x,
+        int y,
+        Core.Features.WorldGen.Application.DTOs.WorldGenerationResult worldData)
+    {
+        var data = $"Cell ({x},{y})\nFlow Directions\n\n";
+
+        var erosionData = worldData.Phase1Erosion;
+        if (erosionData == null)
+        {
+            return data + "(No erosion data - regenerate world)";
+        }
+
+        // Get flow direction
+        int flowDir = erosionData.FlowDirections[y, x];
+        float elevation = erosionData.FilledHeightmap[y, x];
+        bool? isOcean = worldData.OceanMask?[y, x];
+
+        // Show elevation
+        data += $"Elevation: {elevation:F2}\n";
+
+        // Ocean status
+        if (isOcean == true)
+            data += "Type: Ocean (sink)\n\n";
+        else
+            data += "Type: Land\n\n";
+
+        // Show flow direction
+        if (flowDir == -1)
+        {
+            data += "Direction: SINK\n";
+            data += "(Local minimum - no flow)\n";
+        }
+        else
+        {
+            string[] dirNames = { "N ↑", "NE ↗", "E →", "SE ↘", "S ↓", "SW ↙", "W ←", "NW ↖" };
+            data += $"Direction: {dirNames[flowDir]}\n";
+            data += $"Code: {flowDir}\n";
+
+            // Calculate neighbor position
+            int[] dx = { 0, 1, 1, 1, 0, -1, -1, -1 };
+            int[] dy = { -1, -1, 0, 1, 1, 1, 0, -1 };
+
+            int nx = x + dx[flowDir];
+            int ny = y + dy[flowDir];
+
+            // Show downstream elevation if in bounds
+            if (nx >= 0 && nx < worldData.Width && ny >= 0 && ny < worldData.Height)
+            {
+                float downstreamElev = erosionData.FilledHeightmap[ny, nx];
+                float drop = elevation - downstreamElev;
+                data += $"\nDownstream: {downstreamElev:F2}\n";
+                data += $"Drop: {drop:F2}\n";
+            }
+        }
+
+        return data;
+    }
+
+    /// <summary>
+    /// Builds probe data for Flow Accumulation view (VS_029 Step 3).
+    /// Shows: accumulation value, percentile rank, drainage area estimate.
+    /// </summary>
+    private string BuildFlowAccumulationProbeData(
+        int x,
+        int y,
+        Core.Features.WorldGen.Application.DTOs.WorldGenerationResult worldData)
+    {
+        var data = $"Cell ({x},{y})\nFlow Accumulation\n\n";
+
+        var erosionData = worldData.Phase1Erosion;
+        if (erosionData == null)
+        {
+            return data + "(No erosion data - regenerate world)";
+        }
+
+        // Get accumulation
+        float accumulation = erosionData.FlowAccumulation[y, x];
+        bool? isOcean = worldData.OceanMask?[y, x];
+
+        // Show value
+        data += $"Accumulation: {accumulation:F3}\n";
+
+        // Ocean cells show as "no flow"
+        if (isOcean == true)
+        {
+            data += "Type: Ocean\n";
+            data += "(Terminal sink - no flow data)\n";
+            return data;
+        }
+
+        // Calculate percentile rank among land cells
+        var landAccumulations = new System.Collections.Generic.List<float>();
+        for (int j = 0; j < worldData.Height; j++)
+        {
+            for (int i = 0; i < worldData.Width; i++)
+            {
+                if (worldData.OceanMask?[j, i] == false)
+                {
+                    landAccumulations.Add(erosionData.FlowAccumulation[j, i]);
+                }
+            }
+        }
+
+        if (landAccumulations.Count > 0)
+        {
+            landAccumulations.Sort();
+            int rank = landAccumulations.BinarySearch(accumulation);
+            if (rank < 0) rank = ~rank; // Handle insertion point
+            float percentile = (rank * 100f) / landAccumulations.Count;
+
+            data += $"Percentile: {percentile:F1}%\n";
+
+            // Classification
+            if (percentile > 95f)
+                data += "Class: Major River\n";
+            else if (percentile > 80f)
+                data += "Class: River\n";
+            else if (percentile > 50f)
+                data += "Class: Stream\n";
+            else
+                data += "Class: Low flow\n";
+        }
+
+        return data;
+    }
+
+    /// <summary>
+    /// Builds probe data for River Sources view (VS_029 Step 4).
+    /// Shows: whether cell is a river source, elevation, accumulation threshold.
+    /// </summary>
+    private string BuildRiverSourcesProbeData(
+        int x,
+        int y,
+        Core.Features.WorldGen.Application.DTOs.WorldGenerationResult worldData)
+    {
+        var data = $"Cell ({x},{y})\nRiver Sources\n\n";
+
+        var erosionData = worldData.Phase1Erosion;
+        if (erosionData == null)
+        {
+            return data + "(No erosion data - regenerate world)";
+        }
+
+        // Get data
+        float elevation = erosionData.FilledHeightmap[y, x];
+        float accumulation = erosionData.FlowAccumulation[y, x];
+        bool isSource = erosionData.RiverSources.Contains((x, y));
+        bool? isOcean = worldData.OceanMask?[y, x];
+
+        // Show elevation
+        data += $"Elevation: {elevation:F2}\n";
+        data += $"Accumulation: {accumulation:F3}\n";
+
+        // Ocean status
+        if (isOcean == true)
+            data += "Type: Ocean\n\n";
+        else
+            data += "Type: Land\n\n";
+
+        // Show source status
+        if (isSource)
+        {
+            data += "RIVER SOURCE\n";
+            data += "(Major river origin)\n";
+        }
+        else
+        {
+            data += "Not a river source\n";
+
+            // Explain why not (elevation or accumulation)
+            var thresholds = worldData.Thresholds;
+            if (thresholds != null && elevation < thresholds.MountainLevel)
+            {
+                data += "(Elevation too low)\n";
+            }
+            else
+            {
+                data += "(Accumulation below threshold)\n";
+            }
+        }
+
+        // Show total source count
+        int totalSources = erosionData.RiverSources.Count;
+        data += $"\nTotal River Sources: {totalSources}\n";
+
+        return data;
+    }
+
+    /// <summary>
+    /// Builds probe data for Erosion Hotspots view (VS_029 - repurposed old algorithm).
+    /// Shows: erosion potential (elevation × accumulation), classification.
+    /// </summary>
+    private string BuildErosionHotspotsProbeData(
+        int x,
+        int y,
+        Core.Features.WorldGen.Application.DTOs.WorldGenerationResult worldData)
+    {
+        var data = $"Cell ({x},{y})\nErosion Hotspots\n\n";
+
+        var erosionData = worldData.Phase1Erosion;
+        if (erosionData == null)
+        {
+            return data + "(No erosion data - regenerate world)";
+        }
+
+        // Get data
+        float elevation = erosionData.FilledHeightmap[y, x];
+        float accumulation = erosionData.FlowAccumulation[y, x];
+        bool? isOcean = worldData.OceanMask?[y, x];
+
+        // Calculate erosion potential (simple product)
+        float erosionPotential = elevation * accumulation;
+
+        // Show values
+        data += $"Elevation: {elevation:F2}\n";
+        data += $"Accumulation: {accumulation:F3}\n";
+        data += $"Erosion Potential: {erosionPotential:F3}\n";
+
+        // Ocean status
+        if (isOcean == true)
+        {
+            data += "\nType: Ocean (no erosion)\n";
+            return data;
+        }
+
+        data += "\n";
+
+        // Classify erosion potential
+        var thresholds = worldData.Thresholds;
+        bool isHighElevation = thresholds != null && elevation >= thresholds.MountainLevel;
+        bool isHighFlow = accumulation > 0.01f; // Arbitrary threshold for display
+
+        if (isHighElevation && isHighFlow)
+        {
+            data += "EROSION HOTSPOT\n";
+            data += "(High mountains + major river)\n";
+            data += "Type: Canyon/gorge formation\n";
+        }
+        else if (isHighElevation)
+        {
+            data += "High elevation\n";
+            data += "(But low flow - minimal erosion)\n";
+        }
+        else if (isHighFlow)
+        {
+            data += "High flow\n";
+            data += "(But low elevation - deposition zone)\n";
+        }
+        else
+        {
+            data += "Low erosion potential\n";
+        }
+
+        return data;
     }
 }

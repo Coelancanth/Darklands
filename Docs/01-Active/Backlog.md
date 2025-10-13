@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-13 15:14 (Dev Engineer: Completed VS_029 - D-8 visualization + Gaussian blur heightmap fix + ocean masking)
+**Last Updated**: 2025-10-13 15:28 (Dev Engineer: Added probe handlers for VS_029 erosion debug views)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -383,6 +383,22 @@ Fixed topological sort → Re-run worldgen → Start from Step 3 (FlowAccumulati
 **Quality Note**:
 - Pit-filling still shows 0% POST-filling sinks (too aggressive) - deferring threshold tuning to future work
 - Current priority: Visualization validated, Gaussian blur fixes root noise issue
+
+**Follow-Up Work** (2025-10-13 15:28):
+
+✅ **Probe Function Enhancement**:
+- **Problem**: Cell probe (Q key) showed "Unknown view" for all 6 erosion debug modes
+- **Fix**: Added 6 view-mode-specific probe handlers to WorldMapProbeNode.cs
+  - `BuildSinksPreFillingProbeData()` - Shows pre-filling sink status + total count
+  - `BuildSinksPostFillingProbeData()` - Shows post-filling status + reduction %
+  - `BuildFlowDirectionsProbeData()` - Shows direction code (0-7) + compass arrow + downstream elevation
+  - `BuildFlowAccumulationProbeData()` - Shows accumulation value + percentile rank + classification
+  - `BuildRiverSourcesProbeData()` - Shows source status + total count + why non-sources don't qualify
+  - `BuildErosionHotspotsProbeData()` - Shows erosion potential (elevation × accumulation) + classification
+- **Architecture**: Each probe queries Phase1ErosionData, shows both raw values (debug) and classifications (understanding)
+- **UX Enhancement**: Updated highlight colors (magenta on grayscale views, red on colored views)
+- **Result**: Press Q on any cell → View-mode-specific diagnostic data appears in UI panel
+- **Build Status**: Godot project compiles cleanly (0 warnings, 0 errors)
 
 ---
 

@@ -247,7 +247,8 @@
       "Bash(\"src/Darklands.Core/Features/Inventory/Application/Queries/CalculateHighlightCellsQuery.cs\")",
       "Bash(\"src/Darklands.Core/Features/Inventory/Application/Queries/CalculateHighlightCellsQueryHandler.cs\")",
       "Bash(./scripts/core/build.ps1 test \"Category=Inventory\")",
-      "Bash(./scripts/core/build.ps1 test --filter \"Category!=WorldGen&Category!=Integration\")"
+      "Bash(./scripts/core/build.ps1 test --filter \"Category!=WorldGen&Category!=Integration\")",
+      "Bash(Select-String -Pattern \"Warning\\(s\\)|Error\\(s\\)|Build succeeded|Build FAILED\")"
     ],
     "deny": [],
     "ask": [],
