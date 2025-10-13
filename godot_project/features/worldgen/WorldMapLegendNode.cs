@@ -245,13 +245,13 @@ public partial class WorldMapLegendNode : Control
                 break;
 
             case MapViewMode.FlowAccumulation:
-                // VS_029 Step 3: Flow accumulation heat map
-                AddLegendEntry("Flow Accumulation", new Color(0.8f, 0.8f, 0.8f), "Drainage basin size");
-                AddLegendEntry("Black", new Color(0f, 0f, 0f), "Ocean (no flow)");
-                AddLegendEntry("Blue", new Color(0f, 0f, 1f), "Low (hilltops)");
-                AddLegendEntry("Green", new Color(0f, 1f, 0f), "Medium (slopes)");
-                AddLegendEntry("Yellow", new Color(1f, 1f, 0f), "High (valleys)");
-                AddLegendEntry("Red", new Color(1f, 0f, 0f), "Very high (rivers)");
+                // VS_029 Step 3: Flow accumulation naturalistic (two-layer rendering)
+                AddLegendEntry("Flow Accumulation", new Color(0.8f, 0.8f, 0.8f), "Two-layer naturalistic");
+                AddLegendEntry("Prussian Blue", new Color(0f, 49f/255f, 83f/255f), "Ocean (deep)");
+                AddLegendEntry("Sandy Beige", new Color(180f/255f, 170f/255f, 150f/255f), "Lowlands (terrain)");
+                AddLegendEntry("Khaki", new Color(189f/255f, 183f/255f, 107f/255f), "Hills (terrain)");
+                AddLegendEntry("Faint Blue", new Color(0f, 0f, 139f/255f, 0.05f), "Low flow (barely visible)");
+                AddLegendEntry("Bright Cyan", new Color(0f, 191f/255f, 255f/255f), "High flow (rivers!)");
                 break;
 
             case MapViewMode.RiverSources:
