@@ -85,8 +85,7 @@ public partial class WorldMapUINode : Control
         // Title
         var titleLabel = new Label
         {
-            Text = "World Map Viewer",
-            Theme = GD.Load<Theme>("res://addons/default_theme.tres")
+            Text = "World Map Viewer"
         };
         container.AddChild(titleLabel);
 
