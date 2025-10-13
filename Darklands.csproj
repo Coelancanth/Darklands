@@ -14,18 +14,18 @@
   <ItemGroup>
     <!-- Logging - Serilog as provider for Microsoft.Extensions.Logging -->
     <PackageReference Include="Serilog" Version="4.3.0" />
-    <PackageReference Include="Serilog.Extensions.Logging" Version="8.0.0" />
+    <PackageReference Include="Serilog.Extensions.Logging" Version="9.0.2" />
     <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
-    <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
 
     <!-- Microsoft.Extensions.Logging implementations -->
-    <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.9" />
 
     <!-- Dependency Injection implementations -->
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.9" />
 
     <!-- Functional Programming - Analyzers for compile-time Result handling enforcement -->
-    <PackageReference Include="CSharpFunctionalExtensions.Analyzers" Version="1.0.0" />
+    <PackageReference Include="CSharpFunctionalExtensions.Analyzers" Version="1.4.1" />
   </ItemGroup>
 
   <ItemGroup>
@@ -44,6 +44,9 @@
 
   <ItemGroup>
     <!-- Exclude References folder from Godot compilation -->
+    <PackageReference Include="Godot.SourceGenerators" Version="4.5.0" />
+  <PackageReference Include="GodotSharp" Version="4.5.0" />
+  <PackageReference Include="GodotSharpEditor" Version="4.5.0" />
     <Compile Remove="References\**" />
     <EmbeddedResource Remove="References\**" />
     <None Remove="References\**" />

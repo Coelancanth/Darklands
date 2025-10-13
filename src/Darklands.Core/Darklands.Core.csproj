@@ -13,17 +13,17 @@
 
   <ItemGroup>
     <!-- Functional Programming -->
-    <PackageReference Include="CSharpFunctionalExtensions" Version="2.42.5" />
+    <PackageReference Include="CSharpFunctionalExtensions" Version="3.6.0" />
 
     <!-- CQRS Pattern -->
-    <PackageReference Include="MediatR" Version="12.4.1" />
+    <PackageReference Include="MediatR" Version="13.0.0" />
 
     <!-- Logging (Abstractions ONLY - implementations in Godot project) -->
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.9" />
 
     <!-- Dependency Injection (Core needs concrete implementation for GameStrapper) -->
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.9" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.9" />
   </ItemGroup>
 
   <!-- Allow tests to access internal types -->
