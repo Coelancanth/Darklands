@@ -123,11 +123,10 @@ public partial class WorldMapUINode : Control
         _viewModeDropdown.AddSeparator("─── Erosion Debug (VS_029) ───");
         _viewModeDropdown.AddItem("Erosion: 0A. Sinks (PRE-Filling)", (int)MapViewMode.SinksPreFilling);
         _viewModeDropdown.AddItem("Erosion: 0B. Sinks (POST-Filling)", (int)MapViewMode.SinksPostFilling);
-        _viewModeDropdown.AddItem("Erosion: 1. Filled Elevation", (int)MapViewMode.FilledElevation);
-        _viewModeDropdown.AddItem("Erosion: 2. Flow Directions", (int)MapViewMode.FlowDirections);
-        _viewModeDropdown.AddItem("Erosion: 3. Flow Accumulation", (int)MapViewMode.FlowAccumulation);
-        _viewModeDropdown.AddItem("Erosion: 4. River Sources", (int)MapViewMode.RiverSources);
-        _viewModeDropdown.AddItem("Erosion: 5. Erosion Hotspots", (int)MapViewMode.ErosionHotspots);
+        _viewModeDropdown.AddItem("Erosion: 1. Flow Directions", (int)MapViewMode.FlowDirections);
+        _viewModeDropdown.AddItem("Erosion: 2. Flow Accumulation", (int)MapViewMode.FlowAccumulation);
+        _viewModeDropdown.AddItem("Erosion: 3. River Sources", (int)MapViewMode.RiverSources);
+        _viewModeDropdown.AddItem("Erosion: 4. Erosion Hotspots", (int)MapViewMode.ErosionHotspots);
 
         _viewModeDropdown.Selected = 0;  // ColoredOriginalElevation is default
         _viewModeDropdown.ItemSelected += OnViewModeSelected;

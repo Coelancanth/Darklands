@@ -48,15 +48,29 @@ public class GenerateWorldPipeline : IWorldGenerationPipeline
             nativeResult.Value.Width, nativeResult.Value.Height);
 
         // ═══════════════════════════════════════════════════════════════════════
+        // STAGE 0.5: Gaussian Smoothing (tmp.md fix - removes native plate noise)
+        // ═══════════════════════════════════════════════════════════════════════
+        // Problem: Native C++ plate simulation outputs high-frequency noise (3.3% land sinks before pit-filling)
+        // Solution: Low-pass filter via Gaussian blur (preserves mountains/valleys, removes micro-pits)
+        // Target: Reduce PRE-filling sinks from 3.3% to <2.0% (healthy baseline for pit-filling)
+
+        var smoothedHeightmap = (float[,])nativeResult.Value.Heightmap.Clone();
+        ElevationPostProcessor.ApplyGaussianBlur(smoothedHeightmap, sigma: 1.5f);
+
+        _logger.LogInformation(
+            "Stage 0.5 complete: Gaussian smoothing applied (sigma=1.5, removes high-frequency noise from native plate simulation)");
+
+        // ═══════════════════════════════════════════════════════════════════════
         // STAGE 1: Elevation Post-Processing (VS_024)
         // ═══════════════════════════════════════════════════════════════════════
         // WorldEngine algorithms: add_noise, fill_ocean, harmonize_ocean, sea_depth
         // Produces: PostProcessedHeightmap (raw [0-20]) + NormalizedHeightmap ([0,1]) + OceanMask + SeaDepth
 
         var postProcessed = ElevationPostProcessor.Process(
-            originalHeightmap: nativeResult.Value.Heightmap,  // Clone internally (preserves original!)
+            originalHeightmap: smoothedHeightmap,  // Use smoothed instead of raw native output!
             seaLevel: parameters.SeaLevel,
-            seed: parameters.Seed);
+            seed: parameters.Seed,
+            addNoise: false);  // DIAGNOSTIC: Disabled to isolate Gaussian blur effect (re-enable after validation)
 
         _logger.LogInformation(
             "Stage 1 complete: Elevation post-processing (4 WorldEngine algorithms applied)");

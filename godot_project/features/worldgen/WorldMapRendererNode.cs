@@ -212,17 +212,6 @@ public partial class WorldMapRendererNode : Sprite2D
                 }
                 break;
 
-            case MapViewMode.FilledElevation:
-                if (_worldData.Phase1Erosion != null)
-                {
-                    RenderColoredElevation(_worldData.Phase1Erosion.FilledHeightmap);
-                }
-                else
-                {
-                    _logger?.LogWarning("FilledElevation not available");
-                }
-                break;
-
             case MapViewMode.FlowDirections:
                 if (_worldData.Phase1Erosion != null)
                 {
@@ -235,9 +224,9 @@ public partial class WorldMapRendererNode : Sprite2D
                 break;
 
             case MapViewMode.FlowAccumulation:
-                if (_worldData.Phase1Erosion != null)
+                if (_worldData.Phase1Erosion != null && _worldData.OceanMask != null)
                 {
-                    RenderFlowAccumulation(_worldData.Phase1Erosion.FlowAccumulation);
+                    RenderFlowAccumulation(_worldData.Phase1Erosion.FlowAccumulation, _worldData.OceanMask);
                 }
                 else
                 {
@@ -895,15 +884,16 @@ public partial class WorldMapRendererNode : Sprite2D
     /// <summary>
     /// Renders flow accumulation (VS_029 Step 3).
     /// Heat map: Blue (low) → Green → Yellow → Red (high drainage).
-    /// Purpose: Validate topological sort (drainage concentration in valleys).
+    /// Ocean cells rendered as BLACK (no flow through ocean floor).
+    /// Purpose: Validate topological sort (drainage concentration in land valleys only).
     /// </summary>
-    private void RenderFlowAccumulation(float[,] flowAccumulation)
+    private void RenderFlowAccumulation(float[,] flowAccumulation, bool[,] oceanMask)
     {
         int h = flowAccumulation.GetLength(0);
         int w = flowAccumulation.GetLength(1);
         var image = Image.CreateEmpty(w, h, false, Image.Format.Rgb8);
 
-        // Find min/max for normalization
+        // Find min/max for normalization (LAND CELLS ONLY - ignore ocean)
         float min = float.MaxValue, max = float.MinValue;
         double sum = 0;
         int count = 0;
@@ -912,6 +902,8 @@ public partial class WorldMapRendererNode : Sprite2D
         {
             for (int x = 0; x < w; x++)
             {
+                if (oceanMask[y, x]) continue;  // Skip ocean cells for statistics
+
                 float v = flowAccumulation[y, x];
                 if (v < min) min = v;
                 if (v > max) max = v;
@@ -923,28 +915,40 @@ public partial class WorldMapRendererNode : Sprite2D
         float mean = (float)(sum / count);
         float delta = Math.Max(1e-6f, max - min);
 
-        // Calculate 95th percentile for river valley detection
-        var sortedValues = new System.Collections.Generic.List<float>(w * h);
+        // Calculate 95th percentile for river valley detection (LAND ONLY)
+        var sortedValues = new System.Collections.Generic.List<float>();
         for (int y = 0; y < h; y++)
         {
             for (int x = 0; x < w; x++)
             {
-                sortedValues.Add(flowAccumulation[y, x]);
+                if (!oceanMask[y, x])  // Land cells only
+                {
+                    sortedValues.Add(flowAccumulation[y, x]);
+                }
             }
         }
         sortedValues.Sort();
         float p95 = GetPercentileFromSorted(sortedValues, 0.95f);
 
-        // Render heat map (Blue → Green → Yellow → Red)
+        // Render heat map (Blue → Green → Yellow → Red) with BLACK ocean
         Color lowColor = new Color(0f, 0f, 1f);       // Blue (low accumulation)
         Color medColor = new Color(0f, 1f, 0f);       // Green (medium)
         Color highColor = new Color(1f, 1f, 0f);      // Yellow (high)
         Color veryHighColor = new Color(1f, 0f, 0f);  // Red (river valleys)
+        Color oceanColor = new Color(0f, 0f, 0f);     // Black (ocean - no flow)
 
         for (int y = 0; y < h; y++)
         {
             for (int x = 0; x < w; x++)
             {
+                // Ocean cells = black (no flow through ocean floor)
+                if (oceanMask[y, x])
+                {
+                    image.SetPixel(x, y, oceanColor);
+                    continue;
+                }
+
+                // Land cells = heat map gradient
                 float t = (flowAccumulation[y, x] - min) / delta;  // Normalize [0,1]
 
                 Color color;
@@ -976,7 +980,7 @@ public partial class WorldMapRendererNode : Sprite2D
 
     /// <summary>
     /// Renders river sources (VS_029 Step 4).
-    /// Colored elevation base + Cyan markers at spawn points.
+    /// Grayscale elevation base + Red markers at spawn points.
     /// Purpose: Validate source detection thresholds (expect 5-15 major rivers).
     /// </summary>
     private void RenderRiverSources(float[,] heightmap, System.Collections.Generic.List<(int x, int y)> riverSources)
@@ -985,7 +989,7 @@ public partial class WorldMapRendererNode : Sprite2D
         int w = heightmap.GetLength(1);
         var image = Image.CreateEmpty(w, h, false, Image.Format.Rgb8);
 
-        // Step 1: Render colored elevation base (reuse existing logic)
+        // Step 1: Render grayscale elevation base (consistent with sinks views)
         float min = float.MaxValue, max = float.MinValue;
         for (int y = 0; y < h; y++)
         {
@@ -999,36 +1003,18 @@ public partial class WorldMapRendererNode : Sprite2D
 
         float delta = Math.Max(1e-6f, max - min);
 
-        // Normalize and calculate quantiles
-        var normalizedHeightmap = new float[h, w];
+        // Render grayscale
         for (int y = 0; y < h; y++)
         {
             for (int x = 0; x < w; x++)
             {
-                normalizedHeightmap[y, x] = (heightmap[y, x] - min) / delta;
+                float t = (heightmap[y, x] - min) / delta;
+                image.SetPixel(x, y, new Color(t, t, t));
             }
         }
 
-        float q15 = FindQuantile(normalizedHeightmap, 0.15f);
-        float q70 = FindQuantile(normalizedHeightmap, 0.70f);
-        float q75 = FindQuantile(normalizedHeightmap, 0.75f);
-        float q90 = FindQuantile(normalizedHeightmap, 0.90f);
-        float q95 = FindQuantile(normalizedHeightmap, 0.95f);
-        float q99 = FindQuantile(normalizedHeightmap, 0.99f);
-
-        // Render colored elevation
-        for (int y = 0; y < h; y++)
-        {
-            for (int x = 0; x < w; x++)
-            {
-                float elevation = normalizedHeightmap[y, x];
-                Color color = GetQuantileTerrainColor(elevation, q15, q70, q75, q90, q95, q99);
-                image.SetPixel(x, y, color);
-            }
-        }
-
-        // Step 2: Mark river sources with cyan markers
-        Color sourceMarker = new Color(0f, 1f, 1f);  // Cyan (stands out on terrain)
+        // Step 2: Mark river sources with red markers (consistent with sinks views)
+        Color sourceMarker = new Color(1f, 0f, 0f);  // Bright red
         foreach (var (x, y) in riverSources)
         {
             if (x >= 0 && x < w && y >= 0 && y < h)

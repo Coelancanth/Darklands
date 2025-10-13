@@ -215,6 +215,62 @@ public partial class WorldMapLegendNode : Control
                 AddLegendEntry("Blue", new Color(0f, 0f, 1f), "Wet (maritime coasts)");
                 break;
 
+            case MapViewMode.SinksPreFilling:
+                // VS_029 Step 0A: Pre-filling sinks diagnostic
+                AddLegendEntry("Sinks (PRE-Filling)", new Color(0.8f, 0.8f, 0.8f), "Baseline before pit-filling");
+                AddLegendEntry("Grayscale", new Color(0.5f, 0.5f, 0.5f), "Elevation (low→high)");
+                AddLegendEntry("Red Dots", new Color(1f, 0f, 0f), "Local minima (sinks)");
+                AddLegendEntry("Expected", new Color(0.8f, 0.8f, 0.8f), "5-20% land (noisy)");
+                break;
+
+            case MapViewMode.SinksPostFilling:
+                // VS_029 Step 0B: Post-filling sinks diagnostic
+                AddLegendEntry("Sinks (POST-Filling)", new Color(0.8f, 0.8f, 0.8f), "After pit-filling");
+                AddLegendEntry("Grayscale", new Color(0.5f, 0.5f, 0.5f), "Elevation (filled)");
+                AddLegendEntry("Red Dots", new Color(1f, 0f, 0f), "Preserved lakes");
+                AddLegendEntry("Expected", new Color(0.8f, 0.8f, 0.8f), "<5% land (70-90% reduction)");
+                break;
+
+            case MapViewMode.FlowDirections:
+                // VS_029 Step 2: D-8 flow direction visualization
+                AddLegendEntry("Flow Directions (D-8)", new Color(0.8f, 0.8f, 0.8f), "Steepest descent");
+                AddLegendEntry("Red", new Color(1f, 0f, 0f), "North");
+                AddLegendEntry("Yellow", new Color(1f, 1f, 0f), "NE");
+                AddLegendEntry("Green", new Color(0f, 1f, 0f), "East");
+                AddLegendEntry("Cyan", new Color(0f, 1f, 1f), "SE");
+                AddLegendEntry("Blue", new Color(0f, 0f, 1f), "South");
+                AddLegendEntry("Purple", new Color(0.5f, 0f, 0.5f), "SW");
+                AddLegendEntry("Magenta", new Color(1f, 0f, 1f), "West");
+                AddLegendEntry("Orange", new Color(1f, 0.5f, 0f), "NW");
+                AddLegendEntry("Black", new Color(0f, 0f, 0f), "Sink (no flow)");
+                break;
+
+            case MapViewMode.FlowAccumulation:
+                // VS_029 Step 3: Flow accumulation heat map
+                AddLegendEntry("Flow Accumulation", new Color(0.8f, 0.8f, 0.8f), "Drainage basin size");
+                AddLegendEntry("Black", new Color(0f, 0f, 0f), "Ocean (no flow)");
+                AddLegendEntry("Blue", new Color(0f, 0f, 1f), "Low (hilltops)");
+                AddLegendEntry("Green", new Color(0f, 1f, 0f), "Medium (slopes)");
+                AddLegendEntry("Yellow", new Color(1f, 1f, 0f), "High (valleys)");
+                AddLegendEntry("Red", new Color(1f, 0f, 0f), "Very high (rivers)");
+                break;
+
+            case MapViewMode.RiverSources:
+                // VS_029 Step 4: River source detection (corrected algorithm)
+                AddLegendEntry("River Sources", new Color(0.8f, 0.8f, 0.8f), "Threshold-crossing algorithm");
+                AddLegendEntry("Grayscale", new Color(0.5f, 0.5f, 0.5f), "Elevation (low→high)");
+                AddLegendEntry("Red Dots", new Color(1f, 0f, 0f), "River origins");
+                AddLegendEntry("Expected", new Color(0.8f, 0.8f, 0.8f), "100s → filtered to 5-15 major");
+                break;
+
+            case MapViewMode.ErosionHotspots:
+                // VS_029: Erosion hotspots (old algorithm repurposed)
+                AddLegendEntry("Erosion Hotspots", new Color(0.8f, 0.8f, 0.8f), "High-energy zones");
+                AddLegendEntry("Colored Terrain", new Color(0.5f, 0.5f, 0.5f), "Elevation gradient");
+                AddLegendEntry("Magenta Dots", new Color(1f, 0f, 1f), "High elev + high flow");
+                AddLegendEntry("Purpose", new Color(0.8f, 0.8f, 0.8f), "Canyon erosion masking");
+                break;
+
             default:
                 AddLegendEntry("Unknown view", new Color(1, 0, 0), "");
                 break;

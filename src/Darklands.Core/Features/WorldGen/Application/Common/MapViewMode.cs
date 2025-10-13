@@ -123,14 +123,6 @@ public enum MapViewMode
     SinksPostFilling,
 
     /// <summary>
-    /// [DEBUG] Display filled elevation after pit-filling (VS_029 Step 1).
-    /// Colored elevation view of FilledHeightmap (vs PostProcessedHeightmap).
-    /// Visual signature: Pits smoothed, mountain peaks preserved.
-    /// Purpose: Compare pre/post pit-filling terrain quality.
-    /// </summary>
-    FilledElevation,
-
-    /// <summary>
     /// [DEBUG] Display D-8 flow directions (VS_029 Step 2).
     /// 8-color gradient: N=Red, NE=Yellow, E=Green, SE=Cyan, S=Blue, SW=Purple, W=Magenta, NW=Orange, Sink=Black.
     /// Visual signature: Colors flow downhill (mountains→valleys→ocean).
@@ -148,7 +140,7 @@ public enum MapViewMode
 
     /// <summary>
     /// [DEBUG] Display river sources (VS_029 Step 4 - CORRECTED ALGORITHM).
-    /// Colored elevation base + Cyan markers at TRUE river origins.
+    /// Grayscale elevation base + Red markers at TRUE river origins.
     /// Uses threshold-crossing detection: Where flow FIRST becomes "a river".
     /// Visual signature: Sources scattered across mountains (may be many).
     /// Purpose: Validate corrected algorithm (expect hundreds → filtered to 5-15 major).
