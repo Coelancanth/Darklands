@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-13 18:55 (Dev Engineer: Updated TD_023 to include basin metadata visualization view mode)
+**Last Updated**: 2025-10-13 19:42 (Dev Engineer: TD_023 Steps 1-3 complete - basin metadata algorithm enhanced, pipeline updated)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -194,9 +194,9 @@ Rendering Scale (normalized): SeaLevelNormalized ≈ 0.045 [0-1]
 ---
 
 ### TD_023: Enhance Pit-Filling to Expose Basin Metadata + Visualization
-**Status**: Proposed (Required for VS_030 Phase 1)
+**Status**: In Progress (Steps 1-3 Complete ✅, Step 4 Pending)
 **Owner**: Dev Engineer
-**Size**: S (3-4h)
+**Size**: S (3-4h, ~2.5h spent)
 **Priority**: Important (blocks VS_030 - water classification needs basin metadata)
 **Markers**: [ALGORITHM] [WORLDGEN] [FOUNDATION] [VISUALIZATION] [VS_030-PREREQUISITE]
 
@@ -231,9 +231,12 @@ public record BasinMetadata
 **Step 2: Enhance MeasurePit() to Collect Metadata** (1-1.5h)
 - Modify `MeasurePit()` to return `BasinMetadata` (not just depth/area tuple)
 - During flood-fill (line 192-235), collect ALL cells in `List<(int x, int y)> cells`
-- Track pour point location when finding spillway elevation (line 223-226)
+- Track pour point CORRECTLY (line 223-226):
+  - **CRITICAL**: `spillwayElev` = MAX(boundary neighbors) for DEPTH calculation
+  - **NEW**: `pourPoint` = location of MIN(boundary neighbors) for OUTLET location
+  - **Why**: VS_030 needs actual outlet location for pathfinding, not just max water depth
 - Return complete metadata instead of discarding after classification
-- Key insight: We already compute spillway elevation and flood-fill extent - just need to RETURN them!
+- Key insight: We already compute spillway elevation and flood-fill extent - just need to RETURN them + track min boundary!
 
 **Step 3: Update FillingResult and Callers** (30-45min)
 - Change `FillingResult.Lakes` from `List<(int x, int y)>` to `List<BasinMetadata>`
@@ -293,6 +296,55 @@ public record BasinMetadata
 - **Low Risk**: We're exposing existing computations (flood-fill already traverses cells), not changing algorithm logic
 - **Key Insight**: tmp.md correctly identifies that basin metadata is the **semantic output** of pit-filling - we compute it, just need to return it
 - **Next Step**: Implement TD_021 (SSOT) → TD_023 (basin metadata + viz) → VS_030 (pathfinding uses validated metadata)
+
+**Implementation Summary** (2025-10-13 19:42 - Steps 1-3 Complete):
+
+✅ **Step 1: BasinMetadata DTO Created** (30min):
+- Created [`BasinMetadata.cs`](../../src/Darklands.Core/Features/WorldGen/Application/DTOs/BasinMetadata.cs) with 7 hydrologically-correct fields
+- **Key Algorithm Clarification**: Distinguished **spillway elevation** (MAX boundary for depth) from **pour point** (MIN boundary for outlet)
+  - Spillway = highest rim elevation → Used for depth calculation (how deep can water get?)
+  - Pour Point = lowest rim location → Used for VS_030 pathfinding (where does water actually exit?)
+  - Example: Caldera with rim 1000m-2000m → Depth uses 2000m (spillway), pathfinding uses (x,y) at 1000m (pour point)
+- Comprehensive documentation: Real-world analogs (Dead Sea, Crater Lake), hydrological semantics, VS_030 integration notes
+
+✅ **Step 2: Enhanced MeasurePit() Algorithm** (1h):
+- Updated [`PitFillingCalculator.MeasurePit()`](../../src/Darklands.Core/Features/WorldGen/Infrastructure/Algorithms/PitFillingCalculator.cs#L203-L286) to return `BasinMetadata`
+- Flood-fill now collects ALL basin cells (line 219, 231) - critical for VS_030 inlet detection
+- Tracks BOTH spillway (MAX boundary) AND pour point (MIN boundary) correctly (lines 254-262)
+- Algorithm correctness preserved - only exposing existing computations, not changing logic
+- Returns complete metadata instead of discarding after classification
+
+✅ **Step 3: Updated Callers and Pipeline** (1h):
+- **Core Layer**:
+  - [`FillingResult.PreservedBasins`](../../src/Darklands.Core/Features/WorldGen/Infrastructure/Algorithms/PitFillingCalculator.cs#L51) - Renamed from `Lakes`, now `List<BasinMetadata>`
+  - [`HydraulicErosionProcessor`](../../src/Darklands.Core/Features/WorldGen/Infrastructure/Pipeline/HydraulicErosionProcessor.cs#L88) - Passes metadata through pipeline
+  - [`Phase1ErosionData.PreservedBasins`](../../src/Darklands.Core/Features/WorldGen/Application/DTOs/Phase1ErosionData.cs#L58) - Exposes basin metadata to system
+  - [`GenerateWorldPipeline`](../../src/Darklands.Core/Features/WorldGen/Infrastructure/Pipeline/GenerateWorldPipeline.cs#L180) - Updated diagnostic logging
+- **Test Layer**:
+  - [`Phase1ErosionIntegrationTests.cs`](../../tests/Darklands.Core.Tests/Features/WorldGen/Infrastructure/Pipeline/Phase1ErosionIntegrationTests.cs#L127,L144) - Updated assertions
+- **Presentation Layer**:
+  - [`WorldMapProbeNode.cs`](../../godot_project/features/worldgen/WorldMapProbeNode.cs#L718) - Checks basin centers for "preserved lake" status
+  - [`WorldMapRendererNode.cs`](../../godot_project/features/worldgen/WorldMapRendererNode.cs#L207-L209) - Extracts centers for existing sink visualization
+- **Build Status**: Core + Tests + Godot all compile with 0 warnings, 0 errors ✅
+
+**Architecture Insight**:
+```
+MeasurePit() flood-fill computes:
+  ├─ spillwayElev = MAX(boundary) → Depth = spillway - pit elevation
+  ├─ pourPointElev = MIN(boundary) → Surface = pour point elevation
+  ├─ pourPoint (x,y) = location of MIN boundary → VS_030 outlet target
+  └─ cells = ALL flooded cells → VS_030 inlet detection
+```
+
+**Remaining Work** (Step 4 - Basin Metadata Visualization):
+- Add `MapViewMode.BasinMetadata` enum value
+- Implement `WorldMapRendererNode.RenderBasinMetadata()`:
+  - Grayscale elevation base + colored basin boundaries + markers (red pour points, cyan centers)
+- Add diagnostic logging (basin count, depth/size statistics)
+- Wire to UI dropdown ("DEBUG: Basin Metadata")
+- **Estimated Time**: ~1h (pure Presentation layer work, no Core changes)
+
+**Unblocks** (Partially): VS_030 Phase 1 can now access basin metadata (cells, pour points, surface elevations) - visualization pending for validation
 
 ---
 

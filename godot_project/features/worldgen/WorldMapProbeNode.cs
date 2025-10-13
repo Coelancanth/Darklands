@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Godot;
 using Darklands.Core.Features.WorldGen.Application.Common;
 using Darklands.Core.Features.WorldGen.Application.DTOs;
@@ -714,8 +715,8 @@ public partial class WorldMapProbeNode : Node
         // Show sink status
         if (isSink)
         {
-            // Check if it's a preserved lake
-            bool isLake = erosionData.Lakes.Contains((x, y));
+            // TD_023: Check if it's a preserved lake (check if this cell is a basin center)
+            bool isLake = erosionData.PreservedBasins.Any(basin => basin.Center == (x, y));
             if (isLake)
                 data += "PRESERVED LAKE\n(Large endorheic basin)\n";
             else

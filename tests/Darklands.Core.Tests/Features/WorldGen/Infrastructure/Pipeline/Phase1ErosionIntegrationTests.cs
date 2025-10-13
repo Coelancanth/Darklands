@@ -123,14 +123,14 @@ public class Phase1ErosionIntegrationTests
             y.Should().BeInRange(0, 127, "River source Y coordinate should be within world bounds");
         }
 
-        // Validate Lakes
-        world.Phase1Erosion.Lakes.Should().NotBeNull("Lakes list should exist (may be empty)");
+        // Validate PreservedBasins (TD_023: Renamed from Lakes with metadata)
+        world.Phase1Erosion.PreservedBasins.Should().NotBeNull("PreservedBasins list should exist (may be empty)");
 
         _output.WriteLine($"✓ Phase1ErosionData validated:");
         _output.WriteLine($"  - Flow directions: {hasValidDirections} (valid), {hasSinks} (sinks detected)");
         _output.WriteLine($"  - Flow accumulation: {hasAccumulation} (drainage basins present)");
         _output.WriteLine($"  - River sources: {world.Phase1Erosion.RiverSources.Count} detected");
-        _output.WriteLine($"  - Lakes: {world.Phase1Erosion.Lakes.Count} preserved");
+        _output.WriteLine($"  - Preserved basins: {world.Phase1Erosion.PreservedBasins.Count} (TD_023: Enhanced with metadata)");
 
         // ═══════════════════════════════════════════════════════════════════════
         // VALIDATE: PreFillingLocalMinima diagnostic data
@@ -141,7 +141,7 @@ public class Phase1ErosionIntegrationTests
 
         // Validate pit-filling effectiveness: PreFilling > PostFilling sinks
         int preFillingCount = world.PreFillingLocalMinima.Count;
-        int postFillingCount = world.Phase1Erosion.Lakes.Count;  // Lakes = preserved sinks
+        int postFillingCount = world.Phase1Erosion.PreservedBasins.Count;  // TD_023: PreservedBasins = lakes with metadata
 
         postFillingCount.Should().BeLessThan(preFillingCount,
             "Pit-filling should reduce sink count (fill artifacts, preserve real lakes)");

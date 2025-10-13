@@ -85,7 +85,7 @@ public static class HydraulicErosionProcessor
             pitAreaThreshold);
 
         var filledHeightmap = fillingResult.FilledHeightmap;
-        var lakes = fillingResult.Lakes;
+        var preservedBasins = fillingResult.PreservedBasins;  // TD_023: Now contains complete basin metadata
 
         // ═══════════════════════════════════════════════════════════════════════
         // STEP 1b: Flow Direction Computation (O(n) - Steepest Descent)
@@ -145,6 +145,6 @@ public static class HydraulicErosionProcessor
             flowDirections: flowDirections,
             flowAccumulation: flowAccumulation,
             riverSources: riverSources,
-            lakes: lakes);
+            preservedBasins: preservedBasins);  // TD_023: Pass basin metadata
     }
 }

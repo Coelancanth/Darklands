@@ -177,7 +177,7 @@ public class GenerateWorldPipeline : IWorldGenerationPipeline
             logger: _logger);
 
         // STEP 6c: Calculate pit-filling effectiveness (diagnostic comparison)
-        var postFillingMinima = phase1Erosion.Lakes.Count;  // Lakes = preserved sinks after filling
+        var postFillingMinima = phase1Erosion.PreservedBasins.Count;  // TD_023: PreservedBasins = lakes with metadata
         var sinkReductionPercent = preFillingMinima.Count > 0
             ? ((preFillingMinima.Count - postFillingMinima) / (float)preFillingMinima.Count) * 100f
             : 0f;

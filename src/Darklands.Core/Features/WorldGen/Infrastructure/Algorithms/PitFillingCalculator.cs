@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Darklands.Core.Features.WorldGen.Application.DTOs;
 
 namespace Darklands.Core.Features.WorldGen.Infrastructure.Algorithms;
 
@@ -32,7 +33,7 @@ namespace Darklands.Core.Features.WorldGen.Infrastructure.Algorithms;
 public static class PitFillingCalculator
 {
     /// <summary>
-    /// Result of selective pit filling.
+    /// Result of selective pit filling (TD_023: Enhanced with basin metadata).
     /// </summary>
     public record FillingResult
     {
@@ -43,15 +44,16 @@ public static class PitFillingCalculator
         public float[,] FilledHeightmap { get; init; }
 
         /// <summary>
-        /// Preserved lake locations (large pits NOT filled).
-        /// These are endorheic basins (real lakes).
+        /// Preserved basin metadata (large pits NOT filled).
+        /// Includes complete hydrological data: cells, pour points, depths (TD_023).
+        /// These are endorheic basins (real lakes) with area ≥ 100 AND depth ≥ 50.
         /// </summary>
-        public List<(int x, int y)> Lakes { get; init; }
+        public List<BasinMetadata> PreservedBasins { get; init; }
 
-        public FillingResult(float[,] filledHeightmap, List<(int x, int y)> lakes)
+        public FillingResult(float[,] filledHeightmap, List<BasinMetadata> preservedBasins)
         {
             FilledHeightmap = filledHeightmap;
-            Lakes = lakes;
+            PreservedBasins = preservedBasins;
         }
     }
 
@@ -82,19 +84,20 @@ public static class PitFillingCalculator
         var localMinima = FindLocalMinima(filledHeightmap, oceanMask, width, height);
 
         // ═══════════════════════════════════════════════════════════════════════
-        // STEP 2: Classify pits (fillable vs preserve as lakes)
+        // STEP 2: Classify pits (fillable vs preserve as lakes) - TD_023
         // ═══════════════════════════════════════════════════════════════════════
 
         var fillablePits = new HashSet<(int x, int y)>();
-        var lakes = new List<(int x, int y)>();
+        var preservedBasins = new List<BasinMetadata>();
 
+        int basinId = 0;  // TD_023: Unique identifier for each basin
         foreach (var pit in localMinima)
         {
-            // Measure pit characteristics
-            var (depth, area) = MeasurePit(filledHeightmap, pit, width, height);
+            // TD_023: Measure pit characteristics and collect complete metadata
+            var basinMetadata = MeasurePit(filledHeightmap, pit, basinId, width, height);
 
             // Decision: Fill small/shallow pits, preserve large/deep pits as lakes
-            bool shouldFill = depth < pitDepthThreshold || area < pitAreaThreshold;
+            bool shouldFill = basinMetadata.Depth < pitDepthThreshold || basinMetadata.Area < pitAreaThreshold;
 
             if (shouldFill)
             {
@@ -102,8 +105,10 @@ public static class PitFillingCalculator
             }
             else
             {
-                lakes.Add(pit);  // Preserve as lake (endorheic basin)
+                preservedBasins.Add(basinMetadata);  // TD_023: Preserve complete basin metadata
             }
+
+            basinId++;  // Increment for next basin
         }
 
         // ═══════════════════════════════════════════════════════════════════════
@@ -113,10 +118,10 @@ public static class PitFillingCalculator
         PriorityFloodFill(filledHeightmap, oceanMask, fillablePits, width, height);
 
         // ═══════════════════════════════════════════════════════════════════════
-        // RETURN: Filled heightmap + preserved lakes
+        // RETURN: Filled heightmap + preserved basin metadata (TD_023)
         // ═══════════════════════════════════════════════════════════════════════
 
-        return new FillingResult(filledHeightmap, lakes);
+        return new FillingResult(filledHeightmap, preservedBasins);
     }
 
     /// <summary>
@@ -177,11 +182,33 @@ public static class PitFillingCalculator
     }
 
     /// <summary>
-    /// Measures pit depth and area for classification.
+    /// Measures pit characteristics and returns complete basin metadata (TD_023).
+    /// Performs flood-fill from pit center to determine basin extent, pour point, and depth.
     /// </summary>
-    private static (float depth, int area) MeasurePit(
+    /// <param name="heightmap">Heightmap in raw elevation scale</param>
+    /// <param name="pitCenter">Local minimum (basin center)</param>
+    /// <param name="basinId">Unique basin identifier</param>
+    /// <param name="width">Map width</param>
+    /// <param name="height">Map height</param>
+    /// <returns>Complete basin metadata including cells, pour point, and depth</returns>
+    /// <remarks>
+    /// Hydrological Semantics (TD_023 clarification):
+    /// - spillwayElev = MAX(boundary neighbors) → Used for depth calculation (highest water can rise)
+    /// - pourPoint = location of MIN(boundary neighbors) → Actual outlet location (where water exits)
+    /// - surfaceElevation = pourPoint elevation → Water level at equilibrium (where overflow occurs)
+    ///
+    /// Why track both?
+    /// - Depth calculation needs spillway (max rim height for water column measurement)
+    /// - VS_030 pathfinding needs pour point (actual outlet location for thalweg routing)
+    ///
+    /// Example: Caldera with rim varying 1000m-2000m, pit bottom at 800m:
+    /// - spillwayElev = 2000m (max rim) → depth = 2000 - 800 = 1200m
+    /// - pourPoint = (x,y) at 1000m location → VS_030 routes thalweg to this outlet
+    /// </remarks>
+    private static BasinMetadata MeasurePit(
         float[,] heightmap,
         (int x, int y) pitCenter,
+        int basinId,
         int width,
         int height)
     {
@@ -193,13 +220,20 @@ public static class PitFillingCalculator
         queue.Enqueue(pitCenter);
         visited[pitCenter.y, pitCenter.x] = true;
 
+        // TD_023: Collect ALL cells in basin (critical for VS_030 inlet detection)
+        var cells = new List<(int x, int y)>();
         int area = 0;
-        float spillwayElev = pitElev;  // Minimum elevation to escape pit
+
+        // Track BOTH spillway (max boundary) and pour point (min boundary)
+        float spillwayElev = pitElev;  // Maximum elevation to escape pit (for depth)
+        float pourPointElev = float.MaxValue;  // Minimum boundary elevation (for outlet)
+        (int x, int y) pourPoint = pitCenter;  // Outlet location (default to center if no boundary found)
 
         while (queue.Count > 0)
         {
             var (x, y) = queue.Dequeue();
             area++;
+            cells.Add((x, y));  // TD_023: Collect cell for basin boundary tracking
 
             // Check 8 neighbors
             for (int dy = -1; dy <= 1; dy++)
@@ -219,10 +253,18 @@ public static class PitFillingCalculator
 
                     float neighborElev = heightmap[ny, nx];
 
-                    // If neighbor is higher, it might be pit boundary (spillway)
+                    // If neighbor is higher, it's on pit boundary (rim)
                     if (neighborElev > pitElev)
                     {
+                        // Track spillway elevation (MAX boundary - for depth calculation)
                         spillwayElev = Math.Max(spillwayElev, neighborElev);
+
+                        // TD_023: Track pour point (MIN boundary - for VS_030 outlet location)
+                        if (neighborElev < pourPointElev)
+                        {
+                            pourPointElev = neighborElev;
+                            pourPoint = (nx, ny);  // Actual outlet location
+                        }
                     }
                     else
                     {
@@ -235,8 +277,17 @@ public static class PitFillingCalculator
         }
 
         float depth = spillwayElev - pitElev;
+        float surfaceElevation = pourPointElev;  // Water level = pour point elevation
 
-        return (depth, area);
+        // TD_023: Return complete BasinMetadata (not just depth/area tuple)
+        return new BasinMetadata(
+            basinId: basinId,
+            center: pitCenter,
+            cells: cells,
+            pourPoint: pourPoint,
+            surfaceElevation: surfaceElevation,
+            depth: depth,
+            area: area);
     }
 
     /// <summary>

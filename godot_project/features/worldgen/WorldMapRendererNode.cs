@@ -1,5 +1,6 @@
 using Godot;
 using System;
+using System.Linq;
 using Darklands.Core.Features.WorldGen.Application.Common;
 using Darklands.Core.Features.WorldGen.Application.DTOs;
 using Microsoft.Extensions.Logging;
@@ -204,7 +205,9 @@ public partial class WorldMapRendererNode : Sprite2D
             case MapViewMode.SinksPostFilling:
                 if (_worldData.Phase1Erosion != null && _worldData.Phase1Erosion.FilledHeightmap != null && _worldData.OceanMask != null)
                 {
-                    RenderSinksPostFilling(_worldData.Phase1Erosion.FilledHeightmap, _worldData.OceanMask, _worldData.Phase1Erosion.Lakes);
+                    // TD_023: PreservedBasins contains BasinMetadata - extract centers for rendering
+                    var lakeCenters = _worldData.Phase1Erosion.PreservedBasins.Select(b => b.Center).ToList();
+                    RenderSinksPostFilling(_worldData.Phase1Erosion.FilledHeightmap, _worldData.OceanMask, lakeCenters);
                 }
                 else
                 {

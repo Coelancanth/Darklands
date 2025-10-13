@@ -7,7 +7,8 @@
       "Bash(./scripts/core/build.ps1 test)",
       "Bash(dotnet test:*)",
       "Bash(powershell -Command:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(Select-String \"VS-029\")"
     ],
     "deny": [],
     "ask": [],

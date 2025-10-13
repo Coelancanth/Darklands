@@ -49,23 +49,25 @@ public record Phase1ErosionData
     public List<(int x, int y)> RiverSources { get; init; }
 
     /// <summary>
-    /// Lake locations (preserved large pits from selective filling).
+    /// Preserved basin metadata (large pits from selective filling with complete hydrological data).
+    /// Includes cells, pour points, depths, and surface elevations (TD_023).
     /// These are endorheic basins (local minima too large to fill).
     /// Real-world analogs: Dead Sea, Great Salt Lake, Caspian Sea.
+    /// Critical for VS_030: Basin boundaries (inlet detection), pour points (pathfinding targets).
     /// </summary>
-    public List<(int x, int y)> Lakes { get; init; }
+    public List<BasinMetadata> PreservedBasins { get; init; }
 
     public Phase1ErosionData(
         float[,] filledHeightmap,
         int[,] flowDirections,
         float[,] flowAccumulation,
         List<(int x, int y)> riverSources,
-        List<(int x, int y)> lakes)
+        List<BasinMetadata> preservedBasins)
     {
         FilledHeightmap = filledHeightmap;
         FlowDirections = flowDirections;
         FlowAccumulation = flowAccumulation;
         RiverSources = riverSources;
-        Lakes = lakes;
+        PreservedBasins = preservedBasins;
     }
 }
