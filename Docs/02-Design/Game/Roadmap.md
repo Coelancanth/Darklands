@@ -551,6 +551,7 @@ Phase 3: Geology & Resources (DF-Inspired) - Design phase
 - Native C++ integration (1.0s for 512×512)
 - Dual-heightmap architecture (raw + post-processed)
 - Quantile-based thresholds (adaptive per-world)
+- **🐛 Known Issue**: OceanMask excludes inland lakes (by design, will fix in VS_029 with separate Water/Ocean masks)
 - Archive: [Completed_Backlog_2025-10_Part2.md](../../07-Archive/Completed_Backlog_2025-10_Part2.md)
 
 **VS_025: Temperature Simulation** ✅ COMPLETE (2025-10-08)

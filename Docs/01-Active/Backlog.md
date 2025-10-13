@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-13 16:38 (Dev Engineer: Created TD_020 - ColorScheme SSOT system completion with rendering mode metadata)
+**Last Updated**: 2025-10-13 18:44 (Dev Engineer: Created TD_022 - Refactor climate to use post-Gaussian heightmap)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -10,8 +10,8 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 010
-- **Next TD**: 021
-- **Next VS**: 030
+- **Next TD**: 023
+- **Next VS**: 031
 
 
 **Protocol**: Check your type's counter → Use that number → Increment the counter → Update timestamp
@@ -75,176 +75,239 @@
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*
 
-### TD_020: Complete ColorScheme SSOT System (Renderer Refactoring + Legend Rendering Modes)
-**Status**: In Progress (2025-10-13 16:38)
+### TD_021: Sea Level SSOT and Normalized Scale Foundation
+**Status**: Proposed (Architectural foundation for VS_030)
 **Owner**: Dev Engineer
-**Size**: M (6-8h remaining)
-**Priority**: Important (prevents renderer/legend drift bugs)
-**Markers**: [ARCHITECTURE] [DRY] [SSOT]
+**Size**: S (6-8h)
+**Priority**: Important (blocks VS_030 pathfinding implementation)
+**Markers**: [ARCHITECTURE] [SSOT] [WORLDGEN] [FOUNDATION]
 
-**What**: Complete the ColorScheme Single Source of Truth system by refactoring WorldMapRendererNode and implementing proper legend rendering modes (linear/log/gradient/discrete).
+**What**: Unify sea level definition as a single constant and establish normalized scale for rendering (NO water body classification - moved to VS_030).
 
 **Why**:
-- **Eliminates drift bugs** - Current: Renderer updated to naturalistic flow accumulation, legend showed old heat map colors (user confusion!)
-- **Reduces code duplication** - Renderer has 600+ lines of inline color definitions duplicated in Legend
-- **Enables easy updates** - Change color scheme once, both components update automatically
-- **Improves maintainability** - ViewMode → ColorScheme mapping in ONE place (TRUE SSOT)
+- **Current Problem**: Sea level is scattered (PlateSimulationParams.SeaLevel, ElevationThresholds.SeaLevel, hardcoded values) with no SSOT → drift between stages
+- **Scale Confusion**: Ocean masks calculated on RAW heightmap [0-20] but rendering uses normalized [0,1] → semantic mismatch
+- **Foundation for VS_030**: Pathfinding needs consistent sea level constant and normalized scale for depth calculations
+- **CRITICAL CORRECTION**: Water body classification MUST happen AFTER pit-filling (causality - pit-filling DEFINES lakes), so moved to VS_030
 
-**Current Implementation** (Commits c35c1a9, f625399, 347a594):
+**How** (3-phase architectural fix):
 
-**✅ Infrastructure Complete**:
-1. **Color Scheme System** (9 schemes covering 18 view modes):
-   - IColorScheme interface + LegendEntry record
-   - ColorSchemes static registry (Elevation, Temperature, Precipitation, FlowDirections, FlowAccumulation, Grayscale, 3 Marker schemes)
-   - SchemeBasedRenderer helper utilities
+**Phase 1: SSOT Constant** (2-3h)
+- Create `WorldGenConstants.cs` with `SEA_LEVEL_RAW = 1.0f` (matches CONTINENTAL_BASE from C++ plate tectonics)
+- Remove `PlateSimulationParams.SeaLevel` (sea level is physics, not configuration)
+- Remove `ElevationThresholds.SeaLevel` (sea level is fixed, not adaptive like hills/mountains)
+- Update all references: NativePlateSimulator, ElevationPostProcessor, GenerateWorldPipeline
+- Result: Single source of truth, no magic numbers (0.65, 1.0, etc.)
 
-2. **TRUE SSOT Architecture** (ViewModeSchemeRegistry):
-   - Central mapping: `MapViewMode → IColorScheme`
-   - Both Renderer + Legend query SAME registry (zero manual coordination)
-   - GetScheme(viewMode) + GetLegendTitle(viewMode) + HasScheme(viewMode)
+**Phase 2: Normalized Scale for Rendering** (2-3h)
+- Calculate `SeaLevelNormalized` during post-processing: `(SEA_LEVEL_RAW - min) / (max - min)`
+- Update `PostProcessingResult` to include `SeaLevelNormalized` field
+- Update `ElevationPostProcessor.Process()` to compute and return normalized sea level
+- This enables rendering to consistently use normalized [0,1] scale with correct sea level threshold
 
-3. **Legend Auto-Extraction** (WorldMapLegendNode refactored):
-   - UpdateLegend() now queries registry → auto-generates from scheme.GetLegendEntries()
-   - Reduced from 312 lines → 145 lines (53% reduction!)
-   - RenderCustomLegend() handles non-scheme views (Plates only)
-
-**Code Metrics**:
-- Infrastructure: 1,111 lines (9 schemes + registry + helpers)
-- Legend: 312 → 145 lines (167 lines removed, 53% reduction)
-- Build Status: ✅ Compiles successfully, 0 warnings
-
-**❌ Remaining Work**:
-
-**1. WorldMapRendererNode Refactoring** (~4-5h):
-   - Add ViewModeSchemeRegistry lookups to ALL rendering methods
-   - Replace inline color definitions with scheme.GetColor() calls
-   - Remove obsolete helper methods (moved to SchemeBasedRenderer)
-   - **Target**: 1200 lines → ~650 lines (45% reduction)
-
-**Methods to Refactor** (8 total):
-   - `RenderTemperatureMap()` - Use TemperatureScheme (60 lines → 20 lines)
-   - `RenderPrecipitationMap()` - Use PrecipitationScheme (40 lines → 15 lines)
-   - `RenderColoredElevation()` - Use ElevationScheme (80 lines → 30 lines)
-   - `RenderFlowDirections()` - Use FlowDirectionScheme (50 lines → 20 lines)
-   - `RenderSinksPreFilling/PostFilling()` - Use SinksMarkerScheme (120 lines → 40 lines)
-   - `RenderRiverSources()` - Use RiverSourcesMarkerScheme (60 lines → 20 lines)
-   - `RenderErosionHotspots()` - Use HotspotsMarkerScheme (100 lines → 35 lines)
-   - Remove `FindQuantile()`, `GetPercentileFromSorted()`, etc. (50 lines → 0, moved to SchemeBasedRenderer)
-
-**2. Legend Rendering Modes** (~2-3h - CRITICAL MISSING FEATURE):
-   **Problem Identified**: Legend shows color swatches but doesn't explain HOW values map to colors!
-
-   **Current Gap**:
-   - Temperature: Shows "Blue = Polar", but how does [0,1] temperature map to Blue?
-   - Flow Accumulation: Shows "Bright Cyan = High flow", but is it linear? Logarithmic?
-   - Precipitation: Shows "Yellow → Green → Blue", but what's the gradient function?
-
-   **Solution - Add Rendering Mode Metadata**:
-   ```csharp
-   public interface IColorScheme
-   {
-       string Name { get; }
-       List<LegendEntry> GetLegendEntries();
-       Color GetColor(float normalizedValue, params object[] context);
-
-       // NEW: Describe how values map to colors
-       LegendRenderingMode GetRenderingMode();  // Linear, Logarithmic, Discrete, Gradient
-       string GetValueRange();  // e.g., "[0-1] normalized", "Direction code [0-7]"
-   }
-
-   public enum LegendRenderingMode
-   {
-       Discrete,      // Temperature (7 quantile bands)
-       Linear,        // Grayscale (direct mapping)
-       Logarithmic,   // Flow Accumulation (log scale for power-law distribution)
-       Gradient,      // Precipitation (smooth 3-stop gradient)
-       Marker         // Sinks/RiverSources (special case: isMarker bool)
-   }
-   ```
-
-   **Legend Display Enhancement**:
-   - Add subtitle to legend: "Discrete quantile bands" (Temperature)
-   - Add subtitle: "Logarithmic scale (power-law)" (Flow Accumulation)
-   - Add subtitle: "Smooth 3-stop gradient" (Precipitation)
-   - Add subtitle: "Grayscale + markers" (Sinks/RiverSources)
-
-   **Implementation**:
-   - Update IColorScheme interface with GetRenderingMode() + GetValueRange()
-   - Implement in all 9 concrete schemes
-   - Update WorldMapLegendNode to display rendering mode in title
-   - Update ViewModeSchemeRegistry.GetLegendTitle() to include rendering mode hint
-
-**How** (Systematic Application):
-
-**Step 1: Add Rendering Mode to ColorScheme System** (~1h)
-   - Update IColorScheme with GetRenderingMode() + GetValueRange()
-   - Implement in all 9 schemes:
-     - Elevation: Discrete (quantile bands)
-     - Temperature: Discrete (quantile bands)
-     - Precipitation: Gradient (3-stop smooth)
-     - FlowDirections: Discrete (direction codes)
-     - FlowAccumulation: Logarithmic (power-law distribution)
-     - Grayscale: Linear (direct mapping)
-     - Marker schemes: Marker (boolean overlay)
-
-**Step 2: Update Legend Display** (~30min)
-   - Modify WorldMapLegendNode.UpdateLegend() to show rendering mode
-   - Format: "{Scheme.Name} - {RenderingMode}" (e.g., "Flow Accumulation - Logarithmic scale")
-   - Add tooltip/subtitle explaining what the rendering mode means
-
-**Step 3: Refactor WorldMapRendererNode** (~4h)
-   - Add import: `using Darklands.Features.WorldGen.ColorSchemes;`
-   - For each rendering method:
-     ```csharp
-     // Before (inline colors)
-     Color dryColor = new Color(1f, 1f, 0f);
-     Color wetColor = new Color(0f, 0f, 1f);
-     // ... 30 lines of color logic ...
-
-     // After (scheme-based)
-     var scheme = ViewModeSchemeRegistry.GetScheme(_currentViewMode);
-     var image = SchemeBasedRenderer.RenderNormalizedMap(data, scheme);
-     ```
-   - Remove obsolete helper methods
-   - Build + test after each method (verify visual parity)
-
-**Step 4: Visual Validation** (~30min)
-   - Launch Godot, cycle through all 18 view modes
-   - Verify legends show rendering mode (e.g., "Logarithmic scale")
-   - Verify colors match exactly (no regression)
-   - Test Plates view (custom legend still works)
+**Phase 3: Testing and Documentation** (2h)
+- Unit tests: SSOT constant used everywhere (grep for hardcoded 0.65/1.0)
+- Unit tests: SeaLevelNormalized calculated correctly across different heightmaps
+- Performance testing: No overhead (just constant replacement)
+- Update pipeline architecture docs (note: water classification happens in VS_030 AFTER pit-filling)
 
 **Done When**:
-1. ✅ IColorScheme includes GetRenderingMode() + GetValueRange()
-2. ✅ All 9 schemes implement rendering mode metadata
-3. ✅ Legend displays rendering mode in title/subtitle
-4. ✅ WorldMapRendererNode refactored to use ViewModeSchemeRegistry lookups
-5. ✅ Renderer reduced from 1200 → ~650 lines (45% reduction)
-6. ✅ All 18 view modes tested - colors match, legends accurate
-7. ✅ Legend shows "Flow Accumulation - Logarithmic scale" (user understands mapping!)
-8. ✅ Build succeeds with 0 warnings
-9. ✅ Visual parity confirmed (no color regressions)
+1. ✅ `WorldGenConstants.SEA_LEVEL_RAW` is the ONLY sea level definition (grep confirms no hardcoded 0.65/1.0)
+2. ✅ `ElevationThresholds.SeaLevel` removed (sea level is constant, not adaptive)
+3. ✅ `PlateSimulationParams.SeaLevel` removed (sea level is physics, not config)
+4. ✅ `SeaLevelNormalized` available in PostProcessingResult (for rendering)
+5. ✅ All existing tests GREEN (no regression)
+6. ✅ Performance: Zero overhead (constant replacement only)
+7. ✅ Documentation updated: Pipeline order clarified (water classification in VS_030 AFTER pit-filling)
 
-**Depends On**: None (infrastructure complete)
+**Depends On**: VS_029 ✅ (post-processing pipeline stable)
 
-**Blocks**: Nothing (quality/maintainability improvement)
+**Blocks**: VS_030 (pathfinding requires SSOT constant and normalized scale)
 
-**Dev Engineer Notes** (2025-10-13 16:38):
+**Enables**:
+- VS_030 lake thalweg pathfinding (has consistent sea level for depth calculations)
+- Cleaner architecture (sea level = physics constant, not scattered config)
+- Consistent rendering (normalized scale established)
 
-**Key Insight from User**: "Legend doesn't correctly extract the color scheme" revealed missing feature - we show WHAT colors mean ("Blue = Polar") but not HOW values map to colors (discrete bands? logarithmic? gradient?).
+**Dev Engineer Decision** (2025-10-13 18:38):
+- **CRITICAL CORRECTION**: Original TD_021 had water classification BEFORE pit-filling → WRONG causality
+- **Key Insight from tmp.md**: Pit-filling DEFINES lakes (boundaries, water level, outlets) - can't classify before definition exists
+- **Scope Reduction**: TD_021 now ONLY does SSOT constant + normalized scale (6-8h instead of 10-14h)
+- **Water Classification Moved**: Now Phase 1 of VS_030 (happens AFTER pit-filling provides lake definitions)
+- **Risk Mitigation**: Correct pipeline order prevents "leaky lake" and "archipelago of sinks" logic errors
+- **Next Step**: Implement TD_021 (foundation), then VS_030 builds on correct causality
 
-**Why Rendering Mode Matters**:
-- **Temperature**: Discrete quantile bands (7 equal-population buckets) - user needs to know it's NOT linear!
-- **Flow Accumulation**: Logarithmic scale (power-law distribution) - explains why most cells are blue with few red hot spots
-- **Precipitation**: Smooth gradient (Yellow → Green → Blue) - user understands interpolation
-- **Flow Directions**: Discrete codes (0-7 = compass directions) - user understands it's categorical, not continuous
+---
 
-**Architecture Quality**:
-- TRUE SSOT achieved via ViewModeSchemeRegistry (single mapping point)
-- Zero manual coordination between Renderer + Legend (both query same source)
-- Adding rendering mode metadata completes the legend's explanatory power
+### VS_030: Inner Sea Flow via Lake Thalweg Pathfinding
+**Status**: Proposed (Requires TD_021 foundation)
+**Owner**: Dev Engineer
+**Size**: L (14-18h)
+**Priority**: Important (fixes D-8 flow topology for inner seas)
+**Markers**: [WORLDGEN] [ALGORITHM] [PATHFINDING] [HYDRAULIC-EROSION]
 
-**Estimated Effort**: 6-8h remaining (4-5h renderer refactoring + 2-3h rendering mode feature)
+**What**: Implement Dijkstra-based pathfinding to compute river thalweg (deepest channel) paths through inner seas, enabling correct D-8 flow topology for landlocked water bodies.
+
+**Why**:
+- **D-8 Problem**: Inner seas are flat surfaces (elevation < sea level) → D-8 has no gradient → becomes sink → breaks flow accumulation
+- **Current State**: Rivers terminate incorrectly at inner sea boundaries (flow "stuck" at lakes like Caspian Sea)
+- **Physical Reality**: Rivers flow THROUGH lakes along deepest channels (thalweg) to outlets, not terminate at inlets
+- **Pathfinding Solution**: Pre-compute optimal paths (inlet → outlet) using depth-based cost, hard-code flow directions for inner sea cells
+- **CRITICAL CORRECTION**: Water body classification MUST happen AFTER pit-filling (pit-filling DEFINES lakes with boundaries/water level/outlets)
+
+**How** (5-phase implementation with CORRECT pipeline order):
+
+**Phase 1: Water Body Classification from Pit-Filling Results** (3-4h)
+- **CRITICAL**: This happens AFTER pit-filling, which DEFINES lakes hydrologically
+- Create `WaterBodyMasks.cs` DTOs (OceanMask, InnerSeaMask, InnerSeaRegions)
+- Implement `WaterBodyClassifier.ClassifyFromPitFilling()`:
+  - Input: FilledHeightmap + OriginalHeightmap + PitFillingMetadata (basins identified by pit-filling)
+  - Algorithm:
+    - For each basin from pit-filling (has boundary, water surface elevation, pour point):
+      - If pour point at sea level AND connected to map edges → Ocean
+      - If pour point above sea level OR landlocked → Inner Sea
+    - Group inner seas into regions (connected components)
+    - Detect inlets: Boundary cells where land D-8 flow enters lake
+    - Detect outlet: The pour point identified by pit-filling
+  - Output: WaterBodyMasks (ocean mask, inner sea mask, inner sea regions with inlets/outlets)
+- Why this works: Pit-filling already solved the "leaky lake" and "archipelago of sinks" problems by finding pour points
+
+**Phase 2: Lake Thalweg Pathfinder** (3-4h)
+- Implement `LakeThalwegPathfinder.ComputePaths()` (Dijkstra with depth-based cost)
+- Cost function: `Cost = 1 / (lakeSurfaceElevation - originalHeightmap[cell] + ε)` → Prefers deeper water
+- For each inner sea region (from Phase 1):
+  - For each inlet → Find path to outlet (Dijkstra)
+  - Result: List of path segments (x, y, nextX, nextY)
+- Output: `Dictionary<InnerSeaId, List<PathSegment>>` (thalweg paths for all inner seas)
+- Optimization: Use BFS/distance transform to pre-compute "flow to nearest thalweg" for non-path lake cells
+
+**Phase 3: Hybrid Flow Direction Calculator** (2-3h)
+- Modify `FlowDirectionCalculator.CalculateWithThalwegs()`:
+  - Land cells: D-8 steepest descent (unchanged)
+  - Ocean cells: dir = -1 (sink)
+  - Inner sea cells ON thalweg path: Use pre-computed direction from pathfinding
+  - Inner sea cells NOT on thalweg: Flow toward nearest thalweg cell (from Phase 2 optimization)
+- Result: Hybrid flow directions (D-8 + pathfinding + sinks)
+
+**Phase 4: Pipeline Integration** (2-3h)
+- **CORRECTED PIPELINE ORDER**:
+  ```
+  Stage 2: Pit-filling (FIRST - DEFINES lakes)
+    → Output: FilledHeightmap + PitFillingMetadata (basins with pour points)
+
+  Stage 2.5 (NEW): Water Body Classification
+    → Input: FilledHeightmap + OriginalHeightmap + PitFillingMetadata
+    → Output: WaterBodyMasks (ocean/inner sea + regions with inlets/outlets)
+
+  Stage 2.6 (NEW): Thalweg Pathfinding
+    → Input: InnerSeaRegions (from Stage 2.5)
+    → Output: ThalwegPaths (Dijkstra-computed paths)
+
+  Stage 3 (MODIFIED): Hybrid Flow Direction Calculator
+    → Input: FilledHeightmap + WaterBodyMasks + ThalwegPaths
+    → Output: FlowDirections (D-8 + thalweg + sinks)
+
+  Stage 4-5: Topological Sort + Flow Accumulation (unchanged)
+  ```
+- Update `PitFillingCalculator` to expose basin metadata (pour points, boundaries)
+- Update `WorldGenerationResult` to include `WaterBodyMasks` and `ThalwegPaths`
+- Wire through to rendering
+
+**Phase 5: Visualization and Testing** (3-4h)
+- Add view modes:
+  - `OceanMask`: Show ocean cells (blue)
+  - `InnerSeaMask`: Show inner sea cells (teal/cyan - distinguish from ocean)
+  - `LakeThalwegs`: Show computed paths through inner seas (red lines on water)
+  - `ThalwegDepths`: Heat map of lake depths (deeper=red, shallow=blue)
+- Unit tests: Water classification correctness (ocean vs inner sea after pit-filling)
+- Unit tests: Pathfinding finds valid paths (inlet → outlet)
+- Visual validation: Flow accumulation shows rivers flowing THROUGH inner seas
+- Visual validation: Thalweg paths curve naturally (follow deepest channels)
+- Performance testing: Total overhead <50ms (classification + pathfinding)
+
+**Done When**:
+1. ✅ Pit-filling exposes basin metadata (pour points, boundaries, water surface elevations)
+2. ✅ `WaterBodyClassifier` classifies basins AFTER pit-filling (ocean vs inner sea)
+3. ✅ Inner sea regions have correct inlets (where land flow enters) and outlets (pour points)
+4. ✅ `LakeThalwegPathfinder` computes depth-based paths for all inner sea regions
+5. ✅ Dijkstra cost function uses depth (prefers thalweg channels)
+6. ✅ `FlowDirectionCalculator` hybrid approach works (D-8 + thalweg + sinks)
+7. ✅ Flow accumulation shows rivers passing THROUGH inner seas (not terminating at boundaries)
+8. ✅ 4 new view modes render correctly (OceanMask, InnerSeaMask, LakeThalwegs, ThalwegDepths)
+9. ✅ Unit tests: Pathfinding correctness (finds paths, follows depth gradient)
+10. ✅ Visual validation: No "leaky lake" errors (all classified lakes are true basins per pit-filling)
+11. ✅ All existing tests GREEN (no regression)
+12. ✅ Performance: <50ms total overhead for 512×512 map (~5-10 inner seas)
+
+**Depends On**:
+- TD_021 ✅ (must be complete - provides SSOT constant and normalized scale)
+- VS_029 ✅ (flow visualization exists for validation)
+- Current pit-filling implementation (must expose basin metadata)
+
+**Blocks**: Nothing (hydraulic erosion foundation - enables future particle erosion)
+
+**Enables**:
+- Future particle-based erosion (rivers erode along thalweg paths)
+- Future sediment deposition (sediment accumulates in deep lake basins)
+- Future navigation system (ships follow thalweg channels)
+
+**Dev Engineer Decision** (2025-10-13 18:38):
+- **CRITICAL CORRECTION**: Original VS_030 had water classification BEFORE pit-filling → CAUSALITY INVERSION ERROR
+- **Key Insight from tmp.md**:
+  - "Pit-filling is not just filling - it's a DEFINITION tool"
+  - Pour point defines outlet, pour point elevation defines water surface, basin below pour point defines lake boundary
+  - Cannot classify "what is a lake?" before pit-filling answers this question
+- **Correct Order**: Pit-filling (defines) → Classify (ocean vs inner sea) → Pathfind (thalweg) → Flow calculation (hybrid)
+- **Leaky Lake Prevention**: Classifying from pit-filling results prevents misclassifying river valleys as lakes
+- **Archipelago Prevention**: Pit-filling already merged micro-sinks into coherent basins with single pour points
+- **Size Increase**: 14-18h (was 12-16h) due to Phase 1 added (water classification moved from TD_021)
+- **Approach Still Valid**: Pathfinding over land bridge (excellent visual quality + reusable paths)
+- **Next Step**: Implement TD_021 (foundation), expose pit-filling metadata, then implement VS_030 with correct pipeline
+
+---
+
+### TD_022: Refactor Climate to Use Post-Gaussian Heightmap
+**Status**: Proposed (Consistency with TD_021 SSOT principle)
+**Owner**: Dev Engineer
+**Size**: XS (2-3h)
+**Priority**: Ideas (Low - current approach works, this is architectural consistency)
+**Markers**: [ARCHITECTURE] [CLIMATE] [CONSISTENCY]
+
+**What**: Change temperature, precipitation, rain shadow, and coastal moisture algorithms to use post-Gaussian heightmap instead of post-processing heightmap.
+
+**Why**:
+- **Consistency**: TD_021/VS_030 established "post-Gaussian = SSOT for geography" (water classification uses it)
+- **Semantic Purity**: Climate is physics/geography (mountains, valleys, ocean distance) - should use clean terrain, not artistic noise
+- **Stability**: Climate shouldn't change if we tweak post-processing noise algorithm (currently at line 73 disabled, but normally adds ±0.05 coherent noise)
+- **Current State**: All climate stages (temperature, precipitation, rain shadow, coastal moisture) use `postProcessed.ProcessedHeightmap` (line 95, 130, 148)
+
+**How** (single phase):
+- Update `GenerateWorldPipeline.Generate()`:
+  - Pass `smoothedHeightmap` instead of `postProcessed.ProcessedHeightmap` to:
+    - TemperatureCalculator (line 95)
+    - RainShadowCalculator (line 130)
+    - CoastalMoistureCalculator (line 148)
+- Result: Climate driven by clean post-Gaussian terrain (±0.05 coherent noise removed)
+- Note: Ocean mask still from post-processing (needed for coastal moisture BFS)
+
+**Done When**:
+1. ✅ Temperature uses `smoothedHeightmap` (post-Gaussian)
+2. ✅ Rain shadow uses `smoothedHeightmap` (post-Gaussian)
+3. ✅ Coastal moisture uses `smoothedHeightmap` (post-Gaussian)
+4. ✅ All existing tests GREEN (climate should be nearly identical - 0.05 noise is minimal)
+5. ✅ Visual validation: Temperature/precipitation maps look the same (no regressions)
+
+**Depends On**: TD_021 ✅ (establishes post-Gaussian as geographic SSOT)
+
+**Blocks**: Nothing (low priority consistency fix)
+
+**Enables**: Cleaner architecture (climate decoupled from post-processing artistic tweaks)
+
+**Dev Engineer Decision** (2025-10-13 18:44):
+- **Low Priority**: Current approach works fine (coherent noise ±0.05 doesn't significantly affect climate)
+- **Architectural Consistency**: Aligns with TD_021/VS_030 principle (post-Gaussian = clean geographic SSOT)
+- **Risk**: Minimal (2-3h effort, easy rollback if visual regressions detected)
+- **Defer Until**: After TD_021 + VS_030 complete (don't mix architectural changes)
 
 ---
 
