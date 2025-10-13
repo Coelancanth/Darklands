@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-13 15:28 (Dev Engineer: Added probe handlers for VS_029 erosion debug views)
+**Last Updated**: 2025-10-13 15:37 (Dev Engineer: Fixed critical topological sort bug - sinks were polluting headwater queue)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -384,8 +384,30 @@ Fixed topological sort → Re-run worldgen → Start from Step 3 (FlowAccumulati
 - Pit-filling still shows 0% POST-filling sinks (too aggressive) - deferring threshold tuning to future work
 - Current priority: Visualization validated, Gaussian blur fixes root noise issue
 
-**Follow-Up Work** (2025-10-13 15:28):
+**Follow-Up Work**:
 
+**2025-10-13 15:37 - CRITICAL BUG FIX: Topological Sort**:
+✅ **Flow Accumulation Bug Fix** ([ALGORITHM-BUG]):
+- **Problem**: Flow accumulation showed near-zero values everywhere (pure blue heat map), no river networks visible
+- **Root Cause**: TopologicalSortCalculator was adding **SINKS** (ocean cells) to the headwater queue
+  - Ocean cells have `dir=-1` (terminal sinks, don't flow anywhere)
+  - Because they don't increment in-degrees of neighbors (line 54-56 skip), ocean has in-degree 0
+  - Algorithm mistakenly treated ocean as "headwaters" alongside real mountain headwaters
+  - Result: Processing order was corrupted - sinks processed before their upstream contributors
+- **The Fix** (1-line change in TopologicalSortCalculator.cs:85):
+  ```csharp
+  // Before (WRONG): Enqueued ALL cells with in-degree 0
+  if (inDegree[y, x] == 0)
+
+  // After (CORRECT): Only enqueue NON-SINK cells with in-degree 0
+  if (inDegree[y, x] == 0 && flowDirections[y, x] != -1)
+  ```
+- **Architecture**: Kahn's algorithm requires careful distinction between "no dependencies" (headwaters) vs "terminal nodes" (sinks)
+- **Expected Result**: Flow accumulation should now show bright river networks in valleys (exponential growth: 1 → 10 → 100 → 1000+)
+- **Testing**: Regenerate world → View Flow Accumulation → Should see red river valleys instead of uniform blue
+- **Build Status**: Core compiles cleanly (0 warnings, 0 errors)
+
+**2025-10-13 15:28 - Probe Function Enhancement**:
 ✅ **Probe Function Enhancement**:
 - **Problem**: Cell probe (Q key) showed "Unknown view" for all 6 erosion debug modes
 - **Fix**: Added 6 view-mode-specific probe handlers to WorldMapProbeNode.cs

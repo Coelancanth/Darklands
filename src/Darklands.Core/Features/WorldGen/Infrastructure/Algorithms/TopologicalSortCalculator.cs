@@ -69,9 +69,10 @@ public static class TopologicalSortCalculator
         }
 
         // ═══════════════════════════════════════════════════════════════════════
-        // STEP 2: Find all headwaters (in-degree = 0)
+        // STEP 2: Find all headwaters (in-degree = 0, BUT NOT SINKS!)
         // ═══════════════════════════════════════════════════════════════════════
         // Headwaters have no upstream contributors
+        // CRITICAL: Exclude sinks (dir=-1) - they're terminals, not sources!
 
         var queue = new Queue<(int x, int y)>();
 
@@ -79,7 +80,9 @@ public static class TopologicalSortCalculator
         {
             for (int x = 0; x < width; x++)
             {
-                if (inDegree[y, x] == 0)
+                // BUG FIX: Only enqueue non-sink cells with in-degree 0
+                // Sinks (ocean) also have in-degree 0, but they're terminals, not headwaters!
+                if (inDegree[y, x] == 0 && flowDirections[y, x] != -1)
                 {
                     queue.Enqueue((x, y));
                 }
