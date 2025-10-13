@@ -285,6 +285,26 @@ public partial class WorldMapProbeNode : Node
         var worldData = _renderer?.GetWorldData();
         var data = $"Cell ({x},{y})\n";
 
+        // DEBUG: Get actual rendered color from texture for color bug diagnosis
+        Color? renderedColor = null;
+        string colorDebug = "";
+        if (_renderer?.Texture is ImageTexture imageTexture)
+        {
+            var image = imageTexture.GetImage();
+            if (image != null && x >= 0 && x < image.GetWidth() && y >= 0 && y < image.GetHeight())
+            {
+                renderedColor = image.GetPixel(x, y);
+                int r = (int)(renderedColor.Value.R * 255);
+                int g = (int)(renderedColor.Value.G * 255);
+                int b = (int)(renderedColor.Value.B * 255);
+                colorDebug = $"Color: RGB({r}, {g}, {b}) #{r:X2}{g:X2}{b:X2}\n";
+
+                // Also log to Godot console for permanent record
+                _logger?.LogInformation("[Color Debug] Cell ({X},{Y}): RGB({R}, {G}, {B}) #{RHex:X2}{GHex:X2}{BHex:X2}",
+                    x, y, r, g, b, r, g, b);
+            }
+        }
+
         // Check if this cell belongs to a preserved basin (inner sea or lake)
         var erosionData = worldData?.Phase1Erosion;
         var containingBasin = erosionData?.PreservedBasins.FirstOrDefault(b => b.Cells.Contains((x, y)));
@@ -304,31 +324,47 @@ public partial class WorldMapProbeNode : Node
             waterBodyType = "Ocean (border-connected)\n";
         }
 
+        // Show rendered color FIRST (critical debug data for color bug diagnosis)
+        if (!string.IsNullOrEmpty(colorDebug))
+        {
+            data += colorDebug;
+        }
+
         // Show water body type if this is water
         if (!string.IsNullOrEmpty(waterBodyType))
         {
             data += waterBodyType;
         }
 
-        // Show human-readable meters (if thresholds AND min/max available for mapping)
-        if (thresholds != null && worldData != null)
+        // Show human-readable meters ONLY for non-basin cells
+        // (ElevationMapper returns "Ocean" for ALL cells below sea level, including inner seas!)
+        if (containingBasin == null)
         {
-            string metersDisplay = ElevationMapper.FormatElevationWithTerrain(
-                rawElevation: currentElevation,
-                seaLevelThreshold: WorldGenConstants.SEA_LEVEL_RAW,  // TD_021: Use SSOT constant
-                minElevation: worldData.MinElevation,     // ← FIX: Use actual min from heightmap
-                maxElevation: worldData.MaxElevation,     // ← FIX: Use actual max from heightmap
-                hillThreshold: thresholds.HillLevel,
-                mountainThreshold: thresholds.MountainLevel,
-                peakThreshold: thresholds.PeakLevel);
-            data += metersDisplay;
-            data += $"\n\nRaw: {original:F2}";
+            // Not a basin cell - show elevation mapping
+            if (thresholds != null && worldData != null)
+            {
+                string metersDisplay = ElevationMapper.FormatElevationWithTerrain(
+                    rawElevation: currentElevation,
+                    seaLevelThreshold: WorldGenConstants.SEA_LEVEL_RAW,  // TD_021: Use SSOT constant
+                    minElevation: worldData.MinElevation,     // ← FIX: Use actual min from heightmap
+                    maxElevation: worldData.MaxElevation,     // ← FIX: Use actual max from heightmap
+                    hillThreshold: thresholds.HillLevel,
+                    mountainThreshold: thresholds.MountainLevel,
+                    peakThreshold: thresholds.PeakLevel);
+                data += metersDisplay;
+                data += $"\n\nRaw: {original:F2}";
+            }
+            else
+            {
+                // Fallback when data unavailable (cached world or old format)
+                data += $"Elevation: {original:F2}";
+                data += $"\n(Regenerate world for meters)";
+            }
         }
         else
         {
-            // Fallback when data unavailable (cached world or old format)
-            data += $"Elevation: {original:F2}";
-            data += $"\n(Regenerate world for meters)";
+            // Basin cell - skip elevation mapping (already shown water body type)
+            data += $"\nRaw: {original:F2}";
         }
 
         // Show post-processed comparison if available

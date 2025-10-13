@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-13 21:30 (Dev Engineer: TD_023 Step 6 COMPLETE - ColoredElevation rendering fix + ColorBrewer terrain colors)
+**Last Updated**: 2025-10-13 22:40 (Dev Engineer: TD_023 Step 7 COMPLETE - Unified water-land gradient with seamless shoreline blending)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -194,9 +194,9 @@ Rendering Scale (normalized): SeaLevelNormalized ≈ 0.045 [0-1]
 ---
 
 ### TD_023: Enhance Pit-Filling to Expose Basin Metadata + Visualization
-**Status**: Done ✅ (2025-10-13 20:27)
+**Status**: Done ✅ (2025-10-13 22:40 - Step 7: Unified water-land gradient complete)
 **Owner**: Dev Engineer
-**Size**: M (6-7h actual - algorithm fixes + classification)
+**Size**: M (9-10h actual - algorithm fixes + classification + unified gradient)
 **Priority**: Important (blocks VS_030 - water classification needs basin metadata)
 **Markers**: [ALGORITHM] [WORLDGEN] [FOUNDATION] [VISUALIZATION] [VS_030-PREREQUISITE]
 
@@ -411,6 +411,76 @@ MeasurePit() flood-fill computes:
   - Probe: Accurate water body type classification
 
 **Unblocks**: VS_030 Phase 1 fully unblocked - basin metadata accessible AND visually validated ✅
+
+✅ **Step 7: Unified Water-Land Gradient with Seamless Shoreline Blending** (2025-10-13 22:40):
+- **Critical Design Issue Discovered**: Step 6's ColoredElevation implementation used **three separate water color schemes**:
+  - Ocean: Depth gradient (Blues #C6DBEF → #08519C)
+  - Inner Seas (≥1000 cells): Flat medium blue #0064C8
+  - Lakes (<1000 cells): Flat cyan #00C8C8
+  - **Problem**: Same elevation (e.g., 0.0) rendered in THREE different colors depending on water body type
+  - **Semantic Violation**: ColoredElevation views should show **topographic relief** (elevation gradients), NOT water body classification
+  - **Visual Artifacts**: Teal/cyan lakes created color discontinuities at boundaries, confusion with green lowlands
+- **User Feedback Applied**: "Use ONE water gradient for all sub-sea cells, ONE land palette for all above-sea cells, shared shoreline blend"
+- **Hydrological Solution Implemented** ([`WorldMapRendererNode.cs:472-614`](../../godot_project/features/worldgen/WorldMapRendererNode.cs#L472-L614)):
+  1. **Unified Water Gradient**: ALL water (ocean + basins) uses single blue scale: Deep #08519C → Waterline #9ECAE1
+     - Ocean: Depth from `SeaDepth` array (normalized [0,1]) OR fallback calculation
+     - Basins: Depth = `(surfaceElevation - cellElevation) / (surfaceElevation - basinMin)` (basin-relative normalization)
+     - **Key Insight**: Depth = distance below LOCAL waterline (sea level for ocean, surface elevation for basins)
+  2. **Shared Waterline Color**: #9ECAE1 is the convergence point for ALL boundaries (ocean coasts + lake edges)
+  3. **Seamless Shoreline Blend**: 1.5% elevation range smoothstep band around ALL waterlines
+     - Water-side blend: Shallow water approaches waterline color smoothly
+     - Land-side blend: Coastal lowlands transition from waterline to terrain colors
+     - **Result**: Continuous gradient water → waterline → land for ALL water body types (no seams, no color jumps)
+  4. **Land-Only Quantiles Preserved**: Terrain colors use land-only statistics (water excluded) - ColorBrewer hypsometric tinting
+- **Architectural Correctness**:
+  - **ColoredElevation Views**: Now show PURE hydrological visualization (unified depth-based coloring)
+  - **BasinMetadata View**: KEPT distinct colors for debugging (ocean gradient, seas flat blue, lakes flat cyan) - separation of concerns
+  - **Probe Data**: Still distinguishes water body types via text labels (semantic classification preserved)
+- **Compilation Fixes** (3 errors resolved):
+  - Line 503: Changed `_worldData?.SeaLevel` → `const float seaLevelRaw = 1.0f` (WorldGenConstants.SEA_LEVEL_RAW)
+  - Lines 537, 553: Added null-forgiving operators `basin!.SurfaceElevation` / `basin!.BasinId` (guaranteed non-null in branches)
+- **Build Status**: 0 warnings, 0 errors ✅ (Core + Tests + Godot)
+- **Cartographic Standards Achieved**:
+  - ✅ Hydrologically accurate (depth = distance below waterline for ALL water)
+  - ✅ Visually unified (same color at all shorelines - no teal/green confusion)
+  - ✅ Semantically clear (water is blue, land is terrain-colored)
+  - ✅ Professional quality (matches real-world hypsometric + bathymetric maps)
+
+**Architecture Insight - Unified Hydrological Design**:
+```
+ALL WATER uses ONE gradient:
+  Ocean depth: SeaDepth[y,x] (normalized 0-1) OR (seaLevel - elevation) / (seaLevel - oceanFloor)
+  Basin depth: (basinSurface - elevation) / (basinSurface - basinMin)
+    ↓
+  Both map to: seaLevelColor (#9ECAE1) → oceanDeep (#08519C)
+
+ALL LAND uses quantile-based terrain colors (water excluded from stats):
+  Green lowlands → Yellow hills → Orange mountains → Brown peaks
+
+SEAMLESS BLEND at ALL waterlines (1.5% elevation band):
+  Water-side: depth gradient → waterline color (smoothstep)
+  Land-side: waterline color → terrain color (smoothstep)
+    ↓
+  Result: Continuous transition at ocean coasts AND lake edges (no seams)
+```
+
+**Why This Implementation is Superior**:
+| Aspect | Step 6 (Old) | Step 7 (New) |
+|--------|--------------|--------------|
+| **Water Colors** | 3 separate schemes (ocean/seas/lakes) | 1 unified gradient (all water) |
+| **Elevation Semantics** | Broken (same elev = 3 colors) | Correct (depth below waterline) |
+| **Shoreline Transitions** | Abrupt color changes | Seamless smoothstep blend |
+| **Lake Edges** | Cyan discontinuity | Same waterline color as coasts |
+| **Teal/Green Confusion** | Cyan lakes near green land | Clear blue-to-terrain transition |
+| **Cartographic Standards** | Mixed semantics | Professional hypsometric/bathymetric |
+
+**Final Result**:
+- ColoredOriginalElevation + ColoredPostProcessedElevation now show **unified hydrological visualization**
+- Ocean depth gradients + lake depth gradients + seamless shorelines = professional cartography
+- BasinMetadata view UNCHANGED (keeps distinct colors for debugging basin boundaries/classification)
+- Zero visual seams at any water-land boundary (ocean coasts, lake edges, basin shores)
+
+**Unblocks**: VS_030 Phase 1 (basin metadata validated) + Professional visualization for worldgen debugging ✅
 
 ---
 

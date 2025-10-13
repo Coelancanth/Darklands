@@ -12,7 +12,8 @@
       "Bash(./scripts/core/build.ps1 test-only \"Category=WorldGen\")",
       "Bash(Select-String \"case MapViewMode.BasinMetadata\" -Context 0,15 WorldMapRendererNode.cs)",
       "Bash(Select-String \"BuildBasinMetadataLegend\" WorldMapUINode.cs)",
-      "Bash(Select-String \"RenderBasinMetadata\" WorldMapRendererNode.cs)"
+      "Bash(Select-String \"RenderBasinMetadata\" WorldMapRendererNode.cs)",
+      "Bash(Select-String \"RenderColoredOriginalElevation\\|RenderColoredPostProcessedElevation\" WorldMapRendererNode.cs -Context 0,30)"
     ],
     "deny": [],
     "ask": [],
