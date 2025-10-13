@@ -959,9 +959,10 @@ public partial class WorldMapRendererNode : Sprite2D
         // ═══════════════════════════════════════════════════════════════════════
 
         // Layer 1: Terrain Canvas (muted earth tones - subtle background)
-        Color terrainLowlands = new Color(47f/255f, 79f/255f, 79f/255f);    // Dark Slate Gray
-        Color terrainHills = new Color(189f/255f, 183f/255f, 107f/255f);    // Khaki
-        Color terrainPeaks = new Color(176f/255f, 196f/255f, 222f/255f);    // Light Steel Blue
+        // NOTE: Lowlands BRIGHTENED to avoid "false lake" effect (was too dark at RGB 47,79,79)
+        Color terrainLowlands = new Color(180f/255f, 170f/255f, 150f/255f);  // Sandy Beige (light, clearly land!)
+        Color terrainHills = new Color(189f/255f, 183f/255f, 107f/255f);     // Khaki (warm mid-tones)
+        Color terrainPeaks = new Color(176f/255f, 196f/255f, 222f/255f);     // Light Steel Blue (cool peaks)
 
         // Layer 2: Water Overlay (bright cyan with varying alpha - eye-catching rivers!)
         Color waterLowFlow = new Color(0f, 0f, 139f/255f, 0.05f);           // Deep blue, 5% alpha (barely visible)
