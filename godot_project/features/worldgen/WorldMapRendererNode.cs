@@ -948,21 +948,25 @@ public partial class WorldMapRendererNode : Sprite2D
                     continue;
                 }
 
-                // Land cells = heat map gradient
-                float t = (flowAccumulation[y, x] - min) / delta;  // Normalize [0,1]
+                // Land cells = heat map gradient with LOG SCALING
+                // Log scaling compresses the heavy-tailed distribution to make drainage network visible
+                // Formula: t = log(1 + v - min) / log(1 + max - min)
+                // This expands low values (hilltops) and compresses high values (rivers)
+                float v = flowAccumulation[y, x];
+                float logT = (float)Math.Log(1 + v - min) / (float)Math.Log(1 + max - min);
 
                 Color color;
-                if (t < 0.33f)
+                if (logT < 0.33f)
                 {
-                    color = Gradient(t, 0f, 0.33f, lowColor, medColor);
+                    color = Gradient(logT, 0f, 0.33f, lowColor, medColor);
                 }
-                else if (t < 0.66f)
+                else if (logT < 0.66f)
                 {
-                    color = Gradient(t, 0.33f, 0.66f, medColor, highColor);
+                    color = Gradient(logT, 0.33f, 0.66f, medColor, highColor);
                 }
                 else
                 {
-                    color = Gradient(t, 0.66f, 1.0f, highColor, veryHighColor);
+                    color = Gradient(logT, 0.66f, 1.0f, highColor, veryHighColor);
                 }
 
                 image.SetPixel(x, y, color);
@@ -974,7 +978,7 @@ public partial class WorldMapRendererNode : Sprite2D
         float p95ToMeanRatio = mean > 0 ? p95 / mean : 0f;
 
         _logger?.LogInformation(
-            "FLOW ACCUMULATION: min={Min:F4}, max={Max:F4}, mean={Mean:F4}, p95={P95:F4} | p95/mean={Ratio:F1}x (expect >5x for river valleys)",
+            "FLOW ACCUMULATION (LOG SCALED): min={Min:F4}, max={Max:F4}, mean={Mean:F4}, p95={P95:F4} | p95/mean={Ratio:F1}x | Log scaling makes drainage network visible",
             min, max, mean, p95, p95ToMeanRatio);
     }
 
