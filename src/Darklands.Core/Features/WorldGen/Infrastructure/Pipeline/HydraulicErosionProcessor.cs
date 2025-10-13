@@ -82,7 +82,8 @@ public static class HydraulicErosionProcessor
             heightmap,
             oceanMask,
             pitDepthThreshold,
-            pitAreaThreshold);
+            pitAreaThreshold,
+            logger);
 
         var filledHeightmap = fillingResult.FilledHeightmap;
         var preservedBasins = fillingResult.PreservedBasins;  // TD_023: Now contains complete basin metadata

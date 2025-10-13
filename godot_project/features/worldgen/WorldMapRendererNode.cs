@@ -215,6 +215,17 @@ public partial class WorldMapRendererNode : Sprite2D
                 }
                 break;
 
+            case MapViewMode.BasinMetadata:
+                if (_worldData.Phase1Erosion != null && _worldData.Phase1Erosion.FilledHeightmap != null && _worldData.OceanMask != null)
+                {
+                    RenderBasinMetadata(_worldData.Phase1Erosion.FilledHeightmap, _worldData.OceanMask, _worldData.Phase1Erosion.PreservedBasins);
+                }
+                else
+                {
+                    _logger?.LogWarning("BasinMetadata not available");
+                }
+                break;
+
             case MapViewMode.FlowDirections:
                 if (_worldData.Phase1Erosion != null)
                 {
@@ -821,6 +832,127 @@ public partial class WorldMapRendererNode : Sprite2D
         _logger?.LogInformation(
             "POST-FILLING SINKS: Total={Count} ({Percentage:F1}% of land cells) | Lakes preserved={LakeCount}",
             lakes.Count, landPercentage, lakes.Count);
+    }
+
+    /// <summary>
+    /// Renders basin metadata from pit-filling (TD_023).
+    /// Grayscale elevation base + colored basin boundaries + markers (red pour points, cyan centers).
+    /// Purpose: Validate basin detection for VS_030 (boundaries for inlet detection, pour points for pathfinding).
+    /// </summary>
+    private void RenderBasinMetadata(float[,] heightmap, bool[,] oceanMask, System.Collections.Generic.List<BasinMetadata> basins)
+    {
+        int h = heightmap.GetLength(0);
+        int w = heightmap.GetLength(1);
+        var image = Image.CreateEmpty(w, h, false, Image.Format.Rgb8);
+
+        // Step 1: Render grayscale elevation base
+        float min = float.MaxValue, max = float.MinValue;
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                float v = heightmap[y, x];
+                if (v < min) min = v;
+                if (v > max) max = v;
+            }
+        }
+
+        float delta = Math.Max(1e-6f, max - min);
+
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                float t = (heightmap[y, x] - min) / delta;
+                image.SetPixel(x, y, new Color(t, t, t));
+            }
+        }
+
+        // Step 2: Generate distinct colors for each basin (vibrant, deterministic)
+        var rng = new Random(42);  // Seed for consistency
+        var basinColors = new System.Collections.Generic.Dictionary<int, Color>();
+
+        foreach (var basin in basins)
+        {
+            // Generate vibrant, saturated colors (avoid grayscale to distinguish from background)
+            basinColors[basin.BasinId] = new Color(
+                (float)rng.NextDouble() * 0.7f + 0.3f,  // RGB [0.3-1.0] - bright range
+                (float)rng.NextDouble() * 0.7f + 0.3f,
+                (float)rng.NextDouble() * 0.7f + 0.3f
+            );
+        }
+
+        // Step 3: Render basin boundaries (color cells by basin ID)
+        foreach (var basin in basins)
+        {
+            Color basinColor = basinColors[basin.BasinId];
+
+            foreach (var (cellX, cellY) in basin.Cells)
+            {
+                if (cellX >= 0 && cellX < w && cellY >= 0 && cellY < h)
+                {
+                    // Blend basin color with elevation (50% opacity) for context
+                    Color elevationBase = image.GetPixel(cellX, cellY);
+                    Color blended = elevationBase.Lerp(basinColor, 0.6f);  // 60% basin color, 40% elevation
+                    image.SetPixel(cellX, cellY, blended);
+                }
+            }
+        }
+
+        // Step 4: Mark pour points (red) and basin centers (cyan) on TOP of boundaries
+        Color pourPointMarker = new Color(1f, 0f, 0f);     // Bright red (outlets)
+        Color centerMarker = new Color(0f, 1f, 1f);        // Cyan (basin centers)
+
+        foreach (var basin in basins)
+        {
+            // Mark pour point (outlet)
+            var (pourX, pourY) = basin.PourPoint;
+            if (pourX >= 0 && pourX < w && pourY >= 0 && pourY < h)
+            {
+                image.SetPixel(pourX, pourY, pourPointMarker);
+            }
+
+            // Mark basin center (local minimum)
+            var (centerX, centerY) = basin.Center;
+            if (centerX >= 0 && centerX < w && centerY >= 0 && centerY < h)
+            {
+                image.SetPixel(centerX, centerY, centerMarker);
+            }
+        }
+
+        Texture = ImageTexture.CreateFromImage(image);
+
+        // Step 5: Calculate statistics for diagnostic logging
+        if (basins.Count > 0)
+        {
+            float minDepth = basins.Min(b => b.Depth);
+            float maxDepth = basins.Max(b => b.Depth);
+            float meanDepth = basins.Average(b => b.Depth);
+
+            int minArea = basins.Min(b => b.Area);
+            int maxArea = basins.Max(b => b.Area);
+            int totalCells = basins.Sum(b => b.Area);
+
+            // Calculate land percentage
+            int landCells = 0;
+            for (int y = 0; y < h; y++)
+            {
+                for (int x = 0; x < w; x++)
+                {
+                    if (!oceanMask[y, x]) landCells++;
+                }
+            }
+
+            float landPercent = landCells > 0 ? (totalCells / (float)landCells) * 100f : 0f;
+
+            _logger?.LogInformation(
+                "BASIN METADATA: {Count} preserved basins | Depths: min={MinDepth:F1}, max={MaxDepth:F1}, mean={MeanDepth:F1} | Basin sizes: min={MinArea} cells, max={MaxArea} cells, total={TotalCells} cells ({LandPercent:F1}% of land)",
+                basins.Count, minDepth, maxDepth, meanDepth, minArea, maxArea, totalCells, landPercent);
+        }
+        else
+        {
+            _logger?.LogInformation("BASIN METADATA: 0 preserved basins (all pits filled)");
+        }
     }
 
     /// <summary>

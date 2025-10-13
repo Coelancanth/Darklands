@@ -240,6 +240,9 @@ public partial class WorldMapProbeNode : Node
             MapViewMode.SinksPostFilling =>
                 BuildSinksPostFillingProbeData(x, y, worldData),
 
+            MapViewMode.BasinMetadata =>
+                BuildBasinMetadataProbeData(x, y, worldData),
+
             MapViewMode.FlowDirections =>
                 BuildFlowDirectionsProbeData(x, y, worldData),
 
@@ -742,6 +745,80 @@ public partial class WorldMapProbeNode : Node
         {
             float reduction = ((preSinks - postSinks) * 100f) / preSinks;
             data += $"Reduction: {reduction:F1}%\n";
+        }
+
+        return data;
+    }
+
+    /// <summary>
+    /// Builds probe data for Basin Metadata view (TD_023).
+    /// Shows: basin ID, elevation, basin size/depth, pour point distance, basin role (center/boundary/outlet).
+    /// </summary>
+    private string BuildBasinMetadataProbeData(
+        int x,
+        int y,
+        Core.Features.WorldGen.Application.DTOs.WorldGenerationResult worldData)
+    {
+        var data = $"Cell ({x},{y})\nBasin Metadata (TD_023)\n\n";
+
+        var erosionData = worldData.Phase1Erosion;
+        if (erosionData == null)
+        {
+            return data + "(No erosion data - regenerate world)";
+        }
+
+        // Get filled elevation
+        float filledElevation = erosionData.FilledHeightmap[y, x];
+        bool? isOcean = worldData.OceanMask?[y, x];
+
+        data += $"Elevation: {filledElevation:F2}\n";
+
+        // Ocean status
+        if (isOcean == true)
+            data += "Type: Ocean\n\n";
+        else
+            data += "Type: Land\n\n";
+
+        // Check if this cell belongs to any preserved basin
+        var containingBasin = erosionData.PreservedBasins.FirstOrDefault(b => b.Cells.Contains((x, y)));
+
+        if (containingBasin != null)
+        {
+            // Cell is part of a preserved basin
+            data += $"BASIN #{containingBasin.BasinId}\n";
+            data += $"Size: {containingBasin.Area} cells\n";
+            data += $"Depth: {containingBasin.Depth:F1}\n";
+            data += $"Surface Elev: {containingBasin.SurfaceElevation:F2}\n\n";
+
+            // Determine role in basin
+            if (containingBasin.Center == (x, y))
+            {
+                data += "Role: BASIN CENTER\n";
+                data += "(Local minimum - pit bottom)\n";
+            }
+            else if (containingBasin.PourPoint == (x, y))
+            {
+                data += "Role: POUR POINT\n";
+                data += "(Outlet - where water exits)\n";
+            }
+            else
+            {
+                data += "Role: Basin boundary\n";
+                data += "(Part of endorheic basin)\n";
+            }
+        }
+        else
+        {
+            // Cell is not part of any preserved basin
+            data += "Not part of preserved basin\n";
+
+            int totalBasins = erosionData.PreservedBasins.Count;
+            data += $"\nTotal Preserved Basins: {totalBasins}\n";
+
+            if (totalBasins == 0)
+            {
+                data += "(All pits filled - no large basins)\n";
+            }
         }
 
         return data;

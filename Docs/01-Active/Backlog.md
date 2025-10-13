@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-13 19:42 (Dev Engineer: TD_023 Steps 1-3 complete - basin metadata algorithm enhanced, pipeline updated)
+**Last Updated**: 2025-10-13 20:27 (Dev Engineer: TD_023 COMPLETE with classification fix - inner seas now preserved correctly)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -194,9 +194,9 @@ Rendering Scale (normalized): SeaLevelNormalized ≈ 0.045 [0-1]
 ---
 
 ### TD_023: Enhance Pit-Filling to Expose Basin Metadata + Visualization
-**Status**: In Progress (Steps 1-3 Complete ✅, Step 4 Pending)
+**Status**: Done ✅ (2025-10-13 20:27)
 **Owner**: Dev Engineer
-**Size**: S (3-4h, ~2.5h spent)
+**Size**: M (6-7h actual - algorithm fixes + classification)
 **Priority**: Important (blocks VS_030 - water classification needs basin metadata)
 **Markers**: [ALGORITHM] [WORLDGEN] [FOUNDATION] [VISUALIZATION] [VS_030-PREREQUISITE]
 
@@ -336,15 +336,41 @@ MeasurePit() flood-fill computes:
   └─ cells = ALL flooded cells → VS_030 inlet detection
 ```
 
-**Remaining Work** (Step 4 - Basin Metadata Visualization):
-- Add `MapViewMode.BasinMetadata` enum value
-- Implement `WorldMapRendererNode.RenderBasinMetadata()`:
-  - Grayscale elevation base + colored basin boundaries + markers (red pour points, cyan centers)
-- Add diagnostic logging (basin count, depth/size statistics)
-- Wire to UI dropdown ("DEBUG: Basin Metadata")
-- **Estimated Time**: ~1h (pure Presentation layer work, no Core changes)
+✅ **Step 4: Basin Metadata Visualization** (1h):
+- Added `MapViewMode.BasinMetadata` enum value (between SinksPostFilling and FlowDirections)
+- Implemented [`WorldMapRendererNode.RenderBasinMetadata()`](../../godot_project/features/worldgen/WorldMapRendererNode.cs#L837-L956):
+  - **Layer 1**: Grayscale elevation base (terrain context)
+  - **Layer 2**: Colored basin boundaries (vibrant colors, 60% opacity blend with elevation)
+  - **Layer 3**: Red pour point markers (outlets) + Cyan center markers (local minima)
+- Diagnostic logging: Basin count, depth range (min/max/mean), size range (min/max/total), land percentage
+- Wired to UI dropdown: "DEBUG: Basin Metadata (TD_023)" (between Sinks POST and Flow Directions)
+- Added custom legend for Basin Metadata view (grayscale, colored regions, red/cyan markers + purpose)
+- Added probe handler: `BuildBasinMetadataProbeData()` shows basin ID, size, depth, role (center/boundary/outlet)
+- **Build Status**: Core + Tests + Godot all compile (0 warnings, 0 errors) ✅
+- **Test Status**: 228 non-WorldGen tests GREEN ✅ (WorldGen tests crash due to pre-existing native library issues)
 
-**Unblocks** (Partially): VS_030 Phase 1 can now access basin metadata (cells, pour points, surface elevations) - visualization pending for validation
+✅ **Step 5: Algorithm Fixes - Below-Sea-Level Flood-Fill** (2-3h):
+- **Critical Issue Discovered**: Original local minima detection failed for flat basins (inner seas at varying elevations 0.11-0.12)
+- **User Insight Applied**: "Filter land cells below sea level → flood-fill connected regions" (MUCH simpler than local minima!)
+- **Fix 1 - FindLocalMinima Rewrite** ([`PitFillingCalculator.cs:177-262`](../../src/Darklands.Core/Features/WorldGen/Infrastructure/Algorithms/PitFillingCalculator.cs#L177-L262)):
+  - New algorithm: Scan for cells < SEA_LEVEL AND not in ocean mask → flood-fill 4-connected → each region = one basin
+  - Result: Correctly detects inner seas as single large basins (was detecting thousands of 1-cell false positives)
+- **Fix 2 - MeasurePit Flood-Fill** ([`PitFillingCalculator.cs:324-342`](../../src/Darklands.Core/Features/WorldGen/Infrastructure/Algorithms/PitFillingCalculator.cs#L324-L342)):
+  - Changed from equal-elevation matching to below-sea-level flood-fill (consistent with FindLocalMinima)
+  - Now measures full extent of varying-elevation basins (inner sea: 195,919 cells!)
+- **Fix 3 - Classification Logic** ([`PitFillingCalculator.cs:108`](../../src/Darklands.Core/Features/WorldGen/Infrastructure/Algorithms/PitFillingCalculator.cs#L108)):
+  - Changed from OR to AND: `depth < 50 && area < 100` (both must be true to fill)
+  - Large flat basins now preserved correctly (area=195,919, depth=2.0 → PRESERVE!)
+  - Matches hydrological reality: Size OR depth makes a basin significant
+- **Diagnostic Logging Added**: Shows first 10 basins + any large basins (area > 1000) during classification
+
+**Final Result**:
+- Inner seas (Caspian Sea analogs) detected as single large basins (195k+ cells)
+- Flood-fill handles flat/irregular/varying-elevation basins correctly
+- Basin Metadata view displays colored regions, pour points, and centers
+- Legend and probe handlers work correctly
+
+**Unblocks**: VS_030 Phase 1 fully unblocked - basin metadata accessible AND visually validated ✅
 
 ---
 

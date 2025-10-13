@@ -8,7 +8,10 @@
       "Bash(dotnet test:*)",
       "Bash(powershell -Command:*)",
       "Bash(git add:*)",
-      "Bash(Select-String \"VS-029\")"
+      "Bash(Select-String \"VS-029\")",
+      "Bash(./scripts/core/build.ps1 test-only \"Category=WorldGen\")",
+      "Bash(Select-String \"case MapViewMode.BasinMetadata\" -Context 0,15 WorldMapRendererNode.cs)",
+      "Bash(Select-String \"BuildBasinMetadataLegend\" WorldMapUINode.cs)"
     ],
     "deny": [],
     "ask": [],

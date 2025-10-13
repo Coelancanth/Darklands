@@ -123,6 +123,15 @@ public enum MapViewMode
     SinksPostFilling,
 
     /// <summary>
+    /// [DEBUG] Display basin metadata from pit-filling (TD_023).
+    /// Grayscale elevation base + colored basin boundaries + markers (red pour points, cyan centers).
+    /// Each preserved basin rendered with distinct color (basin ID % palette).
+    /// Visual signature: Colored regions for large lakes/pits, red dots at outlets, cyan at centers.
+    /// Purpose: Validate basin detection for VS_030 (boundaries for inlet detection, pour points for pathfinding).
+    /// </summary>
+    BasinMetadata,
+
+    /// <summary>
     /// [DEBUG] Display D-8 flow directions (VS_029 Step 2).
     /// 8-color gradient: N=Red, NE=Yellow, E=Green, SE=Cyan, S=Blue, SW=Purple, W=Magenta, NW=Orange, Sink=Black.
     /// Visual signature: Colors flow downhill (mountains→valleys→ocean).
