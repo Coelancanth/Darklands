@@ -2,6 +2,7 @@ using System;
 using Godot;
 using Darklands.Core.Features.WorldGen.Application.Common;
 using Darklands.Core.Features.WorldGen.Application.DTOs;
+using Darklands.Core.Features.WorldGen.Domain;
 using Microsoft.Extensions.Logging;
 
 namespace Darklands.Features.WorldGen;
@@ -284,7 +285,7 @@ public partial class WorldMapProbeNode : Node
         {
             string metersDisplay = ElevationMapper.FormatElevationWithTerrain(
                 rawElevation: currentElevation,
-                seaLevelThreshold: thresholds.SeaLevel,
+                seaLevelThreshold: WorldGenConstants.SEA_LEVEL_RAW,  // TD_021: Use SSOT constant
                 minElevation: worldData.MinElevation,     // ← FIX: Use actual min from heightmap
                 maxElevation: worldData.MaxElevation,     // ← FIX: Use actual max from heightmap
                 hillThreshold: thresholds.HillLevel,
@@ -304,9 +305,7 @@ public partial class WorldMapProbeNode : Node
         if (postProcessed.HasValue)
             data += $"\nPost-Proc: {postProcessed.Value:F2}";
 
-        // Show ocean/depth info
-        if (isOcean == true && seaDepth.HasValue && seaDepth.Value > 0)
-            data += $"\nDepth: {seaDepth.Value:F2}";
+        // TD_021: Removed depth display (clutter - raw value shows if needed for debugging)
 
         return data;
     }

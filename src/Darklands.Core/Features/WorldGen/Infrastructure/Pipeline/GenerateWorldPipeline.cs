@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using CSharpFunctionalExtensions;
 using Darklands.Core.Features.WorldGen.Application.Abstractions;
 using Darklands.Core.Features.WorldGen.Application.DTOs;
+using Darklands.Core.Features.WorldGen.Domain;
 using Microsoft.Extensions.Logging;
 
 namespace Darklands.Core.Features.WorldGen.Infrastructure.Pipeline;
@@ -68,7 +69,6 @@ public class GenerateWorldPipeline : IWorldGenerationPipeline
 
         var postProcessed = ElevationPostProcessor.Process(
             originalHeightmap: smoothedHeightmap,  // Use smoothed instead of raw native output!
-            seaLevel: parameters.SeaLevel,
             seed: parameters.Seed,
             addNoise: false);  // DIAGNOSTIC: Disabled to isolate Gaussian blur effect (re-enable after validation)
 
@@ -82,8 +82,8 @@ public class GenerateWorldPipeline : IWorldGenerationPipeline
         var (minElevation, maxElevation) = GetMinMax(postProcessed.ProcessedHeightmap);
 
         _logger.LogInformation(
-            "Stage 1 complete: Elevation thresholds calculated (SeaLevel={SeaLevel:F2}, HillLevel={HillLevel:F2}, MountainLevel={MountainLevel:F2}, PeakLevel={PeakLevel:F2}, Range=[{Min:F2}, {Max:F2}])",
-            thresholds.SeaLevel, thresholds.HillLevel, thresholds.MountainLevel, thresholds.PeakLevel, minElevation, maxElevation);
+            "Stage 1 complete: Elevation thresholds calculated (HillLevel={HillLevel:F2}, MountainLevel={MountainLevel:F2}, PeakLevel={PeakLevel:F2}, Range=[{Min:F2}, {Max:F2}], SeaLevel={SeaLevel:F2} [constant])",
+            thresholds.HillLevel, thresholds.MountainLevel, thresholds.PeakLevel, minElevation, maxElevation, WorldGenConstants.SEA_LEVEL_RAW);
 
         // ═══════════════════════════════════════════════════════════════════════
         // STAGE 2: Climate - Temperature (VS_025)
@@ -128,7 +128,7 @@ public class GenerateWorldPipeline : IWorldGenerationPipeline
         var rainShadowResult = Algorithms.RainShadowCalculator.Calculate(
             basePrecipitation: precipResult.FinalMap,
             elevation: postProcessed.ProcessedHeightmap,
-            seaLevel: thresholds.SeaLevel,
+            seaLevel: WorldGenConstants.SEA_LEVEL_RAW,  // TD_021: Use SSOT constant
             maxElevation: maxElevation,
             width: nativeResult.Value.Width,
             height: nativeResult.Value.Height);
@@ -203,6 +203,7 @@ public class GenerateWorldPipeline : IWorldGenerationPipeline
             maxElevation: maxElevation,                                    // Actual peak (for meters mapping)
             oceanMask: postProcessed.OceanMask,                            // Flood-filled ocean
             seaDepth: postProcessed.SeaDepth,                              // Depth map
+            seaLevelNormalized: postProcessed.SeaLevelNormalized,          // TD_021: Normalized sea level for rendering
             temperatureLatitudeOnly: tempResult.LatitudeOnlyMap,           // VS_025 Stage 1 (debug)
             temperatureWithNoise: tempResult.WithNoiseMap,                 // VS_025 Stage 2 (debug)
             temperatureWithDistance: tempResult.WithDistanceMap,           // VS_025 Stage 3 (debug)
@@ -233,7 +234,11 @@ public class GenerateWorldPipeline : IWorldGenerationPipeline
     /// </summary>
     /// <param name="heightmap">Post-processed heightmap (raw [0.1-20])</param>
     /// <param name="oceanMask">Ocean mask for separating land/ocean statistics</param>
-    /// <returns>Elevation thresholds (SeaLevel, HillLevel, MountainLevel, PeakLevel)</returns>
+    /// <returns>Elevation thresholds (HillLevel, MountainLevel, PeakLevel)</returns>
+    /// <remarks>
+    /// TD_021: Sea level removed - use WorldGenConstants.SEA_LEVEL_RAW (1.0f physics constant).
+    /// Only hill/mountain/peak levels are adaptive per-world (quantile-based).
+    /// </remarks>
     private static ElevationThresholds CalculateElevationThresholds(float[,] heightmap, bool[,] oceanMask)
     {
         int height = heightmap.GetLength(0);
@@ -241,33 +246,27 @@ public class GenerateWorldPipeline : IWorldGenerationPipeline
 
         // Collect land elevations for quantile calculation
         var landElevations = new List<float>();
-        var allElevations = new List<float>();
 
         for (int y = 0; y < height; y++)
         {
             for (int x = 0; x < width; x++)
             {
-                float elevation = heightmap[y, x];
-                allElevations.Add(elevation);
-
                 if (!oceanMask[y, x])  // Land only
                 {
-                    landElevations.Add(elevation);
+                    landElevations.Add(heightmap[y, x]);
                 }
             }
         }
 
         // Sort for quantile calculation
         landElevations.Sort();
-        allElevations.Sort();
 
-        // Calculate thresholds
-        float seaLevel = GetPercentile(allElevations, 0.50f);       // 50th percentile overall (median)
+        // Calculate adaptive thresholds (land features only - sea level is fixed constant)
         float hillLevel = GetPercentile(landElevations, 0.70f);     // 70th percentile of land
         float mountainLevel = GetPercentile(landElevations, 0.85f); // 85th percentile of land
         float peakLevel = GetPercentile(landElevations, 0.95f);     // 95th percentile of land
 
-        return new ElevationThresholds(seaLevel, hillLevel, mountainLevel, peakLevel);
+        return new ElevationThresholds(hillLevel, mountainLevel, peakLevel);
     }
 
     /// <summary>

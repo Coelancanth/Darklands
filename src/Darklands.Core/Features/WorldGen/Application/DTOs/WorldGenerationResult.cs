@@ -71,6 +71,14 @@ public record WorldGenerationResult
     public float[,]? SeaDepth { get; init; }
 
     /// <summary>
+    /// Sea level position in normalized [0, 1] scale for rendering (TD_021 Phase 2).
+    /// Calculated as: (SEA_LEVEL_RAW - min) / (max - min)
+    /// Enables rendering to show sea level threshold correctly on color ramps.
+    /// Used by: Elevation color ramps, probe display, biome classification UI.
+    /// </summary>
+    public float? SeaLevelNormalized { get; init; }
+
+    /// <summary>
     /// Temperature map - Stage 1: Latitude-only (VS_025 Stage 2 debug).
     /// Pure latitude banding with axial tilt. Normalized [0,1].
     /// Visual signature: Horizontal bands, hot zone shifts with tilt.
@@ -210,6 +218,7 @@ public record WorldGenerationResult
         float maxElevation = 20.0f,
         bool[,]? oceanMask = null,
         float[,]? seaDepth = null,
+        float? seaLevelNormalized = null,
         float[,]? temperatureLatitudeOnly = null,
         float[,]? temperatureWithNoise = null,
         float[,]? temperatureWithDistance = null,
@@ -234,6 +243,7 @@ public record WorldGenerationResult
         PlatesMap = platesMap;
         OceanMask = oceanMask;
         SeaDepth = seaDepth;
+        SeaLevelNormalized = seaLevelNormalized;
         TemperatureLatitudeOnly = temperatureLatitudeOnly;
         TemperatureWithNoise = temperatureWithNoise;
         TemperatureWithDistance = temperatureWithDistance;

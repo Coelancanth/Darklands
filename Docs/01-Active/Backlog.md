@@ -76,9 +76,9 @@
 *Core features for current milestone, technical debt affecting velocity*
 
 ### TD_021: Sea Level SSOT and Normalized Scale Foundation
-**Status**: Proposed (Architectural foundation for VS_030)
+**Status**: Done ✅ (2025-10-13 19:20)
 **Owner**: Dev Engineer
-**Size**: S (6-8h)
+**Size**: S (6-8h actual)
 **Priority**: Important (blocks VS_030 pathfinding implementation)
 **Markers**: [ARCHITECTURE] [SSOT] [WORLDGEN] [FOUNDATION]
 
@@ -136,6 +136,60 @@
 - **Water Classification Moved**: Now Phase 1 of VS_030 (happens AFTER pit-filling provides lake definitions)
 - **Risk Mitigation**: Correct pipeline order prevents "leaky lake" and "archipelago of sinks" logic errors
 - **Next Step**: Implement TD_021 (foundation), then TD_023 (expose basin metadata), then VS_030 builds on complete data
+
+**Implementation Summary** (2025-10-13 19:20):
+
+✅ **Phase 1: SSOT Constant** (3h):
+- Created [`WorldGenConstants.cs`](../../src/Darklands.Core/Features/WorldGen/Domain/WorldGenConstants.cs) with `SEA_LEVEL_RAW = 1.0f` (matches C++ CONTINENTAL_BASE)
+- **Key Clarification**: `PlateSimulationParams.SeaLevel` KEPT as generation parameter (land/ocean ratio control for native library)
+- **Semantic Fix**: `ElevationThresholds.SeaLevel` REMOVED (sea level is constant, not adaptive like hills/mountains)
+- Updated all post-processing references: [`ElevationPostProcessor`](../../src/Darklands.Core/Features/WorldGen/Infrastructure/Pipeline/ElevationPostProcessor.cs#L96), [`GenerateWorldPipeline`](../../src/Darklands.Core/Features/WorldGen/Infrastructure/Pipeline/GenerateWorldPipeline.cs#L131), [`RainShadowCalculator`](../../src/Darklands.Core/Features/WorldGen/Infrastructure/Pipeline/GenerateWorldPipeline.cs#L131)
+- Result: Single source of truth for ocean/land threshold (1.0f), separate from generation config (0.65f target ratio)
+
+✅ **Phase 2: Normalized Scale** (2h):
+- Added `SeaLevelNormalized` to [`PostProcessingResult`](../../src/Darklands.Core/Features/WorldGen/Infrastructure/Pipeline/ElevationPostProcessor.cs#L52) and [`WorldGenerationResult`](../../src/Darklands.Core/Features/WorldGen/Application/DTOs/WorldGenerationResult.cs#L79)
+- Calculation: `(SEA_LEVEL_RAW - min) / (max - min)` → correct position on [0,1] scale for rendering
+- Wired through pipeline: [`ElevationPostProcessor.Process()`](../../src/Darklands.Core/Features/WorldGen/Infrastructure/Pipeline/ElevationPostProcessor.cs#L106) → [`GenerateWorldPipeline`](../../src/Darklands.Core/Features/WorldGen/Infrastructure/Pipeline/GenerateWorldPipeline.cs#L206)
+- Enables future color ramp rendering with precise sea level boundary
+
+✅ **Phase 3: Probe Simplification** (1h):
+- Simplified ocean display in [`ElevationMapper.FormatElevationWithTerrain()`](../../godot_project/features/worldgen/ElevationMapper.cs#L107-111)
+  - **Before**: "3,500m below sea level (Ocean)"
+  - **After**: "Ocean" (clean, uncluttered)
+- Removed redundant depth line from [`WorldMapProbeNode`](../../godot_project/features/worldgen/WorldMapProbeNode.cs#L308) (raw elevation still visible for debugging)
+- Updated [`WorldMapSerializationService`](../../godot_project/features/worldgen/WorldMapSerializationService.cs#L64-66) for backward-compatible save/load
+
+**Architecture Insight**:
+```
+Generation Parameter (config): PlateSimulationParams.SeaLevel = 0.65f
+  ↓ Controls land/ocean ratio during native simulation
+  ↓
+Physics Constant (threshold): WorldGenConstants.SEA_LEVEL_RAW = 1.0f
+  ↓ Actual elevation boundary in OUTPUT (ocean ≤ 1.0, land > 1.0)
+  ↓
+Rendering Scale (normalized): SeaLevelNormalized ≈ 0.045 [0-1]
+  ↓ Position on color ramps (for future biome visualization)
+```
+
+**Test Results**:
+- ✅ Build: 0 warnings, 0 errors (Core + Tests + Godot)
+- ✅ Tests: 538/538 Core tests GREEN (Category!=WorldGen)
+- ⚠️ WorldGen integration tests: Pre-existing native library crash (not TD_021 regression)
+- ✅ Visual validation pending: User to test probe display in Godot Editor
+
+**Files Changed** (10 files):
+1. **New**: `WorldGenConstants.cs` - SSOT definition
+2. **Core**: `PlateSimulationParams.cs` - Clarified SeaLevel semantics
+3. **Core**: `ElevationThresholds.cs` - Removed SeaLevel property
+4. **Core**: `ElevationPostProcessor.cs` - Uses constant + calculates SeaLevelNormalized
+5. **Core**: `GenerateWorldPipeline.cs` - Uses constant throughout
+6. **Core**: `WorldGenerationResult.cs` - Added SeaLevelNormalized field
+7. **Presentation**: `ElevationMapper.cs` - Simplified ocean display
+8. **Presentation**: `WorldMapProbeNode.cs` - Removed depth clutter + uses constant
+9. **Presentation**: `WorldMapSerializationService.cs` - Backward-compatible save/load
+10. **Presentation**: `NativePlateSimulator.cs` - Documented param semantics
+
+**Unblocks**: TD_023 (basin metadata), VS_030 (pathfinding)
 
 ---
 

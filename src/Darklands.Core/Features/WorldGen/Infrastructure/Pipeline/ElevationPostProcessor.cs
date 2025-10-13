@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Darklands.Core.Features.WorldGen.Domain;
 using Darklands.Core.Features.WorldGen.Infrastructure.Algorithms;
 
 namespace Darklands.Core.Features.WorldGen.Infrastructure.Pipeline;
@@ -42,14 +43,24 @@ public static class ElevationPostProcessor
         /// </summary>
         public float[,] SeaDepth { get; init; }
 
+        /// <summary>
+        /// Sea level position in normalized [0, 1] scale for rendering (TD_021).
+        /// Calculated as: (SEA_LEVEL_RAW - min) / (max - min)
+        /// Enables rendering to show sea level correctly on color ramps.
+        /// Example: If min=0.1, max=20, SEA_LEVEL_RAW=1.0 → normalized = (1.0-0.1)/(20-0.1) = 0.045
+        /// </summary>
+        public float SeaLevelNormalized { get; init; }
+
         public PostProcessingResult(
             float[,] processedHeightmap,
             bool[,] oceanMask,
-            float[,] seaDepth)
+            float[,] seaDepth,
+            float seaLevelNormalized)
         {
             ProcessedHeightmap = processedHeightmap;
             OceanMask = oceanMask;
             SeaDepth = seaDepth;
+            SeaLevelNormalized = seaLevelNormalized;
         }
     }
 
@@ -57,13 +68,15 @@ public static class ElevationPostProcessor
     /// Executes all 4 elevation post-processing algorithms on a COPY of the original heightmap.
     /// </summary>
     /// <param name="originalHeightmap">Raw heightmap from native sim (preserved, not modified)</param>
-    /// <param name="seaLevel">Sea level threshold (typically 1.0 for plate tectonics library)</param>
     /// <param name="seed">Seed for noise generation (should match world seed)</param>
     /// <param name="addNoise">DIAGNOSTIC: Set false to skip noise addition (isolate noise as sink source)</param>
     /// <returns>Post-processed heightmap, ocean mask, and sea depth map</returns>
+    /// <remarks>
+    /// TD_021: Sea level is now WorldGenConstants.SEA_LEVEL_RAW (1.0f physics constant), not a parameter.
+    /// This ensures SSOT - sea level is fixed across all algorithms.
+    /// </remarks>
     public static PostProcessingResult Process(
         float[,] originalHeightmap,
-        float seaLevel,
         int seed,
         bool addNoise = true)
     {
@@ -80,15 +93,44 @@ public static class ElevationPostProcessor
         }
 
         // Algorithm 2: Flood-fill ocean detection
-        var oceanMask = FillOcean(heightmap, seaLevel);
+        var oceanMask = FillOcean(heightmap, WorldGenConstants.SEA_LEVEL_RAW);
 
         // Algorithm 3: Smooth ocean floor
         HarmonizeOcean(heightmap, oceanMask);
 
         // Algorithm 4: Calculate ocean depth
-        var seaDepth = CalculateSeaDepth(heightmap, oceanMask, seaLevel);
+        var seaDepth = CalculateSeaDepth(heightmap, oceanMask, WorldGenConstants.SEA_LEVEL_RAW);
 
-        return new PostProcessingResult(heightmap, oceanMask, seaDepth);
+        // TD_021 Phase 2: Calculate normalized sea level for rendering
+        var (min, max) = GetMinMax(heightmap);
+        float seaLevelNormalized = (WorldGenConstants.SEA_LEVEL_RAW - min) / Math.Max(1e-6f, max - min);
+
+        return new PostProcessingResult(heightmap, oceanMask, seaDepth, seaLevelNormalized);
+    }
+
+    /// <summary>
+    /// Gets the minimum and maximum values from a 2D heightmap.
+    /// Used for calculating normalized sea level (TD_021).
+    /// </summary>
+    private static (float min, float max) GetMinMax(float[,] heightmap)
+    {
+        int height = heightmap.GetLength(0);
+        int width = heightmap.GetLength(1);
+
+        float min = float.MaxValue;
+        float max = float.MinValue;
+
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                float value = heightmap[y, x];
+                if (value < min) min = value;
+                if (value > max) max = value;
+            }
+        }
+
+        return (min, max);
     }
 
     /// <summary>

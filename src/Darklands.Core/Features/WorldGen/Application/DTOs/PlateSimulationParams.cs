@@ -16,9 +16,10 @@ public record PlateSimulationParams
     public int PlateCount { get; init; } = 10;
 
     /// <summary>
-    /// Sea level threshold (0.0-1.0).
-    /// Lower = more land, higher = more ocean.
-    /// NOTE: This value is normalized after raw heightmap processing to account for native library output scale.
+    /// Sea level parameter for native simulation (0.0-1.0 normalized, controls land/ocean ratio).
+    /// NOTE (TD_021): This is a GENERATION PARAMETER (how much ocean to create), not the physics threshold!
+    /// The actual ocean/land boundary in output is always at WorldGenConstants.SEA_LEVEL_RAW (1.0f).
+    /// Lower = more land, higher = more ocean. Default 0.65f = 65% ocean coverage target.
     /// </summary>
     public float SeaLevel { get; init; } = 0.65f;
 
