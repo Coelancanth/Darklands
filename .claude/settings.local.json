@@ -249,7 +249,9 @@
       "Bash(./scripts/core/build.ps1 test \"Category=Inventory\")",
       "Bash(./scripts/core/build.ps1 test --filter \"Category!=WorldGen&Category!=Integration\")",
       "Bash(Select-String -Pattern \"Warning\\(s\\)|Error\\(s\\)|Build succeeded|Build FAILED\")",
-      "Bash(Select-String -Pattern \"error|warning|succeeded\" -Context 1)"
+      "Bash(Select-String -Pattern \"error|warning|succeeded\" -Context 1)",
+      "Bash(depths: 50-250m)",
+      "Bash(sizes: 100-800 cells\"\n\n**Validation Examples**:\n✅ Basin boundaries follow terrain depressions\n✅ Pour points located on basin rims (not centers)\n✅ Center points are local minima (lowest in basin)\n✅ Multiple basins don''''t overlap\n✅ Basin cell count = area metadata\n\nThis prevents VS_030 from building on faulty metadata!\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
     ],
     "deny": [],
     "ask": [],

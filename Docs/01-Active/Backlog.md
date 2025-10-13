@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-13 18:53 (Dev Engineer: Created TD_023 - Enhance Pit-Filling to expose basin metadata for VS_030)
+**Last Updated**: 2025-10-13 18:55 (Dev Engineer: Updated TD_023 to include basin metadata visualization view mode)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -139,14 +139,14 @@
 
 ---
 
-### TD_023: Enhance Pit-Filling to Expose Basin Metadata
+### TD_023: Enhance Pit-Filling to Expose Basin Metadata + Visualization
 **Status**: Proposed (Required for VS_030 Phase 1)
 **Owner**: Dev Engineer
-**Size**: XS (2-3h)
+**Size**: S (3-4h)
 **Priority**: Important (blocks VS_030 - water classification needs basin metadata)
-**Markers**: [ALGORITHM] [WORLDGEN] [FOUNDATION] [VS_030-PREREQUISITE]
+**Markers**: [ALGORITHM] [WORLDGEN] [FOUNDATION] [VISUALIZATION] [VS_030-PREREQUISITE]
 
-**What**: Enhance PitFillingCalculator to expose rich basin metadata (cells, pour points, water surface elevation) instead of just center points.
+**What**: Enhance PitFillingCalculator to expose rich basin metadata (cells, pour points, water surface elevation) and add debug visualization view mode.
 
 **Why**:
 - **Gap Identified**: Current output only returns lake center points - insufficient for VS_030 Phase 1
@@ -155,9 +155,10 @@
   - Basin boundaries (all cells) → Detect inlets where land rivers enter lake
   - Pour point (outlet location + elevation) → Pathfinding target for thalweg
   - Water surface elevation → Depth calculation for cost function: `Cost = 1 / (surface - cellElevation)`
+- **Visualization Need**: Complex spatial data (basin boundaries, pour points) needs visual validation before VS_030 uses it
 - **Current Limitation**: `MeasurePit()` already computes this data internally but throws it away after classification decision!
 
-**How** (3-step enhancement):
+**How** (4-step enhancement):
 
 **Step 1: Create BasinMetadata DTO** (30min)
 ```csharp
@@ -180,13 +181,25 @@ public record BasinMetadata
 - Return complete metadata instead of discarding after classification
 - Key insight: We already compute spillway elevation and flood-fill extent - just need to RETURN them!
 
-**Step 3: Update FillingResult and Callers** (1h)
+**Step 3: Update FillingResult and Callers** (30-45min)
 - Change `FillingResult.Lakes` from `List<(int x, int y)>` to `List<BasinMetadata>`
 - Update classification loop (line 91-107) to use new structure
 - Update callers:
   - `HydraulicErosionProcessor.ProcessPhase1()` - Use `PreservedBasins` instead of `Lakes`
   - `GenerateWorldPipeline.Generate()` - Pass basin metadata to result
 - Update unit tests (VS_029 tests) to use new structure
+
+**Step 4: Add Basin Metadata Visualization** (1h)
+- Add `MapViewMode.BasinMetadata` enum value
+- Implement `WorldMapRendererNode.RenderBasinMetadata()`:
+  - Base: Grayscale elevation (terrain context)
+  - Overlay: Basin boundaries in distinct colors (basin ID % color palette)
+  - Markers: Red dots for pour points (outlets)
+  - Markers: Cyan dots for basin centers (local minima)
+- Add diagnostic logging:
+  - "Basin Metadata: {Count} preserved basins | Depths: min={Min:F1}, max={Max:F1}, mean={Mean:F1}"
+  - "Basin sizes: min={MinArea} cells, max={MaxArea} cells, total={TotalCells} cells ({LandPercent:F1}% of land)"
+- Add to UI dropdown: "DEBUG: Basin Metadata" (between Sinks and Flow views)
 
 **Done When**:
 1. ✅ `BasinMetadata` record created with all 7 fields
@@ -196,27 +209,36 @@ public record BasinMetadata
 5. ✅ Classification loop uses `BasinMetadata` structure
 6. ✅ `HydraulicErosionProcessor` updated to use new metadata
 7. ✅ `WorldGenerationResult` includes basin metadata (for VS_030 Phase 1)
-8. ✅ All existing tests GREEN (VS_029 erosion tests updated)
-9. ✅ Unit test: Basin metadata completeness (cells count = area, pour point on boundary, etc.)
-10. ✅ Performance: No significant overhead (<5ms - just collecting data already traversed)
+8. ✅ `MapViewMode.BasinMetadata` added and wired to renderer
+9. ✅ Basin visualization renders: boundaries (colored by basin ID), pour points (red), centers (cyan)
+10. ✅ Diagnostic logging shows basin statistics (count, depth range, size range)
+11. ✅ All existing tests GREEN (VS_029 erosion tests updated)
+12. ✅ Unit test: Basin metadata completeness (cells count = area, pour point on boundary, etc.)
+13. ✅ Visual validation: Basin boundaries match terrain depressions, pour points on basin rims
+14. ✅ Performance: No significant overhead (<5ms metadata + <20ms rendering)
 
 **Depends On**: VS_029 ✅ (pit-filling algorithm exists and works)
 
 **Blocks**: VS_030 (Phase 1 needs basin metadata for inlet detection and pathfinding setup)
 
 **Enables**:
-- VS_030 Phase 1: Water body classification can detect inlets/outlets
-- VS_030 Phase 2: Pathfinding has pour point targets and depth data for cost function
+- VS_030 Phase 1: Water body classification can detect inlets/outlets (validated basin boundaries)
+- VS_030 Phase 2: Pathfinding has pour point targets (visualized and verified)
+- Development efficiency: Catch basin detection bugs early (before VS_030 Phase 1)
 - Future: Rich basin analytics (volume calculation, drainage area, etc.)
 
-**Dev Engineer Decision** (2025-10-13 18:53):
+**Dev Engineer Decision** (2025-10-13 18:55):
+- **Visualization Added**: Without view mode, basin metadata is "blind data" - can't validate correctness until VS_030 fails
+- **Early Validation**: Visualization catches bugs in TD_023 (basin boundaries, pour points) BEFORE VS_030 depends on them
+- **Debugging Tool**: Similar to VS_029's 6 erosion views - visual debugging accelerates development
+- **Size Increase**: 3-4h (was 2-3h) due to Step 4 visualization (+1h)
+- **ROI**: +1h investment prevents potential 3-5h debugging in VS_030 Phase 1 (worth it!)
 - **Minimal Change**: MeasurePit() already does the work - just need to EXPOSE the data instead of discarding
 - **Architectural Correctness**: Matches tmp.md's vision of pit-filling as "hydrological analysis tool" not just "fill utility"
 - **Critical for VS_030**: Without this, VS_030 Phase 1 cannot detect inlets (don't know basin boundaries) or outlets (don't know pour points)
 - **Low Risk**: We're exposing existing computations (flood-fill already traverses cells), not changing algorithm logic
-- **Effort Justification**: 2-3h investment unblocks 14-18h VS_030 implementation (required prerequisite)
 - **Key Insight**: tmp.md correctly identifies that basin metadata is the **semantic output** of pit-filling - we compute it, just need to return it
-- **Next Step**: Implement TD_021 (SSOT) → TD_023 (basin metadata) → VS_030 (pathfinding uses metadata)
+- **Next Step**: Implement TD_021 (SSOT) → TD_023 (basin metadata + viz) → VS_030 (pathfinding uses validated metadata)
 
 ---
 
