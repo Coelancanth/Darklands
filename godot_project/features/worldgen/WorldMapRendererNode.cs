@@ -882,104 +882,166 @@ public partial class WorldMapRendererNode : Sprite2D
     }
 
     /// <summary>
-    /// Renders flow accumulation (VS_029 Step 3).
-    /// Heat map: Blue (low) → Green → Yellow → Red (high drainage).
-    /// Ocean cells rendered as BLACK (no flow through ocean floor).
-    /// Purpose: Validate topological sort (drainage concentration in land valleys only).
+    /// Renders flow accumulation with naturalistic two-layer design (VS_029 Step 3 - NATURALISTIC).
+    /// Layer 1: Subtle terrain canvas (earth tones based on elevation)
+    /// Layer 2: Bright water network (cyan overlay with alpha based on flow magnitude)
+    /// Purpose: Beautiful, intuitive visualization - brighter water = bigger rivers!
     /// </summary>
+    /// <remarks>
+    /// Design Philosophy (from tmp.md):
+    /// - INTUITIVE: Bright cyan water instantly recognizable (no legend needed!)
+    /// - LAYERED: Terrain provides context, water provides focus
+    /// - NATURAL: Mimics real-world colors (earth tones + water blues)
+    /// - CLEAR: High contrast for drainage network, muted background for context
+    ///
+    /// This is a visual design upgrade from debug heat map → production-quality rendering.
+    /// </remarks>
     private void RenderFlowAccumulation(float[,] flowAccumulation, bool[,] oceanMask)
     {
         int h = flowAccumulation.GetLength(0);
         int w = flowAccumulation.GetLength(1);
-        var image = Image.CreateEmpty(w, h, false, Image.Format.Rgb8);
+        var image = Image.CreateEmpty(w, h, false, Image.Format.Rgba8);  // RGBA for alpha blending!
 
-        // Find min/max for normalization (LAND CELLS ONLY - ignore ocean)
-        float min = float.MaxValue, max = float.MinValue;
-        double sum = 0;
+        // Get elevation data for terrain layer (need both heightmap and ocean mask)
+        float[,]? heightmap = _worldData?.Phase1Erosion?.FilledHeightmap ?? _worldData?.PostProcessedHeightmap ?? _worldData?.Heightmap;
+        if (heightmap == null)
+        {
+            _logger?.LogWarning("Cannot render naturalistic flow accumulation: No heightmap available");
+            return;
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // STEP 1: Calculate statistics for normalization
+        // ═══════════════════════════════════════════════════════════════════════
+
+        float minFlow = float.MaxValue, maxFlow = float.MinValue;
+        float minElev = float.MaxValue, maxElev = float.MinValue;
+        double sumFlow = 0;
         int count = 0;
 
         for (int y = 0; y < h; y++)
         {
             for (int x = 0; x < w; x++)
             {
-                if (oceanMask[y, x]) continue;  // Skip ocean cells for statistics
+                if (oceanMask[y, x]) continue;  // Land cells only
 
-                float v = flowAccumulation[y, x];
-                if (v < min) min = v;
-                if (v > max) max = v;
-                sum += v;
+                float flow = flowAccumulation[y, x];
+                float elev = heightmap[y, x];
+
+                if (flow < minFlow) minFlow = flow;
+                if (flow > maxFlow) maxFlow = flow;
+                if (elev < minElev) minElev = elev;
+                if (elev > maxElev) maxElev = elev;
+                sumFlow += flow;
                 count++;
             }
         }
 
-        float mean = (float)(sum / count);
-        float delta = Math.Max(1e-6f, max - min);
+        float meanFlow = (float)(sumFlow / count);
+        float deltaFlow = Math.Max(1e-6f, maxFlow - minFlow);
+        float deltaElev = Math.Max(1e-6f, maxElev - minElev);
 
-        // Calculate 95th percentile for river valley detection (LAND ONLY)
-        var sortedValues = new System.Collections.Generic.List<float>();
+        // Calculate 95th percentile for statistics
+        var sortedFlow = new System.Collections.Generic.List<float>();
         for (int y = 0; y < h; y++)
         {
             for (int x = 0; x < w; x++)
             {
-                if (!oceanMask[y, x])  // Land cells only
-                {
-                    sortedValues.Add(flowAccumulation[y, x]);
-                }
+                if (!oceanMask[y, x])
+                    sortedFlow.Add(flowAccumulation[y, x]);
             }
         }
-        sortedValues.Sort();
-        float p95 = GetPercentileFromSorted(sortedValues, 0.95f);
+        sortedFlow.Sort();
+        float p95 = GetPercentileFromSorted(sortedFlow, 0.95f);
 
-        // Render heat map (Blue → Green → Yellow → Red) with BLACK ocean
-        Color lowColor = new Color(0f, 0f, 1f);       // Blue (low accumulation)
-        Color medColor = new Color(0f, 1f, 0f);       // Green (medium)
-        Color highColor = new Color(1f, 1f, 0f);      // Yellow (high)
-        Color veryHighColor = new Color(1f, 0f, 0f);  // Red (river valleys)
-        Color oceanColor = new Color(0f, 0f, 0f);     // Black (ocean - no flow)
+        // ═══════════════════════════════════════════════════════════════════════
+        // STEP 2: Define color palettes (Layer 1: Terrain, Layer 2: Water)
+        // ═══════════════════════════════════════════════════════════════════════
+
+        // Layer 1: Terrain Canvas (muted earth tones - subtle background)
+        Color terrainLowlands = new Color(47f/255f, 79f/255f, 79f/255f);    // Dark Slate Gray
+        Color terrainHills = new Color(189f/255f, 183f/255f, 107f/255f);    // Khaki
+        Color terrainPeaks = new Color(176f/255f, 196f/255f, 222f/255f);    // Light Steel Blue
+
+        // Layer 2: Water Overlay (bright cyan with varying alpha - eye-catching rivers!)
+        Color waterLowFlow = new Color(0f, 0f, 139f/255f, 0.05f);           // Deep blue, 5% alpha (barely visible)
+        Color waterHighFlow = new Color(0f, 191f/255f, 255f/255f, 1.0f);    // Deep Sky Blue, 100% alpha (vivid!)
+
+        // Ocean: Deep prussian blue (desaturated, mysterious depths)
+        Color oceanColor = new Color(0f, 49f/255f, 83f/255f);               // Prussian Blue
+
+        // Minimum visible flow threshold (below this, no water overlay drawn)
+        float minVisibleFlowThreshold = minFlow + deltaFlow * 0.01f;  // Bottom 1% completely transparent
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // STEP 3: Render two-layer composite (Terrain + Water blend)
+        // ═══════════════════════════════════════════════════════════════════════
 
         for (int y = 0; y < h; y++)
         {
             for (int x = 0; x < w; x++)
             {
-                // Ocean cells = black (no flow through ocean floor)
+                // OCEAN: Deep blue, no water overlay
                 if (oceanMask[y, x])
                 {
                     image.SetPixel(x, y, oceanColor);
                     continue;
                 }
 
-                // Land cells = heat map gradient with LOG SCALING
-                // Log scaling compresses the heavy-tailed distribution to make drainage network visible
-                // Formula: t = log(1 + v - min) / log(1 + max - min)
-                // This expands low values (hilltops) and compresses high values (rivers)
-                float v = flowAccumulation[y, x];
-                float logT = (float)Math.Log(1 + v - min) / (float)Math.Log(1 + max - min);
+                // LAND: Two-layer blend
 
-                Color color;
-                if (logT < 0.33f)
+                // --- Layer 1: Get terrain base color from elevation ---
+                float elevNorm = (heightmap[y, x] - minElev) / deltaElev;
+                Color terrainColor = GetTerrainColor(elevNorm, terrainLowlands, terrainHills, terrainPeaks);
+
+                // --- Layer 2: Get water overlay color from flow (LOG SCALED) ---
+                float flow = flowAccumulation[y, x];
+
+                // Below threshold? Show pure terrain (no water overlay)
+                if (flow < minVisibleFlowThreshold)
                 {
-                    color = Gradient(logT, 0f, 0.33f, lowColor, medColor);
-                }
-                else if (logT < 0.66f)
-                {
-                    color = Gradient(logT, 0.33f, 0.66f, medColor, highColor);
-                }
-                else
-                {
-                    color = Gradient(logT, 0.66f, 1.0f, highColor, veryHighColor);
+                    image.SetPixel(x, y, terrainColor);
+                    continue;
                 }
 
-                image.SetPixel(x, y, color);
+                // Log scale the flow for better visual distribution
+                float logFlowNorm = (float)Math.Log(1 + flow - minFlow) / (float)Math.Log(1 + maxFlow - minFlow);
+
+                // Interpolate water color (brightness + alpha increase together!)
+                Color waterColor = waterLowFlow.Lerp(waterHighFlow, logFlowNorm);
+
+                // --- Blend terrain + water using water's alpha ---
+                Color finalColor = terrainColor.Lerp(waterColor, waterColor.A);
+
+                image.SetPixel(x, y, finalColor);
             }
         }
 
         Texture = ImageTexture.CreateFromImage(image);
 
-        float p95ToMeanRatio = mean > 0 ? p95 / mean : 0f;
+        float p95ToMeanRatio = meanFlow > 0 ? p95 / meanFlow : 0f;
 
         _logger?.LogInformation(
-            "FLOW ACCUMULATION (LOG SCALED): min={Min:F4}, max={Max:F4}, mean={Mean:F4}, p95={P95:F4} | p95/mean={Ratio:F1}x | Log scaling makes drainage network visible",
-            min, max, mean, p95, p95ToMeanRatio);
+            "FLOW ACCUMULATION (NATURALISTIC): min={Min:F4}, max={Max:F4}, mean={Mean:F4}, p95={P95:F4} | p95/mean={Ratio:F1}x | Two-layer earth tones + bright cyan rivers",
+            minFlow, maxFlow, meanFlow, p95, p95ToMeanRatio);
+    }
+
+    /// <summary>
+    /// Gets terrain color from normalized elevation (0-1).
+    /// Smooth 3-stop gradient: Lowlands (dark) → Hills (warm) → Peaks (cool).
+    /// </summary>
+    private Color GetTerrainColor(float elevNorm, Color lowlands, Color hills, Color peaks)
+    {
+        if (elevNorm < 0.4f)
+        {
+            // Lowlands to Hills (0.0 - 0.4)
+            return Gradient(elevNorm, 0.0f, 0.4f, lowlands, hills);
+        }
+        else
+        {
+            // Hills to Peaks (0.4 - 1.0)
+            return Gradient(elevNorm, 0.4f, 1.0f, hills, peaks);
+        }
     }
 
     /// <summary>

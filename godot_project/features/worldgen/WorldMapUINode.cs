@@ -239,7 +239,6 @@ public partial class WorldMapUINode : Control
     private void OnViewModeSelected(long index)
     {
         var mode = (MapViewMode)_viewModeDropdown!.GetItemId((int)index);
-        _logger?.LogInformation("View mode changed to: {Mode}", mode);
         EmitSignal(SignalName.ViewModeChanged, (int)mode);
     }
 
