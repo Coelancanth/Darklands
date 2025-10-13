@@ -70,8 +70,7 @@ public partial class WorldMapLegendNode : Control
         // Title
         var titleLabel = new Label
         {
-            Text = "Legend",
-            Theme = GD.Load<Theme>("res://addons/default_theme.tres")
+            Text = "Legend"
         };
         _container.AddChild(titleLabel);
         _container.AddChild(new HSeparator());
@@ -302,8 +301,7 @@ public partial class WorldMapLegendNode : Control
         {
             Text = string.IsNullOrEmpty(description) ? label : $"{label} - {description}",
             AutowrapMode = TextServer.AutowrapMode.Off,  // No wrapping for horizontal layout
-            SizeFlagsHorizontal = SizeFlags.ExpandFill,
-            Theme = GD.Load<Theme>("res://addons/default_theme.tres")
+            SizeFlagsHorizontal = SizeFlags.ExpandFill
         };
 
         // Larger font for better readability (was 11, now 13)

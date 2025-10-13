@@ -173,7 +173,8 @@ public class GenerateWorldPipeline : IWorldGenerationPipeline
             heightmap: postProcessed.ProcessedHeightmap,
             oceanMask: postProcessed.OceanMask!,
             precipitation: coastalMoistureResult.FinalMap,  // VS_028 final precipitation
-            thresholds: thresholds);
+            thresholds: thresholds,
+            logger: _logger);
 
         // STEP 6c: Calculate pit-filling effectiveness (diagnostic comparison)
         var postFillingMinima = phase1Erosion.Lakes.Count;  // Lakes = preserved sinks after filling

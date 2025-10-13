@@ -1,5 +1,6 @@
 using Darklands.Core.Features.WorldGen.Application.DTOs;
 using Darklands.Core.Features.WorldGen.Infrastructure.Algorithms;
+using Microsoft.Extensions.Logging;
 
 namespace Darklands.Core.Features.WorldGen.Infrastructure.Pipeline;
 
@@ -57,6 +58,7 @@ public static class HydraulicErosionProcessor
     /// <param name="accumulationThreshold">Minimum flow to spawn river (default 0.5)</param>
     /// <param name="pitDepthThreshold">Max pit depth to fill (default 50.0)</param>
     /// <param name="pitAreaThreshold">Max pit area to fill (default 100)</param>
+    /// <param name="logger">Optional logger for diagnostics</param>
     /// <returns>Phase 1 erosion data (filled heightmap, flow data, sources, lakes)</returns>
     public static Phase1ErosionData ProcessPhase1(
         float[,] heightmap,
@@ -65,7 +67,8 @@ public static class HydraulicErosionProcessor
         ElevationThresholds thresholds,
         float accumulationThreshold = DefaultAccumulationThreshold,
         float pitDepthThreshold = DefaultPitDepthThreshold,
-        int pitAreaThreshold = DefaultPitAreaThreshold)
+        int pitAreaThreshold = DefaultPitAreaThreshold,
+        ILogger? logger = null)
     {
         int height = heightmap.GetLength(0);
         int width = heightmap.GetLength(1);
@@ -108,7 +111,8 @@ public static class HydraulicErosionProcessor
             flowDirections,
             topologicalOrder,
             width,
-            height);
+            height,
+            logger);
 
         // ═══════════════════════════════════════════════════════════════════════
         // STEP 1e: River Source Detection (O(n) - TWO-STEP: Threshold-Crossing + Filtering)

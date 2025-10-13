@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System.Linq;
+using Microsoft.Extensions.Logging;
 
 namespace Darklands.Core.Features.WorldGen.Infrastructure.Algorithms;
 
@@ -44,7 +46,8 @@ public static class FlowAccumulationCalculator
         int[,] flowDirections,
         List<(int x, int y)> topologicalOrder,
         int width,
-        int height)
+        int height,
+        ILogger? logger = null)
     {
         // ═══════════════════════════════════════════════════════════════════════
         // STEP 1: Initialize flow accumulation with local precipitation
@@ -52,19 +55,34 @@ public static class FlowAccumulationCalculator
 
         var flowAccumulation = new float[height, width];
 
+        // Collect precipitation statistics for diagnostics
+        var precipValues = new List<float>();
         for (int y = 0; y < height; y++)
         {
             for (int x = 0; x < width; x++)
             {
-                flowAccumulation[y, x] = precipitation[y, x];  // Start with local contribution
+                float precip = precipitation[y, x];
+                flowAccumulation[y, x] = precip;
+                precipValues.Add(precip);
             }
         }
+
+        // Log precipitation input statistics
+        logger?.LogInformation("[FlowAccum] STEP 1: Initialized with precipitation values");
+        logger?.LogInformation("[FlowAccum]   Precip stats: min={Min:F3}, max={Max:F3}, mean={Mean:F3}, nonzero={NonZero}/{Total}",
+            precipValues.Min(), precipValues.Max(), precipValues.Average(), precipValues.Count(v => v > 0.001f), precipValues.Count);
 
         // ═══════════════════════════════════════════════════════════════════════
         // STEP 2: Accumulate flow in topological order (headwaters → ocean)
         // ═══════════════════════════════════════════════════════════════════════
         // Key insight: Topological order GUARANTEES all upstream cells processed
         // BEFORE downstream cells, so accumulation is correct in single pass!
+
+        logger?.LogInformation("[FlowAccum] STEP 2: Processing {Count} cells in topological order", topologicalOrder.Count);
+
+        int sinksSkipped = 0;
+        int outOfBounds = 0;
+        int flowPropagated = 0;
 
         foreach (var (x, y) in topologicalOrder)
         {
@@ -76,7 +94,10 @@ public static class FlowAccumulationCalculator
 
             // Skip sinks (ocean, pits) - they don't contribute downstream
             if (dir == -1)
+            {
+                sinksSkipped++;
                 continue;
+            }
 
             var (dx, dy) = FlowDirectionCalculator.GetDirectionOffset(dir);
             int nx = x + dx;
@@ -84,15 +105,38 @@ public static class FlowAccumulationCalculator
 
             // Check bounds
             if (nx < 0 || nx >= width || ny < 0 || ny >= height)
+            {
+                outOfBounds++;
                 continue;
+            }
 
             // Add current cell's flow to downstream neighbor
             flowAccumulation[ny, nx] += currentFlow;
+            flowPropagated++;
         }
+
+        logger?.LogInformation("[FlowAccum] STEP 2 Complete: Propagated={Propagated}, Sinks={Sinks}, OutOfBounds={OutOfBounds}",
+            flowPropagated, sinksSkipped, outOfBounds);
 
         // ═══════════════════════════════════════════════════════════════════════
         // RETURN: Flow accumulation map (drainage basin sizes)
         // ═══════════════════════════════════════════════════════════════════════
+
+        // Collect final accumulation statistics
+        var accumValues = new List<float>();
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                accumValues.Add(flowAccumulation[y, x]);
+            }
+        }
+
+        logger?.LogInformation("[FlowAccum] RESULT: Final accumulation statistics");
+        logger?.LogInformation("[FlowAccum]   Accum stats: min={Min:F3}, max={Max:F3}, mean={Mean:F3}, p95={P95:F3}",
+            accumValues.Min(), accumValues.Max(), accumValues.Average(), accumValues.OrderBy(v => v).Skip((int)(accumValues.Count * 0.95)).First());
+        logger?.LogInformation("[FlowAccum]   High accum cells (>5.0): {HighCount}/{Total} ({Percent:F1}%)",
+            accumValues.Count(v => v > 5.0f), accumValues.Count, (accumValues.Count(v => v > 5.0f) * 100.0f / accumValues.Count));
 
         return flowAccumulation;
     }
