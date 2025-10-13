@@ -104,17 +104,29 @@ public partial class WorldMapLegendNode : Control
             AddLegendEntry(scheme.Name, new Color(0.8f, 0.8f, 0.8f), title);
 
             // Auto-generate legend entries from color scheme!
-            foreach (var entry in scheme.GetLegendEntries())
-            {
-                AddLegendEntry(entry.Label, entry.Color, entry.Description);
-            }
+            var entries = scheme.GetLegendEntries();
 
-            _logger?.LogDebug("Legend auto-generated from {SchemeName} for {ViewMode}",
-                scheme.Name, mode);
+            if (entries == null || entries.Count == 0)
+            {
+                _logger?.LogWarning("ColorScheme {SchemeName} returned null or empty legend entries for {ViewMode}",
+                    scheme.Name, mode);
+                AddLegendEntry("Error", new Color(1, 0, 0), "Scheme returned no entries");
+            }
+            else
+            {
+                foreach (var entry in entries)
+                {
+                    AddLegendEntry(entry.Label, entry.Color, entry.Description);
+                }
+
+                _logger?.LogDebug("Legend auto-generated from {SchemeName} for {ViewMode} ({Count} entries)",
+                    scheme.Name, mode, entries.Count);
+            }
         }
         else
         {
             // Fallback: Custom legends for non-scheme views (Plates, etc.)
+            _logger?.LogDebug("No scheme for {ViewMode}, using custom legend", mode);
             RenderCustomLegend(mode);
         }
     }
