@@ -400,13 +400,38 @@ public partial class WorldMapRendererNode : Sprite2D
             }
         }
 
-        // Step 2: Calculate quantiles on LAND-ONLY normalized data (FIX: exclude ocean from distribution)
+        // Step 2: Calculate quantiles on LAND-ONLY normalized data (FIX: exclude ALL water bodies from distribution)
         float q15, q70, q75, q90, q95, q99;
 
         if (oceanMask != null)
         {
-            // Calculate quantiles on land cells only (statistically correct!)
-            var quantiles = CalculateQuantilesLandOnly(normalizedHeightmap, oceanMask);
+            // Build water body exclusion set (ocean + inner seas + lakes)
+            var waterCells = new System.Collections.Generic.HashSet<(int x, int y)>();
+
+            // Add ocean cells
+            for (int y = 0; y < h; y++)
+            {
+                for (int x = 0; x < w; x++)
+                {
+                    if (oceanMask[y, x])
+                        waterCells.Add((x, y));
+                }
+            }
+
+            // Add basin cells (inner seas + lakes)
+            if (preservedBasins != null)
+            {
+                foreach (var basin in preservedBasins)
+                {
+                    foreach (var cell in basin.Cells)
+                    {
+                        waterCells.Add(cell);
+                    }
+                }
+            }
+
+            // Calculate quantiles on land cells only (exclude ALL water!)
+            var quantiles = CalculateQuantilesLandOnly(normalizedHeightmap, waterCells);
             q15 = quantiles[0];
             q70 = quantiles[1];
             q75 = quantiles[2];
@@ -414,7 +439,7 @@ public partial class WorldMapRendererNode : Sprite2D
             q95 = quantiles[4];
             q99 = quantiles[5];
 
-            _logger?.LogDebug("ColoredElevation quantiles (LAND-ONLY): q15={Q15:F3} q70={Q70:F3} q75={Q75:F3} q90={Q90:F3} q95={Q95:F3} q99={Q99:F3}",
+            _logger?.LogDebug("ColoredElevation quantiles (LAND-ONLY, water excluded): q15={Q15:F3} q70={Q70:F3} q75={Q75:F3} q90={Q90:F3} q95={Q95:F3} q99={Q99:F3}",
                 q15, q70, q75, q90, q95, q99);
         }
         else
@@ -592,22 +617,22 @@ public partial class WorldMapRendererNode : Sprite2D
     }
 
     /// <summary>
-    /// Calculates quantiles on LAND-ONLY elevations (excludes ocean cells).
+    /// Calculates quantiles on LAND-ONLY elevations (excludes ALL water bodies: ocean + inner seas + lakes).
     /// Returns array of 6 quantile values: [q15, q70, q75, q90, q95, q99].
-    /// This ensures accurate terrain color distribution by excluding ocean from statistics.
+    /// This ensures accurate terrain color distribution by excluding all water from statistics.
     /// </summary>
-    private float[] CalculateQuantilesLandOnly(float[,] normalizedHeightmap, bool[,] oceanMask)
+    private float[] CalculateQuantilesLandOnly(float[,] normalizedHeightmap, System.Collections.Generic.HashSet<(int x, int y)> waterCells)
     {
         int h = normalizedHeightmap.GetLength(0);
         int w = normalizedHeightmap.GetLength(1);
 
-        // Extract land-only elevations
+        // Extract land-only elevations (exclude ALL water: ocean + basins)
         var landElevations = new System.Collections.Generic.List<float>();
         for (int y = 0; y < h; y++)
         {
             for (int x = 0; x < w; x++)
             {
-                if (!oceanMask[y, x])  // Land cell only
+                if (!waterCells.Contains((x, y)))  // Land cell only (not ocean, not basin)
                 {
                     landElevations.Add(normalizedHeightmap[y, x]);
                 }
