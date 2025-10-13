@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-11 04:43 (Dev Engineer: TD_019 Phase 3 complete - All 543 Core tests GREEN; Presentation layer migration deferred)
+**Last Updated**: 2025-10-13 13:35 (Tech Lead: Added VS_029 - D-8 Flow Direction Visualization for heightmap/implementation validation)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -11,7 +11,7 @@
 
 - **Next BR**: 010
 - **Next TD**: 020
-- **Next VS**: 034
+- **Next VS**: 030
 
 
 **Protocol**: Check your type's counter → Use that number → Increment the counter → Update timestamp
@@ -68,21 +68,286 @@
 ## 🔥 Critical (Do First)
 *Blockers preventing other work, production bugs, dependencies for other features*
 
-*Recently completed and archived (2025-10-11 18:01):*
-- **VS_032**: Equipment Slots System (Phases 1-4/6 Complete) - Equipment system core foundation complete! Equipment as separate component architecture (not Inventory), 5 slots (MainHand, OffHand, Head, Torso, Legs), atomic operations with multi-level rollback, two-handed weapon validation, parent-driven data pattern (80% query reduction), 40 new tests GREEN (488 total). Phases 5-6 remaining: Data-Driven Equipment templates, Combat Integration. ✅ (2025-10-11 18:01) *See: [Completed_Backlog_2025-10_Part4.md](../07-Archive/Completed_Backlog_2025-10_Part4.md) for full archive*
+
 
 ---
 
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*
 
-*Recently completed and archived (2025-10-11 05:26):*
-- **TD_019**: Inventory-First Architecture (InventoryId Primary Key) - All 5 phases complete! Redesigned from Actor-centric (1:1) to Inventory-First (independent inventories with optional owner). InventoryId primary key, 16 commands/queries updated, 543 Core tests GREEN, 5 Presentation files updated with 3 runtime drag-drop bugs fixed, all obsolete methods removed. Unlocks squad-based gameplay, loot containers, shared inventories, cross-actor equip operations. ✅ (2025-10-11 05:21) *See: [Completed_Backlog_2025-10_Part3.md](../07-Archive/Completed_Backlog_2025-10_Part3.md) for full archive*
+
 
 ---
 
 ## 💡 Ideas (Future Work)
 *Future features, nice-to-haves, deferred work*
+
+### VS_029: D-8 Flow Direction Visualization (Heightmap Validation)
+**Status**: Proposed (Implementation Ready)
+**Owner**: Tech Lead → Dev Engineer (implement)
+**Size**: S (~4-6h)
+**Priority**: Ideas (worldgen quality validation)
+**Markers**: [WORLDGEN] [VISUALIZATION] [DEBUG-TOOLING]
+
+**What**: Add debug visualization for existing D-8 flow direction algorithm to validate heightmap quality and implementation correctness through 4 new view modes (FlowDirections, FlowAccumulation, RiverSources, Sinks).
+
+**Why**:
+- **Validate heightmap quality** - Visually inspect flow patterns to detect artifacts/noise breaking drainage
+- **Validate D-8 implementation** - Confirm flow directions follow steepest descent correctly
+- **Foundation for particle erosion** - Must validate D-8 correctness before building complex particle physics on top
+- **Debug tool for worldgen** - Essential for tuning pit-filling thresholds and elevation post-processing
+
+**Key Architectural Insight**:
+```
+✅ D-8 Algorithm EXISTS: FlowDirectionCalculator.cs (implemented, tested, integrated)
+✅ Phase1ErosionData EXISTS: Contains flow directions, accumulation, river sources
+❌ Gap: WorldGenerationResult DOESN'T expose Phase1ErosionData for visualization!
+```
+
+**How** (4 implementation phases):
+
+**Phase 1: Core Integration** (~2-2.5h) - TDD
+- Update `WorldGenerationResult` DTO to include Phase1ErosionData fields:
+  - `FilledHeightmap` (after pit filling)
+  - `FlowDirections` (int[,] - 0-7 direction codes, -1 sink)
+  - `FlowAccumulation` (float[,] - drainage basin sizes)
+  - `RiverSources` (List<(int x, int y)> - spawn points)
+  - `Lakes` (List<(int x, int y)> - preserved pits)
+- **NEW**: Add pre/post pit-filling comparison data:
+  - `PreFillingLocalMinima` (List<(int x, int y)> - ALL sinks before pit-filling)
+  - Compute sinks on PostProcessedHeightmap BEFORE calling PitFillingCalculator
+  - This enables Step 0A visualization (baseline raw heightmap quality)
+- Wire `HydraulicErosionProcessor.ProcessPhase1()` into pipeline (after VS_028)
+- Unit tests: Phase1ErosionData populated correctly for 512×512 map
+- Unit tests: PreFillingLocalMinima count > PostFillingLocalMinima count (pit-filling worked!)
+
+**Phase 2: View Modes** (~0.5h)
+- Add 6 enum values to `MapViewMode`:
+  - `SinksPreFilling` - **BEFORE pit-filling** (raw heightmap sinks - Step 0A)
+  - `SinksPostFilling` - **AFTER pit-filling** (remaining sinks - Step 0B)
+  - `FlowDirections` - 8-direction + sink visualization (Step 2)
+  - `FlowAccumulation` - Drainage basin heat map (Step 3)
+  - `RiverSources` - Mountain source points (Step 4)
+  - `FilledElevation` - Colored elevation view of FILLED heightmap (Step 1 optional)
+
+**Phase 3: Rendering Logic** (~3-3.5h)
+- Add rendering methods to `WorldMapRendererNode`:
+  - `RenderSinksPreFilling()` - **Step 0A** - Grayscale elevation + Red markers for ALL local minima (baseline)
+  - `RenderSinksPostFilling()` - **Step 0B** - Grayscale elevation + Red markers for remaining sinks (after pit-filling)
+  - `RenderFilledElevation()` - **Step 1** - Colored elevation of FilledHeightmap (optional comparison)
+  - `RenderFlowDirections()` - **Step 2** - 8-color gradient (N=Red, NE=Yellow, E=Green, SE=Cyan, S=Blue, SW=Purple, W=Magenta, NW=Orange, Sink=Black)
+  - `RenderFlowAccumulation()` - **Step 3** - Heat map Blue (low) → Green → Yellow → Red (high drainage)
+  - `RenderRiverSources()` - **Step 4** - Colored elevation base + Cyan markers at spawn points
+- Add comprehensive logging to each view mode (Godot Output panel):
+  - **Sinks Pre-Filling**: `PRE-FILLING SINKS: Total=1234 (15.2% of land cells) | Ocean sinks excluded | BASELINE for pit-filling`
+  - **Sinks Post-Filling**: `POST-FILLING SINKS: Total=156 (1.9% of land cells) | Reduction=87.4% | Lakes preserved=45 ✓`
+  - **Pit-Filling Comparison**: `PIT-FILLING EFFECTIVENESS: 1234 → 156 sinks (87.4% reduction) | Filled=1078, Preserved=156`
+  - **Flow Directions**: `Direction distribution: N=12%, NE=8%, ..., Sinks=2.3% (1234 cells)`
+  - **Flow Accumulation**: `Accumulation stats: min=0.001, max=52.34, mean=0.85, p95=5.2, river valleys detected: 8`
+  - **River Sources**: `River sources: 12 detected | Mountain cells: 4532 (8.7%) | Source density: 0.26% of mountains`
+- Unit tests: All rendering methods produce valid textures without crashes
+
+**Phase 4: UI Integration & Logging** (~1h)
+- Add dropdown options to `WorldMapUINode`:
+  - "DEBUG: Sinks (PRE-Filling)" - Step 0A
+  - "DEBUG: Sinks (POST-Filling)" - Step 0B
+  - "DEBUG: Filled Elevation" - Step 1 (optional)
+  - "DEBUG: Flow Directions" - Step 2
+  - "DEBUG: Flow Accumulation" - Step 3
+  - "DEBUG: River Sources" - Step 4
+- Wire up view mode switching (reuse existing pattern from VS_025-028)
+- **Ensure logger output visible** - Verify Godot Output panel shows stats when view mode changes
+- Test: Can toggle between all view modes smoothly, no visual glitches, stats logged each switch
+- **Test pit-filling comparison** - Switch Pre→Post, verify red markers disappear (filled pits) and remain (lakes)
+
+**Validation Workflow** (systematic sequence with decision trees):
+
+**🔵 INITIAL VALIDATION SEQUENCE** (First-time implementation - bottom-up):
+```
+Step 0A: BEFORE Pit-Filling (Raw Heightmap Sinks) [CRITICAL - baseline for pit-filling validation]
+  View: DEBUG: Sinks (Pre-Filling) - Computed on PostProcessedHeightmap BEFORE pit-filling
+  Visual: How many local minima exist? Where are they clustered?
+  Data: Total sinks logged (expect 5-20% of land cells - this is NORMAL for raw heightmap!)
+  Purpose: Establish baseline - "How bad is the raw heightmap?"
+  ✅ EXPECTED: 5-20% land sinks (noisy heightmap needs pit-filling)
+  ❌ UNEXPECTED: <2% land sinks (heightmap already smooth? pit-filling may do nothing)
+  ⚠️ WARNING: >30% land sinks (extremely noisy heightmap - elevation post-processing issues)
+
+Step 0B: AFTER Pit-Filling (Pit-Filling Algorithm Validation) [CRITICAL - validate pit-filling decisions]
+  View: DEBUG: Sinks (Post-Filling) - Computed on FilledHeightmap AFTER pit-filling
+  Visual: Compare with Step 0A - which pits were filled? which preserved?
+  Data: Sink reduction logged (expect 70-90% reduction! e.g., 15% → 2%)
+  Purpose: Validate pit-filling algorithm effectiveness
+  ✅ PASS: 70-90% sink reduction (from Step 0A to 0B), remaining sinks mostly ocean + lakes
+  ❌ FAIL: <50% reduction → Pit-filling thresholds too conservative (not filling enough)
+  ❌ FAIL: >95% reduction → Pit-filling too aggressive (filling real lakes!)
+
+  Data Validation: Compare BEFORE vs AFTER
+    → Log: "Pit-filling: 1234 → 156 sinks (87.4% reduction) | Filled=1078, Preserved=156 (lakes)"
+    → Visual: Red markers should DISAPPEAR from Step 0A → 0B in fillable pit locations
+    → Visual: Red markers should REMAIN for preserved lakes (large/deep basins)
+
+Step 1: Foundation Check (FilledHeightmap Quality) [OPTIONAL - visual sanity check]
+  View: ColoredPostProcessedElevation vs ColoredFilledElevation (side-by-side if possible)
+  Visual: Did pit-filling preserve mountain peaks? Smooth valleys without destroying features?
+  Data: Min/max elevation change logged (expect minimal change <5% in non-pit areas)
+  ✅ PASS: Terrain features preserved, only pits smoothed
+  ❌ FAIL: Terrain destroyed (mountains flattened) → Pit-filling bug or threshold issue
+
+Step 2: Algorithm Correctness (FlowDirections) [CRITICAL - foundation]
+  View: DEBUG: Flow Directions
+  Visual: Do colors flow downhill consistently? (Mountains→valleys→ocean)
+  Data: Direction distribution logged (expect <5% sinks at this stage)
+  ✅ PASS: Visual flow makes sense, <5% sinks
+  ❌ FAIL: Colors random/contradictory OR >10% sinks → D-8 ALGORITHM BUG (Step 2 diagnostic)
+
+Step 3: Derived Data (FlowAccumulation) [VALIDATES topological sort]
+  View: DEBUG: Flow Accumulation
+  Visual: Clear river valley hot spots (red lines)? Blue background (low accumulation)?
+  Data: Statistics logged (min/max/mean/p95) - expect p95 >> mean (power law)
+  ✅ PASS: River valleys visible, p95 > 5× mean (drainage concentration working)
+  ❌ FAIL: Uniform/random OR p95 ≈ mean → TOPOLOGICAL SORT BUG (Step 3 diagnostic)
+
+Step 4: Feature Detection (RiverSources) [VALIDATES detection thresholds]
+  View: DEBUG: River Sources
+  Visual: Cyan dots on mountain peaks? Not in valleys? Reasonable count?
+  Data: Count + density logged (expect 0.1-0.5% of mountain cells)
+  ✅ PASS: Sources on peaks, density reasonable (5-15 major rivers for 512×512)
+  ❌ FAIL: Sources everywhere/nowhere/wrong elevation → THRESHOLD TUNING needed
+
+Step 5: Quality Metric (Sinks) [PRIMARY DIAGNOSTIC - validates entire pipeline]
+  View: DEBUG: Sinks
+  Visual: Red dots mostly at ocean borders? Few inland clusters?
+  Data: Sink breakdown logged (ocean %, lake %, inland pit %)
+  ✅ PASS: >85% ocean, <10% inland pits (HEALTHY HEIGHTMAP!)
+  ❌ FAIL: >10% inland pits → HEIGHTMAP QUALITY ISSUE (Step 5 diagnostic)
+```
+
+**🔴 DIAGNOSTIC SEQUENCES** (When failures detected - top-down root cause analysis):
+
+**Diagnostic 2: Flow Directions Failure** (>10% sinks OR visual contradictions)
+```
+SYMPTOM: Step 2 shows >10% sinks or colors don't flow downhill
+  ↓
+CHECK: Examine specific problem cells
+  ↓ Pick a cell with wrong flow direction
+  ↓ Manually trace 8 neighbors in elevation view
+  ↓
+  ├─ Neighbor elevations confirm cell should flow differently
+  │   → BUG: FlowDirectionCalculator.cs logic error (steepest descent broken)
+  │   → FIX: Review algorithm, add unit test for this terrain pattern
+  │
+  └─ Neighbor elevations confirm algorithm is CORRECT
+      → ISSUE: Heightmap has local artifacts (noise spikes, flat regions)
+      → FIX: Improve elevation post-processing (VS_024) or pit-filling thresholds
+```
+
+**Diagnostic 3: Flow Accumulation Failure** (p95 ≈ mean, no hot spots)
+```
+SYMPTOM: Step 3 shows uniform accumulation (no drainage concentration)
+  ↓
+CHECK: Is topological sort producing correct order?
+  ↓ Add debug logging to TopologicalSortCalculator
+  ↓
+  ├─ Sort order wrong (downstream before upstream)
+  │   → BUG: Topological sort has cycle or incorrect ordering
+  │   → FIX: Review Kahn's algorithm implementation, check for cycles
+  │
+  └─ Sort order correct
+      → ISSUE: Flow directions have too many sinks (breaks accumulation chains)
+      → FOLLOW: Step 2 diagnostic (fix flow directions first)
+```
+
+**Diagnostic 5: Sinks Failure** (>10% inland pits - MOST COMMON)
+```
+SYMPTOM: Step 5 shows >10% inland pits (heightmap quality issue)
+  ↓
+STEP A: Validate D-8 algorithm correctness first
+  ↓ Switch to DEBUG: Flow Directions view
+  ↓ Visual check: Do colors flow downhill?
+  ↓
+  ├─ NO → FOLLOW: Step 2 diagnostic (algorithm bug)
+  │
+  └─ YES → CONTINUE: Heightmap quality analysis
+      ↓
+STEP B: Identify heightmap problem pattern
+  ↓ Switch to DEBUG: Sinks view
+  ↓ Visual inspection: Where are red markers clustered?
+  ↓
+  ├─ PATTERN 1: Random scatter (red dots everywhere)
+  │   → CAUSE: Noisy heightmap (too many local minima)
+  │   → FIX OPTIONS:
+  │       • Reduce pit-filling aggressiveness (increase depth/area thresholds)
+  │       • Add smoothing pass to elevation post-processing (VS_024)
+  │       • Increase pit-filling threshold iterations
+  │
+  ├─ PATTERN 2: Flat regions (clusters in plains/plateaus)
+  │   → CAUSE: Terrain too smooth (no gradient for flow)
+  │   → FIX OPTIONS:
+  │       • Increase elevation noise magnitude (VS_024 add_noise)
+  │       • Add micro-relief to flat regions (post-processing pass)
+  │
+  └─ PATTERN 3: Specific deep basins (few large clusters)
+      → CAUSE: Legitimate lakes BUT not being filled (thresholds too low)
+      → FIX OPTIONS:
+          • Increase pit-filling DEPTH threshold (50 → 100)
+          • Increase pit-filling AREA threshold (100 → 200)
+          • These are REAL lakes - may be correct! (validate visually)
+```
+
+**🟢 ITERATION WORKFLOW** (After applying fixes):
+```
+Fixed pit-filling thresholds → Re-run worldgen → Jump to Step 5 (Sinks)
+  ├─ PASS → Validate Steps 3-4 (ensure no regressions) → ✅ COMPLETE
+  └─ FAIL → Repeat Diagnostic 5 (try different fix)
+
+Fixed D-8 algorithm → Re-run worldgen → Start from Step 2 (FlowDirections)
+  └─ Must validate entire chain (Steps 2→3→4→5) - algorithm change affects all
+
+Fixed topological sort → Re-run worldgen → Start from Step 3 (FlowAccumulation)
+  └─ Must validate Steps 3→4→5 (sort affects accumulation, sources, sinks)
+```
+
+**Done When**:
+1. ✅ `WorldGenerationResult` includes all Phase1ErosionData fields + PreFillingLocalMinima
+2. ✅ **6 new `MapViewMode` entries** added and wired (Pre/Post sinks + 4 flow views)
+3. ✅ `WorldMapRendererNode` renders all 6 modes correctly
+4. ✅ **Comprehensive logging added** - Each view mode logs diagnostic stats to Godot Output
+5. ✅ **Pit-filling comparison logging** - Shows before/after counts + reduction %
+6. ✅ UI dropdown shows debug view options with clear labels (Pre-Filling, Post-Filling, etc.)
+7. ✅ **Visual validation: Pre→Post filling shows red markers disappear (filled) and remain (lakes)**
+8. ✅ **Data validation: 70-90% sink reduction** (validates pit-filling effectiveness!)
+9. ✅ Visual validation: Flow directions show correct downhill drainage
+10. ✅ Visual validation: Flow accumulation highlights river valleys (high accumulation paths)
+11. ✅ Visual validation: River sources spawn in high mountains with high accumulation
+12. ✅ **Data validation: Post-filling sinks show >85% ocean, <10% inland pits** (healthy heightmap!)
+13. ✅ **Data validation: Direction distribution favors downhill directions** (validates D-8 algorithm)
+14. ✅ All 495+ existing tests GREEN (no regression)
+15. ✅ Performance: <50ms overhead for Phase 1 erosion computation
+
+**Depends On**:
+- VS_028 ✅ (FINAL precipitation required - already integrated into HydraulicErosionProcessor)
+- FlowDirectionCalculator ✅ (D-8 implementation exists)
+- Phase1ErosionData DTO ✅ (exists, just needs wiring)
+
+**Blocks**: Nothing (pure debug/validation feature - doesn't block gameplay or next features)
+
+**Enables**:
+- Full particle erosion implementation (validates D-8 foundation first)
+- Pit-filling threshold tuning (visual feedback on sink distribution)
+- Heightmap quality debugging (detect artifacts breaking flow)
+
+**Tech Lead Decision** (2025-10-13):
+- **Scope**: Visualization + Diagnostic Logging (D-8 logic already exists and tested!)
+- **Priority**: Validate foundation BEFORE building particle erosion (~20-28h) on top
+- **Key Focus: SINK ANALYSIS** - Inland sinks reveal heightmap quality issues (artifacts, noise, bad pit-filling)
+- **Logging Strategy**: Data complements visual inspection - quantify what you see (sink %, direction distribution, accumulation stats)
+- **Risk mitigation**: Visual + data validation catches D-8 bugs AND heightmap issues early (cheaper than debugging complex particle physics)
+- **Effort justification**: 4-6h investment validates 20-28h particle erosion foundation
+- **Success Metric**: Sink analysis shows >85% ocean, <10% inland pits (healthy heightmap!)
+- **Next step after VS_029**: Implement full particle-based erosion (rename existing VS_029 Roadmap spec to VS_030?)
+
+---
 
 ### VS_033: MVP Item Editor (Weapons + Armor Focus)
 **Status**: Proposed (Build AFTER manual item creation phase)
