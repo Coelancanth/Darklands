@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-13 15:37 (Dev Engineer: Fixed critical topological sort bug - sinks were polluting headwater queue)
+**Last Updated**: 2025-10-13 16:38 (Dev Engineer: Created TD_020 - ColorScheme SSOT system completion with rendering mode metadata)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -10,7 +10,7 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 010
-- **Next TD**: 020
+- **Next TD**: 021
 - **Next VS**: 030
 
 
@@ -75,7 +75,176 @@
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*
 
+### TD_020: Complete ColorScheme SSOT System (Renderer Refactoring + Legend Rendering Modes)
+**Status**: In Progress (2025-10-13 16:38)
+**Owner**: Dev Engineer
+**Size**: M (6-8h remaining)
+**Priority**: Important (prevents renderer/legend drift bugs)
+**Markers**: [ARCHITECTURE] [DRY] [SSOT]
 
+**What**: Complete the ColorScheme Single Source of Truth system by refactoring WorldMapRendererNode and implementing proper legend rendering modes (linear/log/gradient/discrete).
+
+**Why**:
+- **Eliminates drift bugs** - Current: Renderer updated to naturalistic flow accumulation, legend showed old heat map colors (user confusion!)
+- **Reduces code duplication** - Renderer has 600+ lines of inline color definitions duplicated in Legend
+- **Enables easy updates** - Change color scheme once, both components update automatically
+- **Improves maintainability** - ViewMode → ColorScheme mapping in ONE place (TRUE SSOT)
+
+**Current Implementation** (Commits c35c1a9, f625399, 347a594):
+
+**✅ Infrastructure Complete**:
+1. **Color Scheme System** (9 schemes covering 18 view modes):
+   - IColorScheme interface + LegendEntry record
+   - ColorSchemes static registry (Elevation, Temperature, Precipitation, FlowDirections, FlowAccumulation, Grayscale, 3 Marker schemes)
+   - SchemeBasedRenderer helper utilities
+
+2. **TRUE SSOT Architecture** (ViewModeSchemeRegistry):
+   - Central mapping: `MapViewMode → IColorScheme`
+   - Both Renderer + Legend query SAME registry (zero manual coordination)
+   - GetScheme(viewMode) + GetLegendTitle(viewMode) + HasScheme(viewMode)
+
+3. **Legend Auto-Extraction** (WorldMapLegendNode refactored):
+   - UpdateLegend() now queries registry → auto-generates from scheme.GetLegendEntries()
+   - Reduced from 312 lines → 145 lines (53% reduction!)
+   - RenderCustomLegend() handles non-scheme views (Plates only)
+
+**Code Metrics**:
+- Infrastructure: 1,111 lines (9 schemes + registry + helpers)
+- Legend: 312 → 145 lines (167 lines removed, 53% reduction)
+- Build Status: ✅ Compiles successfully, 0 warnings
+
+**❌ Remaining Work**:
+
+**1. WorldMapRendererNode Refactoring** (~4-5h):
+   - Add ViewModeSchemeRegistry lookups to ALL rendering methods
+   - Replace inline color definitions with scheme.GetColor() calls
+   - Remove obsolete helper methods (moved to SchemeBasedRenderer)
+   - **Target**: 1200 lines → ~650 lines (45% reduction)
+
+**Methods to Refactor** (8 total):
+   - `RenderTemperatureMap()` - Use TemperatureScheme (60 lines → 20 lines)
+   - `RenderPrecipitationMap()` - Use PrecipitationScheme (40 lines → 15 lines)
+   - `RenderColoredElevation()` - Use ElevationScheme (80 lines → 30 lines)
+   - `RenderFlowDirections()` - Use FlowDirectionScheme (50 lines → 20 lines)
+   - `RenderSinksPreFilling/PostFilling()` - Use SinksMarkerScheme (120 lines → 40 lines)
+   - `RenderRiverSources()` - Use RiverSourcesMarkerScheme (60 lines → 20 lines)
+   - `RenderErosionHotspots()` - Use HotspotsMarkerScheme (100 lines → 35 lines)
+   - Remove `FindQuantile()`, `GetPercentileFromSorted()`, etc. (50 lines → 0, moved to SchemeBasedRenderer)
+
+**2. Legend Rendering Modes** (~2-3h - CRITICAL MISSING FEATURE):
+   **Problem Identified**: Legend shows color swatches but doesn't explain HOW values map to colors!
+
+   **Current Gap**:
+   - Temperature: Shows "Blue = Polar", but how does [0,1] temperature map to Blue?
+   - Flow Accumulation: Shows "Bright Cyan = High flow", but is it linear? Logarithmic?
+   - Precipitation: Shows "Yellow → Green → Blue", but what's the gradient function?
+
+   **Solution - Add Rendering Mode Metadata**:
+   ```csharp
+   public interface IColorScheme
+   {
+       string Name { get; }
+       List<LegendEntry> GetLegendEntries();
+       Color GetColor(float normalizedValue, params object[] context);
+
+       // NEW: Describe how values map to colors
+       LegendRenderingMode GetRenderingMode();  // Linear, Logarithmic, Discrete, Gradient
+       string GetValueRange();  // e.g., "[0-1] normalized", "Direction code [0-7]"
+   }
+
+   public enum LegendRenderingMode
+   {
+       Discrete,      // Temperature (7 quantile bands)
+       Linear,        // Grayscale (direct mapping)
+       Logarithmic,   // Flow Accumulation (log scale for power-law distribution)
+       Gradient,      // Precipitation (smooth 3-stop gradient)
+       Marker         // Sinks/RiverSources (special case: isMarker bool)
+   }
+   ```
+
+   **Legend Display Enhancement**:
+   - Add subtitle to legend: "Discrete quantile bands" (Temperature)
+   - Add subtitle: "Logarithmic scale (power-law)" (Flow Accumulation)
+   - Add subtitle: "Smooth 3-stop gradient" (Precipitation)
+   - Add subtitle: "Grayscale + markers" (Sinks/RiverSources)
+
+   **Implementation**:
+   - Update IColorScheme interface with GetRenderingMode() + GetValueRange()
+   - Implement in all 9 concrete schemes
+   - Update WorldMapLegendNode to display rendering mode in title
+   - Update ViewModeSchemeRegistry.GetLegendTitle() to include rendering mode hint
+
+**How** (Systematic Application):
+
+**Step 1: Add Rendering Mode to ColorScheme System** (~1h)
+   - Update IColorScheme with GetRenderingMode() + GetValueRange()
+   - Implement in all 9 schemes:
+     - Elevation: Discrete (quantile bands)
+     - Temperature: Discrete (quantile bands)
+     - Precipitation: Gradient (3-stop smooth)
+     - FlowDirections: Discrete (direction codes)
+     - FlowAccumulation: Logarithmic (power-law distribution)
+     - Grayscale: Linear (direct mapping)
+     - Marker schemes: Marker (boolean overlay)
+
+**Step 2: Update Legend Display** (~30min)
+   - Modify WorldMapLegendNode.UpdateLegend() to show rendering mode
+   - Format: "{Scheme.Name} - {RenderingMode}" (e.g., "Flow Accumulation - Logarithmic scale")
+   - Add tooltip/subtitle explaining what the rendering mode means
+
+**Step 3: Refactor WorldMapRendererNode** (~4h)
+   - Add import: `using Darklands.Features.WorldGen.ColorSchemes;`
+   - For each rendering method:
+     ```csharp
+     // Before (inline colors)
+     Color dryColor = new Color(1f, 1f, 0f);
+     Color wetColor = new Color(0f, 0f, 1f);
+     // ... 30 lines of color logic ...
+
+     // After (scheme-based)
+     var scheme = ViewModeSchemeRegistry.GetScheme(_currentViewMode);
+     var image = SchemeBasedRenderer.RenderNormalizedMap(data, scheme);
+     ```
+   - Remove obsolete helper methods
+   - Build + test after each method (verify visual parity)
+
+**Step 4: Visual Validation** (~30min)
+   - Launch Godot, cycle through all 18 view modes
+   - Verify legends show rendering mode (e.g., "Logarithmic scale")
+   - Verify colors match exactly (no regression)
+   - Test Plates view (custom legend still works)
+
+**Done When**:
+1. ✅ IColorScheme includes GetRenderingMode() + GetValueRange()
+2. ✅ All 9 schemes implement rendering mode metadata
+3. ✅ Legend displays rendering mode in title/subtitle
+4. ✅ WorldMapRendererNode refactored to use ViewModeSchemeRegistry lookups
+5. ✅ Renderer reduced from 1200 → ~650 lines (45% reduction)
+6. ✅ All 18 view modes tested - colors match, legends accurate
+7. ✅ Legend shows "Flow Accumulation - Logarithmic scale" (user understands mapping!)
+8. ✅ Build succeeds with 0 warnings
+9. ✅ Visual parity confirmed (no color regressions)
+
+**Depends On**: None (infrastructure complete)
+
+**Blocks**: Nothing (quality/maintainability improvement)
+
+**Dev Engineer Notes** (2025-10-13 16:38):
+
+**Key Insight from User**: "Legend doesn't correctly extract the color scheme" revealed missing feature - we show WHAT colors mean ("Blue = Polar") but not HOW values map to colors (discrete bands? logarithmic? gradient?).
+
+**Why Rendering Mode Matters**:
+- **Temperature**: Discrete quantile bands (7 equal-population buckets) - user needs to know it's NOT linear!
+- **Flow Accumulation**: Logarithmic scale (power-law distribution) - explains why most cells are blue with few red hot spots
+- **Precipitation**: Smooth gradient (Yellow → Green → Blue) - user understands interpolation
+- **Flow Directions**: Discrete codes (0-7 = compass directions) - user understands it's categorical, not continuous
+
+**Architecture Quality**:
+- TRUE SSOT achieved via ViewModeSchemeRegistry (single mapping point)
+- Zero manual coordination between Renderer + Legend (both query same source)
+- Adding rendering mode metadata completes the legend's explanatory power
+
+**Estimated Effort**: 6-8h remaining (4-5h renderer refactoring + 2-3h rendering mode feature)
 
 ---
 
