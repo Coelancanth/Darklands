@@ -77,18 +77,18 @@ public partial class WorldMapRendererNode : Sprite2D
                 break;
 
             case MapViewMode.ColoredOriginalElevation:
-                RenderColoredElevation(_worldData.Heightmap);  // Original raw [0-20]
+                RenderColoredElevation(_worldData.Heightmap, _worldData.OceanMask, _worldData.Phase1Erosion?.PreservedBasins);  // Original raw [0-20] + ocean mask + lakes
                 break;
 
             case MapViewMode.ColoredPostProcessedElevation:
                 if (_worldData.PostProcessedHeightmap != null)
                 {
-                    RenderColoredElevation(_worldData.PostProcessedHeightmap);  // Post-processed raw [0.1-20]
+                    RenderColoredElevation(_worldData.PostProcessedHeightmap, _worldData.OceanMask, _worldData.Phase1Erosion?.PreservedBasins);  // Post-processed raw [0.1-20] + ocean mask + lakes
                 }
                 else
                 {
                     _logger?.LogWarning("Post-processed heightmap not available, falling back to original");
-                    RenderColoredElevation(_worldData.Heightmap);
+                    RenderColoredElevation(_worldData.Heightmap, _worldData.OceanMask, _worldData.Phase1Erosion?.PreservedBasins);
                 }
                 break;
 
@@ -215,14 +215,14 @@ public partial class WorldMapRendererNode : Sprite2D
                 }
                 break;
 
-            case MapViewMode.BasinMetadata:
+            case MapViewMode.PreservedLakes:
                 if (_worldData.Phase1Erosion != null && _worldData.Phase1Erosion.FilledHeightmap != null && _worldData.OceanMask != null)
                 {
-                    RenderBasinMetadata(_worldData.Phase1Erosion.FilledHeightmap, _worldData.OceanMask, _worldData.Phase1Erosion.PreservedBasins);
+                    RenderPreservedLakes(_worldData.Phase1Erosion.FilledHeightmap, _worldData.OceanMask, _worldData.Phase1Erosion.PreservedBasins);
                 }
                 else
                 {
-                    _logger?.LogWarning("BasinMetadata not available");
+                    _logger?.LogWarning("PreservedLakes data not available");
                 }
                 break;
 
@@ -362,8 +362,14 @@ public partial class WorldMapRendererNode : Sprite2D
     /// Uses quantiles to adapt colors to heightmap distribution.
     /// IMPORTANT: Normalizes heightmap to [0,1] range before applying quantile-based gradient.
     /// Works with both raw [0-20] and pre-normalized [0,1] heightmaps (VS_024 triple-heightmap support).
+    ///
+    /// FIX: Water bodies render as semantic blue colors (not quantile-based terrain colors).
+    /// - Ocean: Dark blue (semantic main water body)
+    /// - Inner seas: Medium blue (landlocked, large basins)
+    /// - Lakes: Light blue/cyan (landlocked, small basins)
+    /// Quantiles calculated on LAND-ONLY elevations for accurate terrain distribution.
     /// </summary>
-    private void RenderColoredElevation(float[,] heightmap)
+    private void RenderColoredElevation(float[,] heightmap, bool[,]? oceanMask = null, System.Collections.Generic.List<BasinMetadata>? preservedBasins = null)
     {
         int h = heightmap.GetLength(0);
         int w = heightmap.GetLength(1);
@@ -394,30 +400,129 @@ public partial class WorldMapRendererNode : Sprite2D
             }
         }
 
-        // Step 2: Calculate quantiles on NORMALIZED data
-        float q15 = FindQuantile(normalizedHeightmap, 0.15f);
-        float q70 = FindQuantile(normalizedHeightmap, 0.70f);
-        float q75 = FindQuantile(normalizedHeightmap, 0.75f);
-        float q90 = FindQuantile(normalizedHeightmap, 0.90f);
-        float q95 = FindQuantile(normalizedHeightmap, 0.95f);
-        float q99 = FindQuantile(normalizedHeightmap, 0.99f);
+        // Step 2: Calculate quantiles on LAND-ONLY normalized data (FIX: exclude ocean from distribution)
+        float q15, q70, q75, q90, q95, q99;
 
-        _logger?.LogDebug("ColoredElevation quantiles: q15={Q15:F3} q70={Q70:F3} q75={Q75:F3} q90={Q90:F3} q95={Q95:F3} q99={Q99:F3}",
-            q15, q70, q75, q90, q95, q99);
+        if (oceanMask != null)
+        {
+            // Calculate quantiles on land cells only (statistically correct!)
+            var quantiles = CalculateQuantilesLandOnly(normalizedHeightmap, oceanMask);
+            q15 = quantiles[0];
+            q70 = quantiles[1];
+            q75 = quantiles[2];
+            q90 = quantiles[3];
+            q95 = quantiles[4];
+            q99 = quantiles[5];
 
-        // Step 3: Render with quantile-based terrain colors using normalized values
+            _logger?.LogDebug("ColoredElevation quantiles (LAND-ONLY): q15={Q15:F3} q70={Q70:F3} q75={Q75:F3} q90={Q90:F3} q95={Q95:F3} q99={Q99:F3}",
+                q15, q70, q75, q90, q95, q99);
+        }
+        else
+        {
+            // Fallback: Calculate quantiles on all cells (backward compatible)
+            q15 = FindQuantile(normalizedHeightmap, 0.15f);
+            q70 = FindQuantile(normalizedHeightmap, 0.70f);
+            q75 = FindQuantile(normalizedHeightmap, 0.75f);
+            q90 = FindQuantile(normalizedHeightmap, 0.90f);
+            q95 = FindQuantile(normalizedHeightmap, 0.95f);
+            q99 = FindQuantile(normalizedHeightmap, 0.99f);
+
+            _logger?.LogDebug("ColoredElevation quantiles (ALL CELLS): q15={Q15:F3} q70={Q70:F3} q75={Q75:F3} q90={Q90:F3} q95={Q95:F3} q99={Q99:F3}",
+                q15, q70, q75, q90, q95, q99);
+        }
+
+        // Step 3: Build water body lookup (for fast basin cell checks)
+        var basinCellLookup = new System.Collections.Generic.Dictionary<(int x, int y), BasinMetadata>();
+        if (preservedBasins != null)
+        {
+            foreach (var basin in preservedBasins)
+            {
+                foreach (var cell in basin.Cells)
+                {
+                    basinCellLookup[cell] = basin;
+                }
+            }
+        }
+
+        // Step 4: Render with water-first logic (FIX: semantic water colors, then quantile terrain colors)
+        // Color scheme: Ocean (depth gradient) → Medium blue (inner seas) → Cyan (lakes) → Green+ (land)
+
+        // Ocean depth gradient (ColorBrewer2 Blues sequential): Shallow → Deep
+        Color oceanShallow = new Color(0.776f, 0.859f, 0.937f);    // Light blue #C6DBEF (shallow coastal water)
+        Color oceanMedium = new Color(0.420f, 0.682f, 0.839f);     // Medium blue #6BAED6 (mid-depth)
+        Color oceanDeep = new Color(0.031f, 0.318f, 0.612f);       // Dark blue #08519C (deep ocean trenches)
+
+        // Inner seas & lakes (distinct from ocean gradient)
+        Color innerSeaColor = new Color(0f, 0.392f, 0.784f);       // Medium blue (RGB: 0, 100, 200) - large landlocked water
+        Color lakeColor = new Color(0f, 0.784f, 0.784f);           // Cyan (RGB: 0, 200, 200) - small landlocked water
+
+        int innerSeaCount = 0, lakeCount = 0;
+
         for (int y = 0; y < h; y++)
         {
             for (int x = 0; x < w; x++)
             {
-                float elevation = normalizedHeightmap[y, x];  // Use normalized [0,1] value
-                Color color = GetQuantileTerrainColor(elevation, q15, q70, q75, q90, q95, q99);
+                Color color;
+
+                // Check WATER BODIES FIRST - semantic coloring takes precedence over terrain elevation
+
+                // 1. Ocean (border-connected water) - DEPTH GRADIENT based on elevation
+                if (oceanMask != null && oceanMask[y, x])
+                {
+                    // Use normalized elevation for ocean depth gradient
+                    // Lower elevation = deeper ocean = darker blue
+                    // Higher elevation = shallow ocean = lighter blue
+                    float oceanDepth = normalizedHeightmap[y, x];
+
+                    // Ocean gradient: Three-stop gradient for better depth perception
+                    if (oceanDepth < 0.33f)
+                    {
+                        // Deep ocean (0.0 - 0.33) - Dark to Medium blue
+                        color = Gradient(oceanDepth, 0.0f, 0.33f, oceanDeep, oceanMedium);
+                    }
+                    else
+                    {
+                        // Shallow ocean (0.33 - 1.0) - Medium to Light blue
+                        color = Gradient(oceanDepth, 0.33f, 1.0f, oceanMedium, oceanShallow);
+                    }
+                }
+                // 2. Inner seas & lakes (landlocked water from preserved basins)
+                else if (basinCellLookup.TryGetValue((x, y), out var basin))
+                {
+                    // Classify by basin size: Large basins = inner seas, small basins = lakes
+                    const int INNER_SEA_THRESHOLD = 1000;  // Cells (matches TD_023 classification)
+
+                    if (basin.Area >= INNER_SEA_THRESHOLD)
+                    {
+                        color = innerSeaColor;  // Medium blue (Caspian Sea analog)
+                        innerSeaCount++;
+                    }
+                    else
+                    {
+                        color = lakeColor;  // Cyan (small lakes)
+                        lakeCount++;
+                    }
+                }
+                // 3. Land (everything else) - use quantile-based terrain colors
+                else
+                {
+                    float elevation = normalizedHeightmap[y, x];
+                    color = GetQuantileTerrainColor(elevation, q15, q70, q75, q90, q95, q99);
+                }
+
                 image.SetPixel(x, y, color);
             }
         }
 
         Texture = ImageTexture.CreateFromImage(image);
-        _logger?.LogInformation("Rendered ColoredElevation: {Width}x{Height}", w, h);
+
+        // Calculate water body statistics
+        int innerSeaBasins = preservedBasins?.Count(b => b.Area >= 1000) ?? 0;
+        int lakeBasins = preservedBasins?.Count(b => b.Area < 1000) ?? 0;
+
+        _logger?.LogInformation(
+            "Rendered ColoredElevation: {Width}x{Height} | Water bodies: Ocean (dark blue), {InnerSeaBasins} inner seas ({InnerSeaCells} cells, medium blue), {LakeBasins} lakes ({LakeCells} cells, cyan) | Land: ColorBrewer terrain gradient",
+            w, h, innerSeaBasins, innerSeaCount, lakeBasins, lakeCount);
     }
 
     /// <summary>
@@ -455,53 +560,113 @@ public partial class WorldMapRendererNode : Sprite2D
     }
 
     /// <summary>
-    /// Maps elevation to terrain color using quantile thresholds.
-    /// Matches plate-tectonics reference color palette exactly.
+    /// Calculates quantiles on LAND-ONLY elevations (excludes ocean cells).
+    /// Returns array of 6 quantile values: [q15, q70, q75, q90, q95, q99].
+    /// This ensures accurate terrain color distribution by excluding ocean from statistics.
     /// </summary>
+    private float[] CalculateQuantilesLandOnly(float[,] normalizedHeightmap, bool[,] oceanMask)
+    {
+        int h = normalizedHeightmap.GetLength(0);
+        int w = normalizedHeightmap.GetLength(1);
+
+        // Extract land-only elevations
+        var landElevations = new System.Collections.Generic.List<float>();
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                if (!oceanMask[y, x])  // Land cell only
+                {
+                    landElevations.Add(normalizedHeightmap[y, x]);
+                }
+            }
+        }
+
+        // Guard: If no land cells (all ocean), return default quantiles
+        if (landElevations.Count == 0)
+        {
+            _logger?.LogWarning("CalculateQuantilesLandOnly: No land cells found (all ocean), using default quantiles");
+            return new float[] { 0.15f, 0.70f, 0.75f, 0.90f, 0.95f, 0.99f };
+        }
+
+        // Sort for quantile calculation
+        landElevations.Sort();
+
+        // Calculate 6 quantiles on land distribution
+        return new float[]
+        {
+            GetPercentileFromSorted(landElevations, 0.15f),
+            GetPercentileFromSorted(landElevations, 0.70f),
+            GetPercentileFromSorted(landElevations, 0.75f),
+            GetPercentileFromSorted(landElevations, 0.90f),
+            GetPercentileFromSorted(landElevations, 0.95f),
+            GetPercentileFromSorted(landElevations, 0.99f)
+        };
+    }
+
+    /// <summary>
+    /// Maps elevation to terrain color using quantile thresholds.
+    /// Uses ColorBrewer2-inspired land-only hypsometric tinting (green → yellow → orange → brown).
+    /// Ocean cells excluded from quantile calculation and rendered separately as dark blue.
+    /// </summary>
+    /// <remarks>
+    /// ColorBrewer2 "RdYlGn" (reversed) adapted for terrain elevation:
+    /// - Lowlands (q15-q70): Green shades - valleys, plains, coastal lowlands
+    /// - Hills (q70-q90): Yellow-green to yellow - rolling hills, plateaus
+    /// - Mountains (q90-q95): Orange - high elevation, mountain ranges
+    /// - Peaks (q95+): Brown-red - highest peaks, alpine zones
+    ///
+    /// This creates classic cartographic hypsometric tinting matching worldwide topographic maps.
+    /// </remarks>
     private Color GetQuantileTerrainColor(float h, float q15, float q70, float q75, float q90, float q95, float q99)
     {
-        // Reference color palette (RGB 0-255 converted to 0-1):
-        // Deep ocean: (0,0,255) → (0,20,200)
-        // Ocean: (0,20,200) → (50,80,225)
-        // Shallow water: (50,80,225) → (135,237,235)
-        // Land/grass: (88,173,49) → (218,226,58)
-        // Hills: (218,226,58) → (251,252,42)
-        // Mountains: (251,252,42) → (91,28,13)
-        // Peaks: (91,28,13) → (51,0,4)
-
+        // Band 1 (0 - q15): BELOW LOWLANDS (failsafe for edge cases)
+        // Light green #A6D96A (166,217,106) → Dark green #66BD63 (102,189,99)
         if (h < q15)
             return Gradient(h, 0.0f, q15,
-                new Color(0f, 0f, 1f),
-                new Color(0f, 0.078f, 0.784f));
+                new Color(0.651f, 0.851f, 0.416f),  // #A6D96A light green
+                new Color(0.400f, 0.741f, 0.388f)); // #66BD63 green
 
+        // Band 2 (q15 - q70): LOWLANDS & PLAINS (55% of land)
+        // Dark green #66BD63 (102,189,99) → Yellow-green #D9EF8B (217,239,139)
         if (h < q70)
             return Gradient(h, q15, q70,
-                new Color(0f, 0.078f, 0.784f),
-                new Color(0.196f, 0.314f, 0.882f));
+                new Color(0.400f, 0.741f, 0.388f),  // #66BD63 green
+                new Color(0.851f, 0.937f, 0.545f)); // #D9EF8B yellow-green
 
+        // Band 3 (q70 - q75): LOW HILLS (5% transition)
+        // Yellow-green #D9EF8B (217,239,139) → Yellow #FFFFBF (255,255,191)
         if (h < q75)
             return Gradient(h, q70, q75,
-                new Color(0.196f, 0.314f, 0.882f),
-                new Color(0.529f, 0.929f, 0.922f));
+                new Color(0.851f, 0.937f, 0.545f),  // #D9EF8B yellow-green
+                new Color(1.000f, 1.000f, 0.749f)); // #FFFFBF yellow
 
+        // Band 4 (q75 - q90): HILLS (15% of land)
+        // Yellow #FFFFBF (255,255,191) → Orange #FDAE61 (253,174,97)
         if (h < q90)
             return Gradient(h, q75, q90,
-                new Color(0.345f, 0.678f, 0.192f),
-                new Color(0.855f, 0.886f, 0.227f));
+                new Color(1.000f, 1.000f, 0.749f),  // #FFFFBF yellow
+                new Color(0.992f, 0.682f, 0.380f)); // #FDAE61 orange
 
+        // Band 5 (q90 - q95): MOUNTAINS (5%)
+        // Orange #FDAE61 (253,174,97) → Dark orange #F46D43 (244,109,67)
         if (h < q95)
             return Gradient(h, q90, q95,
-                new Color(0.855f, 0.886f, 0.227f),
-                new Color(0.984f, 0.988f, 0.165f));
+                new Color(0.992f, 0.682f, 0.380f),  // #FDAE61 orange
+                new Color(0.957f, 0.427f, 0.263f)); // #F46D43 dark orange
 
+        // Band 6 (q95 - q99): HIGH MOUNTAINS (4%)
+        // Dark orange #F46D43 (244,109,67) → Brown-red #D73027 (215,48,39)
         if (h < q99)
             return Gradient(h, q95, q99,
-                new Color(0.984f, 0.988f, 0.165f),
-                new Color(0.357f, 0.110f, 0.051f));
+                new Color(0.957f, 0.427f, 0.263f),  // #F46D43 dark orange
+                new Color(0.843f, 0.188f, 0.153f)); // #D73027 brown-red
 
+        // Band 7 (q99 - 1.0): PEAKS (top 1%)
+        // Brown-red #D73027 (215,48,39) → Dark brown #A50026 (165,0,38)
         return Gradient(h, q99, 1.0f,
-            new Color(0.357f, 0.110f, 0.051f),
-            new Color(0.200f, 0f, 0.016f));
+            new Color(0.843f, 0.188f, 0.153f),  // #D73027 brown-red
+            new Color(0.647f, 0.000f, 0.149f)); // #A50026 dark brown
     }
 
     /// <summary>
@@ -839,7 +1004,7 @@ public partial class WorldMapRendererNode : Sprite2D
     /// Grayscale elevation base + colored basin boundaries + markers (red pour points, cyan centers).
     /// Purpose: Validate basin detection for VS_030 (boundaries for inlet detection, pour points for pathfinding).
     /// </summary>
-    private void RenderBasinMetadata(float[,] heightmap, bool[,] oceanMask, System.Collections.Generic.List<BasinMetadata> basins)
+    private void RenderPreservedLakes(float[,] heightmap, bool[,] oceanMask, System.Collections.Generic.List<BasinMetadata> basins)
     {
         int h = heightmap.GetLength(0);
         int w = heightmap.GetLength(1);
@@ -865,6 +1030,19 @@ public partial class WorldMapRendererNode : Sprite2D
             {
                 float t = (heightmap[y, x] - min) / delta;
                 image.SetPixel(x, y, new Color(t, t, t));
+            }
+        }
+
+        // Step 1.5: Render ocean as dark blue (TD_023 tweak - better visual clarity)
+        Color oceanColor = new Color(0f, 0f, 0.545f);  // Dark Blue (RGB: 0, 0, 139)
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                if (oceanMask[y, x])
+                {
+                    image.SetPixel(x, y, oceanColor);
+                }
             }
         }
 

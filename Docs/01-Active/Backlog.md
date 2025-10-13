@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-13 20:27 (Dev Engineer: TD_023 COMPLETE with classification fix - inner seas now preserved correctly)
+**Last Updated**: 2025-10-13 21:30 (Dev Engineer: TD_023 Step 6 COMPLETE - ColoredElevation rendering fix + ColorBrewer terrain colors)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -369,6 +369,46 @@ MeasurePit() flood-fill computes:
 - Flood-fill handles flat/irregular/varying-elevation basins correctly
 - Basin Metadata view displays colored regions, pour points, and centers
 - Legend and probe handlers work correctly
+
+**Unblocks**: VS_030 Phase 1 fully unblocked - basin metadata accessible AND visually validated ✅
+
+✅ **Step 6: ColoredElevation Rendering Fix + ColorBrewer Terrain Colors** (2025-10-13 21:30):
+- **Critical Bug Discovered**: ColoredOriginal/PostProcessedElevation views rendered water bodies as green terrain (elevation-based quantiles)
+  - Ocean at elevation 0.8-1.0 fell into "lowland green" quantile
+  - Inner seas (195k-cell basins) showed as green, not blue
+  - Probe showed "Ocean" but visual was green/yellow terrain
+- **Root Cause Analysis**: Two-layer problem
+  1. **Statistical Pollution**: Quantiles calculated on ALL cells (ocean 50% + land 50%) → Ocean elevations skewed land distribution
+  2. **Semantic Confusion**: Ocean treated as "very low elevation land" instead of water type
+- **Elegant Solution Implemented** ([`WorldMapRendererNode.cs:369-505`](../../godot_project/features/worldgen/WorldMapRendererNode.cs#L369-L505)):
+  1. **Land-Only Quantiles**: `CalculateQuantilesLandOnly()` excludes ocean/lakes → Accurate terrain distribution
+  2. **Water-First Rendering**: Check water bodies BEFORE applying terrain gradients
+  3. **Four-Tier Classification**:
+     - Ocean (border-connected) → Depth gradient (ColorBrewer2 Blues: shallow #C6DBEF → deep #08519C)
+     - Inner Seas (basin ≥1000 cells) → Medium blue #0064C8 (flat, distinguishable from ocean)
+     - Lakes (basin <1000 cells) → Cyan #00C8C8 (flat, distinguishable from seas)
+     - Land (else) → ColorBrewer2 "RdYlGn" reversed (green → yellow → orange → brown)
+- **ColorBrewer2 Integration**:
+  - **Land Gradient**: Hypsometric tinting matching worldwide topographic maps
+    - Lowlands (q15-q70): Green #66BD63 → Yellow-Green #D9EF8B (valleys, plains)
+    - Hills (q70-q90): Yellow #FFFFBF → Orange #FDAE61 (rolling terrain)
+    - Mountains (q90-q95): Orange #FDAE61 → Dark Orange #F46D43 (high elevation)
+    - Peaks (q95-q99): Dark Orange #F46D43 → Brown-Red #D73027 (alpine zones)
+    - Summit (q99-1.0): Brown-Red #D73027 → Dark Brown #A50026 (highest points)
+  - **Ocean Gradient**: Bathymetric depth perception (shallow coastal → deep trenches)
+    - Deep Ocean (0.0-0.33): Dark Blue #08519C → Medium Blue #6BAED6
+    - Shallow Ocean (0.33-1.0): Medium Blue #6BAED6 → Light Blue #C6DBEF
+- **Probe Enhancement** ([`WorldMapProbeNode.cs:274-347`](../../godot_project/features/worldgen/WorldMapProbeNode.cs#L274-L347)):
+  - Distinguishes "Ocean (border-connected)" vs "Inner Sea (landlocked)" vs "Lake (landlocked)"
+  - Shows basin details for inner seas/lakes (Basin ID, size, depth)
+  - Matches visual classification (probe text aligns with color)
+- **Performance**: Dictionary lookup O(1) per pixel, ~2-3ms overhead for 512×512
+- **Build Status**: 0 warnings, 0 errors ✅
+- **Visual Result**:
+  - Ocean: Realistic depth gradient (light near coasts, dark in trenches)
+  - Inner seas: Clearly distinguished from ocean (no gradient, medium blue)
+  - Land: Professional hypsometric tinting (green lowlands → brown peaks)
+  - Probe: Accurate water body type classification
 
 **Unblocks**: VS_030 Phase 1 fully unblocked - basin metadata accessible AND visually validated ✅
 

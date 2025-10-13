@@ -122,7 +122,7 @@ public partial class WorldMapUINode : Control
         _viewModeDropdown.AddSeparator("─── Erosion Debug (VS_029) ───");
         _viewModeDropdown.AddItem("Erosion: 0A. Sinks (PRE-Filling)", (int)MapViewMode.SinksPreFilling);
         _viewModeDropdown.AddItem("Erosion: 0B. Sinks (POST-Filling)", (int)MapViewMode.SinksPostFilling);
-        _viewModeDropdown.AddItem("DEBUG: Basin Metadata (TD_023)", (int)MapViewMode.BasinMetadata);
+        _viewModeDropdown.AddItem("DEBUG: Basin Metadata (TD_023)", (int)MapViewMode.PreservedLakes);
         _viewModeDropdown.AddItem("Erosion: 1. Flow Directions", (int)MapViewMode.FlowDirections);
         _viewModeDropdown.AddItem("Erosion: 2. Flow Accumulation", (int)MapViewMode.FlowAccumulation);
         _viewModeDropdown.AddItem("Erosion: 3. River Sources", (int)MapViewMode.RiverSources);

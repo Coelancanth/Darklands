@@ -240,8 +240,8 @@ public partial class WorldMapProbeNode : Node
             MapViewMode.SinksPostFilling =>
                 BuildSinksPostFillingProbeData(x, y, worldData),
 
-            MapViewMode.BasinMetadata =>
-                BuildBasinMetadataProbeData(x, y, worldData),
+            MapViewMode.PreservedLakes =>
+                BuildPreservedLakesProbeData(x, y, worldData),
 
             MapViewMode.FlowDirections =>
                 BuildFlowDirectionsProbeData(x, y, worldData),
@@ -269,6 +269,7 @@ public partial class WorldMapProbeNode : Node
     /// <summary>
     /// Builds comprehensive elevation probe data with real-world meters mapping.
     /// VS_024: Uses ElevationMapper for human-readable display, shows raw values for debugging.
+    /// Updated: Distinguishes Ocean vs Inner Sea vs Lake based on preserved basins.
     /// </summary>
     private string BuildElevationProbeData(
         int x, int y,
@@ -283,6 +284,31 @@ public partial class WorldMapProbeNode : Node
 
         var worldData = _renderer?.GetWorldData();
         var data = $"Cell ({x},{y})\n";
+
+        // Check if this cell belongs to a preserved basin (inner sea or lake)
+        var erosionData = worldData?.Phase1Erosion;
+        var containingBasin = erosionData?.PreservedBasins.FirstOrDefault(b => b.Cells.Contains((x, y)));
+
+        // Determine water body type (Ocean, Inner Sea, Lake, or Land)
+        string waterBodyType = "";
+        if (containingBasin != null)
+        {
+            // Part of preserved basin - inner sea or lake
+            const int INNER_SEA_THRESHOLD = 1000;  // Matches ColoredElevation rendering
+            waterBodyType = containingBasin.Area >= INNER_SEA_THRESHOLD
+                ? "Inner Sea (landlocked)\n"
+                : "Lake (landlocked)\n";
+        }
+        else if (isOcean == true)
+        {
+            waterBodyType = "Ocean (border-connected)\n";
+        }
+
+        // Show water body type if this is water
+        if (!string.IsNullOrEmpty(waterBodyType))
+        {
+            data += waterBodyType;
+        }
 
         // Show human-readable meters (if thresholds AND min/max available for mapping)
         if (thresholds != null && worldData != null)
@@ -309,7 +335,13 @@ public partial class WorldMapProbeNode : Node
         if (postProcessed.HasValue)
             data += $"\nPost-Proc: {postProcessed.Value:F2}";
 
-        // TD_021: Removed depth display (clutter - raw value shows if needed for debugging)
+        // Show basin details if this is an inner sea or lake
+        if (containingBasin != null)
+        {
+            data += $"\n\nBasin #{containingBasin.BasinId}";
+            data += $"\nSize: {containingBasin.Area} cells";
+            data += $"\nDepth: {containingBasin.Depth:F1}";
+        }
 
         return data;
     }
@@ -754,12 +786,12 @@ public partial class WorldMapProbeNode : Node
     /// Builds probe data for Basin Metadata view (TD_023).
     /// Shows: basin ID, elevation, basin size/depth, pour point distance, basin role (center/boundary/outlet).
     /// </summary>
-    private string BuildBasinMetadataProbeData(
+    private string BuildPreservedLakesProbeData(
         int x,
         int y,
         Core.Features.WorldGen.Application.DTOs.WorldGenerationResult worldData)
     {
-        var data = $"Cell ({x},{y})\nBasin Metadata (TD_023)\n\n";
+        var data = $"Cell ({x},{y})\nPreserved Lakes (TD_023)\n\n";
 
         var erosionData = worldData.Phase1Erosion;
         if (erosionData == null)
@@ -773,19 +805,30 @@ public partial class WorldMapProbeNode : Node
 
         data += $"Elevation: {filledElevation:F2}\n";
 
-        // Ocean status
-        if (isOcean == true)
-            data += "Type: Ocean\n\n";
-        else
-            data += "Type: Land\n\n";
-
-        // Check if this cell belongs to any preserved basin
+        // Check if this cell belongs to any preserved basin (check first for type display)
         var containingBasin = erosionData.PreservedBasins.FirstOrDefault(b => b.Cells.Contains((x, y)));
+
+        // Type display: Inner Sea/Lake takes precedence over Ocean
+        if (containingBasin != null)
+        {
+            // Part of preserved lake - show as water body (more meaningful than "land")
+            data += containingBasin.Area > 1000
+                ? "Type: Inner Sea (endorheic basin)\n\n"
+                : "Type: Lake (landlocked)\n\n";
+        }
+        else if (isOcean == true)
+        {
+            data += "Type: Ocean (border-connected)\n\n";
+        }
+        else
+        {
+            data += "Type: Land\n\n";
+        }
 
         if (containingBasin != null)
         {
-            // Cell is part of a preserved basin
-            data += $"BASIN #{containingBasin.BasinId}\n";
+            // Cell is part of a preserved basin - show details
+            data += $"LAKE #{containingBasin.BasinId}\n";
             data += $"Size: {containingBasin.Area} cells\n";
             data += $"Depth: {containingBasin.Depth:F1}\n";
             data += $"Surface Elev: {containingBasin.SurfaceElevation:F2}\n\n";

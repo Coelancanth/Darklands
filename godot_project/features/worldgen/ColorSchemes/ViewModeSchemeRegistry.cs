@@ -37,7 +37,7 @@ public static class ViewModeSchemeRegistry
             // D-8 Erosion views (VS_029)
             MapViewMode.SinksPreFilling => ColorSchemes.Sinks,
             MapViewMode.SinksPostFilling => ColorSchemes.Sinks,
-            MapViewMode.BasinMetadata => null,  // TD_023: Custom rendering (colored boundaries + markers)
+            MapViewMode.PreservedLakes => null,  // TD_023: Custom rendering (colored boundaries + markers)
             MapViewMode.FlowDirections => ColorSchemes.FlowDirections,
             MapViewMode.FlowAccumulation => ColorSchemes.FlowAccumulation,
             MapViewMode.RiverSources => ColorSchemes.RiverSources,
@@ -82,7 +82,7 @@ public static class ViewModeSchemeRegistry
             // D-8 Erosion
             MapViewMode.SinksPreFilling => "Sinks (PRE-Filling) - Baseline before pit-filling",
             MapViewMode.SinksPostFilling => "Sinks (POST-Filling) - After pit-filling",
-            MapViewMode.BasinMetadata => "Basin Metadata (TD_023) - Boundaries + pour points",
+            MapViewMode.PreservedLakes => "Preserved Lakes (TD_023) - Boundaries + pour points",
             MapViewMode.FlowDirections => "Flow Directions (D-8) - Steepest descent",
             MapViewMode.FlowAccumulation => "Flow Accumulation - Two-layer naturalistic",
             MapViewMode.RiverSources => "River Sources - Threshold-crossing algorithm",

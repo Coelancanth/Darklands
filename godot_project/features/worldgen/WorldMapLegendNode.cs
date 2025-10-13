@@ -145,14 +145,15 @@ public partial class WorldMapLegendNode : Control
                 AddLegendEntry("(10 plates total)", new Color(0.6f, 0.6f, 0.6f), "");
                 break;
 
-            case MapViewMode.BasinMetadata:
-                // TD_023: Basin metadata visualization
+            case MapViewMode.PreservedLakes:
+                // TD_023: Preserved lakes visualization
                 AddLegendEntry("Grayscale", new Color(0.5f, 0.5f, 0.5f), "Elevation (terrain context)");
-                AddLegendEntry("Colored regions", new Color(0.8f, 0.6f, 1.0f), "Basin boundaries (unique color per basin)");
+                AddLegendEntry("Dark Blue", new Color(0f, 0f, 0.545f), "Ocean (border-connected water)");
+                AddLegendEntry("Colored regions", new Color(0.8f, 0.6f, 1.0f), "Lake boundaries (inner seas / endorheic basins)");
                 AddLegendEntry("Red dot", new Color(1f, 0f, 0f), "Pour point (outlet - where water exits)");
-                AddLegendEntry("Cyan dot", new Color(0f, 1f, 1f), "Basin center (local minimum - pit bottom)");
+                AddLegendEntry("Cyan dot", new Color(0f, 1f, 1f), "Lake center (deepest point)");
                 AddLegendEntry("", new Color(0.7f, 0.7f, 0.7f), "");
-                AddLegendEntry("Purpose", new Color(0.7f, 0.7f, 0.7f), "Validate basin detection for VS_030");
+                AddLegendEntry("Purpose", new Color(0.7f, 0.7f, 0.7f), "Validate lake detection for VS_030");
                 break;
 
             default:

@@ -123,13 +123,13 @@ public enum MapViewMode
     SinksPostFilling,
 
     /// <summary>
-    /// [DEBUG] Display basin metadata from pit-filling (TD_023).
-    /// Grayscale elevation base + colored basin boundaries + markers (red pour points, cyan centers).
-    /// Each preserved basin rendered with distinct color (basin ID % palette).
-    /// Visual signature: Colored regions for large lakes/pits, red dots at outlets, cyan at centers.
+    /// [DEBUG] Display preserved lakes from pit-filling (TD_023).
+    /// Grayscale elevation base + colored lake boundaries + markers (red pour points, cyan centers).
+    /// Each preserved lake rendered with distinct color (endorheic basins / inner seas).
+    /// Visual signature: Colored regions for landlocked water bodies, red dots at outlets, cyan at centers.
     /// Purpose: Validate basin detection for VS_030 (boundaries for inlet detection, pour points for pathfinding).
     /// </summary>
-    BasinMetadata,
+    PreservedLakes,
 
     /// <summary>
     /// [DEBUG] Display D-8 flow directions (VS_029 Step 2).
