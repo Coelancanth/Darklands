@@ -1,5 +1,5 @@
 using Godot;
-using Darklands.Components;
+using Darklands.Presentation.Infrastructure.Events;
 using Darklands.Core.Domain.Events;
 using Darklands.Core.Infrastructure.DependencyInjection;
 using Darklands.Core.Infrastructure.Events;

@@ -834,7 +834,7 @@ Designer: [Apply]
 - **Full regen is slow** - 2s for 512×512 world (vs 0.5s erosion-only regen)
 - **No presets** - Designer guesses RiverDensity, Meandering, ValleyDepth values
 
-**Detailed Roadmap**: See [Roadmap_World_Generation.md](Roadmap_World_Generation.md#vs_031-worldgen-debug-panel-real-time-parameter-tuning--planned)
+**Detailed Roadmap**: See [Roadmap_World_Generation.md](WorldGen/0_Roadmap_World_Generation.md#vs_031-worldgen-debug-panel-real-time-parameter-tuning--planned)
 
 **Features**:
 - Real-time sliders (RiverDensity, Meandering, ValleyDepth)

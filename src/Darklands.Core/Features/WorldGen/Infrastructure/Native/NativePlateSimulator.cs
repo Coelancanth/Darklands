@@ -34,7 +34,8 @@ public class NativePlateSimulator : IPlateSimulator
             .Bind(() => RunNativeSimulation(parameters))
             .Map(nativeOut => new PlateSimulationResult(
                 nativeOut.Heightmap,
-                nativeOut.Plates));
+                nativeOut.Plates,
+                nativeOut.Kinematics));
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -125,7 +126,15 @@ public class NativePlateSimulator : IPlateSimulator
             var platesPtr = PlateTectonicsNative.GetPlatesMap(handle);
             var plates = Marshal2DArrayUInt(platesPtr, p.WorldSize, p.WorldSize);
 
-            return Result.Success(new NativeOut(heightmap, plates));
+            // Batched kinematics (TD_029 Phase 2)
+            PlateTectonicsNative.GetPlateKinematics(handle, out var kinPtr, out var kinCount);
+            TectonicKinematicsData[]? kin = null;
+            if (kinPtr != IntPtr.Zero && kinCount > 0)
+            {
+                kin = MarshalKinematicsArray(kinPtr, kinCount);
+            }
+
+            return Result.Success(new NativeOut(heightmap, plates, kin));
         }
         catch (Exception ex)
         {
@@ -171,6 +180,23 @@ public class NativePlateSimulator : IPlateSimulator
         return result;
     }
 
+    private static unsafe TectonicKinematicsData[] MarshalKinematicsArray(IntPtr ptr, uint count)
+    {
+        var span = new Span<PlateTectonicsNative.PlateKinematics>(ptr.ToPointer(), checked((int)count));
+        var result = new TectonicKinematicsData[span.Length];
+        for (int i = 0; i < span.Length; i++)
+        {
+            var k = span[i];
+            result[i] = new TectonicKinematicsData(
+                PlateId: k.plate_id,
+                VelocityUnitVector: new System.Numerics.Vector2(k.vel_x, k.vel_y),
+                VelocityMagnitude: k.velocity,
+                MassCenter: new System.Numerics.Vector2(k.cx, k.cy)
+            );
+        }
+        return result;
+    }
+
     /// <summary>
     /// Writes a native heightmap (float*) to an 8-bit binary PGM image (P5).
     /// </summary>
@@ -204,5 +230,5 @@ public class NativePlateSimulator : IPlateSimulator
     // Helper Records
     // ═══════════════════════════════════════════════════════════════════════
 
-    private record NativeOut(float[,] Heightmap, uint[,] Plates);
+    private record NativeOut(float[,] Heightmap, uint[,] Plates, TectonicKinematicsData[]? Kinematics);
 }

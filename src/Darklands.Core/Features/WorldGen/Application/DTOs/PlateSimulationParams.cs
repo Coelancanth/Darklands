@@ -54,6 +54,25 @@ public record PlateSimulationParams
     public int CycleCount { get; init; } = 2;
 
     /// <summary>
+    /// Number of feedback loop iterations for iterative pipeline mode (TD_027).
+    /// Only used when PipelineMode = Iterative (ignored in SinglePass mode).
+    /// Typical range: 3-5. Higher values = better convergence but longer generation time.
+    /// Default: 3 iterations (balanced quality vs performance).
+    /// </summary>
+    /// <remarks>
+    /// Feedback Loop: (Erosion → Climate) × FeedbackIterations
+    /// - Iteration 1: Initial climate calculation influences erosion
+    /// - Iteration 2+: Eroded terrain influences climate (rain shadow accuracy improves)
+    /// - Convergence: Iterations 3-5 typically stabilize (diminishing returns after 5)
+    ///
+    /// Performance Impact:
+    /// - 1 iteration: ~2s (equivalent to SinglePass mode)
+    /// - 3 iterations: ~6s (default, balanced)
+    /// - 5 iterations: ~10s (maximum quality)
+    /// </remarks>
+    public int FeedbackIterations { get; init; } = 3;
+
+    /// <summary>
     /// Creates parameters with default values (good starting point).
     /// </summary>
     public PlateSimulationParams(int seed)
@@ -73,7 +92,8 @@ public record PlateSimulationParams
         float foldingRatio = 0.02f,
         int aggrOverlapAbs = 1_000_000,
         float aggrOverlapRel = 0.33f,
-        int cycleCount = 2)
+        int cycleCount = 2,
+        int feedbackIterations = 3)
     {
         Seed = seed;
         WorldSize = worldSize;
@@ -84,5 +104,6 @@ public record PlateSimulationParams
         AggrOverlapAbs = aggrOverlapAbs;
         AggrOverlapRel = aggrOverlapRel;
         CycleCount = cycleCount;
+        FeedbackIterations = feedbackIterations;
     }
 }

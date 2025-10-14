@@ -61,9 +61,9 @@ public partial class SpatialInventoryTestController : Control
 
     // Container references (for cross-container refresh)
     // VS_032 Phase 4: Realistic model - player backpack + equipment, enemy loot
-    private Components.Inventory.InventoryContainerNode? _playerBackpackNode;
-    private Components.Inventory.InventoryContainerNode? _enemyLootNode;
-    private Components.Inventory.EquipmentPanelNode? _equipmentPanel;
+    private Darklands.Presentation.Features.Inventory.InventoryContainerNode? _playerBackpackNode;
+    private Darklands.Presentation.Features.Inventory.InventoryContainerNode? _enemyLootNode;
+    private Darklands.Presentation.Features.Inventory.EquipmentPanelNode? _equipmentPanel;
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // GODOT LIFECYCLE
@@ -281,7 +281,7 @@ public partial class SpatialInventoryTestController : Control
         var weaponSlotPlaceholder = GetNode<Control>("VBoxContainer/ContainersRow/WeaponSlot");
 
         // TD_019 Phase 4: Create Player Backpack using InventoryId (Inventory-First architecture)
-        _playerBackpackNode = new Components.Inventory.InventoryContainerNode
+        _playerBackpackNode = new Darklands.Presentation.Features.Inventory.InventoryContainerNode
         {
             InventoryId = _playerBackpackId, // TD_019: Use InventoryId instead of ActorId
             ContainerTitle = "Player Backpack",
@@ -293,7 +293,7 @@ public partial class SpatialInventoryTestController : Control
         backpackAPlaceholder.AddChild(_playerBackpackNode);
 
         // TD_019 Phase 4: Create Enemy Loot using InventoryId (Inventory-First architecture)
-        _enemyLootNode = new Components.Inventory.InventoryContainerNode
+        _enemyLootNode = new Darklands.Presentation.Features.Inventory.InventoryContainerNode
         {
             InventoryId = _enemyLootId, // TD_019: Use InventoryId instead of ActorId
             ContainerTitle = "Enemy Loot",
@@ -305,7 +305,7 @@ public partial class SpatialInventoryTestController : Control
         backpackBPlaceholder.AddChild(_enemyLootNode);
 
         // TD_019 Phase 4: Create Equipment Panel (player's equipment - uses ActorId + InventoryId)
-        _equipmentPanel = new Components.Inventory.EquipmentPanelNode
+        _equipmentPanel = new Darklands.Presentation.Features.Inventory.EquipmentPanelNode
         {
             OwnerActorId = _playerActorId,         // Actor who owns equipment
             PlayerInventoryId = _playerBackpackId, // Inventory where unequipped items go

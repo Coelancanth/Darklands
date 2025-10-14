@@ -1,5 +1,5 @@
 using Godot;
-using Darklands.Infrastructure.Templates;
+using Darklands.Presentation.Infrastructure.Templates;
 using Darklands.Core.Application.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 

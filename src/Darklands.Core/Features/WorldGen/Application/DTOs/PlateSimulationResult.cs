@@ -1,5 +1,7 @@
 namespace Darklands.Core.Features.WorldGen.Application.DTOs;
 
+using System.Numerics;
+
 /// <summary>
 /// Raw output from native plate tectonics simulation.
 /// Contains unnormalized heightmap and plate ownership data.
@@ -17,6 +19,11 @@ public record PlateSimulationResult
     public uint[,] PlatesMap { get; init; }
 
     /// <summary>
+    /// Per-plate kinematics data (velocities and mass centers). Optional based on pipeline stage.
+    /// </summary>
+    public TectonicKinematicsData[]? Kinematics { get; init; }
+
+    /// <summary>
     /// Map width (all arrays have same dimensions).
     /// </summary>
     public int Width => Heightmap.GetLength(1);
@@ -28,9 +35,20 @@ public record PlateSimulationResult
 
     public PlateSimulationResult(
         float[,] heightmap,
-        uint[,] platesMap)
+        uint[,] platesMap,
+        TectonicKinematicsData[]? kinematics = null)
     {
         Heightmap = heightmap;
         PlatesMap = platesMap;
+        Kinematics = kinematics;
     }
 }
+
+/// <summary>
+/// Per-plate kinematics data (velocity and centroid) for geology layer.
+/// </summary>
+public record TectonicKinematicsData(
+    uint PlateId,
+    Vector2 VelocityUnitVector,
+    float VelocityMagnitude,
+    Vector2 MassCenter);

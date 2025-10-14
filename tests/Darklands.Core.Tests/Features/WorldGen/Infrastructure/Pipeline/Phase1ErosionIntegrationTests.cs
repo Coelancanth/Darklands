@@ -5,6 +5,8 @@ using Darklands.Core.Features.WorldGen.Infrastructure.Native;
 using Darklands.Core.Features.WorldGen.Infrastructure.Native.Interop;
 using Darklands.Core.Features.WorldGen.Infrastructure.Pipeline;
 using FluentAssertions;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Xunit.Abstractions;
@@ -15,6 +17,10 @@ namespace Darklands.Core.Tests.Features.WorldGen.Infrastructure.Pipeline;
 /// Integration tests for Phase 1 erosion data population in world generation pipeline (VS_029).
 /// Validates D-8 flow direction data is correctly wired through all pipeline stages.
 /// </summary>
+/// <remarks>
+/// TD_027: Updated to use PipelineBuilder instead of monolithic GenerateWorldPipeline.
+/// Tests the new stage-based architecture (SinglePassPipeline).
+/// </remarks>
 [Trait("Category", "WorldGen")]
 [Trait("Category", "Integration")]
 public class Phase1ErosionIntegrationTests
@@ -31,13 +37,22 @@ public class Phase1ErosionIntegrationTests
     {
         // WHY: VS_029 requires Phase1ErosionData for flow visualization.
         // This test validates the pipeline correctly computes and exposes all erosion fields.
+        // TD_027: Uses PipelineBuilder to test new stage-based architecture.
 
         // ARRANGE
         ValidateLibraryOrSkip();
 
         var projectPath = GetProjectRoot();
         var nativeSimulator = new NativePlateSimulator(NullLogger<NativePlateSimulator>.Instance, projectPath);
-        var pipeline = new GenerateWorldPipeline(nativeSimulator, NullLogger<GenerateWorldPipeline>.Instance);
+
+        // TD_027: Use PipelineBuilder instead of direct GenerateWorldPipeline instantiation
+        var pipeline = new PipelineBuilder()
+            .UsePlateSimulator(nativeSimulator)
+            .UseSinglePassMode()
+            .UseDefaultStages(new Microsoft.Extensions.DependencyInjection.ServiceCollection()
+                .AddLogging(builder => builder.AddProvider(NullLoggerProvider.Instance))
+                .BuildServiceProvider())
+            .Build(NullLogger<SinglePassPipeline>.Instance);
 
         var parameters = new PlateSimulationParams(
             seed: 12345,
@@ -164,13 +179,22 @@ public class Phase1ErosionIntegrationTests
     {
         // WHY: Flow directions and accumulation must be consistent with filled heightmap.
         // This test validates the D-8 algorithm produces hydrologically correct results.
+        // TD_027: Uses PipelineBuilder to test new stage-based architecture.
 
         // ARRANGE
         ValidateLibraryOrSkip();
 
         var projectPath = GetProjectRoot();
         var nativeSimulator = new NativePlateSimulator(NullLogger<NativePlateSimulator>.Instance, projectPath);
-        var pipeline = new GenerateWorldPipeline(nativeSimulator, NullLogger<GenerateWorldPipeline>.Instance);
+
+        // TD_027: Use PipelineBuilder instead of direct GenerateWorldPipeline instantiation
+        var pipeline = new PipelineBuilder()
+            .UsePlateSimulator(nativeSimulator)
+            .UseSinglePassMode()
+            .UseDefaultStages(new Microsoft.Extensions.DependencyInjection.ServiceCollection()
+                .AddLogging(builder => builder.AddProvider(NullLoggerProvider.Instance))
+                .BuildServiceProvider())
+            .Build(NullLogger<SinglePassPipeline>.Instance);
 
         var parameters = new PlateSimulationParams(
             seed: 67890,

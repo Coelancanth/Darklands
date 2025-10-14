@@ -170,4 +170,49 @@ internal static partial class PlateTectonicsNative
     /// </summary>
     [LibraryImport(LibraryName, EntryPoint = "platec_api_destroy")]
     internal static partial void Destroy(IntPtr handle);
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // TD_029 Phase 1: Quality-of-life getters
+    // ═══════════════════════════════════════════════════════════════════════
+    [LibraryImport(LibraryName, EntryPoint = "platec_api_get_width")]
+    internal static partial uint GetWidthEx(IntPtr handle);
+
+    [LibraryImport(LibraryName, EntryPoint = "platec_api_get_height")]
+    internal static partial uint GetHeightEx(IntPtr handle);
+
+    [LibraryImport(LibraryName, EntryPoint = "platec_api_get_cycle_count")]
+    internal static partial uint GetCycleCount(IntPtr handle);
+
+    [LibraryImport(LibraryName, EntryPoint = "platec_api_get_plate_count")]
+    internal static partial uint GetPlateCount(IntPtr handle);
+
+    // Validation helpers (optional - used by tests)
+    [LibraryImport(LibraryName, EntryPoint = "platec_api_get_plate_velocity_x")]
+    internal static partial float GetPlateVelocityX(IntPtr handle, uint plateIndex);
+
+    [LibraryImport(LibraryName, EntryPoint = "platec_api_get_plate_velocity_y")]
+    internal static partial float GetPlateVelocityY(IntPtr handle, uint plateIndex);
+
+    [LibraryImport(LibraryName, EntryPoint = "platec_api_get_plate_center_x")]
+    internal static partial float GetPlateCenterX(IntPtr handle, uint plateIndex);
+
+    [LibraryImport(LibraryName, EntryPoint = "platec_api_get_plate_center_y")]
+    internal static partial float GetPlateCenterY(IntPtr handle, uint plateIndex);
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // TD_029 Phase 2: Batched kinematics API
+    // ═══════════════════════════════════════════════════════════════════════
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct PlateKinematics
+    {
+        public uint plate_id;
+        public float vel_x;
+        public float vel_y;
+        public float velocity;
+        public float cx;
+        public float cy;
+    }
+
+    [LibraryImport(LibraryName, EntryPoint = "platec_api_get_plate_kinematics")]
+    internal static partial void GetPlateKinematics(IntPtr handle, out IntPtr arrayPtr, out uint count);
 }

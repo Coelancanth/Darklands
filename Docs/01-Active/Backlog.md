@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-14 15:16 (Tech Lead: TD_026 completed - WorldMapProbeNode abstraction)
+**Last Updated**: 2025-10-14 (Tech Lead: Created TD_030 - Pipeline-Driven View Mode Auto-Generation)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -10,8 +10,8 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 010
-- **Next TD**: 027
-- **Next VS**: 031
+- **Next TD**: 031
+- **Next VS**: 032
 
 
 **Protocol**: Check your type's counter → Use that number → Increment the counter → Update timestamp
@@ -67,6 +67,8 @@
 
 ## 🔥 Critical (Do First)
 *Blockers preventing other work, production bugs, dependencies for other features*
+
+
 
 ### TD_024: Basin Detection & Inner Sea Depth System
 **Status**: Proposed (Foundation for VS_030 water body classification)
@@ -225,7 +227,211 @@
 ## 💡 Ideas (Future Work)
 *Future features, nice-to-haves, deferred work*
 
+### TD_030: Pipeline-Driven View Mode Auto-Generation (3-Snapshot Strategy)
+**Status**: Proposed (Awaits Dev Engineer implementation)
+**Owner**: Tech Lead → Dev Engineer
+**Size**: S-M (5-8h)
+**Priority**: Ideas (improves pipeline debugging, not blocking)
+**Markers**: [ARCHITECTURE] [WORLDGEN] [UI-INFRASTRUCTURE] [DX-IMPROVEMENT]
 
+**What**: Auto-generate UI view mode dropdown from pipeline configuration, so switching between SinglePass/Iterative pipelines automatically updates available view modes without hardcoded UI changes. Uses **3-snapshot strategy** (Start-Mid-End) instead of storing every iteration.
+
+**Why**:
+- **Pipeline Debugging**: Iterative pipeline produces iteration-specific data that currently has no UI exposure
+- **Convergence Analysis**: 3 strategic snapshots (Start-Mid-End) sufficient to diagnose convergence issues without overwhelming UI
+- **Eliminates Hardcoding**: Adding new stages/view modes requires updating 3 files (MapViewMode enum, UINode dropdown, ViewModeSchemeRegistry) → error-prone
+- **Supports Pipeline Experimentation**: Researchers can add custom stages without touching UI code
+- **Scope Discipline**: 3 snapshots × 5 stages = 15 view modes (manageable), not 5 iterations × 5 stages = 25 (overkill)
+
+**How** (Convention-Based Discovery - ADR-002 Compliant):
+
+**Phase 1: Core Introspection API** (1-2h)
+```csharp
+// Core/Application/Abstractions/IWorldGenerationPipeline.cs
+public interface IWorldGenerationPipeline
+{
+    Result<WorldGenerationResult> Generate(PlateSimulationParams parameters);
+
+    // NEW: Introspection (NO UI concepts - just data access)
+    PipelineMode GetMode();  // SinglePass or Iterative
+    WorldGenerationResult? GetLastExecutionResult();  // Access to generated data
+}
+
+// Implement in SinglePassPipeline + IterativePipeline
+public class SinglePassPipeline : IWorldGenerationPipeline
+{
+    public PipelineMode GetMode() => PipelineMode.SinglePass;
+    public WorldGenerationResult? GetLastExecutionResult() => _lastResult;
+}
+```
+
+**Phase 2: Iteration Data Storage (3-Snapshot Strategy)** (1-2h)
+```csharp
+// Core/Application/DTOs/ClimateData.cs
+public record ClimateData(
+    float[,]? TemperatureFinal,
+    float[,]? PrecipitationFinal,
+
+    // NEW: 3 strategic snapshots (Iterative mode only)
+    IterationSnapshot? Snapshot0,    // Start (iteration 0)
+    IterationSnapshot? SnapshotMid,  // Middle (iteration N/2)
+    IterationSnapshot? SnapshotEnd   // End (iteration N)
+);
+
+// NEW: Type-safe snapshot encapsulation
+public record IterationSnapshot(
+    int IterationIndex,
+    float[,] Temperature,
+    float[,] Precipitation,
+    float[,] RainShadow,
+    float[,] CoastalMoisture
+);
+
+// Core/Infrastructure/Pipeline/IterativePipeline.cs
+public Result<PipelineContext> Execute(PlateSimulationParams parameters)
+{
+    var context = InitializeContext(parameters);
+    int midIteration = _iterationCount / 2;
+
+    for (int i = 0; i <= _iterationCount; i++)
+    {
+        context = RunFeedbackStages(context, i);
+
+        // Capture strategic snapshots (not every iteration!)
+        if (i == 0)
+            context = CaptureSnapshot(context, SnapshotType.Start, i);
+        else if (i == midIteration)
+            context = CaptureSnapshot(context, SnapshotType.Mid, i);
+        else if (i == _iterationCount)
+            context = CaptureSnapshot(context, SnapshotType.End, i);
+    }
+
+    return Result.Success(context);
+}
+```
+
+**Phase 3: Presentation Discovery (Type-Safe)** (2-3h)
+```csharp
+// godot_project/features/worldgen/ViewModeDiscovery.cs (NEW)
+public class ViewModeDiscovery
+{
+    public List<ViewModeDefinition> DiscoverFromPipeline(IWorldGenerationPipeline pipeline)
+    {
+        var modes = new List<ViewModeDefinition>();
+        var result = pipeline.GetLastExecutionResult();
+
+        // SinglePass: Show final outputs only
+        if (pipeline.GetMode() == PipelineMode.SinglePass)
+        {
+            if (result.Phase2Climate?.TemperatureFinal != null)
+                modes.Add(new ViewModeDefinition(
+                    Key: "TemperatureFinal",
+                    DisplayName: "Temperature: Final",
+                    Category: "Climate"
+                ));
+            // ... other final outputs
+        }
+
+        // Iterative: Show 3 snapshots (type-safe!)
+        else if (pipeline.GetMode() == PipelineMode.Iterative)
+        {
+            var climate = result.Phase2Climate;
+
+            // Start snapshot
+            if (climate?.Snapshot0?.Temperature != null)
+                modes.Add(new ViewModeDefinition(
+                    Key: "Temperature_Start",
+                    DisplayName: $"Temperature: Start (Iter {climate.Snapshot0.IterationIndex})",
+                    Category: "Climate (Iterative)"
+                ));
+
+            // Mid snapshot
+            if (climate?.SnapshotMid?.Temperature != null)
+                modes.Add(new ViewModeDefinition(
+                    Key: "Temperature_Mid",
+                    DisplayName: $"Temperature: Mid (Iter {climate.SnapshotMid.IterationIndex})",
+                    Category: "Climate (Iterative)"
+                ));
+
+            // End snapshot
+            if (climate?.SnapshotEnd?.Temperature != null)
+                modes.Add(new ViewModeDefinition(
+                    Key: "Temperature_End",
+                    DisplayName: $"Temperature: End (Iter {climate.SnapshotEnd.IterationIndex})",
+                    Category: "Climate (Iterative)"
+                ));
+
+            // Same pattern for Precipitation, RainShadow, CoastalMoisture
+        }
+
+        return modes;
+    }
+}
+
+// godot_project/features/worldgen/WorldMapUINode.cs (MODIFY)
+public void InitializeViewModes(IWorldGenerationPipeline pipeline)
+{
+    _viewModeDropdown.Clear();
+
+    var discovery = new ViewModeDiscovery();
+    var viewModes = discovery.DiscoverFromPipeline(pipeline);
+
+    foreach (var group in viewModes.GroupBy(m => m.Category))
+    {
+        _viewModeDropdown.AddSeparator($"─── {group.Key} ───");
+        foreach (var mode in group)
+            _viewModeDropdown.AddItem(mode.DisplayName, mode.Key.GetHashCode());
+    }
+}
+```
+
+**Phase 4: Orchestrator Wiring** (1h)
+```csharp
+// godot_project/features/worldgen/WorldMapOrchestratorNode.cs
+public override void _Ready()
+{
+    _currentPipeline = ServiceLocator.Get<IWorldGenerationPipeline>();
+    _ui.InitializeViewModes(_currentPipeline);  // Pass pipeline reference
+}
+```
+
+**Done When**:
+1. ✅ `IWorldGenerationPipeline` exposes `GetMode()` and `GetLastExecutionResult()` (Core introspection)
+2. ✅ `ClimateData` has 3 snapshot properties: `Snapshot0`, `SnapshotMid`, `SnapshotEnd` (type-safe, no Dictionary)
+3. ✅ `IterativePipeline` captures snapshots at strategic iterations (0, N/2, N) - not every iteration
+4. ✅ `ViewModeDiscovery` class discovers view modes via null checks on snapshot properties (type-safe)
+5. ✅ `WorldMapUINode.InitializeViewModes()` auto-populates dropdown from discovered view modes
+6. ✅ Switching from SinglePass to Iterative pipeline auto-shows "Temperature Start/Mid/End" view modes (no hardcoding!)
+7. ✅ Switching back to SinglePass hides snapshot modes, shows "Temperature: Final" only
+8. ✅ Renderer can access snapshot data via `WorldGenerationResult.Phase2Climate.SnapshotMid.Temperature` (IntelliSense works!)
+9. ✅ UI dropdown shows ~15 view modes for Iterative (3 snapshots × 5 stages), not 25+ (usable!)
+10. ✅ All existing view modes still work (backward compatibility)
+11. ✅ All existing tests GREEN (no regression)
+12. ✅ Performance: Discovery overhead <10ms, memory overhead 15MB (3 snapshots × 5 layers)
+
+**Depends On**: None (refactoring of existing systems)
+
+**Blocks**: Nothing (quality-of-life improvement for pipeline debugging)
+
+**Tech Lead Decision** (2025-10-14):
+- **Architecture Review**: ✅ **APPROVED** after ultra-think analysis + scope refinement
+- **ADR-002 Compliance**: ✅ Core UI-agnostic (no DisplayName/Category in Core), Presentation inspects Core data
+- **ADR-004 Compliance**: ✅ Feature-based (WorldGen), no Domain contamination, Presentation/Core separation clean
+- **Design Pattern**: Convention over Configuration (type-safe discovery with null checks)
+- **Key Insight**: Original design violated ADR-002 by having Core stages declare UI metadata → **REJECTED**
+- **Revised Design**: Presentation discovers available data from Core, decides how to display it → **SOUND**
+- **3-Snapshot Rationale**:
+  - NxM explosion (5 iters × 5 stages = 25 modes) → UI scroll hell, 40% more memory
+  - 3-snapshot strategy (Start-Mid-End) → sufficient for convergence analysis, manageable UI (15 modes)
+  - Debugging value: "Did it converge by midpoint?" answerable with 3 snapshots (don't need every iteration)
+- **Type Safety**: Explicit properties (`Snapshot0`, `SnapshotMid`, `SnapshotEnd`) vs Dictionary<string, float[,]> → IntelliSense + compile-time checks
+- **Elegance**: Minimal Core changes (2 methods + 3 snapshot properties), Presentation handles all UI concerns
+- **Risk**: LOW (type-safe discovery, one-time overhead per world load)
+- **Effort Reduction**: 9-13h → 7-10h → **5-8h** (40% simpler with 3-snapshot strategy + type safety)
+- **Performance**: <10ms discovery overhead, 15MB memory (3 snapshots × 5 layers × 1MB each)
+- **Next Step**: Dev Engineer implements 4 phases sequentially, validating ADR compliance at each step
+
+---
 
 ### VS_033: MVP Item Editor (Weapons + Armor Focus)
 **Status**: Proposed (Build AFTER manual item creation phase)
