@@ -121,10 +121,10 @@ public static class GameStrapper
         // because ActorTemplate (Godot Resource) lives in Presentation (Godot SDK project)
         // Core only knows about ITemplateService abstraction (Godot-free!)
 
-        // WorldGen System (VS_019 Phase 2-3, VS_023) - Plate tectonics world generation + pipeline
-        // Architecture: Handler → IWorldGenerationPipeline → IPlateSimulator → Native
+        // WorldGen System (VS_019 Phase 2-3, VS_023, TD_027) - Plate tectonics world generation + pipeline
+        // Architecture: Handler → IWorldGenerationPipeline → (Builder) → Stages → IPlateSimulator → Native
 
-        // Native simulator (low-level wrapper)
+        // Native simulator (low-level wrapper - Strategy pattern)
         services.AddSingleton<Features.WorldGen.Application.Abstractions.IPlateSimulator>(provider =>
         {
             var logger = provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<
@@ -137,9 +137,20 @@ public static class GameStrapper
             return new Features.WorldGen.Infrastructure.Native.NativePlateSimulator(logger, projectPath);
         });
 
-        // Pipeline orchestrator (VS_023) - high-level generation with post-processing stages
-        services.AddTransient<Features.WorldGen.Application.Abstractions.IWorldGenerationPipeline,
-            Features.WorldGen.Infrastructure.Pipeline.GenerateWorldPipeline>();
+        // Pipeline orchestrator (TD_027) - Builder-based configuration with presets
+        // Default: Fast Preview preset (SinglePassPipeline, ~2s for 512×512)
+        // Future: Environment variable or config-based preset selection for High Quality mode
+        services.AddTransient<Features.WorldGen.Application.Abstractions.IWorldGenerationPipeline>(provider =>
+        {
+            var logger = provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<
+                Features.WorldGen.Infrastructure.Pipeline.SinglePassPipeline>>();
+
+            // TD_027: Use PipelineBuilder with Fast Preview preset
+            // This replaces the monolithic GenerateWorldPipeline with modular stage-based architecture
+            return new Features.WorldGen.Infrastructure.Pipeline.PipelineBuilder()
+                .UseFastPreviewPreset(provider)
+                .Build(logger);
+        });
     }
 
     /// <summary>
