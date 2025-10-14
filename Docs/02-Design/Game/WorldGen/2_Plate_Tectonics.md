@@ -15,7 +15,9 @@ The Plate Tectonics feature is the **foundation** of world generation, producing
 
 Plate tectonics simulation is **83% of total generation time** (~1.0s out of 1.5s). A C# port would be 2-3 months of work with uncertain performance gains and high risk of physics bugs.
 
-**Decision**: Keep native library, invest in API improvements instead (snapshot getter, memory leak fixes, RNG seeding). This pragmatic choice unblocked world generation MVP in weeks instead of months.
+**Decision**: Keep native library, invest in API improvements instead (batched kinematics, memory leak fixes, determinism). This pragmatic choice unblocked world generation MVP in weeks instead of months.
+
+**TD_029 Update (2025-10-14)**: API improvements completed - batched kinematics API added (20-60× FFI reduction), memory leak fixed, determinism improved via thread-local caching. See [TD_029 Completion](#td_029-api-enhancements) below.
 `─────────────────────────────────────────────────`
 
 ---
@@ -500,6 +502,131 @@ public WorldCache LoadCache(string path)
 
 ---
 
+## TD_029: API Enhancements
+
+**Status**: ✅ Complete (2025-10-14)
+
+**Purpose**: Improve platec native library API quality and enable VS_031 (geology layer) by exposing plate kinematics data.
+
+### Phases Completed
+
+#### Phase 1: Quality-of-Life Getters ✅
+
+**New API Functions:**
+```c
+// Query simulation state
+uint32_t platec_api_get_width(void* handle);
+uint32_t platec_api_get_height(void* handle);
+uint32_t platec_api_get_cycle_count(void* handle);
+uint32_t platec_api_get_plate_count(void* handle);
+
+// Validation helpers (for unit tests)
+float platec_api_get_plate_velocity_x(void* handle, uint32_t plate_index);
+float platec_api_get_plate_velocity_y(void* handle, uint32_t plate_index);
+float platec_api_get_plate_center_x(void* handle, uint32_t plate_index);
+float platec_api_get_plate_center_y(void* handle, uint32_t plate_index);
+```
+
+#### Phase 2: Batched Kinematics API ✅
+
+**Problem**: VS_031 (mineral spawning) needs plate velocities + centroids for boundary classification. Individual getters = 20-60 FFI calls per generation (~6ms overhead).
+
+**Solution**: Single batched API returns all plate data in one call (<1ms).
+
+**Implementation:**
+```c
+// Blittable struct for zero-copy marshaling
+struct PlateKinematics {
+    uint32_t plate_id;      // Plate index
+    float vel_x, vel_y;     // Velocity unit vector
+    float velocity;         // Magnitude (cached for classification)
+    float cx, cy;           // Mass center (for distance calculations)
+};
+
+// Thread-local cache (amortized allocation, no heap churn)
+void platec_api_get_plate_kinematics(
+    void* handle,
+    PlateKinematics** out_array,  // Pointer to cache
+    uint32_t* out_count           // Number of plates
+);
+```
+
+**C# Integration:**
+```csharp
+// Kinematics automatically included in PlateSimulationResult
+public record PlateSimulationResult
+{
+    public float[,] Heightmap { get; init; }
+    public uint[,] PlatesMap { get; init; }
+    public TectonicKinematicsData[]? Kinematics { get; init; }  // ← TD_029
+}
+
+// Domain-friendly DTO
+public record TectonicKinematicsData(
+    uint PlateId,
+    Vector2 VelocityUnitVector,
+    float VelocityMagnitude,
+    Vector2 MassCenter
+);
+```
+
+**Performance Gains:**
+- **FFI Reduction**: 20-60× (1 call vs N individual calls)
+- **Execution Time**: <1ms (vs ~6ms for individual getters)
+- **Memory**: Thread-local cache prevents allocations per call
+
+#### Phase 3: Bug Fixes ✅
+
+**Memory Leak Fix:**
+- Fixed leak in `platec_api_destroy` - now properly deletes `lithosphere*` before erasing
+- **Impact**: Sequential simulations no longer leak 10-50 MB per generation
+
+**Determinism Improvements:**
+- Thread-local kinematics cache (no shared state between concurrent simulations)
+- **Note**: Static `s_flowDone` buffer removal deferred to TD_030 (parallelization track)
+
+#### Phase 4: Integration & Testing ✅
+
+**Test Coverage:**
+- ✅ `Kinematics_Deterministic_SameSeed` - Same seed → identical kinematics
+- ✅ `TD029_EndToEnd_KinematicsIncludedInPlateSimulationResult` - Full C# pipeline validated
+- ✅ `TD029_Performance_BatchedAPIFasterThanIndividualCalls` - <1ms performance
+- ✅ `TD029_DataQuality_VelocityMagnitudeMatchesComponents` - Cached magnitude correct
+- ✅ `TD029_MemoryLeak_MultipleGenerationsDontGrowMemory` - <5MB growth over 10 runs
+- ✅ `TD029_ThreadSafety_ConcurrentGenerationsSucceed` - Thread-local cache validated
+
+**Sequential Test Execution:**
+```csharp
+// Forces sequential execution to prevent native library race conditions
+[CollectionDefinition("NativeLibrary", DisableParallelization = true)]
+public class NativeLibraryCollection { }
+
+[Collection("NativeLibrary")]
+public class PlateTectonicsIntegrationTests { ... }
+```
+
+### VS_031 Enablement
+
+**Geology Layer Ready:**
+```csharp
+// TD_029 provides data for boundary classification
+var result = simulator.Generate(parameters);
+var kinematics = result.Value.Kinematics;
+
+foreach (var k in kinematics)
+{
+    // Classify plate boundaries (convergent/divergent/transform)
+    ClassifyBoundary(k.VelocityUnitVector, k.MassCenter, k.VelocityMagnitude);
+}
+```
+
+**See Also:**
+- [References/plate-tectonics/README.md](../../../References/plate-tectonics/README.md#L178-L299) - Full TD_029 documentation
+- [Backlog.md - TD_029](../../../01-Active/Backlog.md#L100-L220) - Implementation details
+- [Geology_And_Resources.md](Geology_And_Resources.md#stage-05-geological-foundation-post-process) - Consumer of kinematics data
+
+---
+
 ## Future Enhancements
 
 ### Phase 3: Plate Library Evaluation
@@ -551,4 +678,4 @@ public record PlateBoundary
 
 ---
 
-**Last Updated**: 2025-10-14 (Feature-based reorganization)
+**Last Updated**: 2025-10-14 (TD_029 API enhancements complete)

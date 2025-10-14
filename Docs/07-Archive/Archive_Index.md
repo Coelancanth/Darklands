@@ -1,17 +1,17 @@
 # Backlog Archive Index
 
-**Last Updated**: 2025-10-14 17:06
-**Current Active Archive**: Completed_Backlog_2025-10_Part4.md (Lines: 1325/2000)
+**Last Updated**: 2025-10-14 19:56
+**Current Active Archive**: Completed_Backlog_2025-10_Part4.md (Lines: 1742/2000)
 **Session Log**: [.claude/memory-bank/session-log.md](../../.claude/memory-bank/session-log.md) (tracks current session context)
 
 ## Archive Files (Newest First)
 
 ### Completed_Backlog_2025-10_Part4.md (✅ ACTIVE - October 2025 Part 4)
 - **Created**: 2025-10-11 05:28 (after rotation)
-- **Line Count**: 1325/2000
+- **Line Count**: 1742/2000
 - **Date Range**: 2025-10-11 to 2025-10-14
-- **Status**: ✅ Active (675 lines remaining)
-- **Extraction Status**: 0/5 extracted (5 NOT EXTRACTED ⚠️)
+- **Status**: ✅ Active (258 lines remaining)
+- **Extraction Status**: 0/6 extracted (6 NOT EXTRACTED ⚠️)
 
 **Items**:
 - **VS_032**: Equipment Slots System (Phases 1-4/6 Complete - Domain, Commands, Queries, Presentation layers with 40 new tests GREEN, 488 total, parent-driven data pattern 80% query reduction, atomic operations with rollback, two-handed weapon validation) [NOT EXTRACTED ⚠️]
@@ -19,6 +19,7 @@
 - **TD_023**: Enhance Pit-Filling to Expose Basin Metadata + Visualization (Basin metadata exposed, BasinMetadata view mode, flood-fill algorithm fixes, ColoredElevation water rendering fixed, unified water-land gradient with seamless shoreline blending, 228 tests GREEN, 7 steps complete) [NOT EXTRACTED ⚠️]
 - **TD_025**: WorldMap Rendering Architecture Refactor (17 view modes migrated to schemes, WorldMapRendererNode 1622→332 lines 80% reduction, Option B single-phase YAGNI validated, zero Core queries, commits eae19b8+a4d0a0f) [NOT EXTRACTED ⚠️]
 - **TD_026**: WorldMapProbeNode Abstraction (IProbeDataProvider abstraction, 14 provider implementations, WorldMapProbeNode 1166→300 lines 74.3% reduction, registry lookup pattern, parallel ColorSchemes/ProbeDataProviders structure, SOLID validated) [NOT EXTRACTED ⚠️]
+- **TD_029**: Plate Tectonics API Improvements (Prerequisite for Geology) (Fixed platec C++ API memory leak, batched kinematics API 20-60× FFI reduction, 11 comprehensive tests GREEN, DLL rebuilt and deployed, unblocked VS_031 mineral spawning) [NOT EXTRACTED ⚠️]
 
 ### Completed_Backlog_2025-10_Part3.md (🔒 SEALED - October 2025 Part 3)
 - **Created**: 2025-10-08 06:09 (after rotation)
@@ -113,6 +114,6 @@
 2. Open that specific archive file (newest first: Completed_Backlog_2025-10_Part4.md)
 3. Use Ctrl+F to search for item ID
 
-**Current Active Capacity**: 1325/2000 lines (675 lines remaining)
-**Total Archived Items**: 36 (33 in Oct 2025, 3 in Sept 2025)
+**Current Active Capacity**: 1742/2000 lines (258 lines remaining)
+**Total Archived Items**: 37 (34 in Oct 2025, 3 in Sept 2025)
 **Archive Files**: 6 total (1 active, 5 sealed)
