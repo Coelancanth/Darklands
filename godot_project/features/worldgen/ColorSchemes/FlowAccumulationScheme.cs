@@ -1,6 +1,9 @@
 using Godot;
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using Darklands.Core.Features.WorldGen.Application.Common;
+using Darklands.Core.Features.WorldGen.Application.DTOs;
 
 namespace Darklands.Features.WorldGen.ColorSchemes;
 
@@ -117,5 +120,113 @@ public class FlowAccumulationScheme : IColorScheme
 
         float t = Mathf.Clamp((value - min) / delta, 0f, 1f);
         return colorA.Lerp(colorB, t);
+    }
+
+    /// <summary>
+    /// [TD_025] Complete rendering pipeline - renders flow accumulation with naturalistic two-layer design.
+    /// Migrated from WorldMapRendererNode.RenderFlowAccumulation().
+    /// Layer 1: Terrain canvas (earth tones from elevation) | Layer 2: Water network (cyan overlay with alpha from flow magnitude).
+    /// </summary>
+    public Image? Render(WorldGenerationResult data, MapViewMode viewMode)
+    {
+        // FlowAccumulation requires Phase1Erosion data and ocean mask
+        if (data.Phase1Erosion?.FlowAccumulation == null || data.OceanMask == null)
+        {
+            return null;  // Flow accumulation not available - fall back to legacy rendering
+        }
+
+        float[,] flowAccumulation = data.Phase1Erosion.FlowAccumulation;
+        bool[,] oceanMask = data.OceanMask;
+        int h = flowAccumulation.GetLength(0);
+        int w = flowAccumulation.GetLength(1);
+
+        // Get elevation data for terrain layer (prefer FilledHeightmap > PostProcessedHeightmap > Heightmap)
+        float[,]? heightmap = data.Phase1Erosion.FilledHeightmap ?? data.PostProcessedHeightmap ?? data.Heightmap;
+        if (heightmap == null)
+        {
+            return null;  // Cannot render naturalistic visualization without heightmap
+        }
+
+        var image = Image.CreateEmpty(w, h, false, Image.Format.Rgba8);  // RGBA for alpha blending!
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // STEP 1: Calculate statistics for normalization
+        // ═══════════════════════════════════════════════════════════════════════
+
+        float minFlow = float.MaxValue, maxFlow = float.MinValue;
+        float minElev = float.MaxValue, maxElev = float.MinValue;
+        double sumFlow = 0;
+        int count = 0;
+
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                if (oceanMask[y, x]) continue;  // Land cells only
+
+                float flow = flowAccumulation[y, x];
+                float elev = heightmap[y, x];
+
+                if (flow < minFlow) minFlow = flow;
+                if (flow > maxFlow) maxFlow = flow;
+                if (elev < minElev) minElev = elev;
+                if (elev > maxElev) maxElev = elev;
+                sumFlow += flow;
+                count++;
+            }
+        }
+
+        float meanFlow = count > 0 ? (float)(sumFlow / count) : 0f;
+        float deltaFlow = Math.Max(1e-6f, maxFlow - minFlow);
+        float deltaElev = Math.Max(1e-6f, maxElev - minElev);
+
+        // Minimum visible flow threshold (below this, no water overlay drawn)
+        float minVisibleFlowThreshold = minFlow + deltaFlow * 0.01f;  // Bottom 1% completely transparent
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // STEP 2: Render two-layer composite (Terrain + Water blend)
+        // ═══════════════════════════════════════════════════════════════════════
+
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                // OCEAN: Deep blue, no water overlay
+                if (oceanMask[y, x])
+                {
+                    image.SetPixel(x, y, OceanColor);
+                    continue;
+                }
+
+                // LAND: Two-layer blend
+
+                // --- Layer 1: Get terrain base color from elevation ---
+                float elevNorm = (heightmap[y, x] - minElev) / deltaElev;
+                Color terrainColor = GetTerrainColor(elevNorm);
+
+                // --- Layer 2: Get water overlay color from flow (LOG SCALED) ---
+                float flow = flowAccumulation[y, x];
+
+                // Below threshold? Show pure terrain (no water overlay)
+                if (flow < minVisibleFlowThreshold)
+                {
+                    image.SetPixel(x, y, terrainColor);
+                    continue;
+                }
+
+                // Log scale the flow for better visual distribution
+                float logFlowNorm = (float)Math.Log(1 + flow - minFlow) / (float)Math.Log(1 + maxFlow - minFlow);
+
+                // Interpolate water color (brightness + alpha increase together!)
+                Color waterColor = WaterLowFlow.Lerp(WaterHighFlow, logFlowNorm);
+
+                // --- Blend terrain + water using water's alpha ---
+                Color finalColor = terrainColor.Lerp(waterColor, waterColor.A);
+
+                image.SetPixel(x, y, finalColor);
+            }
+        }
+
+        return image;
     }
 }

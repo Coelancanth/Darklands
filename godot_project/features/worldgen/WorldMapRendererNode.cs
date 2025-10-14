@@ -3,6 +3,7 @@ using System;
 using System.Linq;
 using Darklands.Core.Features.WorldGen.Application.Common;
 using Darklands.Core.Features.WorldGen.Application.DTOs;
+using Darklands.Features.WorldGen.ColorSchemes;
 using Microsoft.Extensions.Logging;
 
 namespace Darklands.Features.WorldGen;
@@ -62,10 +63,72 @@ public partial class WorldMapRendererNode : Sprite2D
     /// </summary>
     public WorldGenerationResult? GetWorldData() => _worldData;
 
+    /// <summary>
+    /// [TD_025] Maps view modes to color schemes for new rendering pattern.
+    /// Returns null for view modes that haven't been migrated yet (uses legacy rendering).
+    /// </summary>
+    private IColorScheme? GetSchemeForViewMode(MapViewMode mode)
+    {
+        return mode switch
+        {
+            // Elevation schemes (shared scheme for both original and post-processed)
+            MapViewMode.ColoredOriginalElevation => ColorSchemes.ColorSchemes.Elevation,
+            MapViewMode.ColoredPostProcessedElevation => ColorSchemes.ColorSchemes.Elevation,
+
+            // Temperature schemes (all 4 temperature view modes use same scheme)
+            MapViewMode.TemperatureLatitudeOnly => ColorSchemes.ColorSchemes.Temperature,
+            MapViewMode.TemperatureWithNoise => ColorSchemes.ColorSchemes.Temperature,
+            MapViewMode.TemperatureWithDistance => ColorSchemes.ColorSchemes.Temperature,
+            MapViewMode.TemperatureFinal => ColorSchemes.ColorSchemes.Temperature,
+
+            // Precipitation schemes (all 5 precipitation view modes use same scheme)
+            MapViewMode.PrecipitationNoiseOnly => ColorSchemes.ColorSchemes.Precipitation,
+            MapViewMode.PrecipitationTemperatureShaped => ColorSchemes.ColorSchemes.Precipitation,
+            MapViewMode.PrecipitationBase => ColorSchemes.ColorSchemes.Precipitation,
+            MapViewMode.PrecipitationWithRainShadow => ColorSchemes.ColorSchemes.Precipitation,
+            MapViewMode.PrecipitationFinal => ColorSchemes.ColorSchemes.Precipitation,
+
+            // Flow schemes
+            MapViewMode.FlowDirections => ColorSchemes.ColorSchemes.FlowDirections,
+            MapViewMode.FlowAccumulation => ColorSchemes.ColorSchemes.FlowAccumulation,
+
+            // Marker-based schemes (sinks, river sources, hotspots)
+            MapViewMode.SinksPreFilling => ColorSchemes.ColorSchemes.Sinks,
+            MapViewMode.SinksPostFilling => ColorSchemes.ColorSchemes.Sinks,
+            MapViewMode.RiverSources => ColorSchemes.ColorSchemes.RiverSources,
+            MapViewMode.ErosionHotspots => ColorSchemes.ColorSchemes.Hotspots,
+
+            // Legacy view modes (no scheme - use old rendering)
+            MapViewMode.RawElevation => ColorSchemes.ColorSchemes.Grayscale,  // Could use Grayscale scheme
+            MapViewMode.Plates => null,  // Custom rendering (random plate colors)
+            MapViewMode.PreservedLakes => null,  // Complex basin visualization
+
+            _ => null  // Unknown mode - fallback to legacy
+        };
+    }
+
     private void RenderCurrentView()
     {
         if (_worldData == null) return;
 
+        // [TD_025] NEW PATTERN: Try scheme-based rendering first
+        var scheme = GetSchemeForViewMode(_currentViewMode);
+        if (scheme != null)
+        {
+            var renderedImage = scheme.Render(_worldData, _currentViewMode);
+            if (renderedImage != null)
+            {
+                // Scheme implemented new Render() pattern - use it!
+                Texture = ImageTexture.CreateFromImage(renderedImage);
+                _logger?.LogInformation("Rendered {ViewMode} via scheme: \"{SchemeName}\"",
+                    _currentViewMode, scheme.Name);
+                return;
+            }
+            // Scheme returned null - fall through to legacy rendering
+        }
+
+        // [TD_025] LEGACY PATTERN: Old switch-based rendering (fallback)
+        // TODO: Delete these methods as we migrate schemes to Render()
         switch (_currentViewMode)
         {
             case MapViewMode.RawElevation:

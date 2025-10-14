@@ -1,6 +1,8 @@
 using Godot;
 using System;
 using System.Collections.Generic;
+using Darklands.Core.Features.WorldGen.Application.Common;
+using Darklands.Core.Features.WorldGen.Application.DTOs;
 
 namespace Darklands.Features.WorldGen.ColorSchemes;
 
@@ -53,5 +55,59 @@ public class PrecipitationScheme : IColorScheme
 
         float t = Mathf.Clamp((value - min) / delta, 0f, 1f);
         return colorA.Lerp(colorB, t);
+    }
+
+    /// <summary>
+    /// [TD_025] Complete rendering pipeline - renders precipitation map with smooth 3-stop gradient.
+    /// Migrated from WorldMapRendererNode.RenderPrecipitationMap().
+    /// Supports all 5 precipitation view modes (NoiseOnly, TemperatureShaped, Base, WithRainShadow, Final).
+    /// </summary>
+    public Image? Render(WorldGenerationResult data, MapViewMode viewMode)
+    {
+        // Select the correct precipitation map based on view mode
+        float[,]? precipitationMap = viewMode switch
+        {
+            MapViewMode.PrecipitationNoiseOnly => data.BaseNoisePrecipitationMap,
+            MapViewMode.PrecipitationTemperatureShaped => data.TemperatureShapedPrecipitationMap,
+            MapViewMode.PrecipitationBase => data.FinalPrecipitationMap,
+            MapViewMode.PrecipitationWithRainShadow => data.WithRainShadowPrecipitationMap,
+            MapViewMode.PrecipitationFinal => data.PrecipitationFinal,
+            _ => null  // Not a precipitation view mode
+        };
+
+        if (precipitationMap == null)
+        {
+            return null;  // Precipitation data not available for this mode - fall back to legacy rendering
+        }
+
+        int h = precipitationMap.GetLength(0);
+        int w = precipitationMap.GetLength(1);
+        var image = Image.CreateEmpty(w, h, false, Image.Format.Rgb8);
+
+        // Render with smooth 3-stop gradient (Yellow → Green → Blue)
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                float p = precipitationMap[y, x];  // Normalized [0, 1]
+
+                // 3-stop gradient: Yellow (0.0) → Green (0.5) → Blue (1.0)
+                Color color;
+                if (p < 0.5f)
+                {
+                    // Dry to moderate: Yellow → Green
+                    color = Gradient(p, 0.0f, 0.5f, DryColor, ModerateColor);
+                }
+                else
+                {
+                    // Moderate to wet: Green → Blue
+                    color = Gradient(p, 0.5f, 1.0f, ModerateColor, WetColor);
+                }
+
+                image.SetPixel(x, y, color);
+            }
+        }
+
+        return image;
     }
 }
