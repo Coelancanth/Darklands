@@ -573,7 +573,7 @@ Distance to Ocean: 15 cells (750km) → Continental
 
 ## Related Documents
 
-- [Plate_Tectonics.md](Plate_Tectonics.md) - Provides elevation input
+- [Plate_Tectonics.md](2_Plate_Tectonics.md) - Provides elevation input
 - [Hydrology_And_Rivers.md](Hydrology_And_Rivers.md) - Uses FinalPrecipitationMap for river spawning
 - [Biome_Classification.md](Biome_Classification.md) - Uses temperature + precipitation for Holdridge classification
 - [Pipeline_Architecture.md](1_Pipeline_Architecture.md) - Climate stages integrate into pipeline
