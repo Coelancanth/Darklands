@@ -9,10 +9,48 @@ using Microsoft.Extensions.Logging;
 namespace Darklands.Core.Features.WorldGen.Infrastructure.Pipeline;
 
 /// <summary>
-/// Orchestrates world generation pipeline stages.
-/// Currently: Pass-through to native simulator (foundation only).
-/// Future: Incremental post-processing stages (VS_022 phases).
+/// [DEPRECATED] Monolithic world generation pipeline (332 lines).
+/// Replaced by modular stage-based architecture in TD_027.
 /// </summary>
+/// <remarks>
+/// TD_027 Migration Guide:
+///
+/// OLD (Direct Instantiation):
+/// <code>
+/// var pipeline = new GenerateWorldPipeline(simulator, logger);
+/// var result = pipeline.Generate(parameters);
+/// </code>
+///
+/// NEW (PipelineBuilder with Presets):
+/// <code>
+/// // Fast Preview (2s, single-pass)
+/// var pipeline = new PipelineBuilder()
+///     .UseFastPreviewPreset(services)
+///     .Build(logger);
+///
+/// // High Quality (6-10s, iterative feedback loops)
+/// var pipeline = new PipelineBuilder()
+///     .UseHighQualityPreset(services, iterations: 5)
+///     .Build(logger);
+///
+/// // Custom (research/experimentation)
+/// var pipeline = new PipelineBuilder()
+///     .UsePlateSimulator(simulator)
+///     .UseSinglePassMode()
+///     .UseDefaultStages(services)
+///     .Build(logger);
+/// </code>
+///
+/// Benefits of New Architecture:
+/// - ✅ Modular: 7 focused stages (60-80 lines each) vs 332-line monolith
+/// - ✅ Testable: Each stage tested independently
+/// - ✅ Flexible: Swappable plate algorithms (IPlateSimulator strategy)
+/// - ✅ Modes: SinglePass (fast) + Iterative (quality with feedback loops)
+/// - ✅ Presets: Fast Preview / High Quality for VS_031 debug panel
+///
+/// This class preserved for backward compatibility and will be removed in future release.
+/// </remarks>
+[Obsolete("Use PipelineBuilder instead. See XML documentation for migration guide. This class will be removed in a future release.")]
 public class GenerateWorldPipeline : IWorldGenerationPipeline
 {
     private readonly IPlateSimulator _nativeSimulator;

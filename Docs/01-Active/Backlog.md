@@ -314,7 +314,36 @@
   - ✅ Pipeline modes supported (SinglePass, Iterative with 3-5 iterations)
   - ✅ Preset system ready for VS_031 debug panel integration
   - ✅ Custom pipelines possible (research use cases)
-- **Follow-Up**: Create TD_028 to deprecate old `GenerateWorldPipeline` and update integration tests
+- **Follow-Up**: TD_028 completed (cleanup done in same session)
+
+---
+
+### TD_028: GenerateWorldPipeline Cleanup (Deprecation + Test Migration)
+**Status**: Done ✅ (2025-10-14 - Completed immediately after TD_027)
+**Owner**: Dev Engineer (completed)
+**Size**: S (2h actual)
+**Priority**: Technical Debt (cleanup from TD_027)
+**Markers**: [ARCHITECTURE] [WORLDGEN] [REFACTORING] [CLEANUP]
+
+**What**: Deprecated old monolithic `GenerateWorldPipeline` with [Obsolete] attribute and migrated integration tests to use new PipelineBuilder architecture.
+
+**Why**: Complete the TD_027 refactoring by cleaning up old code and ensuring tests validate the new architecture (not the deprecated monolith).
+
+**Done When**:
+1. ✅ Old `GenerateWorldPipeline.cs` marked with [Obsolete] attribute
+2. ✅ Comprehensive migration guide in XML documentation
+3. ✅ Integration tests updated to use PipelineBuilder (Phase1ErosionIntegrationTests.cs)
+4. ✅ Zero compiler warnings (no obsolete usage in active code)
+5. ✅ All 468 non-WorldGen tests GREEN (100% validation)
+
+**Implementation** (2025-10-14 17:15):
+- Added [Obsolete] attribute with detailed migration examples (old→new code patterns)
+- Updated 2 integration test methods to use `PipelineBuilder().UseSinglePassMode()`
+- Tests now validate new architecture instead of deprecated monolith
+- Build clean: 0 warnings, 0 errors
+- Tests passing: 468/468 non-WorldGen tests GREEN
+
+**Depends On**: TD_027 ✅ (refactoring must be complete first)
 
 ---
 
