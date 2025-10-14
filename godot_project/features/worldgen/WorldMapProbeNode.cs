@@ -4,6 +4,7 @@ using Godot;
 using Darklands.Core.Features.WorldGen.Application.Common;
 using Darklands.Core.Features.WorldGen.Application.DTOs;
 using Darklands.Core.Features.WorldGen.Domain;
+using Darklands.Features.WorldGen.ProbeDataProviders;
 using Microsoft.Extensions.Logging;
 
 namespace Darklands.Features.WorldGen;
@@ -12,6 +13,9 @@ namespace Darklands.Features.WorldGen;
 /// Handles mouse input for probing world data at cursor position.
 /// Emits probe events with cell coordinates and data values.
 /// Pure input handling - no rendering, no UI.
+///
+/// TD_026: Refactored to use IProbeDataProvider strategy pattern (mirrors TD_025 IColorScheme pattern).
+/// Reduced from ~1166 lines → ~280 lines (76% reduction) by extracting probe logic into 14 provider classes.
 /// </summary>
 public partial class WorldMapProbeNode : Node
 {
@@ -177,86 +181,27 @@ public partial class WorldMapProbeNode : Node
             return;
         }
 
-        // Get data at cell (VS_024: Dual elevation + ocean data + thresholds)
-        float originalElevation = worldData.Heightmap[y, x];
-        float? postProcessedElevation = worldData.PostProcessedHeightmap?[y, x];
-        bool? isOcean = worldData.OceanMask?[y, x];
-        float? seaDepth = worldData.SeaDepth?[y, x];
-        uint plateId = worldData.PlatesMap[y, x];
-        var thresholds = worldData.Thresholds;
-
-        // Build probe string based on current view mode
+        // [TD_026] Build probe string using provider pattern (mirrors TD_025 color scheme pattern)
         var viewMode = _renderer.GetCurrentViewMode();
-        string probeData = viewMode switch
+        var provider = GetProviderForViewMode(viewMode);
+
+        string probeData;
+        if (provider != null)
         {
-            MapViewMode.RawElevation =>
-                $"Cell ({x},{y})\nRaw: {originalElevation:F3}",
-
-            MapViewMode.Plates =>
-                $"Cell ({x},{y})\nPlate ID: {plateId}\nRaw: {originalElevation:F3}",
-
-            // VS_024: Dual-heightmap elevation views with real-world meters mapping
-            MapViewMode.ColoredOriginalElevation =>
-                BuildElevationProbeData(x, y, originalElevation, postProcessedElevation, isOcean, seaDepth, thresholds),
-
-            MapViewMode.ColoredPostProcessedElevation =>
-                BuildElevationProbeData(x, y, originalElevation, postProcessedElevation, isOcean, seaDepth, thresholds),
-
-            // VS_025: Temperature view modes - show all 4 stages + per-world params
-            MapViewMode.TemperatureLatitudeOnly =>
-                BuildTemperatureProbeData(x, y, worldData, debugStage: 1),
-
-            MapViewMode.TemperatureWithNoise =>
-                BuildTemperatureProbeData(x, y, worldData, debugStage: 2),
-
-            MapViewMode.TemperatureWithDistance =>
-                BuildTemperatureProbeData(x, y, worldData, debugStage: 3),
-
-            MapViewMode.TemperatureFinal =>
-                BuildTemperatureProbeData(x, y, worldData, debugStage: 4),
-
-            // VS_026: Precipitation view modes - show all 3 stages + physics debug
-            MapViewMode.PrecipitationNoiseOnly =>
-                BuildPrecipitationProbeData(x, y, worldData, debugStage: 1),
-
-            MapViewMode.PrecipitationTemperatureShaped =>
-                BuildPrecipitationProbeData(x, y, worldData, debugStage: 2),
-
-            MapViewMode.PrecipitationBase =>
-                BuildPrecipitationProbeData(x, y, worldData, debugStage: 3),
-
-            // VS_027: Rain shadow mode - show stage 4 with wind direction + blocking info
-            MapViewMode.PrecipitationWithRainShadow =>
-                BuildRainShadowProbeData(x, y, worldData),
-
-            // VS_028: Coastal moisture mode - show stage 5 with distance + bonus info
-            MapViewMode.PrecipitationFinal =>
-                BuildCoastalMoistureProbeData(x, y, worldData),
-
-            // VS_029: Erosion debug modes - D-8 flow visualization
-            MapViewMode.SinksPreFilling =>
-                BuildSinksPreFillingProbeData(x, y, worldData),
-
-            MapViewMode.SinksPostFilling =>
-                BuildSinksPostFillingProbeData(x, y, worldData),
-
-            MapViewMode.PreservedLakes =>
-                BuildPreservedLakesProbeData(x, y, worldData),
-
-            MapViewMode.FlowDirections =>
-                BuildFlowDirectionsProbeData(x, y, worldData),
-
-            MapViewMode.FlowAccumulation =>
-                BuildFlowAccumulationProbeData(x, y, worldData),
-
-            MapViewMode.RiverSources =>
-                BuildRiverSourcesProbeData(x, y, worldData),
-
-            MapViewMode.ErosionHotspots =>
-                BuildErosionHotspotsProbeData(x, y, worldData),
-
-            _ => $"Cell ({x},{y})\nUnknown view"
-        };
+            // Provider found - delegate to strategy implementation
+            probeData = provider.GetProbeText(
+                data: worldData,
+                x: x,
+                y: y,
+                viewMode: viewMode,
+                debugTexture: _renderer.Texture as ImageTexture
+            );
+        }
+        else
+        {
+            // Fallback for unmapped view modes
+            probeData = $"Cell ({x},{y})\nUnknown view";
+        }
 
         // Log probe result - output the SAME formatted data to console for easy debugging
         // This makes the Godot Output panel show exactly what the UI panel displays
@@ -267,119 +212,50 @@ public partial class WorldMapProbeNode : Node
     }
 
     /// <summary>
-    /// Builds comprehensive elevation probe data with real-world meters mapping.
-    /// VS_024: Uses ElevationMapper for human-readable display, shows raw values for debugging.
-    /// Updated: Distinguishes Ocean vs Inner Sea vs Lake based on preserved basins.
+    /// [TD_026] Maps view modes to probe data providers.
+    /// Mirrors GetSchemeForViewMode pattern from TD_025 for architectural consistency.
+    /// Returns null for unknown view modes (fallback to generic probe text).
     /// </summary>
-    private string BuildElevationProbeData(
-        int x, int y,
-        float original,
-        float? postProcessed,
-        bool? isOcean,
-        float? seaDepth,
-        Core.Features.WorldGen.Application.DTOs.ElevationThresholds? thresholds)
+    private IProbeDataProvider? GetProviderForViewMode(MapViewMode mode)
     {
-        // Get the current elevation value to display (prefer post-processed if available)
-        float currentElevation = postProcessed ?? original;
-
-        var worldData = _renderer?.GetWorldData();
-        var data = $"Cell ({x},{y})\n";
-
-        // DEBUG: Get actual rendered color from texture for color bug diagnosis
-        Color? renderedColor = null;
-        string colorDebug = "";
-        if (_renderer?.Texture is ImageTexture imageTexture)
+        return mode switch
         {
-            var image = imageTexture.GetImage();
-            if (image != null && x >= 0 && x < image.GetWidth() && y >= 0 && y < image.GetHeight())
-            {
-                renderedColor = image.GetPixel(x, y);
-                int r = (int)(renderedColor.Value.R * 255);
-                int g = (int)(renderedColor.Value.G * 255);
-                int b = (int)(renderedColor.Value.B * 255);
-                colorDebug = $"Color: RGB({r}, {g}, {b}) #{r:X2}{g:X2}{b:X2}\n";
+            // Simple providers
+            MapViewMode.RawElevation => ProbeDataProviders.ProbeDataProviders.RawElevation,
+            MapViewMode.Plates => ProbeDataProviders.ProbeDataProviders.Plates,
 
-                // Also log to Godot console for permanent record
-                _logger?.LogInformation("[Color Debug] Cell ({X},{Y}): RGB({R}, {G}, {B}) #{RHex:X2}{GHex:X2}{BHex:X2}",
-                    x, y, r, g, b, r, g, b);
-            }
-        }
+            // Elevation providers (both colored modes use same provider)
+            MapViewMode.ColoredOriginalElevation => ProbeDataProviders.ProbeDataProviders.Elevation,
+            MapViewMode.ColoredPostProcessedElevation => ProbeDataProviders.ProbeDataProviders.Elevation,
 
-        // Check if this cell belongs to a preserved basin (inner sea or lake)
-        var erosionData = worldData?.Phase1Erosion;
-        var containingBasin = erosionData?.PreservedBasins.FirstOrDefault(b => b.Cells.Contains((x, y)));
+            // Temperature providers (multi-mode: 4 temperature stages)
+            MapViewMode.TemperatureLatitudeOnly => ProbeDataProviders.ProbeDataProviders.Temperature,
+            MapViewMode.TemperatureWithNoise => ProbeDataProviders.ProbeDataProviders.Temperature,
+            MapViewMode.TemperatureWithDistance => ProbeDataProviders.ProbeDataProviders.Temperature,
+            MapViewMode.TemperatureFinal => ProbeDataProviders.ProbeDataProviders.Temperature,
 
-        // Determine water body type (Ocean, Inner Sea, Lake, or Land)
-        string waterBodyType = "";
-        if (containingBasin != null)
-        {
-            // Part of preserved basin - inner sea or lake
-            const int INNER_SEA_THRESHOLD = 1000;  // Matches ColoredElevation rendering
-            waterBodyType = containingBasin.Area >= INNER_SEA_THRESHOLD
-                ? "Inner Sea (landlocked)\n"
-                : "Lake (landlocked)\n";
-        }
-        else if (isOcean == true)
-        {
-            waterBodyType = "Ocean (border-connected)\n";
-        }
+            // Precipitation providers (multi-mode: 3 base stages)
+            MapViewMode.PrecipitationNoiseOnly => ProbeDataProviders.ProbeDataProviders.Precipitation,
+            MapViewMode.PrecipitationTemperatureShaped => ProbeDataProviders.ProbeDataProviders.Precipitation,
+            MapViewMode.PrecipitationBase => ProbeDataProviders.ProbeDataProviders.Precipitation,
 
-        // Show rendered color FIRST (critical debug data for color bug diagnosis)
-        if (!string.IsNullOrEmpty(colorDebug))
-        {
-            data += colorDebug;
-        }
+            // Rain shadow provider (Stage 4)
+            MapViewMode.PrecipitationWithRainShadow => ProbeDataProviders.ProbeDataProviders.RainShadow,
 
-        // Show water body type if this is water
-        if (!string.IsNullOrEmpty(waterBodyType))
-        {
-            data += waterBodyType;
-        }
+            // Coastal moisture provider (Stage 5)
+            MapViewMode.PrecipitationFinal => ProbeDataProviders.ProbeDataProviders.CoastalMoisture,
 
-        // Show human-readable meters ONLY for non-basin cells
-        // (ElevationMapper returns "Ocean" for ALL cells below sea level, including inner seas!)
-        if (containingBasin == null)
-        {
-            // Not a basin cell - show elevation mapping
-            if (thresholds != null && worldData != null)
-            {
-                string metersDisplay = ElevationMapper.FormatElevationWithTerrain(
-                    rawElevation: currentElevation,
-                    seaLevelThreshold: WorldGenConstants.SEA_LEVEL_RAW,  // TD_021: Use SSOT constant
-                    minElevation: worldData.MinElevation,     // ← FIX: Use actual min from heightmap
-                    maxElevation: worldData.MaxElevation,     // ← FIX: Use actual max from heightmap
-                    hillThreshold: thresholds.HillLevel,
-                    mountainThreshold: thresholds.MountainLevel,
-                    peakThreshold: thresholds.PeakLevel);
-                data += metersDisplay;
-                data += $"\n\nRaw: {original:F2}";
-            }
-            else
-            {
-                // Fallback when data unavailable (cached world or old format)
-                data += $"Elevation: {original:F2}";
-                data += $"\n(Regenerate world for meters)";
-            }
-        }
-        else
-        {
-            // Basin cell - skip elevation mapping (already shown water body type)
-            data += $"\nRaw: {original:F2}";
-        }
+            // Erosion/flow providers
+            MapViewMode.SinksPreFilling => ProbeDataProviders.ProbeDataProviders.SinksPreFilling,
+            MapViewMode.SinksPostFilling => ProbeDataProviders.ProbeDataProviders.SinksPostFilling,
+            MapViewMode.PreservedLakes => ProbeDataProviders.ProbeDataProviders.BasinMetadata,
+            MapViewMode.FlowDirections => ProbeDataProviders.ProbeDataProviders.FlowDirections,
+            MapViewMode.FlowAccumulation => ProbeDataProviders.ProbeDataProviders.FlowAccumulation,
+            MapViewMode.RiverSources => ProbeDataProviders.ProbeDataProviders.RiverSources,
+            MapViewMode.ErosionHotspots => ProbeDataProviders.ProbeDataProviders.ErosionHotspots,
 
-        // Show post-processed comparison if available
-        if (postProcessed.HasValue)
-            data += $"\nPost-Proc: {postProcessed.Value:F2}";
-
-        // Show basin details if this is an inner sea or lake
-        if (containingBasin != null)
-        {
-            data += $"\n\nBasin #{containingBasin.BasinId}";
-            data += $"\nSize: {containingBasin.Area} cells";
-            data += $"\nDepth: {containingBasin.Depth:F1}";
-        }
-
-        return data;
+            _ => null  // Unknown mode - fallback to generic probe text
+        };
     }
 
     /// <summary>
@@ -420,747 +296,5 @@ public partial class WorldMapProbeNode : Node
         {
             _highlightRect.Visible = false;
         }
-    }
-
-    /// <summary>
-    /// Builds comprehensive temperature probe data with all 4 stages + per-world parameters.
-    /// VS_025: Shows progression through algorithm stages for debugging.
-    /// </summary>
-    /// <param name="x">Cell X coordinate</param>
-    /// <param name="y">Cell Y coordinate</param>
-    /// <param name="worldData">World generation result containing temperature maps</param>
-    /// <param name="debugStage">Current debug stage (1=LatitudeOnly, 2=WithNoise, 3=WithDistance, 4=Final)</param>
-    private string BuildTemperatureProbeData(
-        int x, int y,
-        Core.Features.WorldGen.Application.DTOs.WorldGenerationResult worldData,
-        int debugStage)
-    {
-        var data = $"Cell ({x},{y})\n";
-
-        // Get all 4 temperature values at this cell
-        float? latitudeOnly = worldData.TemperatureLatitudeOnly?[y, x];
-        float? withNoise = worldData.TemperatureWithNoise?[y, x];
-        float? withDistance = worldData.TemperatureWithDistance?[y, x];
-        float? final = worldData.TemperatureFinal?[y, x];
-
-        // Per-world parameters
-        float? axialTilt = worldData.AxialTilt;
-        float? distanceToSun = worldData.DistanceToSun;
-
-        // Show current stage prominently with °C conversion
-        data += debugStage switch
-        {
-            1 => $"Stage 1: Latitude Only\n{TemperatureMapper.FormatTemperature(latitudeOnly ?? 0f)}\n",
-            2 => $"Stage 2: + Noise\n{TemperatureMapper.FormatTemperature(withNoise ?? 0f)}\n",
-            3 => $"Stage 3: + Distance\n{TemperatureMapper.FormatTemperature(withDistance ?? 0f)}\n",
-            4 => $"Stage 4: Final\n{TemperatureMapper.FormatTemperature(final ?? 0f)}\n",
-            _ => "Unknown Stage\n"
-        };
-
-        data += "\n--- Debug: All Stages ---\n";
-
-        // Show all 4 stages for comparison (normalized [0,1] values)
-        if (latitudeOnly.HasValue)
-            data += $"1. Latitude: {latitudeOnly.Value:F3}\n";
-
-        if (withNoise.HasValue)
-            data += $"2. + Noise: {withNoise.Value:F3}\n";
-
-        if (withDistance.HasValue)
-            data += $"3. + Distance: {withDistance.Value:F3}\n";
-
-        if (final.HasValue)
-            data += $"4. Final: {final.Value:F3}\n";
-
-        // Show per-world parameters (explain hot/cold planets, tilt shifts)
-        data += "\n--- World Parameters ---\n";
-
-        if (axialTilt.HasValue)
-            data += $"Axial Tilt: {axialTilt.Value:F3}\n";
-
-        if (distanceToSun.HasValue)
-            data += $"Distance to Sun: {distanceToSun.Value:F3}×\n";
-
-        return data;
-    }
-
-    /// <summary>
-    /// Builds comprehensive precipitation probe data with all 3 stages + physics debug.
-    /// VS_026: Shows progression through algorithm stages for debugging.
-    /// </summary>
-    /// <param name="x">Cell X coordinate</param>
-    /// <param name="y">Cell Y coordinate</param>
-    /// <param name="worldData">World generation result containing precipitation maps</param>
-    /// <param name="debugStage">Current debug stage (1=NoiseOnly, 2=TemperatureShaped, 3=Final)</param>
-    private string BuildPrecipitationProbeData(
-        int x, int y,
-        Core.Features.WorldGen.Application.DTOs.WorldGenerationResult worldData,
-        int debugStage)
-    {
-        var data = $"Cell ({x},{y})\n";
-
-        // Get all 3 precipitation values at this cell
-        float? noiseOnly = worldData.BaseNoisePrecipitationMap?[y, x];
-        float? tempShaped = worldData.TemperatureShapedPrecipitationMap?[y, x];
-        float? final = worldData.FinalPrecipitationMap?[y, x];
-
-        // Get temperature at this cell for gamma curve calculation
-        float? temperature = worldData.TemperatureFinal?[y, x];
-
-        // Get quantile thresholds for classification
-        var thresholds = worldData.PrecipitationThresholds;
-
-        // Show current stage prominently
-        data += debugStage switch
-        {
-            1 => $"Stage 1: Base Noise\n{noiseOnly ?? 0f:F3}\n",
-            2 => $"Stage 2: + Temp Curve\n{tempShaped ?? 0f:F3}\n",
-            3 => $"Stage 3: Final\n{FormatPrecipitation(final ?? 0f, thresholds)}\n",
-            _ => "Unknown Stage\n"
-        };
-
-        data += "\n--- Debug: All Stages ---\n";
-
-        // Show all 3 stages for comparison (normalized [0,1] values)
-        if (noiseOnly.HasValue)
-            data += $"1. Noise: {noiseOnly.Value:F3}\n";
-
-        if (tempShaped.HasValue)
-            data += $"2. Temp Shaped: {tempShaped.Value:F3}\n";
-
-        if (final.HasValue)
-            data += $"3. Final: {final.Value:F3}\n";
-
-        // Show physics debug info (gamma curve calculation)
-        if (temperature.HasValue && noiseOnly.HasValue)
-        {
-            data += "\n--- Physics Debug ---\n";
-            data += $"Temperature: {temperature.Value:F3}\n";
-
-            // Calculate gamma curve value (same formula as PrecipitationCalculator)
-            const float gamma = 2.0f;
-            const float curveBonus = 0.2f;
-            float curve = MathF.Pow(temperature.Value, gamma) * (1.0f - curveBonus) + curveBonus;
-
-            data += $"Gamma Curve: {curve:F3}\n";
-            data += $"(cold=0.2, hot=1.0)\n";
-        }
-
-        // Show classification based on thresholds
-        if (final.HasValue && thresholds != null)
-        {
-            string classification;
-            if (final.Value < thresholds.LowThreshold)
-                classification = "Arid";
-            else if (final.Value < thresholds.MediumThreshold)
-                classification = "Low";
-            else if (final.Value < thresholds.HighThreshold)
-                classification = "Medium";
-            else
-                classification = "High";
-
-            data += $"\nClassification: {classification}\n";
-        }
-
-        return data;
-    }
-
-    /// <summary>
-    /// Formats precipitation value with classification label and mm/year estimate.
-    /// </summary>
-    private string FormatPrecipitation(float precipNormalized, Core.Features.WorldGen.Application.DTOs.PrecipitationThresholds? thresholds)
-    {
-        // Classification based on quantile thresholds
-        string classification;
-        string mmPerYear;
-
-        if (thresholds == null)
-        {
-            return $"{precipNormalized:F3} (no thresholds)";
-        }
-
-        if (precipNormalized < thresholds.LowThreshold)
-        {
-            classification = "Arid";
-            mmPerYear = "<200mm/year";
-        }
-        else if (precipNormalized < thresholds.MediumThreshold)
-        {
-            classification = "Low";
-            mmPerYear = "200-400mm/year";
-        }
-        else if (precipNormalized < thresholds.HighThreshold)
-        {
-            classification = "Medium";
-            mmPerYear = "400-800mm/year";
-        }
-        else
-        {
-            classification = "High";
-            mmPerYear = ">800mm/year";
-        }
-
-        return $"{precipNormalized:F3}\n{classification}\n{mmPerYear}";
-    }
-
-    /// <summary>
-    /// Builds rain shadow probe data (VS_027 Stage 4).
-    /// Shows: base precipitation, rain shadow reduction, latitude-based wind direction.
-    /// </summary>
-    private string BuildRainShadowProbeData(
-        int x,
-        int y,
-        Core.Features.WorldGen.Application.DTOs.WorldGenerationResult worldData)
-    {
-        float? basePrecip = worldData.FinalPrecipitationMap?[y, x];
-        float? rainShadowPrecip = worldData.WithRainShadowPrecipitationMap?[y, x];
-        var thresholds = worldData.PrecipitationThresholds;
-
-        // Calculate latitude for wind direction
-        float normalizedLatitude = worldData.Height > 1 ? (float)y / (worldData.Height - 1) : 0.5f;
-        var (windX, windY) = Core.Features.WorldGen.Infrastructure.Algorithms.PrevailingWinds.GetWindDirection(normalizedLatitude);
-
-        // Get wind band name
-        string windBand = Core.Features.WorldGen.Infrastructure.Algorithms.PrevailingWinds.GetWindBandName(normalizedLatitude);
-        string windDirection = windX < 0 ? "← Westward" : "→ Eastward";
-
-        // Calculate reduction percentage
-        float reductionPercent = 0f;
-        if (basePrecip.HasValue && rainShadowPrecip.HasValue && basePrecip.Value > 0)
-        {
-            reductionPercent = ((basePrecip.Value - rainShadowPrecip.Value) / basePrecip.Value) * 100f;
-        }
-
-        string header = $"Cell ({x},{y})\nStage 4: + Rain Shadow\n\n";
-        string wind = $"Wind: {windDirection} ({windBand})\n\n";
-        string precip = $"Base:\n{FormatPrecipitation(basePrecip ?? 0f, thresholds)}\n\n";
-        string shadow = $"Rain Shadow:\n{FormatPrecipitation(rainShadowPrecip ?? 0f, thresholds)}\n\n";
-        string reduction = reductionPercent > 0.1f
-            ? $"Blocking: -{reductionPercent:F1}% (leeward)\n"
-            : $"Blocking: None (windward/flat)\n";
-
-        return header + wind + precip + shadow + reduction;
-    }
-
-    /// <summary>
-    /// Builds coastal moisture probe data (VS_028 Stage 5).
-    /// Shows: rain shadow input, final precipitation, distance-to-ocean, coastal bonus %, elevation resistance.
-    /// </summary>
-    private string BuildCoastalMoistureProbeData(
-        int x,
-        int y,
-        Core.Features.WorldGen.Application.DTOs.WorldGenerationResult worldData)
-    {
-        float? rainShadowPrecip = worldData.WithRainShadowPrecipitationMap?[y, x];
-        float? finalPrecip = worldData.PrecipitationFinal?[y, x];
-        var thresholds = worldData.PrecipitationThresholds;
-        bool? isOcean = worldData.OceanMask?[y, x];
-        float? elevation = worldData.PostProcessedHeightmap?[y, x];
-
-        string header = $"Cell ({x},{y})\nStage 5: FINAL (+ Coastal)\n\n";
-
-        // Ocean cells have no coastal enhancement
-        if (isOcean == true)
-        {
-            string oceanNote = "Ocean Cell:\n(No coastal enhancement)\n\n";
-            string precip = $"Precipitation:\n{FormatPrecipitation(finalPrecip ?? 0f, thresholds)}\n";
-            return header + oceanNote + precip;
-        }
-
-        // Calculate distance-to-ocean (estimate based on BFS - we don't store it in WorldGenerationResult)
-        // For probe display, show relative enhancement instead
-        float enhancement = 0f;
-        if (rainShadowPrecip.HasValue && finalPrecip.HasValue && rainShadowPrecip.Value > 0)
-        {
-            enhancement = ((finalPrecip.Value - rainShadowPrecip.Value) / rainShadowPrecip.Value) * 100f;
-        }
-
-        // Build probe display
-        string rainShadow = $"Rain Shadow:\n{FormatPrecipitation(rainShadowPrecip ?? 0f, thresholds)}\n\n";
-        string final = $"Final (+ Coastal):\n{FormatPrecipitation(finalPrecip ?? 0f, thresholds)}\n\n";
-        string bonus = enhancement > 0.1f
-            ? $"Coastal Bonus: +{enhancement:F1}%\n(Maritime climate effect)\n"
-            : $"Coastal Bonus: None\n(Deep interior)\n";
-
-        // Show elevation if high (resistance effect)
-        string elevInfo = "";
-        if (elevation.HasValue && elevation.Value > 5.0f)
-        {
-            elevInfo = $"\nElevation: {elevation.Value:F1}\n(High altitude resists coastal moisture)\n";
-        }
-
-        return header + rainShadow + final + bonus + elevInfo;
-    }
-
-    /// <summary>
-    /// Builds probe data for Sinks (PRE-Filling) view (VS_029 Step 0A).
-    /// Shows: raw elevation, whether this cell is a local minimum (sink), total pre-filling sink count.
-    /// </summary>
-    private string BuildSinksPreFillingProbeData(
-        int x,
-        int y,
-        Core.Features.WorldGen.Application.DTOs.WorldGenerationResult worldData)
-    {
-        var data = $"Cell ({x},{y})\nPRE-Filling Sinks\n\n";
-
-        // Get elevation (use post-processed before pit-filling)
-        float? elevation = worldData.PostProcessedHeightmap?[y, x];
-        bool? isOcean = worldData.OceanMask?[y, x];
-
-        // Check if this cell is a pre-filling sink
-        bool isSink = worldData.PreFillingLocalMinima?.Contains((x, y)) ?? false;
-
-        // Show elevation
-        if (elevation.HasValue)
-            data += $"Elevation: {elevation.Value:F2}\n";
-
-        // Ocean status
-        if (isOcean == true)
-            data += "Type: Ocean\n";
-        else
-            data += "Type: Land\n";
-
-        data += "\n";
-
-        // Show sink status
-        if (isSink)
-            data += "LOCAL MINIMUM\n(Sink before pit-filling)\n";
-        else
-            data += "Not a sink\n";
-
-        // Show total count
-        int totalSinks = worldData.PreFillingLocalMinima?.Count ?? 0;
-        data += $"\nTotal Pre-Filling Sinks: {totalSinks}\n";
-
-        // Calculate percentage of land cells
-        if (totalSinks > 0 && worldData.OceanMask != null)
-        {
-            int landCells = 0;
-            for (int j = 0; j < worldData.Height; j++)
-                for (int i = 0; i < worldData.Width; i++)
-                    if (!worldData.OceanMask[j, i]) landCells++;
-
-            float percentage = landCells > 0 ? (totalSinks * 100f / landCells) : 0f;
-            data += $"({percentage:F1}% of land cells)\n";
-        }
-
-        return data;
-    }
-
-    /// <summary>
-    /// Builds probe data for Sinks (POST-Filling) view (VS_029 Step 0B).
-    /// Shows: filled elevation, whether this cell is still a sink, reduction from pre-filling.
-    /// </summary>
-    private string BuildSinksPostFillingProbeData(
-        int x,
-        int y,
-        Core.Features.WorldGen.Application.DTOs.WorldGenerationResult worldData)
-    {
-        var data = $"Cell ({x},{y})\nPOST-Filling Sinks\n\n";
-
-        var erosionData = worldData.Phase1Erosion;
-        if (erosionData == null)
-        {
-            return data + "(No erosion data - regenerate world)";
-        }
-
-        // Get filled elevation
-        float filledElevation = erosionData.FilledHeightmap[y, x];
-        bool? isOcean = worldData.OceanMask?[y, x];
-
-        // Check if this cell is a post-filling sink (flow direction = -1)
-        int flowDir = erosionData.FlowDirections[y, x];
-        bool isSink = flowDir == -1;
-
-        // Show elevation
-        data += $"Elevation: {filledElevation:F2}\n";
-
-        // Ocean status
-        if (isOcean == true)
-            data += "Type: Ocean\n";
-        else
-            data += "Type: Land\n";
-
-        data += "\n";
-
-        // Show sink status
-        if (isSink)
-        {
-            // TD_023: Check if it's a preserved lake (check if this cell is a basin center)
-            bool isLake = erosionData.PreservedBasins.Any(basin => basin.Center == (x, y));
-            if (isLake)
-                data += "PRESERVED LAKE\n(Large endorheic basin)\n";
-            else
-                data += "LOCAL MINIMUM\n(Remaining sink)\n";
-        }
-        else
-            data += "Not a sink\n(Drains to lower cell)\n";
-
-        // Show reduction statistics
-        int preSinks = worldData.PreFillingLocalMinima?.Count ?? 0;
-        int postSinks = 0;
-
-        // Count post-filling sinks
-        for (int j = 0; j < worldData.Height; j++)
-            for (int i = 0; i < worldData.Width; i++)
-                if (erosionData.FlowDirections[j, i] == -1) postSinks++;
-
-        data += $"\nPit-Filling Results:\n";
-        data += $"Before: {preSinks} sinks\n";
-        data += $"After: {postSinks} sinks\n";
-
-        if (preSinks > 0)
-        {
-            float reduction = ((preSinks - postSinks) * 100f) / preSinks;
-            data += $"Reduction: {reduction:F1}%\n";
-        }
-
-        return data;
-    }
-
-    /// <summary>
-    /// Builds probe data for Basin Metadata view (TD_023).
-    /// Shows: basin ID, elevation, basin size/depth, pour point distance, basin role (center/boundary/outlet).
-    /// </summary>
-    private string BuildPreservedLakesProbeData(
-        int x,
-        int y,
-        Core.Features.WorldGen.Application.DTOs.WorldGenerationResult worldData)
-    {
-        var data = $"Cell ({x},{y})\nPreserved Lakes (TD_023)\n\n";
-
-        var erosionData = worldData.Phase1Erosion;
-        if (erosionData == null)
-        {
-            return data + "(No erosion data - regenerate world)";
-        }
-
-        // Get filled elevation
-        float filledElevation = erosionData.FilledHeightmap[y, x];
-        bool? isOcean = worldData.OceanMask?[y, x];
-
-        data += $"Elevation: {filledElevation:F2}\n";
-
-        // Check if this cell belongs to any preserved basin (check first for type display)
-        var containingBasin = erosionData.PreservedBasins.FirstOrDefault(b => b.Cells.Contains((x, y)));
-
-        // Type display: Inner Sea/Lake takes precedence over Ocean
-        if (containingBasin != null)
-        {
-            // Part of preserved lake - show as water body (more meaningful than "land")
-            data += containingBasin.Area > 1000
-                ? "Type: Inner Sea (endorheic basin)\n\n"
-                : "Type: Lake (landlocked)\n\n";
-        }
-        else if (isOcean == true)
-        {
-            data += "Type: Ocean (border-connected)\n\n";
-        }
-        else
-        {
-            data += "Type: Land\n\n";
-        }
-
-        if (containingBasin != null)
-        {
-            // Cell is part of a preserved basin - show details
-            data += $"LAKE #{containingBasin.BasinId}\n";
-            data += $"Size: {containingBasin.Area} cells\n";
-            data += $"Depth: {containingBasin.Depth:F1}\n";
-            data += $"Surface Elev: {containingBasin.SurfaceElevation:F2}\n\n";
-
-            // Determine role in basin
-            if (containingBasin.Center == (x, y))
-            {
-                data += "Role: BASIN CENTER\n";
-                data += "(Local minimum - pit bottom)\n";
-            }
-            else if (containingBasin.PourPoint == (x, y))
-            {
-                data += "Role: POUR POINT\n";
-                data += "(Outlet - where water exits)\n";
-            }
-            else
-            {
-                data += "Role: Basin boundary\n";
-                data += "(Part of endorheic basin)\n";
-            }
-        }
-        else
-        {
-            // Cell is not part of any preserved basin
-            data += "Not part of preserved basin\n";
-
-            int totalBasins = erosionData.PreservedBasins.Count;
-            data += $"\nTotal Preserved Basins: {totalBasins}\n";
-
-            if (totalBasins == 0)
-            {
-                data += "(All pits filled - no large basins)\n";
-            }
-        }
-
-        return data;
-    }
-
-    /// <summary>
-    /// Builds probe data for Flow Directions view (VS_029 Step 2).
-    /// Shows: flow direction code, compass direction, elevation, whether cell drains.
-    /// </summary>
-    private string BuildFlowDirectionsProbeData(
-        int x,
-        int y,
-        Core.Features.WorldGen.Application.DTOs.WorldGenerationResult worldData)
-    {
-        var data = $"Cell ({x},{y})\nFlow Directions\n\n";
-
-        var erosionData = worldData.Phase1Erosion;
-        if (erosionData == null)
-        {
-            return data + "(No erosion data - regenerate world)";
-        }
-
-        // Get flow direction
-        int flowDir = erosionData.FlowDirections[y, x];
-        float elevation = erosionData.FilledHeightmap[y, x];
-        bool? isOcean = worldData.OceanMask?[y, x];
-
-        // Show elevation
-        data += $"Elevation: {elevation:F2}\n";
-
-        // Ocean status
-        if (isOcean == true)
-            data += "Type: Ocean (sink)\n\n";
-        else
-            data += "Type: Land\n\n";
-
-        // Show flow direction
-        if (flowDir == -1)
-        {
-            data += "Direction: SINK\n";
-            data += "(Local minimum - no flow)\n";
-        }
-        else
-        {
-            string[] dirNames = { "N ↑", "NE ↗", "E →", "SE ↘", "S ↓", "SW ↙", "W ←", "NW ↖" };
-            data += $"Direction: {dirNames[flowDir]}\n";
-            data += $"Code: {flowDir}\n";
-
-            // Calculate neighbor position
-            int[] dx = { 0, 1, 1, 1, 0, -1, -1, -1 };
-            int[] dy = { -1, -1, 0, 1, 1, 1, 0, -1 };
-
-            int nx = x + dx[flowDir];
-            int ny = y + dy[flowDir];
-
-            // Show downstream elevation if in bounds
-            if (nx >= 0 && nx < worldData.Width && ny >= 0 && ny < worldData.Height)
-            {
-                float downstreamElev = erosionData.FilledHeightmap[ny, nx];
-                float drop = elevation - downstreamElev;
-                data += $"\nDownstream: {downstreamElev:F2}\n";
-                data += $"Drop: {drop:F2}\n";
-            }
-        }
-
-        return data;
-    }
-
-    /// <summary>
-    /// Builds probe data for Flow Accumulation view (VS_029 Step 3).
-    /// Shows: accumulation value, percentile rank, drainage area estimate.
-    /// </summary>
-    private string BuildFlowAccumulationProbeData(
-        int x,
-        int y,
-        Core.Features.WorldGen.Application.DTOs.WorldGenerationResult worldData)
-    {
-        var data = $"Cell ({x},{y})\nFlow Accumulation\n\n";
-
-        var erosionData = worldData.Phase1Erosion;
-        if (erosionData == null)
-        {
-            return data + "(No erosion data - regenerate world)";
-        }
-
-        // Get accumulation
-        float accumulation = erosionData.FlowAccumulation[y, x];
-        bool? isOcean = worldData.OceanMask?[y, x];
-
-        // Show value
-        data += $"Accumulation: {accumulation:F3}\n";
-
-        // Ocean cells show as "no flow"
-        if (isOcean == true)
-        {
-            data += "Type: Ocean\n";
-            data += "(Terminal sink - no flow data)\n";
-            return data;
-        }
-
-        // Calculate percentile rank among land cells
-        var landAccumulations = new System.Collections.Generic.List<float>();
-        for (int j = 0; j < worldData.Height; j++)
-        {
-            for (int i = 0; i < worldData.Width; i++)
-            {
-                if (worldData.OceanMask?[j, i] == false)
-                {
-                    landAccumulations.Add(erosionData.FlowAccumulation[j, i]);
-                }
-            }
-        }
-
-        if (landAccumulations.Count > 0)
-        {
-            landAccumulations.Sort();
-            int rank = landAccumulations.BinarySearch(accumulation);
-            if (rank < 0) rank = ~rank; // Handle insertion point
-            float percentile = (rank * 100f) / landAccumulations.Count;
-
-            data += $"Percentile: {percentile:F1}%\n";
-
-            // Classification
-            if (percentile > 95f)
-                data += "Class: Major River\n";
-            else if (percentile > 80f)
-                data += "Class: River\n";
-            else if (percentile > 50f)
-                data += "Class: Stream\n";
-            else
-                data += "Class: Low flow\n";
-        }
-
-        return data;
-    }
-
-    /// <summary>
-    /// Builds probe data for River Sources view (VS_029 Step 4).
-    /// Shows: whether cell is a river source, elevation, accumulation threshold.
-    /// </summary>
-    private string BuildRiverSourcesProbeData(
-        int x,
-        int y,
-        Core.Features.WorldGen.Application.DTOs.WorldGenerationResult worldData)
-    {
-        var data = $"Cell ({x},{y})\nRiver Sources\n\n";
-
-        var erosionData = worldData.Phase1Erosion;
-        if (erosionData == null)
-        {
-            return data + "(No erosion data - regenerate world)";
-        }
-
-        // Get data
-        float elevation = erosionData.FilledHeightmap[y, x];
-        float accumulation = erosionData.FlowAccumulation[y, x];
-        bool isSource = erosionData.RiverSources.Contains((x, y));
-        bool? isOcean = worldData.OceanMask?[y, x];
-
-        // Show elevation
-        data += $"Elevation: {elevation:F2}\n";
-        data += $"Accumulation: {accumulation:F3}\n";
-
-        // Ocean status
-        if (isOcean == true)
-            data += "Type: Ocean\n\n";
-        else
-            data += "Type: Land\n\n";
-
-        // Show source status
-        if (isSource)
-        {
-            data += "RIVER SOURCE\n";
-            data += "(Major river origin)\n";
-        }
-        else
-        {
-            data += "Not a river source\n";
-
-            // Explain why not (elevation or accumulation)
-            var thresholds = worldData.Thresholds;
-            if (thresholds != null && elevation < thresholds.MountainLevel)
-            {
-                data += "(Elevation too low)\n";
-            }
-            else
-            {
-                data += "(Accumulation below threshold)\n";
-            }
-        }
-
-        // Show total source count
-        int totalSources = erosionData.RiverSources.Count;
-        data += $"\nTotal River Sources: {totalSources}\n";
-
-        return data;
-    }
-
-    /// <summary>
-    /// Builds probe data for Erosion Hotspots view (VS_029 - repurposed old algorithm).
-    /// Shows: erosion potential (elevation × accumulation), classification.
-    /// </summary>
-    private string BuildErosionHotspotsProbeData(
-        int x,
-        int y,
-        Core.Features.WorldGen.Application.DTOs.WorldGenerationResult worldData)
-    {
-        var data = $"Cell ({x},{y})\nErosion Hotspots\n\n";
-
-        var erosionData = worldData.Phase1Erosion;
-        if (erosionData == null)
-        {
-            return data + "(No erosion data - regenerate world)";
-        }
-
-        // Get data
-        float elevation = erosionData.FilledHeightmap[y, x];
-        float accumulation = erosionData.FlowAccumulation[y, x];
-        bool? isOcean = worldData.OceanMask?[y, x];
-
-        // Calculate erosion potential (simple product)
-        float erosionPotential = elevation * accumulation;
-
-        // Show values
-        data += $"Elevation: {elevation:F2}\n";
-        data += $"Accumulation: {accumulation:F3}\n";
-        data += $"Erosion Potential: {erosionPotential:F3}\n";
-
-        // Ocean status
-        if (isOcean == true)
-        {
-            data += "\nType: Ocean (no erosion)\n";
-            return data;
-        }
-
-        data += "\n";
-
-        // Classify erosion potential
-        var thresholds = worldData.Thresholds;
-        bool isHighElevation = thresholds != null && elevation >= thresholds.MountainLevel;
-        bool isHighFlow = accumulation > 0.01f; // Arbitrary threshold for display
-
-        if (isHighElevation && isHighFlow)
-        {
-            data += "EROSION HOTSPOT\n";
-            data += "(High mountains + major river)\n";
-            data += "Type: Canyon/gorge formation\n";
-        }
-        else if (isHighElevation)
-        {
-            data += "High elevation\n";
-            data += "(But low flow - minimal erosion)\n";
-        }
-        else if (isHighFlow)
-        {
-            data += "High flow\n";
-            data += "(But low elevation - deposition zone)\n";
-        }
-        else
-        {
-            data += "Low erosion potential\n";
-        }
-
-        return data;
     }
 }

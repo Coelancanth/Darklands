@@ -857,6 +857,120 @@ SEAMLESS BLEND at ALL waterlines (1.5% elevation band):
 
 ---
 
+### TD_026: WorldMapProbeNode Abstraction
+**Extraction Status**: NOT EXTRACTED ⚠️
+**Completed**: 2025-10-14
+**Archive Note**: Created IProbeDataProvider abstraction matching TD_025's IColorScheme pattern, implemented 14 self-contained provider classes, WorldMapProbeNode reduced from 1166 → 300 lines (74.3% reduction), eliminated 69-line switch statement with registry lookup, zero external dependencies in providers, SOLID principles validated (5/5 compliance), parallel ColorSchemes/ProbeDataProviders structure achieved, zero functional regressions, builds passing (Core + Tests + Godot).
+---
+### TD_026: WorldMapProbeNode Abstraction (Complete TD_025 Follow-up)
+**Status**: Done
+**Owner**: Tech Lead
+**Size**: S (3-4h actual)
+**Priority**: Important (finish TD_025 architectural cleanup)
+**Markers**: [ARCHITECTURE] [WORLDGEN] [REFACTORING]
+**Completed**: 2025-10-14
+
+**What**: Create `IProbeDataProvider` abstraction for WorldMapProbeNode, replacing 69-line switch statement with strategy pattern matching TD_025's `IColorScheme` approach exactly.
+
+**Why**:
+- **Consistency**: WorldMapRendererNode uses `IColorScheme` abstraction (TD_025), WorldMapProbeNode still uses 69-line switch statement
+- **Maintainability**: New view modes require adding switch cases + probe builder methods (scattered logic)
+- **TD_025 Incomplete**: Original scope included probe refactoring, deferred to separate item
+- **Proven Pattern**: TD_025 established strategy pattern (schemes render, providers probe) - reuse same structure
+
+**How** (5 phases mirroring TD_025 architecture):
+
+**Phase 1: Interface + Registry** (30min)
+- Create `godot_project/features/worldgen/ProbeDataProviders/IProbeDataProvider.cs`:
+  ```csharp
+  interface IProbeDataProvider {
+      string Name { get; }  // Consistency with IColorScheme
+      string GetProbeText(WorldGenerationResult data, int x, int y,
+                         MapViewMode viewMode, ImageTexture? debugTexture = null);
+  }
+  ```
+- Create `ProbeDataProviders.cs` static registry (mirrors `ColorSchemes.cs`):
+  ```csharp
+  static class ProbeDataProviders {
+      public static readonly RawElevationProbeProvider RawElevation = new();
+      public static readonly ElevationProbeProvider Elevation = new();
+      // ... 14 providers total
+  }
+  ```
+- Add `GetProviderForViewMode()` to WorldMapProbeNode (mirrors TD_025's `GetSchemeForViewMode`)
+
+**Phase 2: Simple Providers** (30min)
+- `RawElevationProbeProvider` (~15 lines) - grayscale elevation only
+- `PlatesProbeProvider` (~20 lines) - plate ID + boundary detection
+
+**Phase 3: Complex Providers** (1.5h)
+- `ElevationProbeProvider` (~120 lines) - handles both Colored modes, basin metadata, ocean depth
+- `TemperatureProbeProvider` (~80 lines) - handles 4 temperature debug stages
+- `PrecipitationProbeProvider` (~90 lines) - handles 3 base precipitation modes
+- `RainShadowProbeProvider` (~50 lines) - PrecipitationWithRainShadow
+- `CoastalMoistureProbeProvider` (~50 lines) - PrecipitationFinal
+
+**Phase 4: Erosion Providers** (1h)
+- `SinksPreFillingProbeProvider` (~60 lines)
+- `SinksPostFillingProbeProvider` (~70 lines)
+- `BasinMetadataProbeProvider` (~90 lines) - PreservedLakes mode
+- `FlowDirectionsProbeProvider` (~70 lines) - D-8 flow with direction names
+- `FlowAccumulationProbeProvider` (~80 lines) - log10 accumulation
+- `RiverSourcesProbeProvider` (~70 lines) - basin area threshold
+- `ErosionHotspotsProbeProvider` (~80 lines) - slope × accumulation
+
+**Phase 5: WorldMapProbeNode Cleanup** (30min)
+- Replace 69-line switch with `GetProviderForViewMode()?.GetProbeText(...)`
+- Delete all BuildXXXProbeData methods (~895 lines removed)
+- Update `ProbeAtMousePosition()` to pass viewMode + debugTexture
+- File shrinks: 1166 → ~300 lines (74% reduction)
+
+**Key Architectural Decisions**:
+1. **Multi-Mode Providers**: Group related modes (TemperatureProbeProvider handles 4 temperature stages) - reduces duplication, matches TD_025
+2. **Optional Parameters**: `debugTexture` parameter for color debugging (ElevationProbeProvider needs pixel color lookup)
+3. **ViewMode Context**: Pass `MapViewMode` to providers so multi-mode providers know which stage to display
+4. **File Structure**: `godot_project/features/worldgen/ProbeDataProviders/` (mirrors `ColorSchemes/`)
+5. **14 Providers Total**: Not 12 - accounts for multi-mode grouping pattern
+
+**Done When**:
+1. ✅ `IProbeDataProvider` interface matches `IColorScheme` pattern (Name + method)
+2. ✅ `ProbeDataProviders.cs` registry matches `ColorSchemes.cs` structure
+3. ✅ 14 provider implementations, each self-contained (no external dependencies)
+4. ✅ WorldMapProbeNode's 69-line switch → `GetProviderForViewMode()` lookup (exact TD_025 pattern)
+5. ✅ WorldMapProbeNode shrinks from ~1166 → ~300 lines (74% reduction)
+6. ✅ All probe data formats match exactly (string comparison regression test)
+7. ✅ Zero switch statements in WorldMapProbeNode (grep verification)
+8. ✅ File structure mirrors ColorSchemes/ (architectural consistency)
+
+**Depends On**: TD_025 ✅ (pattern established, validates abstraction approach)
+
+**Blocks**: Nothing (quality improvement)
+
+**Tech Lead Decision** (2025-10-14):
+- **Pattern Reuse**: Exact same architecture as TD_025 (`IColorScheme` → `IProbeDataProvider`, `ColorSchemes.cs` → `ProbeDataProviders.cs`)
+- **Multi-Mode Grouping**: Temperature/Precipitation providers handle multiple stages (reduces 18 potential providers → 14 actual)
+- **Interface Consistency**: `Name` property + core method mirrors `IColorScheme` for easy mental model
+- **Optional Dependencies**: `debugTexture` parameter avoids tight coupling while preserving color debug feature
+- **File Organization**: Parallel structure (`ColorSchemes/` ↔ `ProbeDataProviders/`) makes codebase predictable
+- **Proven Approach**: TD_025 reduced WorldMapRendererNode switch statements, same pattern applies to WorldMapProbeNode
+- **Size Confirmed**: 3-4h estimate accurate (Phase 1: 30m, Phase 2: 30m, Phase 3: 1.5h, Phase 4: 1h, Phase 5: 30m)
+
+**Implementation Results** (2025-10-14):
+- ✅ All 8 Done When criteria met
+- ✅ WorldMapProbeNode: 1166 lines → 300 lines (**74.3% reduction**)
+- ✅ 14 provider implementations created (self-contained, zero external dependencies)
+- ✅ Build passes (Core, Tests, Godot projects all compile)
+- ✅ SOLID principles validated (5/5 compliance: SRP, OCP, LSP, ISP, DIP)
+- ✅ Architectural consistency with TD_025 (parallel ColorSchemes/ProbeDataProviders structure)
+- 📁 New files: `godot_project/features/worldgen/ProbeDataProviders/` (16 files: 1 interface + 1 registry + 14 providers)
+---
+**Extraction Targets**:
+- [ ] ADR needed for: Strategy pattern for probe data providers (parallel to color schemes), multi-mode provider grouping (reduces file proliferation), optional parameter pattern (debugTexture for loose coupling)
+- [ ] HANDBOOK update: Parallel abstraction structure (ColorSchemes ↔ ProbeDataProviders), registry-based lookup pattern (eliminates switch statements), self-contained provider implementation (zero external dependencies)
+- [ ] Test pattern: String comparison regression testing (probe format stability), architectural consistency validation (parallel structure verification)
+
+---
+
 ### VS_029: D-8 Flow Direction Visualization + River Source Algorithm Correction
 **Extraction Status**: NOT EXTRACTED ⚠️
 **Completed**: 2025-10-13

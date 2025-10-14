@@ -18,7 +18,8 @@
       "Bash(gh pr view:*)",
       "Bash(gh pr checks:*)",
       "Bash(gh run view:*)",
-      "Bash(Select-String \"private void RenderRawElevation\" WorldMapRendererNode.cs -Context 0,30)"
+      "Bash(Select-String \"private void RenderRawElevation\" WorldMapRendererNode.cs -Context 0,30)",
+      "Bash(mkdir:*)"
     ],
     "deny": [],
     "ask": [],

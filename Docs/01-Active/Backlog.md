@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-14 14:44 (Dev Engineer: TD_026 created - WorldMapProbeNode refactoring)
+**Last Updated**: 2025-10-14 15:16 (Tech Lead: TD_026 completed - WorldMapProbeNode abstraction)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -94,41 +94,6 @@
 
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*
-
-### TD_026: WorldMapProbeNode Abstraction (Complete TD_025 Follow-up)
-**Status**: Proposed
-**Owner**: Tech Lead
-**Size**: S (3-4h)
-**Priority**: Important (finish TD_025 architectural cleanup)
-**Markers**: [ARCHITECTURE] [WORLDGEN] [REFACTORING]
-
-**What**: Create `IProbeDataProvider` abstraction for WorldMapProbeNode, replacing 69-line switch statement with strategy pattern matching TD_025's color scheme approach.
-
-**Why**:
-- **Consistency**: WorldMapRendererNode uses scheme abstraction (TD_025), WorldMapProbeNode still uses 69-line switch statement
-- **Maintainability**: New view modes require adding switch cases + probe builder methods (scattered logic)
-- **TD_025 Incomplete**: Original scope included probe refactoring, deferred to separate item
-
-**How**:
-1. Create `IProbeDataProvider` interface with `string GetProbeText(WorldGenerationResult data, int x, int y)` method
-2. Implement providers: `ElevationProbeProvider`, `TemperatureProbeProvider`, `FlowProbeProvider`, etc. (12 total)
-3. Create probe registry in `ProbeDataProviders.cs` (maps MapViewMode → IProbeDataProvider)
-4. Replace WorldMapProbeNode switch with `provider?.GetProbeText(data, x, y) ?? "No probe data"`
-5. Move 12 probe builder methods into respective provider classes
-6. Delete old BuildXXXProbeData methods
-
-**Done When**:
-1. ✅ `IProbeDataProvider` interface implemented by 12 providers (one per view mode)
-2. ✅ WorldMapProbeNode's 69-line switch → provider registry lookup
-3. ✅ WorldMapProbeNode shrinks from ~1167 → ~300 lines (74% reduction)
-4. ✅ All 12 probe data formats match exactly (string comparison regression test)
-5. ✅ Zero switch statements in WorldMapProbeNode (grep verification)
-
-**Depends On**: TD_025 ✅ (pattern established, validates abstraction approach)
-
-**Blocks**: Nothing (quality improvement)
-
----
 
 ### VS_030: Inner Sea Flow via Lake Thalweg Pathfinding
 **Status**: Proposed (Requires TD_021 foundation)
