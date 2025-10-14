@@ -292,10 +292,11 @@ namespace Darklands.Presentation.Infrastructure.Events;
 namespace Darklands.Presentation.Scenes;
 ```
 
-**Legacy Code:**
-- Existing files in `Components/`, `Infrastructure/`, `Views/` at root remain until actively refactored
-- When touching legacy code, consider moving to `godot_project/` structure
-- No mass migration required - incremental cleanup preferred
+**Migration Status:** ✅ **COMPLETED** (2025-10-15)
+- All infrastructure and feature files migrated to `godot_project/` structure
+- Legacy `Components/` and `Infrastructure/` directories removed
+- All namespaces updated to `Darklands.Presentation.{Infrastructure|Features}.*`
+- All builds and 537 tests passing with zero warnings
 
 **Why This Convention:**
 - ✅ Clear separation: Core (`src/`) vs Presentation (`godot_project/`)

@@ -2,8 +2,8 @@ using System.Collections.Generic;
 using Godot;
 using Darklands.Core.Application.Infrastructure;
 using Darklands.Core.Infrastructure.Events;
-using Darklands.Infrastructure.Events;
-using Darklands.Infrastructure.Logging;
+using Darklands.Presentation.Infrastructure.Events;
+using Darklands.Presentation.Infrastructure.Logging;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -139,8 +139,8 @@ public partial class Main : Node
             // Register TileSetTerrainRepository with loaded TileSet
             services.AddSingleton<Darklands.Core.Features.Grid.Application.ITerrainRepository>(sp =>
             {
-                var logger = sp.GetRequiredService<ILogger<Infrastructure.TileSetTerrainRepository>>();
-                return new Infrastructure.TileSetTerrainRepository(terrainTileSet, logger);
+                var logger = sp.GetRequiredService<ILogger<Darklands.Presentation.Features.Item.TileSetTerrainRepository>>();
+                return new Darklands.Presentation.Features.Item.TileSetTerrainRepository(terrainTileSet, logger);
             });
 
             GD.Print("   - ITerrainRepository → TileSetTerrainRepository (test_terrain_tileset.tres loaded)");
@@ -162,8 +162,8 @@ public partial class Main : Node
             // Register TileSetItemRepository with loaded TileSet
             services.AddSingleton<Darklands.Core.Features.Item.Application.IItemRepository>(sp =>
             {
-                var logger = sp.GetRequiredService<ILogger<Infrastructure.TileSetItemRepository>>();
-                return new Infrastructure.TileSetItemRepository(itemTileSet, logger);
+                var logger = sp.GetRequiredService<ILogger<Darklands.Presentation.Features.Item.TileSetItemRepository>>();
+                return new Darklands.Presentation.Features.Item.TileSetItemRepository(itemTileSet, logger);
             });
 
             GD.Print("   - IItemRepository → TileSetItemRepository (item_sprites.tres loaded)");
@@ -174,10 +174,10 @@ public partial class Main : Node
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
         // Register ActorTemplate service (loads .tres files from data/entities/)
-        services.AddSingleton<Darklands.Core.Infrastructure.Templates.ITemplateService<Infrastructure.Templates.ActorTemplate>>(sp =>
+        services.AddSingleton<Darklands.Core.Infrastructure.Templates.ITemplateService<Darklands.Presentation.Infrastructure.Templates.ActorTemplate>>(sp =>
         {
-            var logger = sp.GetRequiredService<ILogger<Infrastructure.Templates.GodotTemplateService<Infrastructure.Templates.ActorTemplate>>>();
-            var templateService = new Infrastructure.Templates.GodotTemplateService<Infrastructure.Templates.ActorTemplate>(
+            var logger = sp.GetRequiredService<ILogger<Darklands.Presentation.Infrastructure.Templates.GodotTemplateService<Darklands.Presentation.Infrastructure.Templates.ActorTemplate>>>();
+            var templateService = new Darklands.Presentation.Infrastructure.Templates.GodotTemplateService<Darklands.Presentation.Infrastructure.Templates.ActorTemplate>(
                 logger,
                 "res://data/entities/"
             );

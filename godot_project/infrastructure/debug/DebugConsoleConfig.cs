@@ -1,6 +1,6 @@
 using Godot;
 
-namespace Darklands.Infrastructure;
+namespace Darklands.Presentation.Infrastructure.Debug;
 
 /// <summary>
 /// Configuration resource for Debug Console default settings.

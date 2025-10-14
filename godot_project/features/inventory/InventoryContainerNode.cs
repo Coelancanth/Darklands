@@ -12,7 +12,7 @@ using Godot;
 using MediatR;
 using Microsoft.Extensions.Logging;
 
-namespace Darklands.Components.Inventory;
+namespace Darklands.Presentation.Features.Inventory;
 
 /// <summary>
 /// Inventory container for Tetris-style grid placement (multi-cell, rotation, L-shapes).

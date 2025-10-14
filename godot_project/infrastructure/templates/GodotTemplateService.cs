@@ -5,7 +5,7 @@ using CSharpFunctionalExtensions;
 using Godot;
 using Microsoft.Extensions.Logging;
 
-namespace Darklands.Infrastructure.Templates;
+namespace Darklands.Presentation.Infrastructure.Templates;
 
 /// <summary>
 /// Godot-based implementation of template loading service.

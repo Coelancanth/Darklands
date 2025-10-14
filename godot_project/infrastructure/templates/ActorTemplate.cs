@@ -1,7 +1,7 @@
 using Darklands.Core.Application.Factories;
 using Godot;
 
-namespace Darklands.Infrastructure.Templates;
+namespace Darklands.Presentation.Infrastructure.Templates;
 
 /// <summary>
 /// Actor entity template - designer-editable configuration for spawning actors.

@@ -6,9 +6,9 @@ using System.Text.Json;
 using Godot;
 using Microsoft.Extensions.Logging;
 using Darklands.Core.Infrastructure.DependencyInjection;
-using Darklands.Infrastructure.Logging;
+using Darklands.Presentation.Infrastructure.Logging;
 
-namespace Darklands.Infrastructure;
+namespace Darklands.Presentation.Infrastructure.Debug;
 
 /// <summary>
 /// Global debug console controller (Autoload singleton).

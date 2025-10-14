@@ -10,7 +10,7 @@ using Godot;
 using Microsoft.Extensions.Logging;
 using ItemEntity = Darklands.Core.Features.Item.Domain.Item;
 
-namespace Darklands.Infrastructure;
+namespace Darklands.Presentation.Features.Item;
 
 /// <summary>
 /// Item repository that auto-discovers items from Godot TileSet resource.

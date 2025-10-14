@@ -7,7 +7,7 @@ using Godot;
 using MediatR;
 using Microsoft.Extensions.Logging;
 
-namespace Darklands.Components.Inventory;
+namespace Darklands.Presentation.Features.Inventory;
 
 /// <summary>
 /// Static helper for shared inventory rendering logic (DRY principle).

@@ -5,11 +5,12 @@ using Darklands.Core.Features.Health.Application.Events;
 using Darklands.Core.Features.Health.Application;
 using Darklands.Core.Features.Health.Domain;
 using Darklands.Core.Infrastructure.DependencyInjection;
+using Darklands.Presentation.Infrastructure.Events;
 using MediatR;
 using Microsoft.Extensions.Logging;
 using HealthValue = Darklands.Core.Domain.Common.Health;
 
-namespace Darklands.Components;
+namespace Darklands.Presentation.Features.Health;
 
 /// <summary>
 /// Godot node that displays actor health using a ProgressBar.

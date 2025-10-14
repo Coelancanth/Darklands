@@ -13,7 +13,7 @@ using Godot;
 using MediatR;
 using Microsoft.Extensions.Logging;
 
-namespace Darklands.Components.Inventory;
+namespace Darklands.Presentation.Features.Inventory;
 
 /// <summary>
 /// Equipment slot component for single-item equipment UX (weapon, armor slots).

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 
-namespace Darklands.Infrastructure.Logging;
+namespace Darklands.Presentation.Infrastructure.Logging;
 
 /// <summary>
 /// Provides runtime control over category-based log filtering.

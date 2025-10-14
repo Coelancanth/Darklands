@@ -2,7 +2,7 @@ using Godot;
 using Darklands.Core.Infrastructure.DependencyInjection;
 using Darklands.Core.Infrastructure.Events;
 
-namespace Darklands.Components;
+namespace Darklands.Presentation.Infrastructure.Events;
 
 /// <summary>
 /// Base class for Godot nodes that subscribe to domain events via GodotEventBus.

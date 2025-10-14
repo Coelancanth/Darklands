@@ -11,7 +11,7 @@ using Godot;
 using MediatR;
 using Microsoft.Extensions.Logging;
 
-namespace Darklands.Components.Inventory;
+namespace Darklands.Presentation.Features.Inventory;
 
 /// <summary>
 /// Equipment panel displaying all 5 equipment slots (MainHand, OffHand, Head, Torso, Legs).

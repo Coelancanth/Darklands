@@ -5,7 +5,7 @@ using Serilog.Core;
 using Serilog.Events;
 using Serilog.Formatting;
 
-namespace Darklands.Infrastructure.Logging;
+namespace Darklands.Presentation.Infrastructure.Logging;
 
 /// <summary>
 /// Serilog sink that writes to Godot's built-in output console using GD.Print().

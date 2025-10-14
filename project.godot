@@ -11,14 +11,14 @@ config_version=5
 [application]
 
 config/name="Darklands"
-run/main_scene="res://Main.tscn"
+run/main_scene="res://godot_project/scenes/Main.tscn"
 config/features=PackedStringArray("4.4", "C#", "GL Compatibility")
 config/icon="res://icon.svg"
 
 [autoload]
 
-DebugConsole="*res://Infrastructure/DebugConsoleController.cs"
-Main="*res://Main.tscn"
+DebugConsole="*res://godot_project/infrastructure/debug/DebugConsoleController.cs"
+Main="*res://godot_project/scenes/Main.tscn"
 
 [display]
 

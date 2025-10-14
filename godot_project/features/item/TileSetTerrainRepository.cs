@@ -7,7 +7,7 @@ using Darklands.Core.Features.Grid.Domain;
 using Godot;
 using Microsoft.Extensions.Logging;
 
-namespace Darklands.Infrastructure;
+namespace Darklands.Presentation.Features.Item;
 
 /// <summary>
 /// Terrain repository that auto-discovers terrains from Godot TileSet resource.

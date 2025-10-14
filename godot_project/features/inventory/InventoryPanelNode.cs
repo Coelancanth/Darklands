@@ -8,7 +8,7 @@ using Darklands.Core.Infrastructure.DependencyInjection;
 using MediatR;
 using Microsoft.Extensions.Logging;
 
-namespace Darklands.Components;
+namespace Darklands.Presentation.Features.Inventory;
 
 /// <summary>
 /// Godot node that displays inventory UI with test buttons.

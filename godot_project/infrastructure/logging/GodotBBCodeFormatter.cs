@@ -3,7 +3,7 @@ using System.IO;
 using Serilog.Events;
 using Serilog.Formatting;
 
-namespace Darklands.Infrastructure.Logging;
+namespace Darklands.Presentation.Infrastructure.Logging;
 
 /// <summary>
 /// Formats log events as BBCode for Godot's RichTextLabel.

@@ -6,7 +6,7 @@ using Darklands.Core.Infrastructure.DependencyInjection;
 using MediatR;
 using Microsoft.Extensions.Logging;
 
-namespace Darklands.Components;
+namespace Darklands.Presentation.Features.Item;
 
 /// <summary>
 /// Godot node that renders an item sprite from the item catalog TileSet.

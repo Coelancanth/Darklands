@@ -6,7 +6,7 @@ using MediatR;
 using Microsoft.Extensions.Logging;
 using Darklands.Core.Infrastructure.Events;
 
-namespace Darklands.Infrastructure.Events;
+namespace Darklands.Presentation.Infrastructure.Events;
 
 /// <summary>
 /// Event bus implementation that bridges MediatR domain events to Godot nodes.

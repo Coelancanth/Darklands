@@ -3,7 +3,7 @@ using System.IO;
 using Serilog.Events;
 using Serilog.Formatting;
 
-namespace Darklands.Infrastructure.Logging;
+namespace Darklands.Presentation.Infrastructure.Logging;
 
 /// <summary>
 /// Formats log events for Godot's console output panel with BBCode color tags.

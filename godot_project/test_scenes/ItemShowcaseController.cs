@@ -1,4 +1,4 @@
-using Darklands.Components;
+using Darklands.Presentation.Features.Item;
 using Darklands.Core.Features.Item.Application.Queries;
 using Darklands.Core.Infrastructure.DependencyInjection;
 using Godot;
