@@ -417,7 +417,7 @@ IDEAS (When 100+ Items): Template Browser (Search/filter, batch operations)
 - Usage tracking (which ActorTemplates reference this item?)
 
 **WorldGen Debug Panel** (VS_031):
-- *Already planned in [Roadmap_World_Generation.md](Roadmap_World_Generation.md)*
+- *Already planned in [Roadmap_World_Generation.md](WorldGen/0_Roadmap_World_Generation.md)*
 - Real-time parameter tuning (RiverDensity, Meandering, ValleyDepth)
 - Stage-based incremental regeneration (0.5s erosion-only vs 2s full world)
 
@@ -524,7 +524,7 @@ IDEAS (Far Future): Character Aging - 6-8h
 
 ## World Generation
 
-**📖 Full Details**: [Roadmap_World_Generation.md](Roadmap_World_Generation.md) - Comprehensive technical roadmap
+**📖 Full Details**: [Roadmap_World_Generation.md](WorldGen/0_Roadmap_World_Generation.md) - Comprehensive technical roadmap
 
 **Vision**: Dwarf Fortress-inspired procedural worldgen (plate tectonics → geology → climate → hydrology → biomes → resources)
 
@@ -586,20 +586,20 @@ Phase 3: Geology & Resources (DF-Inspired) - Design phase
 - Stage-based incremental regeneration (0.5s erosion-only vs 2s full world)
 - Scale-aware normalization (presets work on any map size)
 - Preset system (Earth, Mountains, Desert, Islands)
-- Details: [Roadmap_World_Generation.md](Roadmap_World_Generation.md#vs_031-worldgen-debug-panel-real-time-parameter-tuning--planned)
+- Details: [Roadmap_World_Generation.md](WorldGen/0_Roadmap_World_Generation.md#vs_031-worldgen-debug-panel-real-time-parameter-tuning--planned)
 
 **Irrigation → Humidity → Biomes** ⏳ PHASE 1 COMPLETION
 - ~~Watermap simulation~~ **REPLACED** (VS_029 discharge map serves as watermap!)
 - Moisture spreading from discharge (21×21 kernel)
 - 48 biome types (temperature + humidity)
-- Details: [Roadmap_World_Generation.md](Roadmap_World_Generation.md#stage-3-hydrological-processes)
+- Details: [Roadmap_World_Generation.md](WorldGen/0_Roadmap_World_Generation.md#stage-3-hydrological-processes)
 
 **Phase 2-3: Extended Features** (DF-Inspired Depth)
 - Swamps (poor drainage detection)
 - Volcanoes (plate boundaries, geothermal heat)
 - Geology layers (rock types, ore veins)
 - Minerals & resources (geology-based economy)
-- Details: [Roadmap_World_Generation.md](Roadmap_World_Generation.md#phase-3-geology--resources-df-inspired-depth)
+- Details: [Roadmap_World_Generation.md](WorldGen/0_Roadmap_World_Generation.md#phase-3-geology--resources-df-inspired-depth)
 
 ### Performance
 
@@ -611,7 +611,7 @@ Phase 3: Geology & Resources (DF-Inspired) - Design phase
 
 **Vision**: Extract worldgen as standalone exploration game (separate from Darklands tactical RPG)
 **Timeline**: +2-3 weeks after Phase 3 complete
-**Details**: [Roadmap_World_Generation.md](Roadmap_World_Generation.md#standalone-worldgen-game-potential)
+**Details**: [Roadmap_World_Generation.md](WorldGen/0_Roadmap_World_Generation.md#standalone-worldgen-game-potential)
 
 ---
 
@@ -650,7 +650,7 @@ Phase 3: Geology & Resources (DF-Inspired) - Design phase
 - 🔄 Worldgen layer in progress (Phase 1 ~75% complete)
 - ⏳ Strategic layer planned (blocked by worldgen completion)
 
-**Worldgen Integration**: See [Roadmap_World_Generation.md](Roadmap_World_Generation.md#strategic-layer-integration) for settlement placement algorithms
+**Worldgen Integration**: See [Roadmap_World_Generation.md](WorldGen/0_Roadmap_World_Generation.md#strategic-layer-integration) for settlement placement algorithms
 
 ---
 

@@ -22,7 +22,8 @@
       "Bash(mkdir:*)",
       "Bash(Get-ChildItem -Path \"src/Darklands.Core/Features/WorldGen\" -Recurse -Directory)",
       "Bash(Select-Object FullName)",
-      "Bash(ForEach-Object { $_ullName -replace '.*\\\\WorldGen\\\\', 'WorldGen/ ' })"
+      "Bash(ForEach-Object { $_ullName -replace '.*\\\\WorldGen\\\\', 'WorldGen/ ' })",
+      "Bash(./scripts/persona/embody.ps1 tech-lead)"
     ],
     "deny": [],
     "ask": [],
