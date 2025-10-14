@@ -19,7 +19,10 @@
       "Bash(gh pr checks:*)",
       "Bash(gh run view:*)",
       "Bash(Select-String \"private void RenderRawElevation\" WorldMapRendererNode.cs -Context 0,30)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(Get-ChildItem -Path \"src/Darklands.Core/Features/WorldGen\" -Recurse -Directory)",
+      "Bash(Select-Object FullName)",
+      "Bash(ForEach-Object { $_ullName -replace '.*\\\\WorldGen\\\\', 'WorldGen/ ' })"
     ],
     "deny": [],
     "ask": [],
