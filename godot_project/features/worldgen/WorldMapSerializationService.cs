@@ -61,7 +61,9 @@ public class WorldMapSerializationService
             if (world.Thresholds != null)
             {
                 file.Store8(1); // HasThresholds flag
-                file.StoreFloat(world.Thresholds.SeaLevel);
+                // TD_021: Sea level no longer stored (use WorldGenConstants.SEA_LEVEL_RAW = 1.0f)
+                // For backward compat, write 1.0f placeholder (old readers expect 4 floats)
+                file.StoreFloat(1.0f);  // Placeholder (sea level is now constant)
                 file.StoreFloat(world.Thresholds.HillLevel);
                 file.StoreFloat(world.Thresholds.MountainLevel);
                 file.StoreFloat(world.Thresholds.PeakLevel);
@@ -251,8 +253,11 @@ public class WorldMapSerializationService
         ElevationThresholds? thresholds = null;
         if (file.Get8() == 1)
         {
+            // TD_021: Sea level no longer part of ElevationThresholds (use WorldGenConstants.SEA_LEVEL_RAW)
+            // Read and discard old seaLevel value for backward compatibility
+            float oldSeaLevel = file.GetFloat();  // Read but discard (backward compat)
+
             thresholds = new ElevationThresholds(
-                seaLevel: file.GetFloat(),
                 hillLevel: file.GetFloat(),
                 mountainLevel: file.GetFloat(),
                 peakLevel: file.GetFloat()

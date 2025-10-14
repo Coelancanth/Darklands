@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Darklands.Core.Features.WorldGen.Domain;
 using Darklands.Core.Features.WorldGen.Infrastructure.Algorithms;
 
 namespace Darklands.Core.Features.WorldGen.Infrastructure.Pipeline;
@@ -42,14 +43,24 @@ public static class ElevationPostProcessor
         /// </summary>
         public float[,] SeaDepth { get; init; }
 
+        /// <summary>
+        /// Sea level position in normalized [0, 1] scale for rendering (TD_021).
+        /// Calculated as: (SEA_LEVEL_RAW - min) / (max - min)
+        /// Enables rendering to show sea level correctly on color ramps.
+        /// Example: If min=0.1, max=20, SEA_LEVEL_RAW=1.0 → normalized = (1.0-0.1)/(20-0.1) = 0.045
+        /// </summary>
+        public float SeaLevelNormalized { get; init; }
+
         public PostProcessingResult(
             float[,] processedHeightmap,
             bool[,] oceanMask,
-            float[,] seaDepth)
+            float[,] seaDepth,
+            float seaLevelNormalized)
         {
             ProcessedHeightmap = processedHeightmap;
             OceanMask = oceanMask;
             SeaDepth = seaDepth;
+            SeaLevelNormalized = seaLevelNormalized;
         }
     }
 
@@ -57,13 +68,17 @@ public static class ElevationPostProcessor
     /// Executes all 4 elevation post-processing algorithms on a COPY of the original heightmap.
     /// </summary>
     /// <param name="originalHeightmap">Raw heightmap from native sim (preserved, not modified)</param>
-    /// <param name="seaLevel">Sea level threshold (typically 1.0 for plate tectonics library)</param>
     /// <param name="seed">Seed for noise generation (should match world seed)</param>
+    /// <param name="addNoise">DIAGNOSTIC: Set false to skip noise addition (isolate noise as sink source)</param>
     /// <returns>Post-processed heightmap, ocean mask, and sea depth map</returns>
+    /// <remarks>
+    /// TD_021: Sea level is now WorldGenConstants.SEA_LEVEL_RAW (1.0f physics constant), not a parameter.
+    /// This ensures SSOT - sea level is fixed across all algorithms.
+    /// </remarks>
     public static PostProcessingResult Process(
         float[,] originalHeightmap,
-        float seaLevel,
-        int seed)
+        int seed,
+        bool addNoise = true)
     {
         int height = originalHeightmap.GetLength(0);
         int width = originalHeightmap.GetLength(1);
@@ -72,18 +87,129 @@ public static class ElevationPostProcessor
         var heightmap = (float[,])originalHeightmap.Clone();
 
         // Algorithm 1: Add coherent noise variation
-        AddNoiseToElevation(heightmap, seed);
+        if (addNoise)
+        {
+            AddNoiseToElevation(heightmap, seed);
+        }
 
         // Algorithm 2: Flood-fill ocean detection
-        var oceanMask = FillOcean(heightmap, seaLevel);
+        var oceanMask = FillOcean(heightmap, WorldGenConstants.SEA_LEVEL_RAW);
 
         // Algorithm 3: Smooth ocean floor
         HarmonizeOcean(heightmap, oceanMask);
 
         // Algorithm 4: Calculate ocean depth
-        var seaDepth = CalculateSeaDepth(heightmap, oceanMask, seaLevel);
+        var seaDepth = CalculateSeaDepth(heightmap, oceanMask, WorldGenConstants.SEA_LEVEL_RAW);
 
-        return new PostProcessingResult(heightmap, oceanMask, seaDepth);
+        // TD_021 Phase 2: Calculate normalized sea level for rendering
+        var (min, max) = GetMinMax(heightmap);
+        float seaLevelNormalized = (WorldGenConstants.SEA_LEVEL_RAW - min) / Math.Max(1e-6f, max - min);
+
+        return new PostProcessingResult(heightmap, oceanMask, seaDepth, seaLevelNormalized);
+    }
+
+    /// <summary>
+    /// Gets the minimum and maximum values from a 2D heightmap.
+    /// Used for calculating normalized sea level (TD_021).
+    /// </summary>
+    private static (float min, float max) GetMinMax(float[,] heightmap)
+    {
+        int height = heightmap.GetLength(0);
+        int width = heightmap.GetLength(1);
+
+        float min = float.MaxValue;
+        float max = float.MinValue;
+
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                float value = heightmap[y, x];
+                if (value < min) min = value;
+                if (value > max) max = value;
+            }
+        }
+
+        return (min, max);
+    }
+
+    /// <summary>
+    /// Algorithm 0: Apply Gaussian blur to remove high-frequency noise from native plate simulation.
+    /// Uses 2D Gaussian kernel convolution with configurable sigma (standard deviation).
+    /// </summary>
+    /// <param name="heightmap">Heightmap to smooth (modified in-place)</param>
+    /// <param name="sigma">Standard deviation of Gaussian (controls smoothing strength: 1.0=light, 2.0=moderate, 3.0=aggressive)</param>
+    /// <remarks>
+    /// Purpose: Native plate simulation produces high-frequency noise (micro-pits causing 3%+ sinks).
+    /// Gaussian blur removes these artifacts while preserving large-scale terrain features (mountains, valleys).
+    /// 3-sigma rule: Kernel radius = ceil(3*sigma) captures 99.7% of Gaussian distribution.
+    /// </remarks>
+    public static void ApplyGaussianBlur(float[,] heightmap, float sigma = 1.5f)
+    {
+        int height = heightmap.GetLength(0);
+        int width = heightmap.GetLength(1);
+
+        // Calculate kernel size (3-sigma rule: 99.7% of distribution)
+        int radius = (int)Math.Ceiling(3 * sigma);
+        int kernelSize = 2 * radius + 1;
+
+        // Generate Gaussian kernel
+        float[,] kernel = new float[kernelSize, kernelSize];
+        float kernelSum = 0f;
+
+        for (int ky = 0; ky < kernelSize; ky++)
+        {
+            for (int kx = 0; kx < kernelSize; kx++)
+            {
+                int dy = ky - radius;
+                int dx = kx - radius;
+                float value = (float)Math.Exp(-(dx * dx + dy * dy) / (2 * sigma * sigma));
+                kernel[ky, kx] = value;
+                kernelSum += value;
+            }
+        }
+
+        // Normalize kernel (ensures weighted average preserves elevation mass)
+        for (int ky = 0; ky < kernelSize; ky++)
+        {
+            for (int kx = 0; kx < kernelSize; kx++)
+            {
+                kernel[ky, kx] /= kernelSum;
+            }
+        }
+
+        // Apply convolution (create smoothed copy to avoid reading modified values)
+        var smoothed = new float[height, width];
+
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                float result = 0f;
+
+                // Convolve with Gaussian kernel
+                for (int ky = 0; ky < kernelSize; ky++)
+                {
+                    for (int kx = 0; kx < kernelSize; kx++)
+                    {
+                        // Calculate source coordinates with border clamping
+                        int sy = y + (ky - radius);
+                        int sx = x + (kx - radius);
+
+                        // Clamp to valid range (mirror/repeat borders)
+                        sy = Math.Max(0, Math.Min(height - 1, sy));
+                        sx = Math.Max(0, Math.Min(width - 1, sx));
+
+                        result += heightmap[sy, sx] * kernel[ky, kx];
+                    }
+                }
+
+                smoothed[y, x] = result;
+            }
+        }
+
+        // Copy smoothed result back to original array
+        Array.Copy(smoothed, heightmap, heightmap.Length);
     }
 
     /// <summary>

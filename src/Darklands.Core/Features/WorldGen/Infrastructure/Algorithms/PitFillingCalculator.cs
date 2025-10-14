@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using Darklands.Core.Features.WorldGen.Application.DTOs;
+using Microsoft.Extensions.Logging;
 
 namespace Darklands.Core.Features.WorldGen.Infrastructure.Algorithms;
 
@@ -32,7 +34,7 @@ namespace Darklands.Core.Features.WorldGen.Infrastructure.Algorithms;
 public static class PitFillingCalculator
 {
     /// <summary>
-    /// Result of selective pit filling.
+    /// Result of selective pit filling (TD_023: Enhanced with basin metadata).
     /// </summary>
     public record FillingResult
     {
@@ -43,15 +45,16 @@ public static class PitFillingCalculator
         public float[,] FilledHeightmap { get; init; }
 
         /// <summary>
-        /// Preserved lake locations (large pits NOT filled).
-        /// These are endorheic basins (real lakes).
+        /// Preserved basin metadata (large pits NOT filled).
+        /// Includes complete hydrological data: cells, pour points, depths (TD_023).
+        /// These are endorheic basins (real lakes) with area ≥ 100 AND depth ≥ 50.
         /// </summary>
-        public List<(int x, int y)> Lakes { get; init; }
+        public List<BasinMetadata> PreservedBasins { get; init; }
 
-        public FillingResult(float[,] filledHeightmap, List<(int x, int y)> lakes)
+        public FillingResult(float[,] filledHeightmap, List<BasinMetadata> preservedBasins)
         {
             FilledHeightmap = filledHeightmap;
-            Lakes = lakes;
+            PreservedBasins = preservedBasins;
         }
     }
 
@@ -62,12 +65,14 @@ public static class PitFillingCalculator
     /// <param name="oceanMask">Ocean mask (true = water, false = land)</param>
     /// <param name="pitDepthThreshold">Max depth to fill (default 50.0)</param>
     /// <param name="pitAreaThreshold">Max area to fill (default 100 cells)</param>
+    /// <param name="logger">Optional logger for diagnostic output (TD_023 debugging)</param>
     /// <returns>Filled heightmap + preserved lake locations</returns>
     public static FillingResult Fill(
         float[,] heightmap,
         bool[,] oceanMask,
         float pitDepthThreshold = 50.0f,
-        int pitAreaThreshold = 100)
+        int pitAreaThreshold = 100,
+        ILogger? logger = null)
     {
         int height = heightmap.GetLength(0);
         int width = heightmap.GetLength(1);
@@ -81,20 +86,35 @@ public static class PitFillingCalculator
 
         var localMinima = FindLocalMinima(filledHeightmap, oceanMask, width, height);
 
+        // TD_023 DEBUG: Log local minima count
+        logger?.LogInformation("PIT-FILLING STEP 1: Found {Count} local minima (potential pits)", localMinima.Count);
+
         // ═══════════════════════════════════════════════════════════════════════
-        // STEP 2: Classify pits (fillable vs preserve as lakes)
+        // STEP 2: Classify pits (fillable vs preserve as lakes) - TD_023
         // ═══════════════════════════════════════════════════════════════════════
 
         var fillablePits = new HashSet<(int x, int y)>();
-        var lakes = new List<(int x, int y)>();
+        var preservedBasins = new List<BasinMetadata>();
 
+        int basinId = 0;  // TD_023: Unique identifier for each basin
         foreach (var pit in localMinima)
         {
-            // Measure pit characteristics
-            var (depth, area) = MeasurePit(filledHeightmap, pit, width, height);
+            // TD_023: Measure pit characteristics and collect complete metadata
+            var basinMetadata = MeasurePit(filledHeightmap, oceanMask, pit, basinId, width, height);
 
             // Decision: Fill small/shallow pits, preserve large/deep pits as lakes
-            bool shouldFill = depth < pitDepthThreshold || area < pitAreaThreshold;
+            // TD_023 FIX: Use AND (both conditions must fail) not OR (either condition fails)
+            // A large flat basin (area >> 100, depth < 50) should be PRESERVED (inner sea!)
+            bool shouldFill = basinMetadata.Depth < pitDepthThreshold && basinMetadata.Area < pitAreaThreshold;
+
+            // TD_023 DEBUG: Log classification decision for first 10 basins
+            if (basinId < 10 || basinMetadata.Area > 1000)
+            {
+                logger?.LogInformation(
+                    "  Basin {Id} at ({X},{Y}): depth={Depth:F1}, area={Area} cells -> {Decision}",
+                    basinId, pit.x, pit.y, basinMetadata.Depth, basinMetadata.Area,
+                    shouldFill ? "FILL" : "PRESERVE");
+            }
 
             if (shouldFill)
             {
@@ -102,9 +122,16 @@ public static class PitFillingCalculator
             }
             else
             {
-                lakes.Add(pit);  // Preserve as lake (endorheic basin)
+                preservedBasins.Add(basinMetadata);  // TD_023: Preserve complete basin metadata
             }
+
+            basinId++;  // Increment for next basin
         }
+
+        // TD_023 DEBUG: Summary
+        logger?.LogInformation(
+            "PIT-FILLING STEP 2: Classified {Total} basins -> {Filled} fillable, {Preserved} preserved",
+            localMinima.Count, fillablePits.Count, preservedBasins.Count);
 
         // ═══════════════════════════════════════════════════════════════════════
         // STEP 3: Priority flood fill (raise fillable pits to spillway level)
@@ -113,93 +140,175 @@ public static class PitFillingCalculator
         PriorityFloodFill(filledHeightmap, oceanMask, fillablePits, width, height);
 
         // ═══════════════════════════════════════════════════════════════════════
-        // RETURN: Filled heightmap + preserved lakes
+        // RETURN: Filled heightmap + preserved basin metadata (TD_023)
         // ═══════════════════════════════════════════════════════════════════════
 
-        return new FillingResult(filledHeightmap, lakes);
+        return new FillingResult(filledHeightmap, preservedBasins);
     }
 
     /// <summary>
-    /// Finds all local minima (cells lower than ALL 8 neighbors).
+    /// Finds all landlocked basins below sea level using flood-fill (TD_023 REWRITE).
+    /// Returns one representative cell per basin (to be measured by MeasurePit).
     /// </summary>
+    /// <remarks>
+    /// NEW ALGORITHM (suggested by user - MUCH better!):
+    /// 1. Find all cells BELOW sea level (elevation < 1.0)
+    /// 2. Exclude ocean mask (cells connected to border)
+    /// 3. Flood-fill to find connected regions (each = one basin)
+    /// 4. Return center of each region as "local minimum"
+    ///
+    /// Why this works:
+    /// - Inner seas are flat/irregular regions BELOW sea level
+    /// - Flood-fill naturally handles flat basins (no need for complex local minima logic)
+    /// - Each connected region = one basin (automatic de-duplication)
+    /// </remarks>
     private static List<(int x, int y)> FindLocalMinima(
         float[,] heightmap,
         bool[,] oceanMask,
         int width,
         int height)
     {
-        var localMinima = new List<(int x, int y)>();
+        const float SEA_LEVEL = 1.0f;  // WorldGenConstants.SEA_LEVEL_RAW
 
+        var visited = new bool[height, width];
+        var basins = new List<(int x, int y)>();
+
+        // Scan for landlocked below-sea-level cells (potential basin starts)
         for (int y = 0; y < height; y++)
         {
             for (int x = 0; x < width; x++)
             {
-                // Skip ocean cells (they're not land pits)
+                // Skip if already visited or not below sea level
+                if (visited[y, x] || heightmap[y, x] >= SEA_LEVEL)
+                    continue;
+
+                // Skip if ocean (connected to border)
                 if (oceanMask[y, x])
                     continue;
 
-                float currentElev = heightmap[y, x];
-                bool isLocalMin = true;
+                // Found a landlocked below-sea-level cell - flood-fill to find full basin
+                var basinCells = FloodFillBasin(heightmap, oceanMask, visited, x, y, SEA_LEVEL, width, height);
 
-                // Check all 8 neighbors
-                for (int dy = -1; dy <= 1; dy++)
+                if (basinCells.Count > 0)
                 {
-                    for (int dx = -1; dx <= 1; dx++)
-                    {
-                        if (dx == 0 && dy == 0) continue;  // Skip self
-
-                        int nx = x + dx;
-                        int ny = y + dy;
-
-                        // Check bounds
-                        if (nx < 0 || nx >= width || ny < 0 || ny >= height)
-                            continue;
-
-                        // If ANY neighbor is lower or equal, not a local minimum
-                        if (heightmap[ny, nx] <= currentElev)
-                        {
-                            isLocalMin = false;
-                            break;
-                        }
-                    }
-
-                    if (!isLocalMin) break;
-                }
-
-                if (isLocalMin)
-                {
-                    localMinima.Add((x, y));
+                    // Use first cell as representative (MeasurePit will re-flood to find full extent)
+                    basins.Add(basinCells[0]);
                 }
             }
         }
 
-        return localMinima;
+        return basins;
     }
 
     /// <summary>
-    /// Measures pit depth and area for classification.
+    /// Flood-fills a below-sea-level basin, marking visited cells and returning all cells in basin.
+    /// CRITICAL FIX: Must check ocean mask to prevent basin expansion into ocean territory!
     /// </summary>
-    private static (float depth, int area) MeasurePit(
+    private static List<(int x, int y)> FloodFillBasin(
         float[,] heightmap,
-        (int x, int y) pitCenter,
+        bool[,] oceanMask,
+        bool[,] visited,
+        int startX,
+        int startY,
+        float seaLevel,
         int width,
         int height)
     {
+        var basinCells = new List<(int x, int y)>();
+        var queue = new Queue<(int x, int y)>();
+
+        queue.Enqueue((startX, startY));
+        visited[startY, startX] = true;
+
+        while (queue.Count > 0)
+        {
+            var (x, y) = queue.Dequeue();
+            basinCells.Add((x, y));
+
+            // Check 4-connected neighbors (use 4-connected for conservative basin detection)
+            int[] dx = { 0, 1, 0, -1 };
+            int[] dy = { -1, 0, 1, 0 };
+
+            for (int i = 0; i < 4; i++)
+            {
+                int nx = x + dx[i];
+                int ny = y + dy[i];
+
+                // Check bounds
+                if (nx < 0 || nx >= width || ny < 0 || ny >= height)
+                    continue;
+
+                // Skip if visited, above sea level, OR ocean (CRITICAL FIX!)
+                if (visited[ny, nx] || heightmap[ny, nx] >= seaLevel || oceanMask[ny, nx])
+                    continue;
+
+                // Add to basin (landlocked below-sea-level cell only)
+                visited[ny, nx] = true;
+                queue.Enqueue((nx, ny));
+            }
+        }
+
+        return basinCells;
+    }
+
+    /// <summary>
+    /// Measures pit characteristics and returns complete basin metadata (TD_023).
+    /// Performs flood-fill from pit center to determine basin extent, pour point, and depth.
+    /// CRITICAL FIX: Must check ocean mask to prevent basin expansion into ocean territory!
+    /// </summary>
+    /// <param name="heightmap">Heightmap in raw elevation scale</param>
+    /// <param name="oceanMask">Ocean mask (prevents basin expansion into ocean)</param>
+    /// <param name="pitCenter">Local minimum (basin center)</param>
+    /// <param name="basinId">Unique basin identifier</param>
+    /// <param name="width">Map width</param>
+    /// <param name="height">Map height</param>
+    /// <returns>Complete basin metadata including cells, pour point, and depth</returns>
+    /// <remarks>
+    /// Hydrological Semantics (TD_023 clarification):
+    /// - spillwayElev = MAX(boundary neighbors) → Used for depth calculation (highest water can rise)
+    /// - pourPoint = location of MIN(boundary neighbors) → Actual outlet location (where water exits)
+    /// - surfaceElevation = pourPoint elevation → Water level at equilibrium (where overflow occurs)
+    ///
+    /// Why track both?
+    /// - Depth calculation needs spillway (max rim height for water column measurement)
+    /// - VS_030 pathfinding needs pour point (actual outlet location for thalweg routing)
+    ///
+    /// Example: Caldera with rim varying 1000m-2000m, pit bottom at 800m:
+    /// - spillwayElev = 2000m (max rim) → depth = 2000 - 800 = 1200m
+    /// - pourPoint = (x,y) at 1000m location → VS_030 routes thalweg to this outlet
+    /// </remarks>
+    private static BasinMetadata MeasurePit(
+        float[,] heightmap,
+        bool[,] oceanMask,
+        (int x, int y) pitCenter,
+        int basinId,
+        int width,
+        int height)
+    {
+        const float SEA_LEVEL = 1.0f;  // WorldGenConstants.SEA_LEVEL_RAW
         float pitElev = heightmap[pitCenter.y, pitCenter.x];
 
-        // Flood fill to find pit extent
+        // TD_023 FIX: Flood-fill ALL cells below sea level (not just equal-elevation!)
+        // Inner seas have varying elevations (0.11-0.12), so exact equality fails
         var visited = new bool[height, width];
         var queue = new Queue<(int x, int y)>();
         queue.Enqueue(pitCenter);
         visited[pitCenter.y, pitCenter.x] = true;
 
+        // TD_023: Collect ALL cells in basin (critical for VS_030 inlet detection)
+        var cells = new List<(int x, int y)>();
         int area = 0;
-        float spillwayElev = pitElev;  // Minimum elevation to escape pit
+
+        // Track BOTH spillway (max boundary) and pour point (min boundary)
+        float spillwayElev = pitElev;  // Maximum elevation to escape pit (for depth)
+        float pourPointElev = float.MaxValue;  // Minimum boundary elevation (for outlet)
+        (int x, int y) pourPoint = pitCenter;  // Outlet location (default to center if no boundary found)
 
         while (queue.Count > 0)
         {
             var (x, y) = queue.Dequeue();
             area++;
+            cells.Add((x, y));  // TD_023: Collect cell for basin boundary tracking
 
             // Check 8 neighbors
             for (int dy = -1; dy <= 1; dy++)
@@ -219,14 +328,37 @@ public static class PitFillingCalculator
 
                     float neighborElev = heightmap[ny, nx];
 
-                    // If neighbor is higher, it might be pit boundary (spillway)
-                    if (neighborElev > pitElev)
+                    // CRITICAL FIX: Check ocean mask to prevent basin expansion into ocean!
+                    if (oceanMask[ny, nx])
                     {
+                        // Neighbor is ocean = treat as rim boundary (DO NOT expand basin into ocean!)
                         spillwayElev = Math.Max(spillwayElev, neighborElev);
+
+                        // Track pour point (MIN boundary - for VS_030 outlet location)
+                        if (neighborElev < pourPointElev)
+                        {
+                            pourPointElev = neighborElev;
+                            pourPoint = (nx, ny);  // Actual outlet location
+                        }
+                        continue;  // Skip - do not add ocean to basin!
+                    }
+
+                    // TD_023 FIX: Flood-fill ALL cells BELOW sea level (matches FindLocalMinima logic)
+                    if (neighborElev >= SEA_LEVEL)
+                    {
+                        // Neighbor is above sea level = rim boundary
+                        spillwayElev = Math.Max(spillwayElev, neighborElev);
+
+                        // Track pour point (MIN boundary - for VS_030 outlet location)
+                        if (neighborElev < pourPointElev)
+                        {
+                            pourPointElev = neighborElev;
+                            pourPoint = (nx, ny);  // Actual outlet location
+                        }
                     }
                     else
                     {
-                        // Neighbor is part of pit (same or lower elevation)
+                        // Neighbor is below sea level AND landlocked = part of basin (expand flood-fill)
                         queue.Enqueue((nx, ny));
                         visited[ny, nx] = true;
                     }
@@ -235,8 +367,17 @@ public static class PitFillingCalculator
         }
 
         float depth = spillwayElev - pitElev;
+        float surfaceElevation = pourPointElev;  // Water level = pour point elevation
 
-        return (depth, area);
+        // TD_023: Return complete BasinMetadata (not just depth/area tuple)
+        return new BasinMetadata(
+            basinId: basinId,
+            center: pitCenter,
+            cells: cells,
+            pourPoint: pourPoint,
+            surfaceElevation: surfaceElevation,
+            depth: depth,
+            area: area);
     }
 
     /// <summary>

@@ -104,5 +104,64 @@ public enum MapViewMode
     /// Colors: Brown (continental interior) → Yellow (moderate) → Blue (maritime coasts).
     /// THIS IS THE FINAL PRECIPITATION used by erosion/rivers (VS_029).
     /// </summary>
-    PrecipitationFinal
+    PrecipitationFinal,
+
+    /// <summary>
+    /// [DEBUG] Display local minima BEFORE pit-filling (VS_029 Step 0A).
+    /// Grayscale elevation + Red markers for ALL sinks (artifacts + real pits).
+    /// Expected: 5-20% of land cells (noisy raw heightmap).
+    /// Purpose: Baseline for pit-filling effectiveness comparison.
+    /// </summary>
+    SinksPreFilling,
+
+    /// <summary>
+    /// [DEBUG] Display local minima AFTER pit-filling (VS_029 Step 0B).
+    /// Grayscale elevation + Red markers for remaining sinks (preserved lakes).
+    /// Expected: <5% of land cells (70-90% reduction from pre-filling).
+    /// Purpose: Validate pit-filling algorithm (fills artifacts, preserves real lakes).
+    /// </summary>
+    SinksPostFilling,
+
+    /// <summary>
+    /// [DEBUG] Display preserved lakes from pit-filling (TD_023).
+    /// Grayscale elevation base + colored lake boundaries + markers (red pour points, cyan centers).
+    /// Each preserved lake rendered with distinct color (endorheic basins / inner seas).
+    /// Visual signature: Colored regions for landlocked water bodies, red dots at outlets, cyan at centers.
+    /// Purpose: Validate basin detection for VS_030 (boundaries for inlet detection, pour points for pathfinding).
+    /// </summary>
+    PreservedLakes,
+
+    /// <summary>
+    /// [DEBUG] Display D-8 flow directions (VS_029 Step 2).
+    /// 8-color gradient: N=Red, NE=Yellow, E=Green, SE=Cyan, S=Blue, SW=Purple, W=Magenta, NW=Orange, Sink=Black.
+    /// Visual signature: Colors flow downhill (mountains→valleys→ocean).
+    /// Purpose: Validate D-8 algorithm correctness (steepest descent).
+    /// </summary>
+    FlowDirections,
+
+    /// <summary>
+    /// [DEBUG] Display flow accumulation (VS_029 Step 3).
+    /// Heat map: Blue (low) → Green → Yellow → Red (high drainage).
+    /// Visual signature: River valleys appear as red hot spots (drainage concentration).
+    /// Purpose: Validate topological sort (upstream→downstream order).
+    /// </summary>
+    FlowAccumulation,
+
+    /// <summary>
+    /// [DEBUG] Display river sources (VS_029 Step 4 - CORRECTED ALGORITHM).
+    /// Grayscale elevation base + Red markers at TRUE river origins.
+    /// Uses threshold-crossing detection: Where flow FIRST becomes "a river".
+    /// Visual signature: Sources scattered across mountains (may be many).
+    /// Purpose: Validate corrected algorithm (expect hundreds → filtered to 5-15 major).
+    /// </summary>
+    RiverSources,
+
+    /// <summary>
+    /// [DEBUG] Display erosion hotspots (VS_029 - OLD ALGORITHM, repurposed).
+    /// Colored elevation base + Magenta markers at high-energy zones.
+    /// High elevation + HIGH flow accumulation = Maximum erosive potential.
+    /// Visual signature: Where BIG rivers flow through mountains (canyons/gorges).
+    /// Purpose: Erosion masking for VS_030+ particle erosion (Grand Canyon zones).
+    /// </summary>
+    ErosionHotspots
 }

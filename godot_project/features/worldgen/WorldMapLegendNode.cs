@@ -1,5 +1,6 @@
 using Godot;
 using Darklands.Core.Features.WorldGen.Application.Common;
+using Darklands.Features.WorldGen.ColorSchemes;
 using Microsoft.Extensions.Logging;
 
 namespace Darklands.Features.WorldGen;
@@ -70,8 +71,7 @@ public partial class WorldMapLegendNode : Control
         // Title
         var titleLabel = new Label
         {
-            Text = "Legend",
-            Theme = GD.Load<Theme>("res://addons/default_theme.tres")
+            Text = "Legend"
         };
         _container.AddChild(titleLabel);
         _container.AddChild(new HSeparator());
@@ -89,130 +89,71 @@ public partial class WorldMapLegendNode : Control
             child.QueueFree();
         }
 
-        // Add legend entries based on view mode
+        // ═══════════════════════════════════════════════════════════════════════
+        // TRUE SSOT: Auto-extract legend from ViewModeSchemeRegistry
+        // ═══════════════════════════════════════════════════════════════════════
+        // The registry maps ViewMode → ColorScheme, ensuring Renderer and Legend
+        // ALWAYS use the same scheme. Change the mapping once, both update!
+
+        var scheme = ViewModeSchemeRegistry.GetScheme(mode);
+
+        if (scheme != null)
+        {
+            // Add view mode title (context header)
+            string title = ViewModeSchemeRegistry.GetLegendTitle(mode);
+            AddLegendEntry(scheme.Name, new Color(0.8f, 0.8f, 0.8f), title);
+
+            // Auto-generate legend entries from color scheme!
+            var entries = scheme.GetLegendEntries();
+
+            if (entries == null || entries.Count == 0)
+            {
+                _logger?.LogWarning("ColorScheme {SchemeName} returned null or empty legend entries for {ViewMode}",
+                    scheme.Name, mode);
+                AddLegendEntry("Error", new Color(1, 0, 0), "Scheme returned no entries");
+            }
+            else
+            {
+                foreach (var entry in entries)
+                {
+                    AddLegendEntry(entry.Label, entry.Color, entry.Description);
+                }
+
+                _logger?.LogDebug("Legend auto-generated from {SchemeName} for {ViewMode} ({Count} entries)",
+                    scheme.Name, mode, entries.Count);
+            }
+        }
+        else
+        {
+            // Fallback: Custom legends for non-scheme views (Plates, etc.)
+            _logger?.LogDebug("No scheme for {ViewMode}, using custom legend", mode);
+            RenderCustomLegend(mode);
+        }
+    }
+
+    /// <summary>
+    /// Renders custom legends for view modes that don't use color schemes.
+    /// These views have procedural or special-case rendering logic.
+    /// </summary>
+    private void RenderCustomLegend(MapViewMode mode)
+    {
         switch (mode)
         {
-            case MapViewMode.RawElevation:
-                AddLegendEntry("Black", new Color(0, 0, 0), "Low elevation");
-                AddLegendEntry("Gray", new Color(0.5f, 0.5f, 0.5f), "Mid elevation");
-                AddLegendEntry("White", new Color(1, 1, 1), "High elevation");
-                break;
-
-            case MapViewMode.ColoredOriginalElevation:
-                // 7-band terrain gradient (VS_024: Original native output)
-                AddLegendEntry("Original Elevation", new Color(0.8f, 0.8f, 0.8f), "(native raw, unmodified)");
-                AddLegendEntry("Deep Blue", new Color(0f, 0f, 1f), "Deep ocean");
-                AddLegendEntry("Blue", new Color(0f, 0.078f, 0.784f), "Ocean");
-                AddLegendEntry("Cyan", new Color(0.529f, 0.929f, 0.922f), "Shallow water");
-                AddLegendEntry("Green", new Color(0.345f, 0.678f, 0.192f), "Grass/Lowlands");
-                AddLegendEntry("Yellow-Green", new Color(0.855f, 0.886f, 0.227f), "Hills");
-                AddLegendEntry("Yellow", new Color(0.984f, 0.988f, 0.165f), "Mountains");
-                AddLegendEntry("Brown", new Color(0.357f, 0.110f, 0.051f), "Peaks");
-                break;
-
-            case MapViewMode.ColoredPostProcessedElevation:
-                // 7-band terrain gradient (VS_024: After 4 WorldEngine algorithms)
-                AddLegendEntry("Post-Processed", new Color(0.8f, 0.8f, 0.8f), "(noise + smooth ocean)");
-                AddLegendEntry("Deep Blue", new Color(0f, 0f, 1f), "Deep ocean");
-                AddLegendEntry("Blue", new Color(0f, 0.078f, 0.784f), "Ocean");
-                AddLegendEntry("Cyan", new Color(0.529f, 0.929f, 0.922f), "Shallow water");
-                AddLegendEntry("Green", new Color(0.345f, 0.678f, 0.192f), "Grass/Lowlands");
-                AddLegendEntry("Yellow-Green", new Color(0.855f, 0.886f, 0.227f), "Hills");
-                AddLegendEntry("Yellow", new Color(0.984f, 0.988f, 0.165f), "Mountains");
-                AddLegendEntry("Brown", new Color(0.357f, 0.110f, 0.051f), "Peaks");
-                break;
-
             case MapViewMode.Plates:
+                // Procedural random colors per plate
                 AddLegendEntry("Each color", new Color(0.8f, 0.8f, 0.8f), "= unique plate");
                 AddLegendEntry("(10 plates total)", new Color(0.6f, 0.6f, 0.6f), "");
                 break;
 
-            case MapViewMode.TemperatureLatitudeOnly:
-                // 7-band WorldEngine climate zones (VS_025: Debug Stage 1)
-                AddLegendEntry("Latitude Only", new Color(0.8f, 0.8f, 0.8f), "(quantile bands)");
-                AddLegendEntry("Blue", new Color(0f, 0f, 1f), "Polar (coldest)");
-                AddLegendEntry("Blue-Purple", new Color(42f/255f, 0f, 213f/255f), "Alpine");
-                AddLegendEntry("Purple", new Color(85f/255f, 0f, 170f/255f), "Boreal");
-                AddLegendEntry("Magenta", new Color(128f/255f, 0f, 128f/255f), "Cool");
-                AddLegendEntry("Purple-Red", new Color(170f/255f, 0f, 85f/255f), "Warm");
-                AddLegendEntry("Red-Purple", new Color(213f/255f, 0f, 42f/255f), "Subtropical");
-                AddLegendEntry("Red", new Color(1f, 0f, 0f), "Tropical (hottest)");
-                break;
-
-            case MapViewMode.TemperatureWithNoise:
-                // 7-band WorldEngine climate zones (VS_025: Debug Stage 2)
-                AddLegendEntry("+ Climate Noise", new Color(0.8f, 0.8f, 0.8f), "(8% variation)");
-                AddLegendEntry("Blue", new Color(0f, 0f, 1f), "Polar");
-                AddLegendEntry("Blue-Purple", new Color(42f/255f, 0f, 213f/255f), "Alpine");
-                AddLegendEntry("Purple", new Color(85f/255f, 0f, 170f/255f), "Boreal");
-                AddLegendEntry("Magenta", new Color(128f/255f, 0f, 128f/255f), "Cool");
-                AddLegendEntry("Purple-Red", new Color(170f/255f, 0f, 85f/255f), "Warm");
-                AddLegendEntry("Red-Purple", new Color(213f/255f, 0f, 42f/255f), "Subtropical");
-                AddLegendEntry("Red", new Color(1f, 0f, 0f), "Tropical");
-                break;
-
-            case MapViewMode.TemperatureWithDistance:
-                // 7-band WorldEngine climate zones (VS_025: Debug Stage 3)
-                AddLegendEntry("+ Distance to Sun", new Color(0.8f, 0.8f, 0.8f), "(hot/cold planets)");
-                AddLegendEntry("Blue", new Color(0f, 0f, 1f), "Polar");
-                AddLegendEntry("Blue-Purple", new Color(42f/255f, 0f, 213f/255f), "Alpine");
-                AddLegendEntry("Purple", new Color(85f/255f, 0f, 170f/255f), "Boreal");
-                AddLegendEntry("Magenta", new Color(128f/255f, 0f, 128f/255f), "Cool");
-                AddLegendEntry("Purple-Red", new Color(170f/255f, 0f, 85f/255f), "Warm");
-                AddLegendEntry("Red-Purple", new Color(213f/255f, 0f, 42f/255f), "Subtropical");
-                AddLegendEntry("Red", new Color(1f, 0f, 0f), "Tropical");
-                break;
-
-            case MapViewMode.TemperatureFinal:
-                // 7-band WorldEngine climate zones (VS_025: Production Stage 4)
-                AddLegendEntry("Final Temperature", new Color(0.8f, 0.8f, 0.8f), "(+ mountain cooling)");
-                AddLegendEntry("Blue", new Color(0f, 0f, 1f), "Polar");
-                AddLegendEntry("Blue-Purple", new Color(42f/255f, 0f, 213f/255f), "Alpine");
-                AddLegendEntry("Purple", new Color(85f/255f, 0f, 170f/255f), "Boreal");
-                AddLegendEntry("Magenta", new Color(128f/255f, 0f, 128f/255f), "Cool");
-                AddLegendEntry("Purple-Red", new Color(170f/255f, 0f, 85f/255f), "Warm");
-                AddLegendEntry("Red-Purple", new Color(213f/255f, 0f, 42f/255f), "Subtropical");
-                AddLegendEntry("Red", new Color(1f, 0f, 0f), "Tropical");
-                break;
-
-            case MapViewMode.PrecipitationNoiseOnly:
-                // 3-band moisture gradient (VS_026: Debug Stage 1)
-                AddLegendEntry("Noise Only", new Color(0.8f, 0.8f, 0.8f), "(base coherent noise)");
-                AddLegendEntry("Yellow", new Color(255f/255f, 255f/255f, 0f), "Dry (random)");
-                AddLegendEntry("Green", new Color(0f, 200f/255f, 0f), "Moderate (random)");
-                AddLegendEntry("Blue", new Color(0f, 0f, 1f), "Wet (random)");
-                break;
-
-            case MapViewMode.PrecipitationTemperatureShaped:
-                // 3-band moisture gradient (VS_026: Debug Stage 2)
-                AddLegendEntry("+ Temp Gamma Curve", new Color(0.8f, 0.8f, 0.8f), "(physics shaping)");
-                AddLegendEntry("Yellow", new Color(255f/255f, 255f/255f, 0f), "Dry (cold = low evap)");
-                AddLegendEntry("Green", new Color(0f, 200f/255f, 0f), "Moderate");
-                AddLegendEntry("Blue", new Color(0f, 0f, 1f), "Wet (hot = high evap)");
-                break;
-
-            case MapViewMode.PrecipitationBase:
-                // 3-band moisture gradient (VS_026: Production Stage 3)
-                AddLegendEntry("Base Precipitation", new Color(0.8f, 0.8f, 0.8f), "(before rain shadow)");
-                AddLegendEntry("Yellow", new Color(255f/255f, 255f/255f, 0f), "Low (<400mm/year)");
-                AddLegendEntry("Green", new Color(0f, 200f/255f, 0f), "Medium (400-800mm)");
-                AddLegendEntry("Blue", new Color(0f, 0f, 1f), "High (>800mm/year)");
-                break;
-
-            case MapViewMode.PrecipitationWithRainShadow:
-                // 3-band moisture gradient with rain shadow effects (VS_027: Production Stage 4)
-                AddLegendEntry("+ Rain Shadow", new Color(0.8f, 0.8f, 0.8f), "(orographic blocking)");
-                AddLegendEntry("Yellow", new Color(255f/255f, 255f/255f, 0f), "Dry (leeward deserts)");
-                AddLegendEntry("Green", new Color(0f, 200f/255f, 0f), "Moderate");
-                AddLegendEntry("Blue", new Color(0f, 0f, 1f), "Wet (windward coasts)");
-                break;
-
-            case MapViewMode.PrecipitationFinal:
-                // 3-band moisture gradient FINAL (VS_028: Production Stage 5 - coastal moisture)
-                AddLegendEntry("FINAL (+ Coastal)", new Color(0.8f, 0.8f, 0.8f), "(maritime vs continental)");
-                AddLegendEntry("Yellow", new Color(255f/255f, 255f/255f, 0f), "Arid (interior)");
-                AddLegendEntry("Green", new Color(0f, 200f/255f, 0f), "Moderate");
-                AddLegendEntry("Blue", new Color(0f, 0f, 1f), "Wet (maritime coasts)");
+            case MapViewMode.PreservedLakes:
+                // TD_023: Preserved lakes visualization
+                AddLegendEntry("Grayscale", new Color(0.5f, 0.5f, 0.5f), "Elevation (terrain context)");
+                AddLegendEntry("Dark Blue", new Color(0f, 0f, 0.545f), "Ocean (border-connected water)");
+                AddLegendEntry("Colored regions", new Color(0.8f, 0.6f, 1.0f), "Lake boundaries (inner seas / endorheic basins)");
+                AddLegendEntry("Red dot", new Color(1f, 0f, 0f), "Pour point (outlet - where water exits)");
+                AddLegendEntry("Cyan dot", new Color(0f, 1f, 1f), "Lake center (deepest point)");
+                AddLegendEntry("", new Color(0.7f, 0.7f, 0.7f), "");
+                AddLegendEntry("Purpose", new Color(0.7f, 0.7f, 0.7f), "Validate lake detection for VS_030");
                 break;
 
             default:
@@ -246,8 +187,7 @@ public partial class WorldMapLegendNode : Control
         {
             Text = string.IsNullOrEmpty(description) ? label : $"{label} - {description}",
             AutowrapMode = TextServer.AutowrapMode.Off,  // No wrapping for horizontal layout
-            SizeFlagsHorizontal = SizeFlags.ExpandFill,
-            Theme = GD.Load<Theme>("res://addons/default_theme.tres")
+            SizeFlagsHorizontal = SizeFlags.ExpandFill
         };
 
         // Larger font for better readability (was 11, now 13)

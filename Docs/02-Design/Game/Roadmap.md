@@ -551,6 +551,7 @@ Phase 3: Geology & Resources (DF-Inspired) - Design phase
 - Native C++ integration (1.0s for 512×512)
 - Dual-heightmap architecture (raw + post-processed)
 - Quantile-based thresholds (adaptive per-world)
+- **🐛 Known Issue**: OceanMask excludes inland lakes (by design, will fix in VS_029 with separate Water/Ocean masks)
 - Archive: [Completed_Backlog_2025-10_Part2.md](../../07-Archive/Completed_Backlog_2025-10_Part2.md)
 
 **VS_025: Temperature Simulation** ✅ COMPLETE (2025-10-08)
@@ -579,13 +580,6 @@ Phase 3: Geology & Resources (DF-Inspired) - Design phase
 
 ### In Progress
 
-**VS_029: Particle-Based Erosion & Rivers** 🔄 NEXT (20-28h estimate)
-- SimpleHydrology algorithm (particle physics with momentum field feedback)
-- Precipitation-weighted seeding + scale-aware parameters
-- Natural meandering rivers (emergent from physics, not algorithmic)
-- River/lake extraction (continuous discharge → discrete markers)
-- **Time savings vs original plan**: Replaces watermap simulation (saves 3-4h!)
-- Details: [Roadmap_World_Generation.md](Roadmap_World_Generation.md#vs_029-particle-based-hydraulic-erosion--rivers--planned)
 
 **VS_031: WorldGen Debug Panel** ⏳ AFTER VS_029 (6-8h estimate) - **ESSENTIAL**
 - Real-time semantic parameter tuning (RiverDensity, Meandering, ValleyDepth, Speed)

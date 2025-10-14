@@ -1,5 +1,6 @@
 using Darklands.Core.Features.WorldGen.Application.DTOs;
 using Darklands.Core.Features.WorldGen.Infrastructure.Algorithms;
+using Microsoft.Extensions.Logging;
 
 namespace Darklands.Core.Features.WorldGen.Infrastructure.Pipeline;
 
@@ -57,6 +58,7 @@ public static class HydraulicErosionProcessor
     /// <param name="accumulationThreshold">Minimum flow to spawn river (default 0.5)</param>
     /// <param name="pitDepthThreshold">Max pit depth to fill (default 50.0)</param>
     /// <param name="pitAreaThreshold">Max pit area to fill (default 100)</param>
+    /// <param name="logger">Optional logger for diagnostics</param>
     /// <returns>Phase 1 erosion data (filled heightmap, flow data, sources, lakes)</returns>
     public static Phase1ErosionData ProcessPhase1(
         float[,] heightmap,
@@ -65,7 +67,8 @@ public static class HydraulicErosionProcessor
         ElevationThresholds thresholds,
         float accumulationThreshold = DefaultAccumulationThreshold,
         float pitDepthThreshold = DefaultPitDepthThreshold,
-        int pitAreaThreshold = DefaultPitAreaThreshold)
+        int pitAreaThreshold = DefaultPitAreaThreshold,
+        ILogger? logger = null)
     {
         int height = heightmap.GetLength(0);
         int width = heightmap.GetLength(1);
@@ -79,10 +82,11 @@ public static class HydraulicErosionProcessor
             heightmap,
             oceanMask,
             pitDepthThreshold,
-            pitAreaThreshold);
+            pitAreaThreshold,
+            logger);
 
         var filledHeightmap = fillingResult.FilledHeightmap;
-        var lakes = fillingResult.Lakes;
+        var preservedBasins = fillingResult.PreservedBasins;  // TD_023: Now contains complete basin metadata
 
         // ═══════════════════════════════════════════════════════════════════════
         // STEP 1b: Flow Direction Computation (O(n) - Steepest Descent)
@@ -108,20 +112,30 @@ public static class HydraulicErosionProcessor
             flowDirections,
             topologicalOrder,
             width,
-            height);
+            height,
+            logger);
 
         // ═══════════════════════════════════════════════════════════════════════
-        // STEP 1e: River Source Detection (O(n) - Threshold Check)
+        // STEP 1e: River Source Detection (O(n) - TWO-STEP: Threshold-Crossing + Filtering)
         // ═══════════════════════════════════════════════════════════════════════
-        // Find mountain cells with large accumulated flow (realistic river density!)
+        // NEW ALGORITHM (CORRECTED):
+        // Step 1: Find ALL threshold-crossing points (where flow FIRST becomes "a river")
+        // Step 2: Filter to select only MAJOR rivers (ranked by downstream importance)
 
-        var riverSources = RiverSourceDetector.Detect(
-            filledHeightmap,
+        // Step 1: Detect all potential sources (physically correct threshold-crossing)
+        var allPotentialSources = RiverSourceDetector.DetectAllSources(
             flowAccumulation,
-            thresholds.MountainLevel,
-            accumulationThreshold,
-            width,
-            height);
+            flowDirections,
+            oceanMask,
+            threshold: null);  // Uses adaptive 15th percentile threshold
+
+        // Step 2: Filter to select major rivers only (artistic control)
+        var riverSources = RiverSourceDetector.FilterMajorRivers(
+            allPotentialSources,
+            flowAccumulation,
+            flowDirections,
+            oceanMask,
+            maxMajorRivers: 15);  // Target 5-15 major rivers
 
         // ═══════════════════════════════════════════════════════════════════════
         // RETURN: Phase 1 Erosion Data (foundation for river tracing)
@@ -132,6 +146,6 @@ public static class HydraulicErosionProcessor
             flowDirections: flowDirections,
             flowAccumulation: flowAccumulation,
             riverSources: riverSources,
-            lakes: lakes);
+            preservedBasins: preservedBasins);  // TD_023: Pass basin metadata
     }
 }

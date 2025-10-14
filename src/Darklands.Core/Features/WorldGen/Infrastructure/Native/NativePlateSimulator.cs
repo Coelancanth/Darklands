@@ -2,6 +2,7 @@ using System;
 using CSharpFunctionalExtensions;
 using Darklands.Core.Features.WorldGen.Application.Abstractions;
 using Darklands.Core.Features.WorldGen.Application.DTOs;
+using Darklands.Core.Features.WorldGen.Domain;
 using Darklands.Core.Features.WorldGen.Infrastructure.Native.Interop;
 using Microsoft.Extensions.Logging;
 
@@ -54,7 +55,7 @@ public class NativePlateSimulator : IPlateSimulator
                 seed: p.Seed,
                 width: (uint)p.WorldSize,
                 height: (uint)p.WorldSize,
-                seaLevel: p.SeaLevel,
+                seaLevel: p.SeaLevel,  // TD_021: Generation param (land/ocean ratio), not physics threshold!
                 erosionPeriod: (uint)p.ErosionPeriod,
                 foldingRatio: p.FoldingRatio,
                 aggrOverlapAbs: (uint)p.AggrOverlapAbs,

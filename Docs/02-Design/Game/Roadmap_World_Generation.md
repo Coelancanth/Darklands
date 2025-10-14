@@ -146,6 +146,42 @@ Stage 6: Resource Distribution
 
 **Performance**: <1.5s for 512×512 world (native sim 1.0s + post-processing 0.2s + visualization 0.3s)
 
+**🐛 Known Issues** (Discovered 2025-10-13):
+
+**Issue 1: Ocean Mask Missing Inland Water**
+- **Problem**: `FillOcean()` algorithm uses BFS flood-fill from map **borders only**, intentionally excluding landlocked seas/lakes
+- **Impact**: River flow algorithms need ALL water bodies (ocean + lakes), not just border-connected ocean
+- **Root Cause**: `ElevationPostProcessor.cs:161` comment states: *"Ensures only cells connected to border oceans are marked as ocean (prevents landlocked seas)"*
+- **Decision**: Defer fix until VS_029 (erosion/rivers) - will implement **Option 2: Separate Ocean/Water Masks**
+
+**Planned Fix (Option 2 - Proper Architecture)**:
+```csharp
+public record PostProcessingResult {
+    public bool[,] OceanMask { get; init; }    // Border-connected ocean ONLY (for gameplay distinction)
+    public bool[,] WaterMask { get; init; }    // Ocean + enclosed lakes (for river flow algorithms)
+    // ...
+}
+```
+
+**Issue 2: Ocean Mask Stale After Harmonization** ✅ FIXED (2025-10-13)
+- **Problem**: `FillOcean()` runs on line 83, but `HarmonizeOcean()` (line 86) modifies heightmap AFTER mask creation
+- **Impact**: Cells raised above threshold by smoothing remain marked as ocean (visual/probe mismatch)
+- **Example**: Cell at elevation 0.29 → smoothed to 1.6 → 160m above sea level BUT still marked as ocean
+- **Root Cause**: Ocean mask created before final heightmap state
+- **Fix Applied**: Re-run `FillOcean()` after `HarmonizeOcean()` to reflect final heightmap
+```csharp
+// Algorithm 2: Flood-fill ocean detection (preliminary pass)
+var oceanMask = FillOcean(heightmap, seaLevel);
+
+// Algorithm 3: Smooth ocean floor (modifies elevations!)
+HarmonizeOcean(heightmap, oceanMask);
+
+// Algorithm 2B: Re-run flood-fill AFTER harmonization (NEW)
+oceanMask = FillOcean(heightmap, seaLevel);  // Now accurate!
+```
+
+**Validation Tool Added**: `MapViewMode.OceanMask` debug view (binary blue/white visualization) exposes both issues clearly.
+
 **Archive**: [Completed_Backlog_2025-10_Part2.md](../../07-Archive/Completed_Backlog_2025-10_Part2.md) (search "VS_024")
 
 ---

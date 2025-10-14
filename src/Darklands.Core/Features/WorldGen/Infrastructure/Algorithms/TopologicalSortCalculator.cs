@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Microsoft.Extensions.Logging;
 
 namespace Darklands.Core.Features.WorldGen.Infrastructure.Algorithms;
 
@@ -35,8 +36,9 @@ public static class TopologicalSortCalculator
     /// <param name="flowDirections">Flow direction map (0-7 direction, -1 sink)</param>
     /// <param name="width">Map width</param>
     /// <param name="height">Map height</param>
+    /// <param name="logger">Optional logger for diagnostics</param>
     /// <returns>List of cells in topological order (headwaters first, sinks last)</returns>
-    public static List<(int x, int y)> Sort(int[,] flowDirections, int width, int height)
+    public static List<(int x, int y)> Sort(int[,] flowDirections, int width, int height, ILogger? logger = null)
     {
         // ═══════════════════════════════════════════════════════════════════════
         // STEP 1: Compute in-degree for each cell
@@ -44,6 +46,8 @@ public static class TopologicalSortCalculator
         // in-degree = number of cells flowing INTO this cell
 
         var inDegree = new int[height, width];
+        int totalCells = width * height;
+        int sinkCount = 0;
 
         for (int y = 0; y < height; y++)
         {
@@ -53,7 +57,10 @@ public static class TopologicalSortCalculator
 
                 // Skip sinks (they don't flow anywhere)
                 if (dir == -1)
+                {
+                    sinkCount++;
                     continue;
+                }
 
                 // Find downstream neighbor
                 var (dx, dy) = FlowDirectionCalculator.GetDirectionOffset(dir);
@@ -68,10 +75,14 @@ public static class TopologicalSortCalculator
             }
         }
 
+        logger?.LogInformation("[TopoSort] STEP 1: Computed in-degrees for {Total} cells, found {Sinks} sinks ({Percent:F1}%)",
+            totalCells, sinkCount, (sinkCount * 100.0f / totalCells));
+
         // ═══════════════════════════════════════════════════════════════════════
-        // STEP 2: Find all headwaters (in-degree = 0)
+        // STEP 2: Find all headwaters (in-degree = 0, BUT NOT SINKS!)
         // ═══════════════════════════════════════════════════════════════════════
         // Headwaters have no upstream contributors
+        // CRITICAL: Exclude sinks (dir=-1) - they're terminals, not sources!
 
         var queue = new Queue<(int x, int y)>();
 
@@ -79,7 +90,9 @@ public static class TopologicalSortCalculator
         {
             for (int x = 0; x < width; x++)
             {
-                if (inDegree[y, x] == 0)
+                // BUG FIX: Only enqueue non-sink cells with in-degree 0
+                // Sinks (ocean) also have in-degree 0, but they're terminals, not headwaters!
+                if (inDegree[y, x] == 0 && flowDirections[y, x] != -1)
                 {
                     queue.Enqueue((x, y));
                 }

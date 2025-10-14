@@ -85,8 +85,7 @@ public partial class WorldMapUINode : Control
         // Title
         var titleLabel = new Label
         {
-            Text = "World Map Viewer",
-            Theme = GD.Load<Theme>("res://addons/default_theme.tres")
+            Text = "World Map Viewer"
         };
         container.AddChild(titleLabel);
 
@@ -118,6 +117,16 @@ public partial class WorldMapUINode : Control
         _viewModeDropdown.AddItem("Precipitation: 3. Base", (int)MapViewMode.PrecipitationBase);
         _viewModeDropdown.AddItem("Precipitation: 4. + Rain Shadow", (int)MapViewMode.PrecipitationWithRainShadow);
         _viewModeDropdown.AddItem("Precipitation: 5. FINAL (+ Coastal)", (int)MapViewMode.PrecipitationFinal);
+
+        // VS_029: D-8 Flow visualization debug views
+        _viewModeDropdown.AddSeparator("─── Erosion Debug (VS_029) ───");
+        _viewModeDropdown.AddItem("Erosion: 0A. Sinks (PRE-Filling)", (int)MapViewMode.SinksPreFilling);
+        _viewModeDropdown.AddItem("Erosion: 0B. Sinks (POST-Filling)", (int)MapViewMode.SinksPostFilling);
+        _viewModeDropdown.AddItem("DEBUG: Basin Metadata (TD_023)", (int)MapViewMode.PreservedLakes);
+        _viewModeDropdown.AddItem("Erosion: 1. Flow Directions", (int)MapViewMode.FlowDirections);
+        _viewModeDropdown.AddItem("Erosion: 2. Flow Accumulation", (int)MapViewMode.FlowAccumulation);
+        _viewModeDropdown.AddItem("Erosion: 3. River Sources", (int)MapViewMode.RiverSources);
+        _viewModeDropdown.AddItem("Erosion: 4. Erosion Hotspots", (int)MapViewMode.ErosionHotspots);
 
         _viewModeDropdown.Selected = 0;  // ColoredOriginalElevation is default
         _viewModeDropdown.ItemSelected += OnViewModeSelected;
@@ -231,7 +240,6 @@ public partial class WorldMapUINode : Control
     private void OnViewModeSelected(long index)
     {
         var mode = (MapViewMode)_viewModeDropdown!.GetItemId((int)index);
-        _logger?.LogInformation("View mode changed to: {Mode}", mode);
         EmitSignal(SignalName.ViewModeChanged, (int)mode);
     }
 

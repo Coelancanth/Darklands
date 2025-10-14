@@ -84,7 +84,8 @@ public static class ElevationMapper
 
     /// <summary>
     /// Formats elevation with terrain type hint based on thresholds.
-    /// Examples: "1,200m (Hills)", "5,800m (Mountains)", "200m (Lowlands)"
+    /// Examples: "1,200m (Hills)", "5,800m (Mountains)", "200m (Lowlands)", "Ocean"
+    /// TD_021: Ocean cells now show just "Ocean" (no depth display to avoid clutter).
     /// </summary>
     /// <param name="rawElevation">Raw elevation from heightmap</param>
     /// <param name="seaLevelThreshold">Sea level threshold</param>
@@ -103,15 +104,18 @@ public static class ElevationMapper
         float? mountainThreshold = null,
         float? peakThreshold = null)
     {
+        // TD_021: Simplified ocean display - just show "Ocean" (depth available via seaDepth field if needed)
+        if (rawElevation <= seaLevelThreshold)
+        {
+            return "Ocean";
+        }
+
+        // Land elevation: calculate meters and terrain type
         float meters = ToMeters(rawElevation, seaLevelThreshold, minElevation, maxElevation);
 
         // Determine terrain type from thresholds
         string terrainType;
-        if (rawElevation <= seaLevelThreshold)
-        {
-            terrainType = "Ocean";
-        }
-        else if (peakThreshold.HasValue && rawElevation >= peakThreshold.Value)
+        if (peakThreshold.HasValue && rawElevation >= peakThreshold.Value)
         {
             terrainType = "Peaks";
         }
@@ -128,13 +132,6 @@ public static class ElevationMapper
             terrainType = "Lowlands";
         }
 
-        if (meters >= 0)
-        {
-            return $"{meters:N0}m ({terrainType})";
-        }
-        else
-        {
-            return $"{-meters:N0}m below sea level ({terrainType})";
-        }
+        return $"{meters:N0}m ({terrainType})";
     }
 }

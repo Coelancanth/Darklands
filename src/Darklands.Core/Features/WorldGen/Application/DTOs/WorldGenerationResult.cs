@@ -71,6 +71,14 @@ public record WorldGenerationResult
     public float[,]? SeaDepth { get; init; }
 
     /// <summary>
+    /// Sea level position in normalized [0, 1] scale for rendering (TD_021 Phase 2).
+    /// Calculated as: (SEA_LEVEL_RAW - min) / (max - min)
+    /// Enables rendering to show sea level threshold correctly on color ramps.
+    /// Used by: Elevation color ramps, probe display, biome classification UI.
+    /// </summary>
+    public float? SeaLevelNormalized { get; init; }
+
+    /// <summary>
     /// Temperature map - Stage 1: Latitude-only (VS_025 Stage 2 debug).
     /// Pure latitude banding with axial tilt. Normalized [0,1].
     /// Visual signature: Horizontal bands, hot zone shifts with tilt.
@@ -170,6 +178,21 @@ public record WorldGenerationResult
     public float[,]? PrecipitationMap { get; init; }
 
     /// <summary>
+    /// Phase 1 erosion data for D-8 flow visualization (VS_029).
+    /// Contains: FilledHeightmap, FlowDirections, FlowAccumulation, RiverSources, Lakes.
+    /// Computed AFTER VS_028 (PrecipitationFinal required for flow accumulation).
+    /// </summary>
+    public Phase1ErosionData? Phase1Erosion { get; init; }
+
+    /// <summary>
+    /// Local minima detected BEFORE pit-filling algorithm (VS_029 diagnostic).
+    /// Baseline for pit-filling effectiveness comparison: PreFillingLocalMinima → PostFillingLocalMinima.
+    /// Expected: 5-20% of land cells (raw heightmap has many artifacts).
+    /// Used to validate pit-filling algorithm: reduction = (pre - post) / pre (expect 70-90% reduction).
+    /// </summary>
+    public List<(int x, int y)>? PreFillingLocalMinima { get; init; }
+
+    /// <summary>
     /// Raw native output preserved for debugging and visualization.
     /// Always available regardless of pipeline stages.
     /// </summary>
@@ -195,6 +218,7 @@ public record WorldGenerationResult
         float maxElevation = 20.0f,
         bool[,]? oceanMask = null,
         float[,]? seaDepth = null,
+        float? seaLevelNormalized = null,
         float[,]? temperatureLatitudeOnly = null,
         float[,]? temperatureWithNoise = null,
         float[,]? temperatureWithDistance = null,
@@ -207,7 +231,9 @@ public record WorldGenerationResult
         PrecipitationThresholds? precipitationThresholds = null,
         float[,]? withRainShadowPrecipitationMap = null,
         float[,]? precipitationFinal = null,
-        float[,]? precipitationMap = null)
+        float[,]? precipitationMap = null,
+        Phase1ErosionData? phase1Erosion = null,
+        List<(int x, int y)>? preFillingLocalMinima = null)
     {
         Heightmap = heightmap;
         PostProcessedHeightmap = postProcessedHeightmap;
@@ -217,6 +243,7 @@ public record WorldGenerationResult
         PlatesMap = platesMap;
         OceanMask = oceanMask;
         SeaDepth = seaDepth;
+        SeaLevelNormalized = seaLevelNormalized;
         TemperatureLatitudeOnly = temperatureLatitudeOnly;
         TemperatureWithNoise = temperatureWithNoise;
         TemperatureWithDistance = temperatureWithDistance;
@@ -230,6 +257,8 @@ public record WorldGenerationResult
         WithRainShadowPrecipitationMap = withRainShadowPrecipitationMap;
         PrecipitationFinal = precipitationFinal;
         PrecipitationMap = precipitationMap;
+        Phase1Erosion = phase1Erosion;
+        PreFillingLocalMinima = preFillingLocalMinima;
         RawNativeOutput = rawNativeOutput;
     }
 }

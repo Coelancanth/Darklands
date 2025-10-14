@@ -1,5 +1,6 @@
 using Godot;
 using System;
+using System.Linq;
 using Darklands.Core.Features.WorldGen.Application.Common;
 using Darklands.Core.Features.WorldGen.Application.DTOs;
 using Microsoft.Extensions.Logging;
@@ -76,18 +77,18 @@ public partial class WorldMapRendererNode : Sprite2D
                 break;
 
             case MapViewMode.ColoredOriginalElevation:
-                RenderColoredElevation(_worldData.Heightmap);  // Original raw [0-20]
+                RenderColoredElevation(_worldData.Heightmap, _worldData.OceanMask, _worldData.Phase1Erosion?.PreservedBasins);  // Original raw [0-20] + ocean mask + lakes
                 break;
 
             case MapViewMode.ColoredPostProcessedElevation:
                 if (_worldData.PostProcessedHeightmap != null)
                 {
-                    RenderColoredElevation(_worldData.PostProcessedHeightmap);  // Post-processed raw [0.1-20]
+                    RenderColoredElevation(_worldData.PostProcessedHeightmap, _worldData.OceanMask, _worldData.Phase1Erosion?.PreservedBasins);  // Post-processed raw [0.1-20] + ocean mask + lakes
                 }
                 else
                 {
                     _logger?.LogWarning("Post-processed heightmap not available, falling back to original");
-                    RenderColoredElevation(_worldData.Heightmap);
+                    RenderColoredElevation(_worldData.Heightmap, _worldData.OceanMask, _worldData.Phase1Erosion?.PreservedBasins);
                 }
                 break;
 
@@ -190,6 +191,85 @@ public partial class WorldMapRendererNode : Sprite2D
                 }
                 break;
 
+            case MapViewMode.SinksPreFilling:
+                if (_worldData.PreFillingLocalMinima != null && _worldData.PostProcessedHeightmap != null && _worldData.OceanMask != null)
+                {
+                    RenderSinksPreFilling(_worldData.PostProcessedHeightmap, _worldData.OceanMask, _worldData.PreFillingLocalMinima);
+                }
+                else
+                {
+                    _logger?.LogWarning("SinksPreFilling data not available");
+                }
+                break;
+
+            case MapViewMode.SinksPostFilling:
+                if (_worldData.Phase1Erosion != null && _worldData.Phase1Erosion.FilledHeightmap != null && _worldData.OceanMask != null)
+                {
+                    // TD_023: PreservedBasins contains BasinMetadata - extract centers for rendering
+                    var lakeCenters = _worldData.Phase1Erosion.PreservedBasins.Select(b => b.Center).ToList();
+                    RenderSinksPostFilling(_worldData.Phase1Erosion.FilledHeightmap, _worldData.OceanMask, lakeCenters);
+                }
+                else
+                {
+                    _logger?.LogWarning("SinksPostFilling data not available");
+                }
+                break;
+
+            case MapViewMode.PreservedLakes:
+                if (_worldData.Phase1Erosion != null && _worldData.Phase1Erosion.FilledHeightmap != null && _worldData.OceanMask != null)
+                {
+                    RenderPreservedLakes(_worldData.Phase1Erosion.FilledHeightmap, _worldData.OceanMask, _worldData.Phase1Erosion.PreservedBasins);
+                }
+                else
+                {
+                    _logger?.LogWarning("PreservedLakes data not available");
+                }
+                break;
+
+            case MapViewMode.FlowDirections:
+                if (_worldData.Phase1Erosion != null)
+                {
+                    RenderFlowDirections(_worldData.Phase1Erosion.FlowDirections);
+                }
+                else
+                {
+                    _logger?.LogWarning("FlowDirections not available");
+                }
+                break;
+
+            case MapViewMode.FlowAccumulation:
+                if (_worldData.Phase1Erosion != null && _worldData.OceanMask != null)
+                {
+                    RenderFlowAccumulation(_worldData.Phase1Erosion.FlowAccumulation, _worldData.OceanMask);
+                }
+                else
+                {
+                    _logger?.LogWarning("FlowAccumulation not available");
+                }
+                break;
+
+            case MapViewMode.RiverSources:
+                if (_worldData.Phase1Erosion != null && _worldData.Phase1Erosion.FilledHeightmap != null)
+                {
+                    RenderRiverSources(_worldData.Phase1Erosion.FilledHeightmap, _worldData.Phase1Erosion.RiverSources);
+                }
+                else
+                {
+                    _logger?.LogWarning("RiverSources not available");
+                }
+                break;
+
+            case MapViewMode.ErosionHotspots:
+                if (_worldData.Phase1Erosion != null && _worldData.Phase1Erosion.FilledHeightmap != null && _worldData.Phase1Erosion.FlowAccumulation != null && _worldData.Thresholds != null)
+                {
+                    RenderErosionHotspots(_worldData.Phase1Erosion.FilledHeightmap, _worldData.Phase1Erosion.FlowAccumulation, _worldData.Thresholds);
+                }
+                else
+                {
+                    _logger?.LogWarning("ErosionHotspots not available");
+                }
+                break;
+
             default:
                 _logger?.LogError("Unknown view mode: {ViewMode}", _currentViewMode);
                 break;
@@ -282,8 +362,14 @@ public partial class WorldMapRendererNode : Sprite2D
     /// Uses quantiles to adapt colors to heightmap distribution.
     /// IMPORTANT: Normalizes heightmap to [0,1] range before applying quantile-based gradient.
     /// Works with both raw [0-20] and pre-normalized [0,1] heightmaps (VS_024 triple-heightmap support).
+    ///
+    /// FIX: Water bodies render as semantic blue colors (not quantile-based terrain colors).
+    /// - Ocean: Dark blue (semantic main water body)
+    /// - Inner seas: Medium blue (landlocked, large basins)
+    /// - Lakes: Light blue/cyan (landlocked, small basins)
+    /// Quantiles calculated on LAND-ONLY elevations for accurate terrain distribution.
     /// </summary>
-    private void RenderColoredElevation(float[,] heightmap)
+    private void RenderColoredElevation(float[,] heightmap, bool[,]? oceanMask = null, System.Collections.Generic.List<BasinMetadata>? preservedBasins = null)
     {
         int h = heightmap.GetLength(0);
         int w = heightmap.GetLength(1);
@@ -314,30 +400,228 @@ public partial class WorldMapRendererNode : Sprite2D
             }
         }
 
-        // Step 2: Calculate quantiles on NORMALIZED data
-        float q15 = FindQuantile(normalizedHeightmap, 0.15f);
-        float q70 = FindQuantile(normalizedHeightmap, 0.70f);
-        float q75 = FindQuantile(normalizedHeightmap, 0.75f);
-        float q90 = FindQuantile(normalizedHeightmap, 0.90f);
-        float q95 = FindQuantile(normalizedHeightmap, 0.95f);
-        float q99 = FindQuantile(normalizedHeightmap, 0.99f);
+        // Step 2: Calculate quantiles on LAND-ONLY normalized data (FIX: exclude ALL water bodies from distribution)
+        float q15, q70, q75, q90, q95, q99;
 
-        _logger?.LogDebug("ColoredElevation quantiles: q15={Q15:F3} q70={Q70:F3} q75={Q75:F3} q90={Q90:F3} q95={Q95:F3} q99={Q99:F3}",
-            q15, q70, q75, q90, q95, q99);
+        if (oceanMask != null)
+        {
+            // Build water body exclusion set (ocean + inner seas + lakes)
+            var waterCells = new System.Collections.Generic.HashSet<(int x, int y)>();
 
-        // Step 3: Render with quantile-based terrain colors using normalized values
+            // Add ocean cells
+            for (int y = 0; y < h; y++)
+            {
+                for (int x = 0; x < w; x++)
+                {
+                    if (oceanMask[y, x])
+                        waterCells.Add((x, y));
+                }
+            }
+
+            // Add basin cells (inner seas + lakes)
+            if (preservedBasins != null)
+            {
+                foreach (var basin in preservedBasins)
+                {
+                    foreach (var cell in basin.Cells)
+                    {
+                        waterCells.Add(cell);
+                    }
+                }
+            }
+
+            // Calculate quantiles on land cells only (exclude ALL water!)
+            var quantiles = CalculateQuantilesLandOnly(normalizedHeightmap, waterCells);
+            q15 = quantiles[0];
+            q70 = quantiles[1];
+            q75 = quantiles[2];
+            q90 = quantiles[3];
+            q95 = quantiles[4];
+            q99 = quantiles[5];
+
+            _logger?.LogDebug("ColoredElevation quantiles (LAND-ONLY, water excluded): q15={Q15:F3} q70={Q70:F3} q75={Q75:F3} q90={Q90:F3} q95={Q95:F3} q99={Q99:F3}",
+                q15, q70, q75, q90, q95, q99);
+        }
+        else
+        {
+            // Fallback: Calculate quantiles on all cells (backward compatible)
+            q15 = FindQuantile(normalizedHeightmap, 0.15f);
+            q70 = FindQuantile(normalizedHeightmap, 0.70f);
+            q75 = FindQuantile(normalizedHeightmap, 0.75f);
+            q90 = FindQuantile(normalizedHeightmap, 0.90f);
+            q95 = FindQuantile(normalizedHeightmap, 0.95f);
+            q99 = FindQuantile(normalizedHeightmap, 0.99f);
+
+            _logger?.LogDebug("ColoredElevation quantiles (ALL CELLS): q15={Q15:F3} q70={Q70:F3} q75={Q75:F3} q90={Q90:F3} q95={Q95:F3} q99={Q99:F3}",
+                q15, q70, q75, q90, q95, q99);
+        }
+
+        // Step 3: Build water body lookup (for fast basin cell checks)
+        var basinCellLookup = new System.Collections.Generic.Dictionary<(int x, int y), BasinMetadata>();
+        if (preservedBasins != null)
+        {
+            foreach (var basin in preservedBasins)
+            {
+                foreach (var cell in basin.Cells)
+                {
+                    basinCellLookup[cell] = basin;
+                }
+            }
+        }
+
+        // Step 4: Render with unified water-land gradient + seamless shoreline blend
+        //
+        // UNIFIED HYDROLOGICAL DESIGN:
+        // ═══════════════════════════════════════════════════════════════════════
+        // 1. ALL WATER (ocean + basins) uses ONE blue gradient: Deep #08519C → Waterline #9ECAE1
+        //    - Ocean: depth from SeaDepth array (or fallback calculation)
+        //    - Basins: depth = (surfaceElevation - cellElevation) / (surfaceElevation - basinMin)
+        //
+        // 2. ALL LAND uses quantile-based ColorBrewer terrain colors (water excluded from stats)
+        //    - Green lowlands → Yellow hills → Orange mountains → Brown peaks
+        //
+        // 3. SEAMLESS SHORELINE BLEND (shared waterline color for ALL boundaries):
+        //    - Ocean coasts: blend at global sea level (#9ECAE1)
+        //    - Lake edges: blend at basin surface elevation (#9ECAE1)
+        //    - Narrow smoothstep band (~1.5% elevation range) eliminates seams
+        //    - Result: Water → Waterline → Land is continuous for ALL water body types
+        //
+        // WHY THIS IS CORRECT:
+        // - Hydrologically accurate: depth = distance below local waterline
+        // - Visually unified: same color at all shorelines (no teal/green confusion)
+        // - Semantically clear: water is blue, land is terrain-colored
+        // - Cartographically professional: matches real-world hypsometric + bathymetric standards
+
+        // Color constants (shared waterline color = convergence point for ALL boundaries)
+        Color seaLevelColor = new Color(0.620f, 0.792f, 0.882f);   // #9ECAE1 - WATERLINE (shallow water meets land)
+        Color oceanDeep = new Color(0.031f, 0.318f, 0.612f);       // #08519C - DEEP WATER (max depth)
+
+        // Blend width: 1.5% of elevation range (narrow but smooth - prevents visible seams)
+        float shorelineBlendWidth = 0.015f * (max - min);  // Raw units (not normalized)
+
+        // Sea level in RAW units (for ocean waterline calculations)
+        const float seaLevelRaw = 1.0f;  // WorldGenConstants.SEA_LEVEL_RAW
+
+        // Calculate per-basin minimum elevations (for basin-relative depth normalization)
+        var basinMinElevations = new System.Collections.Generic.Dictionary<int, float>();
+        if (preservedBasins != null)
+        {
+            foreach (var basin in preservedBasins)
+            {
+                float basinMin = float.MaxValue;
+                foreach (var (cellX, cellY) in basin.Cells)
+                {
+                    if (cellX >= 0 && cellX < w && cellY >= 0 && cellY < h)
+                    {
+                        float elev = heightmap[cellY, cellX];
+                        if (elev < basinMin) basinMin = elev;
+                    }
+                }
+                basinMinElevations[basin.BasinId] = basinMin;
+            }
+        }
+
+        int innerSeaCount = 0, lakeCount = 0;
+
         for (int y = 0; y < h; y++)
         {
             for (int x = 0; x < w; x++)
             {
-                float elevation = normalizedHeightmap[y, x];  // Use normalized [0,1] value
-                Color color = GetQuantileTerrainColor(elevation, q15, q70, q75, q90, q95, q99);
-                image.SetPixel(x, y, color);
+                float cellElevRaw = heightmap[y, x];  // Raw elevation (original scale)
+
+                // Determine water body classification
+                bool isBasinCell = basinCellLookup.TryGetValue((x, y), out var basin);
+                bool isOceanCell = !isBasinCell && (oceanMask != null && oceanMask[y, x]);
+
+                // Determine local waterline (sea level for ocean, surface elevation for basins)
+                float waterlineRaw = isBasinCell ? basin!.SurfaceElevation : seaLevelRaw;
+
+                // Calculate distance to waterline (negative = below water, positive = above water)
+                float distToWaterline = cellElevRaw - waterlineRaw;
+
+                // =================================================================
+                // WATER RENDERING (below waterline)
+                // =================================================================
+                if (isBasinCell || isOceanCell)
+                {
+                    // Unified water gradient: depth from 0 (waterline) to 1 (max depth)
+                    float depthNorm;
+
+                    if (isBasinCell)
+                    {
+                        // Basin: normalize depth relative to basin range
+                        float basinMinElev = basinMinElevations[basin!.BasinId];
+                        float denom = Math.Max(0.001f, basin.SurfaceElevation - basinMinElev);
+                        depthNorm = Mathf.Clamp((basin.SurfaceElevation - cellElevRaw) / denom, 0f, 1f);
+
+                        // Stats
+                        if (basin.Area >= 1000) innerSeaCount++; else lakeCount++;
+                    }
+                    else
+                    {
+                        // Ocean: use SeaDepth array if available, otherwise fallback calculation
+                        if (_worldData?.SeaDepth != null)
+                        {
+                            depthNorm = Mathf.Clamp(_worldData.SeaDepth[y, x], 0f, 1f);
+                        }
+                        else
+                        {
+                            // Fallback: normalize ocean depth by distance below sea level
+                            float oceanDepth = seaLevelRaw - cellElevRaw;
+                            float oceanDepthMax = seaLevelRaw - min;  // Maximum possible ocean depth
+                            depthNorm = Mathf.Clamp(oceanDepth / Math.Max(0.001f, oceanDepthMax), 0f, 1f);
+                        }
+                    }
+
+                    // Water color gradient: shallow (seaLevelColor) → deep (oceanDeep)
+                    Color waterColor = seaLevelColor.Lerp(oceanDeep, depthNorm);
+
+                    // Shoreline blend: apply smoothstep near waterline (symmetrical for all water types)
+                    if (distToWaterline < shorelineBlendWidth && distToWaterline > -shorelineBlendWidth)
+                    {
+                        // Within blend band: smoothly transition water → seaLevelColor → land
+                        // This handles shallow water edges where elevation approaches waterline
+                        float blendT = SmoothStep(-shorelineBlendWidth, 0f, distToWaterline);
+                        waterColor = waterColor.Lerp(seaLevelColor, blendT);
+                    }
+
+                    image.SetPixel(x, y, waterColor);
+                }
+                // =================================================================
+                // LAND RENDERING (above waterline)
+                // =================================================================
+                else
+                {
+                    // Quantile-based terrain color (ColorBrewer hypsometric tinting)
+                    float elevNorm = normalizedHeightmap[y, x];
+                    Color landColor = GetQuantileTerrainColor(elevNorm, q15, q70, q75, q90, q95, q99);
+
+                    // Shoreline blend on land side: seaLevelColor → land within blend band
+                    // This creates seamless transition from waterline to coastal lowlands
+                    if (distToWaterline < shorelineBlendWidth)
+                    {
+                        float blendT = SmoothStep(0f, shorelineBlendWidth, distToWaterline);
+                        Color finalColor = seaLevelColor.Lerp(landColor, blendT);
+                        image.SetPixel(x, y, finalColor);
+                    }
+                    else
+                    {
+                        // Far from waterline: pure terrain color
+                        image.SetPixel(x, y, landColor);
+                    }
+                }
             }
         }
 
         Texture = ImageTexture.CreateFromImage(image);
-        _logger?.LogInformation("Rendered ColoredElevation: {Width}x{Height}", w, h);
+
+        // Calculate water body statistics
+        int innerSeaBasins = preservedBasins?.Count(b => b.Area >= 1000) ?? 0;
+        int lakeBasins = preservedBasins?.Count(b => b.Area < 1000) ?? 0;
+
+        _logger?.LogInformation(
+            "Rendered ColoredElevation: {Width}x{Height} | Water: unified blue gradient (ocean + basins) | Inner seas: {InnerSeaBasins} ({InnerSeaCells} cells) | Lakes: {LakeBasins} ({LakeCells} cells) | Land: ColorBrewer terrain gradient",
+            w, h, innerSeaBasins, innerSeaCount, lakeBasins, lakeCount);
     }
 
     /// <summary>
@@ -375,53 +659,113 @@ public partial class WorldMapRendererNode : Sprite2D
     }
 
     /// <summary>
-    /// Maps elevation to terrain color using quantile thresholds.
-    /// Matches plate-tectonics reference color palette exactly.
+    /// Calculates quantiles on LAND-ONLY elevations (excludes ALL water bodies: ocean + inner seas + lakes).
+    /// Returns array of 6 quantile values: [q15, q70, q75, q90, q95, q99].
+    /// This ensures accurate terrain color distribution by excluding all water from statistics.
     /// </summary>
+    private float[] CalculateQuantilesLandOnly(float[,] normalizedHeightmap, System.Collections.Generic.HashSet<(int x, int y)> waterCells)
+    {
+        int h = normalizedHeightmap.GetLength(0);
+        int w = normalizedHeightmap.GetLength(1);
+
+        // Extract land-only elevations (exclude ALL water: ocean + basins)
+        var landElevations = new System.Collections.Generic.List<float>();
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                if (!waterCells.Contains((x, y)))  // Land cell only (not ocean, not basin)
+                {
+                    landElevations.Add(normalizedHeightmap[y, x]);
+                }
+            }
+        }
+
+        // Guard: If no land cells (all ocean), return default quantiles
+        if (landElevations.Count == 0)
+        {
+            _logger?.LogWarning("CalculateQuantilesLandOnly: No land cells found (all ocean), using default quantiles");
+            return new float[] { 0.15f, 0.70f, 0.75f, 0.90f, 0.95f, 0.99f };
+        }
+
+        // Sort for quantile calculation
+        landElevations.Sort();
+
+        // Calculate 6 quantiles on land distribution
+        return new float[]
+        {
+            GetPercentileFromSorted(landElevations, 0.15f),
+            GetPercentileFromSorted(landElevations, 0.70f),
+            GetPercentileFromSorted(landElevations, 0.75f),
+            GetPercentileFromSorted(landElevations, 0.90f),
+            GetPercentileFromSorted(landElevations, 0.95f),
+            GetPercentileFromSorted(landElevations, 0.99f)
+        };
+    }
+
+    /// <summary>
+    /// Maps elevation to terrain color using quantile thresholds.
+    /// Uses ColorBrewer2-inspired land-only hypsometric tinting (green → yellow → orange → brown).
+    /// Ocean cells excluded from quantile calculation and rendered separately as dark blue.
+    /// </summary>
+    /// <remarks>
+    /// ColorBrewer2 "RdYlGn" (reversed) adapted for terrain elevation:
+    /// - Lowlands (q15-q70): Green shades - valleys, plains, coastal lowlands
+    /// - Hills (q70-q90): Yellow-green to yellow - rolling hills, plateaus
+    /// - Mountains (q90-q95): Orange - high elevation, mountain ranges
+    /// - Peaks (q95+): Brown-red - highest peaks, alpine zones
+    ///
+    /// This creates classic cartographic hypsometric tinting matching worldwide topographic maps.
+    /// </remarks>
     private Color GetQuantileTerrainColor(float h, float q15, float q70, float q75, float q90, float q95, float q99)
     {
-        // Reference color palette (RGB 0-255 converted to 0-1):
-        // Deep ocean: (0,0,255) → (0,20,200)
-        // Ocean: (0,20,200) → (50,80,225)
-        // Shallow water: (50,80,225) → (135,237,235)
-        // Land/grass: (88,173,49) → (218,226,58)
-        // Hills: (218,226,58) → (251,252,42)
-        // Mountains: (251,252,42) → (91,28,13)
-        // Peaks: (91,28,13) → (51,0,4)
-
+        // Band 1 (0 - q15): BELOW LOWLANDS (failsafe for edge cases)
+        // Light green #A6D96A (166,217,106) → Dark green #66BD63 (102,189,99)
         if (h < q15)
             return Gradient(h, 0.0f, q15,
-                new Color(0f, 0f, 1f),
-                new Color(0f, 0.078f, 0.784f));
+                new Color(0.651f, 0.851f, 0.416f),  // #A6D96A light green
+                new Color(0.400f, 0.741f, 0.388f)); // #66BD63 green
 
+        // Band 2 (q15 - q70): LOWLANDS & PLAINS (55% of land)
+        // Dark green #66BD63 (102,189,99) → Yellow-green #D9EF8B (217,239,139)
         if (h < q70)
             return Gradient(h, q15, q70,
-                new Color(0f, 0.078f, 0.784f),
-                new Color(0.196f, 0.314f, 0.882f));
+                new Color(0.400f, 0.741f, 0.388f),  // #66BD63 green
+                new Color(0.851f, 0.937f, 0.545f)); // #D9EF8B yellow-green
 
+        // Band 3 (q70 - q75): LOW HILLS (5% transition)
+        // Yellow-green #D9EF8B (217,239,139) → Yellow #FFFFBF (255,255,191)
         if (h < q75)
             return Gradient(h, q70, q75,
-                new Color(0.196f, 0.314f, 0.882f),
-                new Color(0.529f, 0.929f, 0.922f));
+                new Color(0.851f, 0.937f, 0.545f),  // #D9EF8B yellow-green
+                new Color(1.000f, 1.000f, 0.749f)); // #FFFFBF yellow
 
+        // Band 4 (q75 - q90): HILLS (15% of land)
+        // Yellow #FFFFBF (255,255,191) → Orange #FDAE61 (253,174,97)
         if (h < q90)
             return Gradient(h, q75, q90,
-                new Color(0.345f, 0.678f, 0.192f),
-                new Color(0.855f, 0.886f, 0.227f));
+                new Color(1.000f, 1.000f, 0.749f),  // #FFFFBF yellow
+                new Color(0.992f, 0.682f, 0.380f)); // #FDAE61 orange
 
+        // Band 5 (q90 - q95): MOUNTAINS (5%)
+        // Orange #FDAE61 (253,174,97) → Dark orange #F46D43 (244,109,67)
         if (h < q95)
             return Gradient(h, q90, q95,
-                new Color(0.855f, 0.886f, 0.227f),
-                new Color(0.984f, 0.988f, 0.165f));
+                new Color(0.992f, 0.682f, 0.380f),  // #FDAE61 orange
+                new Color(0.957f, 0.427f, 0.263f)); // #F46D43 dark orange
 
+        // Band 6 (q95 - q99): HIGH MOUNTAINS (4%)
+        // Dark orange #F46D43 (244,109,67) → Brown-red #D73027 (215,48,39)
         if (h < q99)
             return Gradient(h, q95, q99,
-                new Color(0.984f, 0.988f, 0.165f),
-                new Color(0.357f, 0.110f, 0.051f));
+                new Color(0.957f, 0.427f, 0.263f),  // #F46D43 dark orange
+                new Color(0.843f, 0.188f, 0.153f)); // #D73027 brown-red
 
+        // Band 7 (q99 - 1.0): PEAKS (top 1%)
+        // Brown-red #D73027 (215,48,39) → Dark brown #A50026 (165,0,38)
         return Gradient(h, q99, 1.0f,
-            new Color(0.357f, 0.110f, 0.051f),
-            new Color(0.200f, 0f, 0.016f));
+            new Color(0.843f, 0.188f, 0.153f),  // #D73027 brown-red
+            new Color(0.647f, 0.000f, 0.149f)); // #A50026 dark brown
     }
 
     /// <summary>
@@ -622,5 +966,656 @@ public partial class WorldMapRendererNode : Sprite2D
 
         float t = Mathf.Clamp((value - min) / delta, 0f, 1f);
         return colorA.Lerp(colorB, t);
+    }
+
+    /// <summary>
+    /// Smoothstep interpolation for soft transitions at boundaries.
+    /// </summary>
+    private float SmoothStep(float edge0, float edge1, float x)
+    {
+        float t = Mathf.Clamp((x - edge0) / Math.Max(1e-6f, edge1 - edge0), 0f, 1f);
+        return t * t * (3f - 2f * t);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // VS_029: D-8 Flow Visualization Rendering Methods
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Renders sinks BEFORE pit-filling (VS_029 Step 0A).
+    /// Grayscale elevation + Red markers for ALL local minima (artifacts + real pits).
+    /// Purpose: Baseline for pit-filling effectiveness comparison.
+    /// </summary>
+    private void RenderSinksPreFilling(float[,] heightmap, bool[,] oceanMask, System.Collections.Generic.List<(int x, int y)> sinks)
+    {
+        int h = heightmap.GetLength(0);
+        int w = heightmap.GetLength(1);
+        var image = Image.CreateEmpty(w, h, false, Image.Format.Rgb8);
+
+        // Step 1: Render grayscale elevation base
+        float min = float.MaxValue, max = float.MinValue;
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                float v = heightmap[y, x];
+                if (v < min) min = v;
+                if (v > max) max = v;
+            }
+        }
+
+        float delta = Math.Max(1e-6f, max - min);
+
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                float t = (heightmap[y, x] - min) / delta;
+                image.SetPixel(x, y, new Color(t, t, t));
+            }
+        }
+
+        // Step 2: Mark sinks with red markers
+        Color sinkMarker = new Color(1f, 0f, 0f);  // Bright red
+        foreach (var (x, y) in sinks)
+        {
+            if (x >= 0 && x < w && y >= 0 && y < h)
+            {
+                image.SetPixel(x, y, sinkMarker);
+            }
+        }
+
+        Texture = ImageTexture.CreateFromImage(image);
+
+        // Calculate land cell percentage
+        int landCells = 0;
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                if (!oceanMask[y, x]) landCells++;
+            }
+        }
+
+        float landPercentage = landCells > 0 ? (sinks.Count / (float)landCells) * 100f : 0f;
+
+        _logger?.LogInformation(
+            "PRE-FILLING SINKS: Total={Count} ({Percentage:F1}% of land cells) | BASELINE for pit-filling | Ocean sinks excluded",
+            sinks.Count, landPercentage);
+    }
+
+    /// <summary>
+    /// Renders sinks AFTER pit-filling (VS_029 Step 0B).
+    /// Grayscale elevation + Red markers for preserved lakes.
+    /// Purpose: Validate pit-filling algorithm (artifacts filled, real lakes preserved).
+    /// </summary>
+    private void RenderSinksPostFilling(float[,] heightmap, bool[,] oceanMask, System.Collections.Generic.List<(int x, int y)> lakes)
+    {
+        int h = heightmap.GetLength(0);
+        int w = heightmap.GetLength(1);
+        var image = Image.CreateEmpty(w, h, false, Image.Format.Rgb8);
+
+        // Step 1: Render grayscale elevation base (filled heightmap)
+        float min = float.MaxValue, max = float.MinValue;
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                float v = heightmap[y, x];
+                if (v < min) min = v;
+                if (v > max) max = v;
+            }
+        }
+
+        float delta = Math.Max(1e-6f, max - min);
+
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                float t = (heightmap[y, x] - min) / delta;
+                image.SetPixel(x, y, new Color(t, t, t));
+            }
+        }
+
+        // Step 2: Mark preserved lakes with red markers
+        Color lakeMarker = new Color(1f, 0f, 0f);  // Bright red
+        foreach (var (x, y) in lakes)
+        {
+            if (x >= 0 && x < w && y >= 0 && y < h)
+            {
+                image.SetPixel(x, y, lakeMarker);
+            }
+        }
+
+        Texture = ImageTexture.CreateFromImage(image);
+
+        // Calculate land cell percentage
+        int landCells = 0;
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                if (!oceanMask[y, x]) landCells++;
+            }
+        }
+
+        float landPercentage = landCells > 0 ? (lakes.Count / (float)landCells) * 100f : 0f;
+
+        _logger?.LogInformation(
+            "POST-FILLING SINKS: Total={Count} ({Percentage:F1}% of land cells) | Lakes preserved={LakeCount}",
+            lakes.Count, landPercentage, lakes.Count);
+    }
+
+    /// <summary>
+    /// Renders basin metadata from pit-filling (TD_023).
+    /// Grayscale elevation base + colored basin boundaries + markers (red pour points, cyan centers).
+    /// Purpose: Validate basin detection for VS_030 (boundaries for inlet detection, pour points for pathfinding).
+    /// </summary>
+    private void RenderPreservedLakes(float[,] heightmap, bool[,] oceanMask, System.Collections.Generic.List<BasinMetadata> basins)
+    {
+        int h = heightmap.GetLength(0);
+        int w = heightmap.GetLength(1);
+        var image = Image.CreateEmpty(w, h, false, Image.Format.Rgb8);
+
+        // Step 1: Render grayscale elevation base
+        float min = float.MaxValue, max = float.MinValue;
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                float v = heightmap[y, x];
+                if (v < min) min = v;
+                if (v > max) max = v;
+            }
+        }
+
+        float delta = Math.Max(1e-6f, max - min);
+
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                float t = (heightmap[y, x] - min) / delta;
+                image.SetPixel(x, y, new Color(t, t, t));
+            }
+        }
+
+        // Step 1.5: Render ocean as dark blue (TD_023 tweak - better visual clarity)
+        Color oceanColor = new Color(0f, 0f, 0.545f);  // Dark Blue (RGB: 0, 0, 139)
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                if (oceanMask[y, x])
+                {
+                    image.SetPixel(x, y, oceanColor);
+                }
+            }
+        }
+
+        // Step 2: Generate distinct colors for each basin (vibrant, deterministic)
+        var rng = new Random(42);  // Seed for consistency
+        var basinColors = new System.Collections.Generic.Dictionary<int, Color>();
+
+        foreach (var basin in basins)
+        {
+            // Generate vibrant, saturated colors (avoid grayscale to distinguish from background)
+            basinColors[basin.BasinId] = new Color(
+                (float)rng.NextDouble() * 0.7f + 0.3f,  // RGB [0.3-1.0] - bright range
+                (float)rng.NextDouble() * 0.7f + 0.3f,
+                (float)rng.NextDouble() * 0.7f + 0.3f
+            );
+        }
+
+        // Step 3: Render basin boundaries (color cells by basin ID)
+        foreach (var basin in basins)
+        {
+            Color basinColor = basinColors[basin.BasinId];
+
+            foreach (var (cellX, cellY) in basin.Cells)
+            {
+                if (cellX >= 0 && cellX < w && cellY >= 0 && cellY < h)
+                {
+                    // Blend basin color with elevation (50% opacity) for context
+                    Color elevationBase = image.GetPixel(cellX, cellY);
+                    Color blended = elevationBase.Lerp(basinColor, 0.6f);  // 60% basin color, 40% elevation
+                    image.SetPixel(cellX, cellY, blended);
+                }
+            }
+        }
+
+        // Step 4: Mark pour points (red) and basin centers (cyan) on TOP of boundaries
+        Color pourPointMarker = new Color(1f, 0f, 0f);     // Bright red (outlets)
+        Color centerMarker = new Color(0f, 1f, 1f);        // Cyan (basin centers)
+
+        foreach (var basin in basins)
+        {
+            // Mark pour point (outlet)
+            var (pourX, pourY) = basin.PourPoint;
+            if (pourX >= 0 && pourX < w && pourY >= 0 && pourY < h)
+            {
+                image.SetPixel(pourX, pourY, pourPointMarker);
+            }
+
+            // Mark basin center (local minimum)
+            var (centerX, centerY) = basin.Center;
+            if (centerX >= 0 && centerX < w && centerY >= 0 && centerY < h)
+            {
+                image.SetPixel(centerX, centerY, centerMarker);
+            }
+        }
+
+        Texture = ImageTexture.CreateFromImage(image);
+
+        // Step 5: Calculate statistics for diagnostic logging
+        if (basins.Count > 0)
+        {
+            float minDepth = basins.Min(b => b.Depth);
+            float maxDepth = basins.Max(b => b.Depth);
+            float meanDepth = basins.Average(b => b.Depth);
+
+            int minArea = basins.Min(b => b.Area);
+            int maxArea = basins.Max(b => b.Area);
+            int totalCells = basins.Sum(b => b.Area);
+
+            // Calculate land percentage
+            int landCells = 0;
+            for (int y = 0; y < h; y++)
+            {
+                for (int x = 0; x < w; x++)
+                {
+                    if (!oceanMask[y, x]) landCells++;
+                }
+            }
+
+            float landPercent = landCells > 0 ? (totalCells / (float)landCells) * 100f : 0f;
+
+            _logger?.LogInformation(
+                "BASIN METADATA: {Count} preserved basins | Depths: min={MinDepth:F1}, max={MaxDepth:F1}, mean={MeanDepth:F1} | Basin sizes: min={MinArea} cells, max={MaxArea} cells, total={TotalCells} cells ({LandPercent:F1}% of land)",
+                basins.Count, minDepth, maxDepth, meanDepth, minArea, maxArea, totalCells, landPercent);
+        }
+        else
+        {
+            _logger?.LogInformation("BASIN METADATA: 0 preserved basins (all pits filled)");
+        }
+    }
+
+    /// <summary>
+    /// Renders D-8 flow directions (VS_029 Step 2).
+    /// 8-color gradient: N=Red, NE=Yellow, E=Green, SE=Cyan, S=Blue, SW=Purple, W=Magenta, NW=Orange, Sink=Black.
+    /// Purpose: Validate D-8 algorithm correctness (steepest descent).
+    /// </summary>
+    private void RenderFlowDirections(int[,] flowDirections)
+    {
+        int h = flowDirections.GetLength(0);
+        int w = flowDirections.GetLength(1);
+        var image = Image.CreateEmpty(w, h, false, Image.Format.Rgb8);
+
+        // Direction colors (8 directions + sink)
+        Color[] directionColors = new Color[9]
+        {
+            new Color(1f, 0f, 0f),      // 0: North - Red
+            new Color(1f, 1f, 0f),      // 1: NE - Yellow
+            new Color(0f, 1f, 0f),      // 2: East - Green
+            new Color(0f, 1f, 1f),      // 3: SE - Cyan
+            new Color(0f, 0f, 1f),      // 4: South - Blue
+            new Color(0.5f, 0f, 0.5f),  // 5: SW - Purple
+            new Color(1f, 0f, 1f),      // 6: West - Magenta
+            new Color(1f, 0.5f, 0f),    // 7: NW - Orange
+            new Color(0f, 0f, 0f)       // -1: Sink - Black
+        };
+
+        // Count direction distribution for logging
+        int[] directionCounts = new int[9];
+
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                int dir = flowDirections[y, x];
+                int colorIndex = dir == -1 ? 8 : dir;  // -1 (sink) → index 8
+                image.SetPixel(x, y, directionColors[colorIndex]);
+
+                // Count for stats
+                directionCounts[colorIndex]++;
+            }
+        }
+
+        Texture = ImageTexture.CreateFromImage(image);
+
+        // Calculate statistics
+        int totalCells = w * h;
+        float sinkPercent = (directionCounts[8] / (float)totalCells) * 100f;
+
+        _logger?.LogInformation(
+            "FLOW DIRECTIONS: Distribution N={N:F1}% NE={NE:F1}% E={E:F1}% SE={SE:F1}% S={S:F1}% SW={SW:F1}% W={W:F1}% NW={NW:F1}% Sinks={Sinks:F1}% ({SinkCount} cells)",
+            (directionCounts[0] / (float)totalCells) * 100f,
+            (directionCounts[1] / (float)totalCells) * 100f,
+            (directionCounts[2] / (float)totalCells) * 100f,
+            (directionCounts[3] / (float)totalCells) * 100f,
+            (directionCounts[4] / (float)totalCells) * 100f,
+            (directionCounts[5] / (float)totalCells) * 100f,
+            (directionCounts[6] / (float)totalCells) * 100f,
+            (directionCounts[7] / (float)totalCells) * 100f,
+            sinkPercent,
+            directionCounts[8]);
+    }
+
+    /// <summary>
+    /// Renders flow accumulation with naturalistic two-layer design (VS_029 Step 3 - NATURALISTIC).
+    /// Layer 1: Subtle terrain canvas (earth tones based on elevation)
+    /// Layer 2: Bright water network (cyan overlay with alpha based on flow magnitude)
+    /// Purpose: Beautiful, intuitive visualization - brighter water = bigger rivers!
+    /// </summary>
+    /// <remarks>
+    /// Design Philosophy (from tmp.md):
+    /// - INTUITIVE: Bright cyan water instantly recognizable (no legend needed!)
+    /// - LAYERED: Terrain provides context, water provides focus
+    /// - NATURAL: Mimics real-world colors (earth tones + water blues)
+    /// - CLEAR: High contrast for drainage network, muted background for context
+    ///
+    /// This is a visual design upgrade from debug heat map → production-quality rendering.
+    /// </remarks>
+    private void RenderFlowAccumulation(float[,] flowAccumulation, bool[,] oceanMask)
+    {
+        int h = flowAccumulation.GetLength(0);
+        int w = flowAccumulation.GetLength(1);
+        var image = Image.CreateEmpty(w, h, false, Image.Format.Rgba8);  // RGBA for alpha blending!
+
+        // Get elevation data for terrain layer (need both heightmap and ocean mask)
+        float[,]? heightmap = _worldData?.Phase1Erosion?.FilledHeightmap ?? _worldData?.PostProcessedHeightmap ?? _worldData?.Heightmap;
+        if (heightmap == null)
+        {
+            _logger?.LogWarning("Cannot render naturalistic flow accumulation: No heightmap available");
+            return;
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // STEP 1: Calculate statistics for normalization
+        // ═══════════════════════════════════════════════════════════════════════
+
+        float minFlow = float.MaxValue, maxFlow = float.MinValue;
+        float minElev = float.MaxValue, maxElev = float.MinValue;
+        double sumFlow = 0;
+        int count = 0;
+
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                if (oceanMask[y, x]) continue;  // Land cells only
+
+                float flow = flowAccumulation[y, x];
+                float elev = heightmap[y, x];
+
+                if (flow < minFlow) minFlow = flow;
+                if (flow > maxFlow) maxFlow = flow;
+                if (elev < minElev) minElev = elev;
+                if (elev > maxElev) maxElev = elev;
+                sumFlow += flow;
+                count++;
+            }
+        }
+
+        float meanFlow = (float)(sumFlow / count);
+        float deltaFlow = Math.Max(1e-6f, maxFlow - minFlow);
+        float deltaElev = Math.Max(1e-6f, maxElev - minElev);
+
+        // Calculate 95th percentile for statistics
+        var sortedFlow = new System.Collections.Generic.List<float>();
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                if (!oceanMask[y, x])
+                    sortedFlow.Add(flowAccumulation[y, x]);
+            }
+        }
+        sortedFlow.Sort();
+        float p95 = GetPercentileFromSorted(sortedFlow, 0.95f);
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // STEP 2: Define color palettes (Layer 1: Terrain, Layer 2: Water)
+        // ═══════════════════════════════════════════════════════════════════════
+
+        // Layer 1: Terrain Canvas (muted earth tones - subtle background)
+        // NOTE: Lowlands BRIGHTENED to avoid "false lake" effect (was too dark at RGB 47,79,79)
+        Color terrainLowlands = new Color(180f/255f, 170f/255f, 150f/255f);  // Sandy Beige (light, clearly land!)
+        Color terrainHills = new Color(189f/255f, 183f/255f, 107f/255f);     // Khaki (warm mid-tones)
+        Color terrainPeaks = new Color(176f/255f, 196f/255f, 222f/255f);     // Light Steel Blue (cool peaks)
+
+        // Layer 2: Water Overlay (bright cyan with varying alpha - eye-catching rivers!)
+        Color waterLowFlow = new Color(0f, 0f, 139f/255f, 0.05f);           // Deep blue, 5% alpha (barely visible)
+        Color waterHighFlow = new Color(0f, 191f/255f, 255f/255f, 1.0f);    // Deep Sky Blue, 100% alpha (vivid!)
+
+        // Ocean: Deep prussian blue (desaturated, mysterious depths)
+        Color oceanColor = new Color(0f, 49f/255f, 83f/255f);               // Prussian Blue
+
+        // Minimum visible flow threshold (below this, no water overlay drawn)
+        float minVisibleFlowThreshold = minFlow + deltaFlow * 0.01f;  // Bottom 1% completely transparent
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // STEP 3: Render two-layer composite (Terrain + Water blend)
+        // ═══════════════════════════════════════════════════════════════════════
+
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                // OCEAN: Deep blue, no water overlay
+                if (oceanMask[y, x])
+                {
+                    image.SetPixel(x, y, oceanColor);
+                    continue;
+                }
+
+                // LAND: Two-layer blend
+
+                // --- Layer 1: Get terrain base color from elevation ---
+                float elevNorm = (heightmap[y, x] - minElev) / deltaElev;
+                Color terrainColor = GetTerrainColor(elevNorm, terrainLowlands, terrainHills, terrainPeaks);
+
+                // --- Layer 2: Get water overlay color from flow (LOG SCALED) ---
+                float flow = flowAccumulation[y, x];
+
+                // Below threshold? Show pure terrain (no water overlay)
+                if (flow < minVisibleFlowThreshold)
+                {
+                    image.SetPixel(x, y, terrainColor);
+                    continue;
+                }
+
+                // Log scale the flow for better visual distribution
+                float logFlowNorm = (float)Math.Log(1 + flow - minFlow) / (float)Math.Log(1 + maxFlow - minFlow);
+
+                // Interpolate water color (brightness + alpha increase together!)
+                Color waterColor = waterLowFlow.Lerp(waterHighFlow, logFlowNorm);
+
+                // --- Blend terrain + water using water's alpha ---
+                Color finalColor = terrainColor.Lerp(waterColor, waterColor.A);
+
+                image.SetPixel(x, y, finalColor);
+            }
+        }
+
+        Texture = ImageTexture.CreateFromImage(image);
+
+        float p95ToMeanRatio = meanFlow > 0 ? p95 / meanFlow : 0f;
+
+        _logger?.LogInformation(
+            "FLOW ACCUMULATION (NATURALISTIC): min={Min:F4}, max={Max:F4}, mean={Mean:F4}, p95={P95:F4} | p95/mean={Ratio:F1}x | Two-layer earth tones + bright cyan rivers",
+            minFlow, maxFlow, meanFlow, p95, p95ToMeanRatio);
+    }
+
+    /// <summary>
+    /// Gets terrain color from normalized elevation (0-1).
+    /// Smooth 3-stop gradient: Lowlands (dark) → Hills (warm) → Peaks (cool).
+    /// </summary>
+    private Color GetTerrainColor(float elevNorm, Color lowlands, Color hills, Color peaks)
+    {
+        if (elevNorm < 0.4f)
+        {
+            // Lowlands to Hills (0.0 - 0.4)
+            return Gradient(elevNorm, 0.0f, 0.4f, lowlands, hills);
+        }
+        else
+        {
+            // Hills to Peaks (0.4 - 1.0)
+            return Gradient(elevNorm, 0.4f, 1.0f, hills, peaks);
+        }
+    }
+
+    /// <summary>
+    /// Renders river sources (VS_029 Step 4).
+    /// Grayscale elevation base + Red markers at spawn points.
+    /// Purpose: Validate source detection thresholds (expect 5-15 major rivers).
+    /// </summary>
+    private void RenderRiverSources(float[,] heightmap, System.Collections.Generic.List<(int x, int y)> riverSources)
+    {
+        int h = heightmap.GetLength(0);
+        int w = heightmap.GetLength(1);
+        var image = Image.CreateEmpty(w, h, false, Image.Format.Rgb8);
+
+        // Step 1: Render grayscale elevation base (consistent with sinks views)
+        float min = float.MaxValue, max = float.MinValue;
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                float v = heightmap[y, x];
+                if (v < min) min = v;
+                if (v > max) max = v;
+            }
+        }
+
+        float delta = Math.Max(1e-6f, max - min);
+
+        // Render grayscale
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                float t = (heightmap[y, x] - min) / delta;
+                image.SetPixel(x, y, new Color(t, t, t));
+            }
+        }
+
+        // Step 2: Mark river sources with red markers (consistent with sinks views)
+        Color sourceMarker = new Color(1f, 0f, 0f);  // Bright red
+        foreach (var (x, y) in riverSources)
+        {
+            if (x >= 0 && x < w && y >= 0 && y < h)
+            {
+                image.SetPixel(x, y, sourceMarker);
+            }
+        }
+
+        Texture = ImageTexture.CreateFromImage(image);
+
+        // Calculate density (sources per land area)
+        int totalCells = w * h;
+        float sourceDensity = (riverSources.Count / (float)totalCells) * 100f;
+
+        _logger?.LogInformation(
+            "RIVER SOURCES (CORRECTED): {Count} major rivers (threshold-crossing algorithm)",
+            riverSources.Count);
+    }
+
+    /// <summary>
+    /// Renders erosion hotspots (VS_029 - repurposed from old algorithm).
+    /// Colored elevation base + Magenta markers at high-energy zones.
+    /// Purpose: Erosion masking for VS_030+ particle erosion (canyon/gorge formation).
+    /// </summary>
+    private void RenderErosionHotspots(float[,] heightmap, float[,] flowAccumulation, ElevationThresholds thresholds)
+    {
+        int h = heightmap.GetLength(0);
+        int w = heightmap.GetLength(1);
+        var image = Image.CreateEmpty(w, h, false, Image.Format.Rgb8);
+
+        // Step 1: Render colored elevation base
+        float min = float.MaxValue, max = float.MinValue;
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                float v = heightmap[y, x];
+                if (v < min) min = v;
+                if (v > max) max = v;
+            }
+        }
+
+        float delta = Math.Max(1e-6f, max - min);
+
+        // Normalize and calculate quantiles
+        var normalizedHeightmap = new float[h, w];
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                normalizedHeightmap[y, x] = (heightmap[y, x] - min) / delta;
+            }
+        }
+
+        float q15 = FindQuantile(normalizedHeightmap, 0.15f);
+        float q70 = FindQuantile(normalizedHeightmap, 0.70f);
+        float q75 = FindQuantile(normalizedHeightmap, 0.75f);
+        float q90 = FindQuantile(normalizedHeightmap, 0.90f);
+        float q95 = FindQuantile(normalizedHeightmap, 0.95f);
+        float q99 = FindQuantile(normalizedHeightmap, 0.99f);
+
+        // Render colored elevation
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                float elevation = normalizedHeightmap[y, x];
+                Color color = GetQuantileTerrainColor(elevation, q15, q70, q75, q90, q95, q99);
+                image.SetPixel(x, y, color);
+            }
+        }
+
+        // Step 2: Detect and mark erosion hotspots (high elevation + high flow accumulation)
+        // Calculate p95 accumulation threshold for "high flow"
+        var sortedAccumulation = new System.Collections.Generic.List<float>(w * h);
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                sortedAccumulation.Add(flowAccumulation[y, x]);
+            }
+        }
+        sortedAccumulation.Sort();
+        float accumulationP95 = GetPercentileFromSorted(sortedAccumulation, 0.95f);
+
+        // Mark hotspots with magenta markers
+        Color hotspotMarker = new Color(1f, 0f, 1f);  // Magenta (high-energy zones)
+        int hotspotCount = 0;
+
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                // High elevation + high flow = erosion hotspot
+                bool isHighElevation = heightmap[y, x] >= thresholds.MountainLevel;
+                bool isHighFlow = flowAccumulation[y, x] >= accumulationP95;
+
+                if (isHighElevation && isHighFlow)
+                {
+                    image.SetPixel(x, y, hotspotMarker);
+                    hotspotCount++;
+                }
+            }
+        }
+
+        Texture = ImageTexture.CreateFromImage(image);
+
+        // Calculate density
+        int totalCells = w * h;
+        float hotspotDensity = (hotspotCount / (float)totalCells) * 100f;
+
+        _logger?.LogInformation(
+            "EROSION HOTSPOTS: {Count} detected | High elevation + high flow (p95) = Maximum erosive potential | Density={Density:F3}% (canyon/gorge zones for VS_030+)",
+            hotspotCount, hotspotDensity);
     }
 }

@@ -1,7 +1,7 @@
 # Darklands Development Backlog
 
 
-**Last Updated**: 2025-10-11 04:43 (Dev Engineer: TD_019 Phase 3 complete - All 543 Core tests GREEN; Presentation layer migration deferred)
+**Last Updated**: 2025-10-14 09:41 (Tech Lead: TD_024 created - Basin detection and inner sea depth support)
 
 **Last Aging Check**: 2025-08-29
 > 📚 See BACKLOG_AGING_PROTOCOL.md for 3-10 day aging rules
@@ -10,8 +10,8 @@
 **CRITICAL**: Before creating new items, check and update the appropriate counter.
 
 - **Next BR**: 010
-- **Next TD**: 020
-- **Next VS**: 034
+- **Next TD**: 025
+- **Next VS**: 031
 
 
 **Protocol**: Check your type's counter → Use that number → Increment the counter → Update timestamp
@@ -68,21 +68,164 @@
 ## 🔥 Critical (Do First)
 *Blockers preventing other work, production bugs, dependencies for other features*
 
-*Recently completed and archived (2025-10-11 18:01):*
-- **VS_032**: Equipment Slots System (Phases 1-4/6 Complete) - Equipment system core foundation complete! Equipment as separate component architecture (not Inventory), 5 slots (MainHand, OffHand, Head, Torso, Legs), atomic operations with multi-level rollback, two-handed weapon validation, parent-driven data pattern (80% query reduction), 40 new tests GREEN (488 total). Phases 5-6 remaining: Data-Driven Equipment templates, Combat Integration. ✅ (2025-10-11 18:01) *See: [Completed_Backlog_2025-10_Part4.md](../07-Archive/Completed_Backlog_2025-10_Part4.md) for full archive*
+### TD_024: Basin Detection & Inner Sea Depth System
+**Status**: Proposed (Foundation for VS_030 water body classification)
+**Owner**: Tech Lead
+**Size**: M (6-8h)
+**Priority**: Ideas (prerequisite for VS_030 Phase 1)
+**Markers**: [ARCHITECTURE] [WORLDGEN] [REFACTORING]
+
+**What**:
+
+**Why**: VS_030 requires basin metadata (pour points, water surface elevation, boundaries) to classify ocean vs inner seas. Current code only calculates ocean depth; inner seas need depth maps for thalweg pathfinding cost function.
+
+**How**:
+
+**Done When**:
+
+
+**Depends On**: TD_023 ✅ (pit-filling basin preservation complete)
+
+**Blocks**: VS_030 Phase 1 (water body classification needs basin metadata)
+
+---
 
 ---
 
 ## 📈 Important (Do Next)
 *Core features for current milestone, technical debt affecting velocity*
 
-*Recently completed and archived (2025-10-11 05:26):*
-- **TD_019**: Inventory-First Architecture (InventoryId Primary Key) - All 5 phases complete! Redesigned from Actor-centric (1:1) to Inventory-First (independent inventories with optional owner). InventoryId primary key, 16 commands/queries updated, 543 Core tests GREEN, 5 Presentation files updated with 3 runtime drag-drop bugs fixed, all obsolete methods removed. Unlocks squad-based gameplay, loot containers, shared inventories, cross-actor equip operations. ✅ (2025-10-11 05:21) *See: [Completed_Backlog_2025-10_Part3.md](../07-Archive/Completed_Backlog_2025-10_Part3.md) for full archive*
+### VS_030: Inner Sea Flow via Lake Thalweg Pathfinding
+**Status**: Proposed (Requires TD_021 foundation)
+**Owner**: Dev Engineer
+**Size**: L (14-18h)
+**Priority**: Important (fixes D-8 flow topology for inner seas)
+**Markers**: [WORLDGEN] [ALGORITHM] [PATHFINDING] [HYDRAULIC-EROSION]
+
+**What**: Implement Dijkstra-based pathfinding to compute river thalweg (deepest channel) paths through inner seas, enabling correct D-8 flow topology for landlocked water bodies.
+
+**Why**:
+- **D-8 Problem**: Inner seas are flat surfaces (elevation < sea level) → D-8 has no gradient → becomes sink → breaks flow accumulation
+- **Current State**: Rivers terminate incorrectly at inner sea boundaries (flow "stuck" at lakes like Caspian Sea)
+- **Physical Reality**: Rivers flow THROUGH lakes along deepest channels (thalweg) to outlets, not terminate at inlets
+- **Pathfinding Solution**: Pre-compute optimal paths (inlet → outlet) using depth-based cost, hard-code flow directions for inner sea cells
+- **CRITICAL CORRECTION**: Water body classification MUST happen AFTER pit-filling (pit-filling DEFINES lakes with boundaries/water level/outlets)
+
+**How** (5-phase implementation with CORRECT pipeline order):
+
+**Phase 1: Water Body Classification from Pit-Filling Results** (3-4h)
+- **CRITICAL**: This happens AFTER pit-filling, which DEFINES lakes hydrologically
+- Create `WaterBodyMasks.cs` DTOs (OceanMask, InnerSeaMask, InnerSeaRegions)
+- Implement `WaterBodyClassifier.ClassifyFromPitFilling()`:
+  - Input: FilledHeightmap + OriginalHeightmap + PitFillingMetadata (basins identified by pit-filling)
+  - Algorithm:
+    - For each basin from pit-filling (has boundary, water surface elevation, pour point):
+      - If pour point at sea level AND connected to map edges → Ocean
+      - If pour point above sea level OR landlocked → Inner Sea
+    - Group inner seas into regions (connected components)
+    - Detect inlets: Boundary cells where land D-8 flow enters lake
+    - Detect outlet: The pour point identified by pit-filling
+  - Output: WaterBodyMasks (ocean mask, inner sea mask, inner sea regions with inlets/outlets)
+- Why this works: Pit-filling already solved the "leaky lake" and "archipelago of sinks" problems by finding pour points
+
+**Phase 2: Lake Thalweg Pathfinder** (3-4h)
+- Implement `LakeThalwegPathfinder.ComputePaths()` (Dijkstra with depth-based cost)
+- Cost function: `Cost = 1 / (lakeSurfaceElevation - originalHeightmap[cell] + ε)` → Prefers deeper water
+- For each inner sea region (from Phase 1):
+  - For each inlet → Find path to outlet (Dijkstra)
+  - Result: List of path segments (x, y, nextX, nextY)
+- Output: `Dictionary<InnerSeaId, List<PathSegment>>` (thalweg paths for all inner seas)
+- Optimization: Use BFS/distance transform to pre-compute "flow to nearest thalweg" for non-path lake cells
+
+**Phase 3: Hybrid Flow Direction Calculator** (2-3h)
+- Modify `FlowDirectionCalculator.CalculateWithThalwegs()`:
+  - Land cells: D-8 steepest descent (unchanged)
+  - Ocean cells: dir = -1 (sink)
+  - Inner sea cells ON thalweg path: Use pre-computed direction from pathfinding
+  - Inner sea cells NOT on thalweg: Flow toward nearest thalweg cell (from Phase 2 optimization)
+- Result: Hybrid flow directions (D-8 + pathfinding + sinks)
+
+**Phase 4: Pipeline Integration** (2-3h)
+- **CORRECTED PIPELINE ORDER**:
+  ```
+  Stage 2: Pit-filling (FIRST - DEFINES lakes)
+    → Output: FilledHeightmap + PitFillingMetadata (basins with pour points)
+
+  Stage 2.5 (NEW): Water Body Classification
+    → Input: FilledHeightmap + OriginalHeightmap + PitFillingMetadata
+    → Output: WaterBodyMasks (ocean/inner sea + regions with inlets/outlets)
+
+  Stage 2.6 (NEW): Thalweg Pathfinding
+    → Input: InnerSeaRegions (from Stage 2.5)
+    → Output: ThalwegPaths (Dijkstra-computed paths)
+
+  Stage 3 (MODIFIED): Hybrid Flow Direction Calculator
+    → Input: FilledHeightmap + WaterBodyMasks + ThalwegPaths
+    → Output: FlowDirections (D-8 + thalweg + sinks)
+
+  Stage 4-5: Topological Sort + Flow Accumulation (unchanged)
+  ```
+- Update `PitFillingCalculator` to expose basin metadata (pour points, boundaries)
+- Update `WorldGenerationResult` to include `WaterBodyMasks` and `ThalwegPaths`
+- Wire through to rendering
+
+**Phase 5: Visualization and Testing** (3-4h)
+- Add view modes:
+  - `OceanMask`: Show ocean cells (blue)
+  - `InnerSeaMask`: Show inner sea cells (teal/cyan - distinguish from ocean)
+  - `LakeThalwegs`: Show computed paths through inner seas (red lines on water)
+  - `ThalwegDepths`: Heat map of lake depths (deeper=red, shallow=blue)
+- Unit tests: Water classification correctness (ocean vs inner sea after pit-filling)
+- Unit tests: Pathfinding finds valid paths (inlet → outlet)
+- Visual validation: Flow accumulation shows rivers flowing THROUGH inner seas
+- Visual validation: Thalweg paths curve naturally (follow deepest channels)
+- Performance testing: Total overhead <50ms (classification + pathfinding)
+
+**Done When**:
+1. ✅ Pit-filling exposes basin metadata (pour points, boundaries, water surface elevations)
+2. ✅ `WaterBodyClassifier` classifies basins AFTER pit-filling (ocean vs inner sea)
+3. ✅ Inner sea regions have correct inlets (where land flow enters) and outlets (pour points)
+4. ✅ `LakeThalwegPathfinder` computes depth-based paths for all inner sea regions
+5. ✅ Dijkstra cost function uses depth (prefers thalweg channels)
+6. ✅ `FlowDirectionCalculator` hybrid approach works (D-8 + thalweg + sinks)
+7. ✅ Flow accumulation shows rivers passing THROUGH inner seas (not terminating at boundaries)
+8. ✅ 4 new view modes render correctly (OceanMask, InnerSeaMask, LakeThalwegs, ThalwegDepths)
+9. ✅ Unit tests: Pathfinding correctness (finds paths, follows depth gradient)
+10. ✅ Visual validation: No "leaky lake" errors (all classified lakes are true basins per pit-filling)
+11. ✅ All existing tests GREEN (no regression)
+12. ✅ Performance: <50ms total overhead for 512×512 map (~5-10 inner seas)
+
+**Depends On**:
+- TD_021 ✅ (must be complete - provides SSOT constant and normalized scale)
+- TD_023 ✅ (must be complete - provides basin metadata for water classification)
+- VS_029 ✅ (flow visualization exists for validation)
+
+**Blocks**: Nothing (hydraulic erosion foundation - enables future particle erosion)
+
+**Enables**:
+- Future particle-based erosion (rivers erode along thalweg paths)
+- Future sediment deposition (sediment accumulates in deep lake basins)
+- Future navigation system (ships follow thalweg channels)
+
+**Dev Engineer Decision** (2025-10-13 18:38):
+- **CRITICAL CORRECTION**: Original VS_030 had water classification BEFORE pit-filling → CAUSALITY INVERSION ERROR
+- **Key Insight from tmp.md**:
+  - "Pit-filling is not just filling - it's a DEFINITION tool"
+  - Pour point defines outlet, pour point elevation defines water surface, basin below pour point defines lake boundary
+  - Cannot classify "what is a lake?" before pit-filling answers this question
+- **Correct Order**: Pit-filling (defines) → Classify (ocean vs inner sea) → Pathfind (thalweg) → Flow calculation (hybrid)
+- **Leaky Lake Prevention**: Classifying from pit-filling results prevents misclassifying river valleys as lakes
+- **Archipelago Prevention**: Pit-filling already merged micro-sinks into coherent basins with single pour points
+- **Size Increase**: 14-18h (was 12-16h) due to Phase 1 added (water classification moved from TD_021)
+- **Approach Still Valid**: Pathfinding over land bridge (excellent visual quality + reusable paths)
+- **Next Step**: Implement TD_021 (foundation), expose pit-filling metadata, then implement VS_030 with correct pipeline
 
 ---
 
 ## 💡 Ideas (Future Work)
 *Future features, nice-to-haves, deferred work*
+
+
 
 ### VS_033: MVP Item Editor (Weapons + Armor Focus)
 **Status**: Proposed (Build AFTER manual item creation phase)
