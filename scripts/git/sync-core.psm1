@@ -40,8 +40,8 @@ function Test-SquashMerge {
         [switch]$Verbose
     )
     
-    # Only check for dev/main branch by default
-    if ($Branch -ne "dev/main" -and $Branch -notmatch "^feat/" -and $Branch -notmatch "^fix/") {
+    # Check for main branches and feature branches
+    if ($Branch -ne "dev/main" -and $Branch -ne "main" -and $Branch -notmatch "^feat/" -and $Branch -notmatch "^fix/") {
         return $false
     }
     
