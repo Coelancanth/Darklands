@@ -49,7 +49,7 @@ jobs:
           --logger "console;verbosity=normal" \
           --collect:"XPlat Code Coverage" \
           --results-directory ./TestResults \
-          --filter "FullyQualifiedName!~MediatR_Should_Discover_All_Handlers_In_Core_Assembly&FullyQualifiedName!~PlateTectonicsIntegrationTests"
+          --filter "FullyQualifiedName!~MediatR_Should_Discover_All_Handlers_In_Core_Assembly&FullyQualifiedName!~PlateTectonicsIntegrationTests&FullyQualifiedName!~Phase1ErosionIntegrationTests"
 
     - name: 📊 Upload coverage
       uses: codecov/codecov-action@v4

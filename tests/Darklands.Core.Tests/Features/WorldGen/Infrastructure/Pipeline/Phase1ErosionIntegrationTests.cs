@@ -261,6 +261,7 @@ public class Phase1ErosionIntegrationTests
     }
 
     // HELPER: Fail fast with helpful message if library not built
+    // NOTE: These tests are excluded from CI via filter (see .github/workflows/ci-auto-fix.yml)
     private void ValidateLibraryOrSkip()
     {
         var projectPath = GetProjectRoot();

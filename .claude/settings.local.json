@@ -13,7 +13,11 @@
       "Bash(Select-String \"case MapViewMode.BasinMetadata\" -Context 0,15 WorldMapRendererNode.cs)",
       "Bash(Select-String \"BuildBasinMetadataLegend\" WorldMapUINode.cs)",
       "Bash(Select-String \"RenderBasinMetadata\" WorldMapRendererNode.cs)",
-      "Bash(Select-String \"RenderColoredOriginalElevation\\|RenderColoredPostProcessedElevation\" WorldMapRendererNode.cs -Context 0,30)"
+      "Bash(Select-String \"RenderColoredOriginalElevation\\|RenderColoredPostProcessedElevation\" WorldMapRendererNode.cs -Context 0,30)",
+      "Bash(gh pr create:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr checks:*)",
+      "Bash(gh run view:*)"
     ],
     "deny": [],
     "ask": [],
