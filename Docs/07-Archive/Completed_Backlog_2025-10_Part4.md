@@ -312,6 +312,250 @@ Rendering Scale (normalized): SeaLevelNormalized ≈ 0.045 [0-1]
 
 ---
 
+### TD_025: WorldMap Rendering Architecture Refactor
+**Extraction Status**: NOT EXTRACTED ⚠️
+**Completed**: 2025-10-14
+**Archive Note**: Migrated all 17 view modes to self-contained color scheme rendering (Option B single-phase), WorldMapRendererNode reduced 1622 → 332 lines (80% reduction), zero Core queries created (YAGNI validated), visualization logic properly encapsulated in schemes, two commits created (implementation eae19b8 + cleanup a4d0a0f), zero functional regressions, builds passing, unblocks professional worldgen visualization.
+---
+### TD_025: WorldMap Rendering Architecture Refactor (Logic Leak + Incomplete Abstraction)
+**Status**: Complete (100% - 17 view modes migrated, code cleanup done)
+**Owner**: Dev Engineer
+**Size**: L (12-16h estimated, ~12h actual using Option B single-phase)
+**Priority**: Important (ADR-002 violation + incomplete refactoring)
+**Markers**: [ARCHITECTURE] [WORLDGEN] [REFACTORING] [CLEAN-ARCHITECTURE]
+
+**What**: Fix ADR-002 violations in WorldMap rendering by completing the color scheme abstraction migration (Option B: schemes own complete rendering pipeline).
+
+**Why**:
+- **Architecture Violation**: WorldMapRendererNode contains business logic (quantile calculations, water body classification, terrain classification) that should follow proper abstraction patterns
+- **Incomplete Refactoring**: Color scheme abstraction exists but unused - renderer still calls old 207-line switch statement with direct render methods
+- **TD_004 Déjà Vu**: Similar to inventory logic leak - incomplete refactoring creates confusion (two parallel systems, neither fully working)
+- **Tech Debt Compounding**: Incomplete refactoring creates confusion (two parallel systems, neither fully working)
+- **Maintainability**: Business logic in 1622-line renderer file is hard to test and modify
+
+**Problem Analysis** (Audit Results):
+
+**Files with Violations**:
+1. **WorldMapRendererNode.cs** (1622 lines)
+   - ~500 lines of business logic: `CalculateQuantilesLandOnly` (38), `GetQuantileTerrainColor` (50), `RenderColoredElevation` (252 - includes classification), `RenderFlowAccumulation` (130 - includes percentiles), `CalculateTemperatureQuantiles` (33)
+   - 207-line switch statement calling old render methods (schemes exist but unused)
+
+2. **WorldMapProbeNode.cs** (1167 lines)
+   - ~120 lines of business logic in probe builders: `BuildElevationProbeData` (110 - basin classification), `BuildFlowAccumulationProbeData` (62 - percentile rank)
+   - 69-line switch statement with 12 probe builder methods (no abstraction)
+
+**Root Cause**: Refactoring started (color schemes created) but never finished (renderer still uses old code).
+
+**Dev Engineer Analysis** (2025-10-14 13:37):
+
+**Alternative Approach: Enhanced Color Scheme Pattern (Option B - Single-Phase)**
+
+**Why Challenge the 2-Phase Approach?**
+- **DTO Proliferation**: Creates `ElevationRenderDataDto`, `FlowRenderDataDto`, `ProbeDataDto` for visualization-only data
+- **Double Refactoring**: Create Core queries → Move logic → Refactor schemes to use queries = 2× work
+- **Unclear Responsibility**: Quantile calculations are **visualization logic** (how to map data to colors), not game rules
+
+**Key Insight**: Not ALL calculations need to move to Core! Distinguish:
+- **Game Logic** → Core (water classification for pathfinding, flow ranks for erosion)
+- **Visualization Logic** → Color Schemes (quantile mapping, color gradients, statistical analysis for display)
+
+**Elegant Solution**: Enhance `IColorScheme` to own **complete rendering pipeline**, not just per-pixel color lookups.
+
+**Proposed Interface Enhancement**:
+```csharp
+public interface IColorScheme
+{
+    string Name { get; }
+    List<LegendEntry> GetLegendEntries();
+
+    /// <summary>
+    /// Renders complete view from world data (schemes own their rendering pipeline).
+    /// Visualization logic (quantiles, statistical analysis) stays in schemes.
+    /// Game logic fetched from Core queries (water classification, flow ranks).
+    /// </summary>
+    Image Render(WorldGenerationResult data);
+}
+```
+
+**Example - ElevationScheme** (Self-Contained Rendering):
+```csharp
+public class ElevationScheme : IColorScheme
+{
+    public Image Render(WorldGenerationResult data)
+    {
+        // Visualization logic stays in scheme (how to display data)
+        var quantiles = CalculateQuantilesLandOnly(data.Heightmap, data.OceanMask, data.Phase1Erosion?.PreservedBasins);
+
+        var image = Image.CreateEmpty(data.Width, data.Height, false, Image.Format.Rgb8);
+
+        for (int y = 0; y < data.Height; y++)
+        {
+            for (int x = 0; x < data.Width; x++)
+            {
+                float elev = data.Heightmap[y, x];
+                bool isWater = /* check ocean/basin from existing data */;
+
+                Color color = isWater ? GetWaterColor(...) : GetTerrainColor(elev, quantiles);
+                image.SetPixel(x, y, color);
+            }
+        }
+
+        return image;
+    }
+
+    // All elevation-specific visualization logic encapsulated
+    private float[] CalculateQuantilesLandOnly(...) { /* moves from renderer */ }
+    private Color GetTerrainColor(...) { /* moves from renderer */ }
+    private Color GetWaterColor(...) { /* moves from renderer */ }
+}
+```
+
+**WorldMapRendererNode** (Thin Orchestrator):
+```csharp
+private void RenderCurrentView()
+{
+    if (_worldData == null) return;
+
+    // ENTIRE 207-line switch replaced by scheme registry!
+    var scheme = GetSchemeForViewMode(_currentViewMode);
+
+    if (scheme != null)
+    {
+        var image = scheme.Render(_worldData);
+        Texture = ImageTexture.CreateFromImage(image);
+    }
+    else
+    {
+        RenderLegacyViewMode(_currentViewMode);  // RawElevation, Plates only
+    }
+}
+```
+
+**Implementation Plan (Single-Phase, 10-12h)**:
+
+**Part 1: Enhance Abstraction** (2-3h)
+- Add `Image Render(WorldGenerationResult data)` to `IColorScheme`
+- Keep existing `GetColor()` for backward compatibility
+- Update `ColorSchemes.cs` registry with all 17 view modes
+
+**Part 2: Migrate Rendering Logic** (5-6h)
+- For each view mode: Create/enhance scheme class
+- Move rendering logic FROM `WorldMapRendererNode.RenderXXX()` TO `Scheme.Render()`
+- Move helper methods (quantiles, color mapping) into schemes
+- Delete old render methods from WorldMapRendererNode
+- Order: Simple (Grayscale, Plates) → Statistical (Elevation, Temperature) → Complex (FlowAccumulation)
+
+**Part 3: Simplify Renderer** (1-2h)
+- Replace 207-line switch with scheme registry lookup
+- Delete all `RenderXXX()` methods (now in schemes)
+- Delete all helpers (`CalculateQuantilesLandOnly`, etc.) (now in schemes)
+- **Result**: WorldMapRendererNode shrinks from 1622 → ~400 lines (75% reduction!)
+
+**Part 4: Probe Simplification** (Optional, 2-3h)
+- Create `IProbeDataProvider` abstraction
+- Each scheme provides probe data formatting
+- WorldMapProbeNode uses registry lookup (no 69-line switch)
+- **Result**: WorldMapProbeNode shrinks from 1167 → ~300 lines (74% reduction!)
+
+**Acceptance Criteria (Simplified)**:
+1. ✅ `IColorScheme.Render()` implemented by all schemes
+2. ✅ WorldMapRendererNode's 207-line switch → scheme registry lookup
+3. ✅ ALL 17 view modes render identically (visual regression)
+4. ✅ WorldMapRendererNode < 500 lines (from 1622, **-1100+ lines**)
+5. ✅ Zero business logic in WorldMapRendererNode (grep verification)
+6. ✅ All existing tests GREEN
+
+**Why This Is Superior**:
+- **Simplicity**: Move logic once (not create queries → move → refactor schemes)
+- **Zero DTOs**: No intermediate data structures for visualization-only data
+- **Clear Responsibility**: Schemes own rendering, Core owns game rules
+- **True Strategy Pattern**: Schemes = self-contained rendering algorithms (not just color lookups)
+- **Timeline**: 10-12h (vs 12-16h for 2-phase)
+
+**Pragmatic Boundary**:
+| Logic Type | Where It Lives | Rationale |
+|------------|----------------|-----------|
+| Quantile Calculations | Color Schemes | Visualization decision (how to map data to colors) |
+| Color Mapping | Color Schemes | Pure rendering concern |
+| Water Body Classification | Core Queries | Game rule (used by pathfinding, spawning, etc.) - **FUTURE** |
+| Flow Percentile Ranks | Core Queries | Game rule (river classification for erosion/nav) - **FUTURE** |
+
+**Note**: Water classification/flow ranks WILL move to Core when VS_030 needs them for pathfinding. For now, they stay in schemes (YAGNI principle - don't create abstractions before they're needed by 2+ systems).
+
+**Recommendation**: Proceed with Option B (single-phase, schemes own rendering). If VS_030 later needs water classification as game logic, THEN create Core queries (refactor when pain validated, not speculatively).
+
+---
+
+**Dev Engineer Implementation** (2025-10-14 14:28 - COMPLETED):
+
+**Result**: ✅ **TD_025 COMPLETE - 100% of 17 view modes migrated using Option B single-phase approach**
+
+**Implementation Summary**:
+- Implemented `Image? Render(WorldGenerationResult data, MapViewMode viewMode)` in IColorScheme interface
+- Migrated ALL 17 view modes to use self-contained scheme rendering
+- WorldMapRendererNode simplified from 1622 → 332 lines (80% reduction!)
+- Zero Core queries created - visualization logic properly encapsulated in schemes (YAGNI validated)
+
+**Schemes Migrated (in order)**:
+1. **GrayscaleScheme** (1 mode: RawElevation) - Simple min/max normalization baseline
+2. **TemperatureScheme** (4 modes: LatitudeOnly, WithNoise, WithDistance, Final) - Quantile-based discrete bands (7 climate zones)
+3. **PrecipitationScheme** (5 modes: NoiseOnly, TemperatureShaped, Base, WithRainShadow, Final) - Smooth 3-stop gradient (Yellow→Green→Blue)
+4. **FlowDirectionScheme** (1 mode: FlowDirections) - Discrete 9-color D-8 direction mapping
+5. **FlowAccumulationScheme** (1 mode: FlowAccumulation) - Complex two-layer naturalistic rendering (terrain base + water network overlay, log-scaled alpha blending)
+6. **MarkerScheme base + 3 subclasses**:
+   - **SinksMarkerScheme** (2 modes: SinksPreFilling, SinksPostFilling) - Grayscale + red markers with dual-mode data sourcing
+   - **RiverSourcesMarkerScheme** (1 mode: RiverSources) - Grayscale + red markers
+   - **HotspotsMarkerScheme** (1 mode: ErosionHotspots) - Grayscale + magenta markers with p95 flow detection logic
+7. **ElevationScheme** (2 modes: ColoredOriginalElevation, ColoredPostProcessedElevation) - **Most complex**: 4-layer architecture (statistical analysis, water rendering, land rendering, shoreline blending), ~340 lines migrated
+
+**Technical Achievements**:
+- **Strategy Pattern**: Each scheme owns complete rendering pipeline (quantiles, color mapping, statistical analysis)
+- **SSOT Maintained**: Colors defined once in schemes, legends auto-generate
+- **Helper Methods Migrated**: ~15 helper methods moved into appropriate schemes (CalculateQuantilesLandOnly, GetTerrainColor, SmoothStep, etc.)
+- **Backward Compatibility**: Schemes return null to fall back to legacy rendering (dual pattern support during migration)
+- **ViewMode Context**: Enhanced interface with `MapViewMode viewMode` parameter for multi-mode schemes (temperature, precipitation, sinks)
+- **Data Source Fallbacks**: Smart prioritization (e.g., `FilledHeightmap ?? PostProcessedHeightmap ?? Heightmap`)
+
+**Code Metrics**:
+- Lines migrated from WorldMapRendererNode: ~750 lines
+- Lines added to schemes: ~950 lines
+- Switch cases auto-removed by linter: ~250 lines
+- Net architecture improvement: Logic properly encapsulated, renderer simplified to thin orchestrator
+- **Final Result**: WorldMapRendererNode: 1622 → 332 lines (**80% reduction**)
+
+**Validation**:
+- All 17 view modes build successfully (0 warnings, 0 errors)
+- Visual regression expected: Identical rendering output (same algorithms, different location)
+- Ready for runtime testing
+
+**What Was NOT Done** (intentionally deferred per YAGNI):
+- ❌ Core queries for water classification (not needed until VS_030 pathfinding requires it for 2+ systems)
+- ❌ Core queries for quantile calculations (visualization-only logic, properly stays in schemes)
+- ❌ WorldMapProbeNode refactoring (probe abstraction deferred - working fine, separate concern)
+
+**Why Option B Was Correct**:
+- Zero DTO proliferation (no intermediate data structures for visualization)
+- Single refactoring pass (not create queries → move logic → refactor schemes)
+- Clear responsibility boundary validated: Schemes own HOW to display, Core owns WHAT game state exists
+- Timeline met: ~12h actual vs 10-12h estimated (Option A would have been 16h+ with unnecessary DTOs)
+
+**Commits Created**:
+- `eae19b8` - Implementation: All 17 view modes migrated to color schemes
+- `a4d0a0f` - Cleanup: Removed dead code from WorldMapRendererNode
+
+**Next Steps** (completed post-implementation):
+1. ✅ Runtime testing of all 17 view modes (visual validation) - User confirmed working
+2. ✅ Clean up dead code in WorldMapRendererNode (remove old RenderXXX methods) - Completed in cleanup commit
+3. Optional: WorldMapProbeNode abstraction (separate TD item if pain validated)
+
+---
+**Extraction Targets**:
+- [ ] ADR needed for: Visualization logic vs game logic boundary (YAGNI principle for Core extraction), color scheme as complete rendering pipeline (strategy pattern enhancement), interface evolution pattern (add Render() while keeping GetColor() for backward compatibility)
+- [ ] HANDBOOK update: Strategy pattern with self-contained algorithms (schemes own quantiles + color mapping + rendering), refactoring decision tree (when to extract to Core vs keep in Presentation), YAGNI validation pattern (defer abstractions until 2+ systems need them)
+- [ ] Test pattern: Visual regression testing (ensure identical output after refactor), architectural boundary verification (grep for business logic in Presentation)
+
+---
+
 ### TD_023: Enhance Pit-Filling to Expose Basin Metadata + Visualization
 **Extraction Status**: NOT EXTRACTED ⚠️
 **Completed**: 2025-10-13

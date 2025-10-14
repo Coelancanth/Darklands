@@ -1,19 +1,22 @@
 # Backlog Archive Index
 
-**Last Updated**: 2025-10-11 05:28
-**Current Active Archive**: Completed_Backlog_2025-10_Part4.md (Lines: 39/2000)
+**Last Updated**: 2025-10-14 14:36
+**Current Active Archive**: Completed_Backlog_2025-10_Part4.md (Lines: 1211/2000)
 
 ## Archive Files (Newest First)
 
 ### Completed_Backlog_2025-10_Part4.md (✅ ACTIVE - October 2025 Part 4)
 - **Created**: 2025-10-11 05:28 (after rotation)
-- **Line Count**: 186/2000
-- **Date Range**: 2025-10-11 to 2025-10-11
-- **Status**: ✅ Active (1814 lines remaining)
-- **Extraction Status**: 0/1 extracted (1 NOT EXTRACTED ⚠️)
+- **Line Count**: 1211/2000
+- **Date Range**: 2025-10-11 to 2025-10-14
+- **Status**: ✅ Active (789 lines remaining)
+- **Extraction Status**: 0/4 extracted (4 NOT EXTRACTED ⚠️)
 
 **Items**:
 - **VS_032**: Equipment Slots System (Phases 1-4/6 Complete - Domain, Commands, Queries, Presentation layers with 40 new tests GREEN, 488 total, parent-driven data pattern 80% query reduction, atomic operations with rollback, two-handed weapon validation) [NOT EXTRACTED ⚠️]
+- **TD_021**: Sea Level SSOT and Normalized Scale Foundation (WorldGenConstants.SEA_LEVEL_RAW=1.0f SSOT, SeaLevelNormalized for rendering, ocean probe simplification, 538 Core tests GREEN, 10 files changed) [NOT EXTRACTED ⚠️]
+- **TD_023**: Enhance Pit-Filling to Expose Basin Metadata + Visualization (Basin metadata exposed, BasinMetadata view mode, flood-fill algorithm fixes, ColoredElevation water rendering fixed, unified water-land gradient with seamless shoreline blending, 228 tests GREEN, 7 steps complete) [NOT EXTRACTED ⚠️]
+- **TD_025**: WorldMap Rendering Architecture Refactor (17 view modes migrated to schemes, WorldMapRendererNode 1622→332 lines 80% reduction, Option B single-phase YAGNI validated, zero Core queries, commits eae19b8+a4d0a0f) [NOT EXTRACTED ⚠️]
 
 ### Completed_Backlog_2025-10_Part3.md (🔒 SEALED - October 2025 Part 3)
 - **Created**: 2025-10-08 06:09 (after rotation)
@@ -105,9 +108,9 @@
 
 **Find an Item**:
 1. Check Archive_Index.md for which file contains the item
-2. Open that specific archive file (newest first: Completed_Backlog_2025-10_Part2.md)
+2. Open that specific archive file (newest first: Completed_Backlog_2025-10_Part4.md)
 3. Use Ctrl+F to search for item ID
 
-**Current Active Capacity**: 186/2000 lines (1814 lines remaining)
-**Total Archived Items**: 32 (29 in Oct 2025, 3 in Sept 2025)
+**Current Active Capacity**: 1211/2000 lines (789 lines remaining)
+**Total Archived Items**: 35 (32 in Oct 2025, 3 in Sept 2025)
 **Archive Files**: 6 total (1 active, 5 sealed)

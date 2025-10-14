@@ -1,5 +1,7 @@
 using Godot;
 using System.Collections.Generic;
+using Darklands.Core.Features.WorldGen.Application.Common;
+using Darklands.Core.Features.WorldGen.Application.DTOs;
 
 namespace Darklands.Features.WorldGen.ColorSchemes;
 
@@ -53,5 +55,37 @@ public class FlowDirectionScheme : IColorScheme
         colorIndex = Mathf.Clamp(colorIndex, 0, 8);
 
         return DirectionColors[colorIndex];
+    }
+
+    /// <summary>
+    /// [TD_025] Complete rendering pipeline - renders D-8 flow directions with discrete color mapping.
+    /// Migrated from WorldMapRendererNode.RenderFlowDirections().
+    /// Each cell colored by flow direction: N=Red, NE=Yellow, E=Green, SE=Cyan, S=Blue, SW=Purple, W=Magenta, NW=Orange, Sink=Black.
+    /// </summary>
+    public Image? Render(WorldGenerationResult data, MapViewMode viewMode)
+    {
+        // FlowDirections only available in Phase1Erosion
+        if (data.Phase1Erosion?.FlowDirections == null)
+        {
+            return null;  // Flow directions not available - fall back to legacy rendering
+        }
+
+        int[,] flowDirections = data.Phase1Erosion.FlowDirections;
+        int h = flowDirections.GetLength(0);
+        int w = flowDirections.GetLength(1);
+        var image = Image.CreateEmpty(w, h, false, Image.Format.Rgb8);
+
+        // Render each cell with direction-based color
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                int dir = flowDirections[y, x];
+                int colorIndex = dir == -1 ? 8 : dir;  // -1 (sink) → index 8, 0-7 → 0-7
+                image.SetPixel(x, y, DirectionColors[colorIndex]);
+            }
+        }
+
+        return image;
     }
 }
